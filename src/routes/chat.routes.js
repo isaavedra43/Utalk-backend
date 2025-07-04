@@ -1,8 +1,8 @@
 const router = require('express').Router();
-const { handleWebhook, sendMessage, getMessages } = require('../controllers/chat.controller');
+const chatController = require('../controllers/chat.controller');
 
-router.post('/webhook', handleWebhook);
-router.post('/send', sendMessage);
-router.get('/messages', getMessages);
+router.post('/webhook', chatController.receiveIncoming);
+router.post('/send', chatController.sendOutgoing);
+router.get('/messages', chatController.listLast);
 
 module.exports = router;

@@ -1,31 +1,24 @@
 const admin = require('firebase-admin');
 const db = admin.firestore();
 
-exports.saveIncoming = (sid, from, body) => {
+exports.saveIncoming = (msg) => {
   return db.collection('messages').add({
-    sid,
-    from,
-    body,
-    direction: 'in',
+    ...msg,
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   });
 };
 
-exports.saveOutgoing = (sid, from, to, body) => {
+exports.saveOutgoing = (msg) => {
   return db.collection('messages').add({
-    sid,
-    from,
-    to,
-    body,
-    direction: 'out',
+    ...msg,
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   });
 };
 
-exports.fetchRecent = async (limit = 50) => {
-  const snap = await db.collection('messages')
+exports.getLastMessages = (limit) => {
+  return db.collection('messages')
     .orderBy('timestamp', 'desc')
     .limit(limit)
-    .get();
-  return snap.docs.map(doc => doc.data());
+    .get()
+    .then(snapshot => snapshot.docs.map(doc => doc.data()));
 };

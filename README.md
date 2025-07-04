@@ -1,20 +1,32 @@
-# Utalk-backend
+# Utalk-Backend
 
-## Setup
+## Estructura
 
-1. Configurar variables de entorno en Railway o local:
-   - TWILIO_ACCOUNT_SID
-   - TWILIO_AUTH_TOKEN
-   - TWILIO_WHATSAPP_NUMBER
-   - FIREBASE_SERVICE_ACCOUNT_JSON (stringified JSON de la cuenta de servicio)
-   - FIREBASE_DATABASE_URL
+```
+utalk-backend/
+├── package.json
+├── src/
+│   ├── constants.js
+│   ├── server.js
+│   ├── routes/
+│   │   └── chat.routes.js
+│   ├── controllers/
+│   │   └── chat.controller.js
+│   └── services/
+│       ├── twilio.service.js
+│       └── firestore.service.js
+└── README.md
+```
 
-2. Instalar dependencias:
-   ```bash
-   npm install
-   ```
+## Instalación
 
-3. Ejecutar servidor:
-   ```bash
-   npm start
-   ```
+1. `npm install`
+2. Configura variables de entorno:
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_WHATSAPP_NUMBER`
+   - `FIREBASE_SERVICE_ACCOUNT` (JSON stringificado)
+   - `FIREBASE_DATABASE_URL`
+3. `npm start`
+
+La API escucha en `GET /` y `/api/chat`.
