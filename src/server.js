@@ -30,13 +30,13 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // monta el router de chat (toda la lógica de mensajes entrantes/salientes)
-const chatRoutes = require('./src/routes/chat.routes');
+const chatRoutes = require('./routes/chat.routes');
 app.use('/api/chat', chatRoutes);
 
 // más adelante, cuando tengas crm.routes.js y dashboard.routes.js:
-// const crmRoutes = require('./src/routes/crm.routes');
+// const crmRoutes = require('./routes/crm.routes');
 // app.use('/api/crm', crmRoutes);
-// const dashboardRoutes = require('./src/routes/dashboard.routes');
+// const dashboardRoutes = require('./routes/dashboard.routes');
 // app.use('/api/dashboard', dashboardRoutes);
 
 // ruta raíz de comprobación
