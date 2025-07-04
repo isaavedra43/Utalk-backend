@@ -3,24 +3,24 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-// importa tus constantes (están al mismo nivel que server.js dentro de src/)
+// IMPORTA las constantes desde la carpeta raíz
 const {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
   TWILIO_WHATSAPP_NUMBER,
   FIREBASE_SERVICE_ACCOUNT,
   FIREBASE_DATABASE_URL
-} = require('./constants');
+} = require('../constants');
 
 const admin = require('firebase-admin');
-// inicialización de Firebase Admin
+// Inicialización de Firebase Admin
 admin.initializeApp({
   credential: admin.credential.cert(FIREBASE_SERVICE_ACCOUNT),
   databaseURL: FIREBASE_DATABASE_URL
 });
 const db = admin.firestore();
 
-// inicialización de Twilio
+// Inicialización de Twilio
 const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
 const app = express();
@@ -28,16 +28,11 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// monta el router de chat (ahora bien referenciado)
+// monta el router de chat (ajustado al path correcto)
 const chatRoutes = require('./routes/chat.routes');
 app.use('/api/chat', chatRoutes);
 
-// aquí, en el futuro, montarías crm.routes y dashboard.routes igual:
-// const crmRoutes       = require('./routes/crm.routes');
-// app.use('/api/crm', crmRoutes);
-// const dashboardRoutes = require('./routes/dashboard.routes');
-// app.use('/api/dashboard', dashboardRoutes);
-
+// ruta raíz de comprobación
 app.get('/', (_req, res) => {
   res.send('🟢 Utalk-Backend funcionando');
 });
