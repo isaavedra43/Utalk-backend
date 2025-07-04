@@ -1,74 +1,91 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
+const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const admin = require('firebase-admin');
-const {
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN,
-  TWILIO_WHATSAPP_NUMBER,
-  FIREBASE_SERVICE_ACCOUNT,
-  FIREBASE_DATABASE_URL
-} = require('./constants');
+
+const serviceAccount = JSON.parse(
+  Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString()
+);
 
 admin.initializeApp({
-  credential: admin.credential.cert(FIREBASE_SERVICE_ACCOUNT),
-  databaseURL: FIREBASE_DATABASE_URL
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: process.env.FIREBASE_DATABASE_URL
 });
+
 const db = admin.firestore();
-const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 
 const app = express();
 app.use(cors());
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use((req, _, next) => { console.log(`${req.method} ${req.path}`); next(); });
 
-// Webhook Twilio: recibe mensajes entrantes
+// Recibir mensajes entrantes desde Twilio
 app.post('/webhook', async (req, res) => {
-  const { From, Body, MessageSid } = req.body;
-  await db.collection('messages').add({
-    sid: MessageSid,
-    from: From,
-    body: Body,
-    direction: 'in',
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  });
+  try {
+    const { From, Body, MessageSid, SmsStatus } = req.body;
+    const phone = From.replace('whatsapp:', '');
+    // 1) guardar mensaje
+    await db.collection('messages').add({
+      sid: MessageSid,
+      from: phone,
+      body: Body,
+      direction: 'in',
+      status: SmsStatus,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    // 2) upsert contacto
+    await db.collection('contacts').doc(phone).set({
+      phone,
+      channel: 'whatsapp',
+      lastMessage: Body,
+      lastTimestamp: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.error('Webhook error:', e);
+  }
   res.set('Content-Type', 'text/xml');
   res.send('<Response></Response>');
 });
 
-// Enviar mensaje
+// Enviar mensaje vía Twilio + almacenar
 app.post('/send', async (req, res) => {
   const { to, body } = req.body;
   try {
+    const dest = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
     const msg = await twilioClient.messages.create({
-      from: TWILIO_WHATSAPP_NUMBER,
-      to: to.startsWith('whatsapp:') ? to : `whatsapp:${to}`,
+      from: process.env.TWILIO_WHATSAPP_NUMBER,
+      to: dest,
       body
     });
     await db.collection('messages').add({
       sid: msg.sid,
-      from: TWILIO_WHATSAPP_NUMBER,
-      to: msg.to,
+      from: process.env.TWILIO_WHATSAPP_NUMBER,
+      to: msg.to.replace('whatsapp:', ''),
       body: msg.body,
       direction: 'out',
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
     res.json({ success: true, sid: msg.sid });
   } catch (error) {
+    console.error('Send error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Obtener mensajes
+// Listar últimos 50 mensajes
 app.get('/messages', async (req, res) => {
   const snapshot = await db.collection('messages')
     .orderBy('timestamp', 'desc')
     .limit(50)
     .get();
-  const messages = snapshot.docs.map(doc => doc.data());
-  res.json(messages);
+  res.json(snapshot.docs.map(d => d.data()));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor escuchando en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Listening on ${PORT}`));
