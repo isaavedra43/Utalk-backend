@@ -1,18 +1,16 @@
-// server.js (en la raíz del proyecto)
+// src/server.js
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-// importa tus constantes de configuración (Twilio, Firebase, etc.)
 const {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
   TWILIO_WHATSAPP_NUMBER,
   FIREBASE_SERVICE_ACCOUNT,
   FIREBASE_DATABASE_URL
-} = require('./constants');
+} = require('../constants');   // <<– constants.js está un nivel arriba
 
-// inicialización de Firebase Admin
 const admin = require('firebase-admin');
 admin.initializeApp({
   credential: admin.credential.cert(FIREBASE_SERVICE_ACCOUNT),
@@ -20,32 +18,25 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 
-// inicialización de Twilio
 const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-// crea la app de Express
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// monta el router de chat (toda la lógica de mensajes entrantes/salientes)
-// ¡OJO! ajusta aquí la ruta al archivo dentro de src/
-const chatRoutes = require('./src/routes/chat.routes');
+// <-- Aquí elimina el 'src/' extra, porque server.js ya está en src/
+const chatRoutes = require('./routes/chat.routes');
 app.use('/api/chat', chatRoutes);
 
-// en el futuro, para crm y dashboard:
-// const crmRoutes       = require('./src/routes/crm.routes');
-// const dashboardRoutes = require('./src/routes/dashboard.routes');
+// futura integración de crm y dashboard:
+// const crmRoutes       = require('./routes/crm.routes');
+// const dashboardRoutes = require('./routes/dashboard.routes');
 // app.use('/api/crm', crmRoutes);
 // app.use('/api/dashboard', dashboardRoutes);
 
-// ruta raíz de comprobación
-app.get('/', (_req, res) => {
-  res.send('🟢 Utalk-Backend funcionando');
-});
+app.get('/', (_req, res) => res.send('🟢 Utalk-Backend funcionando'));
 
-// arranca el servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en puerto ${PORT}`);
