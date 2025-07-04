@@ -1,4 +1,4 @@
-// server.js
+// server.js (en la raíz del proyecto)
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -30,13 +30,14 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // monta el router de chat (toda la lógica de mensajes entrantes/salientes)
-const chatRoutes = require('./routes/chat.routes');
+// ¡OJO! ajusta aquí la ruta al archivo dentro de src/
+const chatRoutes = require('./src/routes/chat.routes');
 app.use('/api/chat', chatRoutes);
 
-// más adelante, cuando tengas crm.routes.js y dashboard.routes.js:
-// const crmRoutes = require('./routes/crm.routes');
+// en el futuro, para crm y dashboard:
+// const crmRoutes       = require('./src/routes/crm.routes');
+// const dashboardRoutes = require('./src/routes/dashboard.routes');
 // app.use('/api/crm', crmRoutes);
-// const dashboardRoutes = require('./routes/dashboard.routes');
 // app.use('/api/dashboard', dashboardRoutes);
 
 // ruta raíz de comprobación
