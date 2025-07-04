@@ -1,32 +1,20 @@
-# UTalk Backend Template
+# Utalk-backend
 
-Backend básico para mensajería WhatsApp con Twilio y Firebase Firestore.
+## Setup
 
-## Uso
+1. Configurar variables de entorno en Railway o local:
+   - TWILIO_ACCOUNT_SID
+   - TWILIO_AUTH_TOKEN
+   - TWILIO_WHATSAPP_NUMBER
+   - FIREBASE_SERVICE_ACCOUNT_JSON (stringified JSON de la cuenta de servicio)
+   - FIREBASE_DATABASE_URL
 
-1. Rellena `constants.js` con tus credenciales de Twilio y Firebase.
-2. Instala dependencias:
+2. Instalar dependencias:
    ```bash
    npm install
    ```
-3. Arranca el servidor:
+
+3. Ejecutar servidor:
    ```bash
    npm start
    ```
-
-## Endpoints
-
-- **POST** `/webhook`  
-  Webhook para Twilio. Guarda mensajes entrantes en Firestore.
-
-- **POST** `/send`  
-  Envía un mensaje. Body:
-  ```json
-  {
-    "to": "+1234567890",
-    "body": "Tu mensaje aquí"
-  }
-  ```
-
-- **GET** `/messages`  
-  Obtiene los últimos 50 mensajes (ordenados por fecha).
