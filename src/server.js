@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-// 1) Carga tus constantes desde src/constants.js
+// 1) Importa las constantes desde src/constants.js
 const {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
@@ -32,19 +32,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const chatRoutes = require('./routes/chat.routes');
 app.use('/api/chat', chatRoutes);
 
-// 6) Rutas futuras CRM y Dashboard
+// 6) En el futuro: CRM y Dashboard
 // const crmRoutes = require('./routes/crm.routes');
 // app.use('/api/crm', crmRoutes);
 // const dashboardRoutes = require('./routes/dashboard.routes');
 // app.use('/api/dashboard', dashboardRoutes);
 
-// 7) Ruta de verificación
-app.get('/', (_req, res) => {
-  res.send('🟢 Utalk-Backend funcionando');
-});
+// 7) Sanity check
+app.get('/', (_req, res) => res.send('🟢 Utalk-Backend funcionando'));
 
-// 8) Inicia el servidor
+// 8) Arranca el servidor
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en puerto ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Servidor escuchando en puerto ${PORT}`));
