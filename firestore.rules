@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Función para verificar autenticación
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Función para verificar si es el propietario
+    function isOwner(resource) {
+      return request.auth.uid == resource.data.userId;
+    }
+    
+    // Función para verificar rol de administrador
+    function isAdmin() {
+      return request.auth.token.role == 'admin';
+    }
+    
+    // Función para verificar rol de agente o superior
+    function isAgentOrAbove() {
+      return request.auth.token.role in ['admin', 'agent'];
+    }
+    
+    // Usuarios - solo pueden acceder a su propia información
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && 
+        (request.auth.uid == userId || isAdmin());
+    }
+    
+    // Contactos - agentes y admins pueden leer/escribir
+    match /contacts/{contactId} {
+      allow read, write: if isAuthenticated() && isAgentOrAbove();
+      allow create: if isAuthenticated() && isAgentOrAbove() && 
+        request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Conversaciones - agentes y admins pueden leer/escribir
+    match /conversations/{conversationId} {
+      allow read, write: if isAuthenticated() && isAgentOrAbove();
+      allow create: if isAuthenticated() && isAgentOrAbove();
+      
+      // Mensajes dentro de conversaciones
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated() && isAgentOrAbove();
+        allow create: if isAuthenticated() && isAgentOrAbove();
+      }
+    }
+    
+    // Campañas - agentes y admins pueden leer/escribir
+    match /campaigns/{campaignId} {
+      allow read, write: if isAuthenticated() && isAgentOrAbove();
+      allow create: if isAuthenticated() && isAgentOrAbove() &&
+        request.resource.data.createdBy == request.auth.uid;
+    }
+    
+    // Base de conocimiento - agentes pueden leer, admins pueden escribir
+    match /knowledge/{knowledgeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated() && isAdmin() &&
+        request.resource.data.createdBy == request.auth.uid;
+    }
+    
+    // Métricas del dashboard - solo lectura para autenticados
+    match /dashboard/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Equipo - admins pueden gestionar, otros solo leer
+    match /team/{memberId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+      allow create: if isAdmin();
+    }
+    
+    // Configuraciones del sistema - solo admins
+    match /settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Logs y auditoría - solo admins pueden leer
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated(); // Los logs se crean automáticamente
+    }
+  }
+} 
