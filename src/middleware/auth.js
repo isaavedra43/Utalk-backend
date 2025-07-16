@@ -124,6 +124,9 @@ const requireAdmin = requireRole(['admin']);
  */
 const requireAgentOrAdmin = requireRole(['agent', 'admin']);
 
+// EXPORT PATTERN: Object with multiple middleware functions
+// This pattern allows importing specific middlewares with destructuring:
+// const { authMiddleware, requireAdmin } = require('./auth');
 module.exports = {
   authMiddleware,
   requireRole,

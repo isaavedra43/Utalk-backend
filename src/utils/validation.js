@@ -457,6 +457,8 @@ const rateLimitConfig = {
   'default': { windowMs: 15 * 60 * 1000, max: 1000 }, // 1000 requests por 15 min
 };
 
+// EXPORT PATTERN: Object with multiple utility functions and schemas
+// USAGE: const { validate, schemas } = require('./validation');
 module.exports = {
   validate,
   validateQuery,

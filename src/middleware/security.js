@@ -318,6 +318,10 @@ const applySecurity = () => {
   ];
 };
 
+// EXPORT PATTERN: Object with multiple middleware functions
+// USAGE STATUS: Not used currently - Advanced security middleware collection
+// This pattern allows importing specific security middlewares with destructuring:
+// const { securityHeaders, csrfProtection } = require('./security');
 module.exports = {
   securityHeaders,
   validateOrigin,

@@ -105,4 +105,6 @@ router.post('/import',
   ContactController.importCSV
 );
 
+// EXPORT PATTERN: Single router export (STANDARD for all routes)
+// USAGE: const contactRoutes = require('./routes/contacts');
 module.exports = router; 

@@ -99,4 +99,6 @@ function getFirebaseAuthErrorMessage(code) {
   return errorMessages[code] || 'Error de autenticación';
 }
 
+// EXPORT PATTERN: Single function export
+// USAGE: const errorHandler = require('./errorHandler');
 module.exports = errorHandler; 

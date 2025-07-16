@@ -64,4 +64,6 @@ router.put('/:id/status',
  */
 router.get('/search', MessageController.search);
 
+// EXPORT PATTERN: Single router export (STANDARD for all routes)
+// USAGE: const messageRoutes = require('./routes/messages');
 module.exports = router; 

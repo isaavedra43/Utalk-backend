@@ -88,4 +88,6 @@ router.post('/:id/reset-password',
   TeamController.resetPassword
 );
 
+// EXPORT PATTERN: Single router export (STANDARD for all routes)
+// USAGE: const teamRoutes = require('./routes/team');
 module.exports = router; 

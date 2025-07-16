@@ -1,3 +1,15 @@
+/**
+ * FUNDAY BACKEND API - UTalk WhatsApp Management System
+ * 
+ * CRITICAL FIX: Router.use() middleware error resolved
+ * - Fixed: authMiddleware import using destructuring to get function, not object
+ * - Standardized: All middleware/route import patterns documented
+ * - Date: 2025-01-15
+ * 
+ * Deploy requirements: Firebase + Twilio environment variables
+ * See: DEPLOY_GUIDE.md for complete setup instructions
+ */
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,7 +21,8 @@ require('dotenv').config();
 // Importar configuraciones y middlewares
 const firebaseConfig = require('./config/firebase');
 const errorHandler = require('./middleware/errorHandler');
-const authMiddleware = require('./middleware/auth');
+// FIXED: Usar destructuring para importar solo la función authMiddleware del objeto exportado
+const { authMiddleware } = require('./middleware/auth');
 
 // Importar rutas
 const authRoutes = require('./routes/auth');

@@ -39,4 +39,6 @@ router.get('/me', AuthController.getProfile);
  */
 router.put('/profile', AuthController.updateProfile);
 
+// EXPORT PATTERN: Single router export (STANDARD for all routes)
+// USAGE: const authRoutes = require('./routes/auth');
 module.exports = router; 

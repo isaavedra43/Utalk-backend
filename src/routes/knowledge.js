@@ -85,4 +85,6 @@ router.post('/:id/unpublish',
   KnowledgeController.unpublish
 );
 
+// EXPORT PATTERN: Single router export (STANDARD for all routes)
+// USAGE: const knowledgeRoutes = require('./routes/knowledge');
 module.exports = router; 

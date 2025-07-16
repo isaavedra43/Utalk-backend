@@ -97,4 +97,6 @@ router.get('/:id/report',
   CampaignController.getReport
 );
 
+// EXPORT PATTERN: Single router export (STANDARD for all routes)
+// USAGE: const campaignRoutes = require('./routes/campaigns');
 module.exports = router; 
