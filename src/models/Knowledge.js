@@ -1,5 +1,6 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
+const { prepareForFirestore } = require('../utils/firestore');
 
 class Knowledge {
   constructor (data) {
@@ -40,11 +41,14 @@ class Knowledge {
       knowledge.publishedAt = FieldValue.serverTimestamp();
     }
 
-    await firestore.collection('knowledge').doc(knowledge.id).set({
+    // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
+    const cleanData = prepareForFirestore({
       ...knowledge,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    await firestore.collection('knowledge').doc(knowledge.id).set(cleanData);
 
     return knowledge;
   }
@@ -234,7 +238,10 @@ class Knowledge {
       validUpdates.publishedAt = FieldValue.serverTimestamp();
     }
 
-    await firestore.collection('knowledge').doc(this.id).update(validUpdates);
+    // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
+    const cleanUpdates = prepareForFirestore(validUpdates);
+
+    await firestore.collection('knowledge').doc(this.id).update(cleanUpdates);
 
     // Actualizar propiedades locales
     Object.assign(this, updates);

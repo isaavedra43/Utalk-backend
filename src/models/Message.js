@@ -1,5 +1,6 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
+const { prepareForFirestore } = require('../utils/firestore');
 
 class Message {
   constructor (data) {
@@ -25,12 +26,16 @@ class Message {
    */
   static async create (messageData) {
     const message = new Message(messageData);
-    await firestore.collection('messages').doc(message.id).set({
+    
+    // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
+    const cleanData = prepareForFirestore({
       ...message,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       timestamp: FieldValue.serverTimestamp(),
     });
+    
+    await firestore.collection('messages').doc(message.id).set(cleanData);
     return message;
   }
 
@@ -211,7 +216,11 @@ class Message {
    * Actualizar mensaje
    */
   async update (updates) {
-    const validUpdates = { ...updates, updatedAt: FieldValue.serverTimestamp() };
+    const validUpdates = prepareForFirestore({ 
+      ...updates, 
+      updatedAt: FieldValue.serverTimestamp() 
+    });
+    
     await firestore.collection('messages').doc(this.id).update(validUpdates);
 
     // Actualizar propiedades locales

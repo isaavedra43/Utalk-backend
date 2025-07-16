@@ -1,4 +1,5 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
+const { prepareForFirestore } = require('../utils/firestore');
 
 class User {
   constructor (data) {
@@ -19,11 +20,15 @@ class User {
    */
   static async create (userData) {
     const user = new User(userData);
-    await firestore.collection('users').doc(user.uid).set({
+    
+    // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
+    const cleanData = prepareForFirestore({
       ...user,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    
+    await firestore.collection('users').doc(user.uid).set(cleanData);
     return user;
   }
 
@@ -84,7 +89,11 @@ class User {
    * Actualizar usuario
    */
   async update (updates) {
-    const validUpdates = { ...updates, updatedAt: FieldValue.serverTimestamp() };
+    const validUpdates = prepareForFirestore({ 
+      ...updates, 
+      updatedAt: FieldValue.serverTimestamp() 
+    });
+    
     await firestore.collection('users').doc(this.uid).update(validUpdates);
 
     // Actualizar propiedades locales

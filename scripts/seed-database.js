@@ -7,6 +7,7 @@
 
 require('dotenv').config();
 const { firestore, auth, FieldValue } = require('../src/config/firebase');
+const { prepareForFirestore } = require('../src/utils/firestore');
 
 const seedData = {
   users: [
@@ -165,11 +166,12 @@ async function seedDatabase() {
         await auth.setCustomUserClaims(userData.uid, { role: userData.role });
 
         // Crear en Firestore
-        await firestore.collection('users').doc(userData.uid).set({
+        const cleanUserData = prepareForFirestore({
           ...userData,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         });
+        await firestore.collection('users').doc(userData.uid).set(cleanUserData);
 
         console.log(`  ✅ Usuario creado: ${userData.email}`);
       } catch (error) {
@@ -185,12 +187,13 @@ async function seedDatabase() {
     console.log('📞 Creando contactos...');
     for (const contactData of seedData.contacts) {
       const docRef = firestore.collection('contacts').doc();
-      await docRef.set({
+      const cleanContactData = prepareForFirestore({
         id: docRef.id,
         ...contactData,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
       });
+      await docRef.set(cleanContactData);
       console.log(`  ✅ Contacto creado: ${contactData.name}`);
     }
 
@@ -198,7 +201,7 @@ async function seedDatabase() {
     console.log('📚 Creando base de conocimiento...');
     for (const knowledgeData of seedData.knowledge) {
       const docRef = firestore.collection('knowledge').doc();
-      await docRef.set({
+      const cleanKnowledgeData = prepareForFirestore({
         id: docRef.id,
         ...knowledgeData,
         views: 0,
@@ -207,16 +210,18 @@ async function seedDatabase() {
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
       });
+      await docRef.set(cleanKnowledgeData);
       console.log(`  ✅ Documento creado: ${knowledgeData.title}`);
     }
 
     // Crear configuraciones globales
     console.log('⚙️  Creando configuraciones...');
-    await firestore.collection('settings').doc('global').set({
+    const cleanSettingsData = prepareForFirestore({
       ...seedData.settings,
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: 'admin-user-1'
     });
+    await firestore.collection('settings').doc('global').set(cleanSettingsData);
     console.log('  ✅ Configuraciones creadas');
 
     console.log('🎉 ¡Base de datos poblada exitosamente!');

@@ -1,5 +1,6 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
+const { prepareForFirestore } = require('../utils/firestore');
 
 class Campaign {
   constructor (data) {
@@ -31,11 +32,15 @@ class Campaign {
    */
   static async create (campaignData) {
     const campaign = new Campaign(campaignData);
-    await firestore.collection('campaigns').doc(campaign.id).set({
+    
+    // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
+    const cleanData = prepareForFirestore({
       ...campaign,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    
+    await firestore.collection('campaigns').doc(campaign.id).set(cleanData);
     return campaign;
   }
 
@@ -125,7 +130,11 @@ class Campaign {
    * Actualizar campaña
    */
   async update (updates) {
-    const validUpdates = { ...updates, updatedAt: FieldValue.serverTimestamp() };
+    const validUpdates = prepareForFirestore({ 
+      ...updates, 
+      updatedAt: FieldValue.serverTimestamp() 
+    });
+    
     await firestore.collection('campaigns').doc(this.id).update(validUpdates);
 
     // Actualizar propiedades locales
