@@ -1,29 +1,28 @@
 const Joi = require('joi');
-const DOMPurify = require('dompurify');
-const { JSDOM } = require('jsdom');
-
-const window = new JSDOM('').window;
-const purify = DOMPurify(window);
+const sanitizeHtml = require('sanitize-html');
 
 /**
  * Sanitización de datos contra XSS y inyecciones
  */
 const sanitizeData = (data) => {
   if (typeof data === 'string') {
-    // Sanitizar HTML y scripts maliciosos
-    let sanitized = purify.sanitize(data, { 
-      ALLOWED_TAGS: [],
-      ALLOWED_ATTR: [],
-      KEEP_CONTENT: true
+    // Sanitizar HTML y scripts maliciosos usando sanitize-html
+    let sanitized = sanitizeHtml(data, {
+      allowedTags: [],
+      allowedAttributes: {},
+      disallowedTagsMode: 'discard',
+      textFilter: function(text) {
+        return text
+          .replace(/javascript:/gi, '')
+          .replace(/on\w+=/gi, '')
+          .replace(/data:/gi, '')
+          .replace(/vbscript:/gi, '');
+      }
     });
     
     // Escapar caracteres especiales adicionales
     sanitized = sanitized
       .replace(/[<>]/g, '')
-      .replace(/javascript:/gi, '')
-      .replace(/on\w+=/gi, '')
-      .replace(/data:/gi, '')
-      .replace(/vbscript:/gi, '')
       .trim();
     
     return sanitized;
