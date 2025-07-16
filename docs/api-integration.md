@@ -2,7 +2,7 @@
 
 Esta guía explica cómo integrar el frontend de Funday con el backend API.
 
-## Configuración Base
+## Configuración Base  S
 
 ### Variables de Entorno Frontend
 
