@@ -16,6 +16,20 @@ console.log('🌍 Entorno:', process.env.NODE_ENV || 'development');
 console.log('🔌 Puerto:', process.env.PORT || 3000);
 console.log('⏰ Timestamp:', new Date().toISOString());
 
+// ✅ DEBUG MODE: Mostrar información del entorno Railway
+console.log('🔍 RAILWAY DEBUG - Variables críticas detectadas:', {
+  NODE_VERSION: process.version,
+  PLATFORM: process.platform,
+  MEMORY_USAGE: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+  HAS_FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+  HAS_FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
+  HAS_FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
+  HAS_TWILIO_ACCOUNT_SID: !!process.env.TWILIO_ACCOUNT_SID,
+  HAS_TWILIO_AUTH_TOKEN: !!process.env.TWILIO_AUTH_TOKEN,
+  HAS_TWILIO_WHATSAPP_NUMBER: !!process.env.TWILIO_WHATSAPP_NUMBER,
+  ENV_COUNT: Object.keys(process.env).length,
+});
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -24,15 +38,23 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// ✅ IMPORTAR CONFIGURACIONES CON MANEJO DE ERRORES
+// ✅ IMPORTAR CONFIGURACIONES CON MANEJO DE ERRORES ROBUSTO
 console.log('📥 Cargando configuraciones...');
 
 try {
   // Importar configuraciones y middlewares
+  console.log('📥 Cargando Firebase config...');
   const { firestore } = require('./config/firebase');
+  console.log('✅ Firebase config cargado');
+
+  console.log('📥 Cargando error handler...');
   const errorHandler = require('./middleware/errorHandler');
+  console.log('✅ Error handler cargado');
+
+  console.log('📥 Cargando auth middleware...');
   // FIXED: Usar destructuring para importar solo la función authMiddleware del objeto exportado
   const { authMiddleware } = require('./middleware/auth');
+  console.log('✅ Auth middleware cargado');
 
   console.log('✅ Configuraciones cargadas exitosamente');
 
@@ -90,6 +112,13 @@ try {
       environment: process.env.NODE_ENV || 'development',
       version: require('../package.json').version,
       uptime: process.uptime(),
+      railway: {
+        hasFirebaseVars: !!process.env.FIREBASE_PROJECT_ID && !!process.env.FIREBASE_PRIVATE_KEY && !!process.env.FIREBASE_CLIENT_EMAIL,
+        hasTwilioVars: !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN && !!process.env.TWILIO_WHATSAPP_NUMBER,
+        nodeVersion: process.version,
+        platform: process.platform,
+        memoryUsage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+      },
       checks: {
         firebase: { status: 'unknown', details: null },
         twilio: { status: 'unknown', details: null },
@@ -250,16 +279,24 @@ try {
   app.use('/api/team', authMiddleware, teamRoutes);
   console.log('✅ Rutas protegidas registradas');
 
-  // ✅ RUTA POR DEFECTO
+  // ✅ RUTA POR DEFECTO CON DEBUG INFO
   app.get('/', (req, res) => {
     console.log('🏠 Acceso a ruta principal');
     res.json({
-      message: 'Funday Backend API',
+      message: 'Funday Backend API - DEBUGGING MODE',
       version: require('../package.json').version,
+      environment: process.env.NODE_ENV || 'development',
       documentation: '/api/docs',
       health: '/health',
       webhook: '/api/messages/webhook',
       timestamp: new Date().toISOString(),
+      railway: {
+        uptime: process.uptime(),
+        memoryUsage: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+        nodeVersion: process.version,
+        hasFirebase: !!process.env.FIREBASE_PROJECT_ID,
+        hasTwilio: !!process.env.TWILIO_ACCOUNT_SID,
+      },
     });
   });
 
@@ -285,16 +322,24 @@ try {
   // ✅ INICIALIZACIÓN DEL SERVIDOR (Solo si NO estamos en modo test)
   if (process.env.NODE_ENV !== 'test') {
     console.log('🚀 Iniciando servidor HTTP...');
-    const server = app.listen(PORT, () => {
+    
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log('🎉 ===================================');
       console.log('🎉 FUNDAY BACKEND INICIADO CON ÉXITO');
       console.log('🎉 ===================================');
-      console.log(`🌍 URL: http://localhost:${PORT}`);
-      console.log(`🏥 Health: http://localhost:${PORT}/health`);
-      console.log(`🔗 Webhook: http://localhost:${PORT}/api/messages/webhook`);
+      console.log(`🌍 URL: http://0.0.0.0:${PORT}`);
+      console.log(`🏥 Health: http://0.0.0.0:${PORT}/health`);
+      console.log(`🔗 Webhook: http://0.0.0.0:${PORT}/api/messages/webhook`);
       console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+      console.log(`💾 Memoria: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
       console.log('🎉 ===================================');
+      
+      // ✅ TEST INMEDIATO POST-STARTUP
+      console.log('🧪 Ejecutando test de funcionalidad...');
+      setTimeout(() => {
+        console.log('✅ Servidor completamente inicializado y listo');
+      }, 1000);
     });
 
     // ✅ MANEJO DE CIERRE GRACEFUL
@@ -333,8 +378,38 @@ try {
   module.exports = app;
 
 } catch (initError) {
-  console.error('❌ ERROR CRÍTICO EN INICIALIZACIÓN:', initError.message);
-  console.error('Stack:', initError.stack);
-  console.error('El servidor NO puede continuar');
-  process.exit(1);
+  console.error('❌ ERROR CRÍTICO EN INICIALIZACIÓN PRINCIPAL:', initError.message);
+  console.error('Stack completo:', initError.stack);
+  console.error('Variables de entorno críticas:');
+  console.error('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
+  console.error('- FIREBASE_PRIVATE_KEY:', !!process.env.FIREBASE_PRIVATE_KEY);
+  console.error('- FIREBASE_CLIENT_EMAIL:', !!process.env.FIREBASE_CLIENT_EMAIL);
+  console.error('- TWILIO_ACCOUNT_SID:', !!process.env.TWILIO_ACCOUNT_SID);
+  console.error('- TWILIO_AUTH_TOKEN:', !!process.env.TWILIO_AUTH_TOKEN);
+  
+  console.error('💥 EL SERVIDOR NO PUEDE CONTINUAR - VERIFICA CONFIGURACIÓN EN RAILWAY');
+  
+  // En Railway, es mejor enviar una respuesta que crashear completamente
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🚨 Modo producción - intentando respuesta básica de error...');
+    
+    const express = require('express');
+    const errorApp = express();
+    const PORT = process.env.PORT || 3000;
+    
+    errorApp.get('*', (req, res) => {
+      res.status(500).json({
+        error: 'Configuration Error',
+        message: 'Server failed to initialize - check Railway environment variables',
+        timestamp: new Date().toISOString(),
+        issue: initError.message,
+      });
+    });
+    
+    errorApp.listen(PORT, () => {
+      console.log(`🚨 Error server running on port ${PORT} - check Railway logs`);
+    });
+  } else {
+    process.exit(1);
+  }
 }

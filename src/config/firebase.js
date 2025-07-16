@@ -4,6 +4,15 @@ require('dotenv').config();
 // ✅ RAILWAY LOGGING: Inicio de inicialización Firebase
 console.log('🔥 FIREBASE - Iniciando configuración...');
 
+// ✅ DEBUG MODE: Mostrar variables de entorno (sin secretos)
+console.log('🔍 FIREBASE - Variables de entorno detectadas:', {
+  FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+  FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
+  FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
+  FIREBASE_PRIVATE_KEY_LENGTH: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.length : 0,
+  FIREBASE_PRIVATE_KEY_STARTS_WITH: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.substring(0, 20) + '...' : 'MISSING',
+});
+
 // Configuración del service account usando variables de entorno
 const serviceAccount = {
   type: process.env.FIREBASE_TYPE || 'service_account',
@@ -29,18 +38,19 @@ console.log('🔍 FIREBASE - Verificando variables de entorno...');
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingVars.length > 0) {
   console.error('❌ FIREBASE - Variables faltantes:', missingVars);
-  console.error('❌ FIREBASE - El proyecto NO puede continuar sin estas variables');
-  process.exit(1);
+  console.error('❌ FIREBASE - El proyecto INTENTARÁ continuar para debugging');
+  // ✅ NO MATAR LA APP - Solo logear el problema
 }
 
-// ✅ VERIFICACIÓN ADICIONAL: Formato de private key
+// ✅ VERIFICACIÓN ADICIONAL: Formato de private key (sin matar app)
 if (process.env.FIREBASE_PRIVATE_KEY && !process.env.FIREBASE_PRIVATE_KEY.includes('BEGIN PRIVATE KEY')) {
   console.error('❌ FIREBASE - FIREBASE_PRIVATE_KEY parece tener formato incorrecto');
   console.error('❌ FIREBASE - Debe incluir "-----BEGIN PRIVATE KEY-----"');
-  process.exit(1);
+  console.error('❌ FIREBASE - Continuando para debugging...');
+  // ✅ NO MATAR LA APP - Solo logear el problema
 }
 
-console.log('✅ FIREBASE - Variables de entorno verificadas');
+console.log('✅ FIREBASE - Variables de entorno verificadas (con warnings)');
 
 // ✅ INICIALIZACIÓN ROBUSTA CON TRY/CATCH
 let auth, firestore, FieldValue, Timestamp;
@@ -105,11 +115,46 @@ try {
     console.error('❌ FIREBASE - Problema con FIREBASE_PROJECT_ID - verificar proyecto');
   }
   
-  console.error('❌ FIREBASE - Deteniendo aplicación por error crítico');
-  process.exit(1);
+  console.error('❌ FIREBASE - Creando instancias MOCK para debugging');
+  
+  // ✅ CREAR MOCKS PARA QUE LA APP NO CRASHEE
+  auth = {
+    verifyIdToken: () => Promise.reject(new Error('Firebase no inicializado')),
+    getUser: () => Promise.reject(new Error('Firebase no inicializado')),
+  };
+  
+  firestore = {
+    collection: () => ({
+      limit: () => ({
+        get: () => Promise.reject(new Error('Firebase no inicializado')),
+      }),
+      add: () => Promise.reject(new Error('Firebase no inicializado')),
+      doc: () => ({
+        get: () => Promise.reject(new Error('Firebase no inicializado')),
+        set: () => Promise.reject(new Error('Firebase no inicializado')),
+        update: () => Promise.reject(new Error('Firebase no inicializado')),
+        delete: () => Promise.reject(new Error('Firebase no inicializado')),
+      }),
+      where: () => ({
+        limit: () => ({
+          get: () => Promise.reject(new Error('Firebase no inicializado')),
+        }),
+      }),
+    }),
+  };
+  
+  FieldValue = {
+    serverTimestamp: () => new Date(),
+  };
+  
+  Timestamp = {
+    now: () => new Date(),
+  };
+  
+  console.log('⚠️ FIREBASE - Mocks creados - la app continuará pero Firebase NO funcionará');
 }
 
-console.log('🎉 FIREBASE - Configuración completada exitosamente');
+console.log('🎉 FIREBASE - Configuración completada (con o sin errores)');
 
 module.exports = {
   admin,
