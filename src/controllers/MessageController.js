@@ -155,6 +155,17 @@ class MessageController {
     const startTime = Date.now();
 
     try {
+      // ✅ RAILWAY LOGGING: Log inicial visible en Railway console
+      console.log('📨 CONTROLLER - Procesando webhook seguro', {
+        from: req.body.From,
+        to: req.body.To,
+        messageSid: req.body.MessageSid,
+        hasBody: !!req.body.Body,
+        numMedia: req.body.NumMedia || 0,
+        userAgent: req.headers['user-agent'],
+        timestamp: new Date().toISOString(),
+      });
+
       logger.info('📨 Procesando mensaje entrante vía webhook seguro', {
         from: req.body.From,
         to: req.body.To,
@@ -162,32 +173,70 @@ class MessageController {
         timestamp: new Date().toISOString(),
       });
 
-      // Validación de firma Twilio (solo en producción y si está configurada)
+      // ✅ VALIDACIÓN DE DATOS CRÍTICOS ANTES DE PROCESAR
+      const { From, To, MessageSid, Body } = req.body;
+      
+      if (!From || !To || !MessageSid) {
+        console.error('❌ CONTROLLER - Datos críticos faltantes:', {
+          hasFrom: !!From,
+          hasTo: !!To,
+          hasMessageSid: !!MessageSid,
+          receivedFields: Object.keys(req.body),
+        });
+        
+        // Responder 200 OK pero logear el problema
+        return res.status(200).json({
+          status: 'warning',
+          message: 'Datos críticos faltantes en webhook',
+          processTime: Date.now() - startTime,
+        });
+      }
+
+      console.log('✅ CONTROLLER - Datos críticos verificados');
+
+      // ✅ VALIDACIÓN DE FIRMA TWILIO (opcional en producción)
       const signature = req.headers['x-twilio-signature'];
       const url = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
 
       if (process.env.NODE_ENV === 'production' && signature && process.env.TWILIO_AUTH_TOKEN) {
         try {
+          console.log('🔍 CONTROLLER - Validando firma Twilio...');
           const isValid = TwilioService.validateWebhook(signature, url, req.body);
           if (!isValid) {
+            console.log('⚠️ CONTROLLER - Firma Twilio inválida, pero procesando por seguridad');
             logger.warn('⚠️ Firma Twilio inválida, pero procesando mensaje por seguridad', {
               signature: signature ? 'presente' : 'ausente',
               url,
             });
             // NO retornar error - seguir procesando por seguridad
           } else {
+            console.log('✅ CONTROLLER - Firma Twilio válida');
             logger.info('✅ Firma Twilio válida');
           }
         } catch (signatureError) {
+          console.log('⚠️ CONTROLLER - Error validando firma:', signatureError.message);
           logger.warn('⚠️ Error validando firma Twilio, pero continuando procesamiento', {
             error: signatureError.message,
           });
           // NO retornar error - seguir procesando
         }
+      } else {
+        console.log('🔍 CONTROLLER - Validación de firma omitida (desarrollo o sin configurar)');
       }
 
-      // Procesar mensaje entrante
+      // ✅ PROCESAR MENSAJE ENTRANTE
+      console.log('🔄 CONTROLLER - Enviando a TwilioService para procesamiento...');
       const message = await TwilioService.processIncomingMessage(req.body);
+
+      // ✅ LOG DE ÉXITO PARA RAILWAY
+      console.log('✅ CONTROLLER - Mensaje procesado exitosamente:', {
+        messageId: message.id,
+        from: message.from,
+        to: message.to,
+        type: message.type,
+        contentLength: message.content ? message.content.length : 0,
+        processTime: Date.now() - startTime,
+      });
 
       logger.info('✅ Mensaje entrante procesado exitosamente', {
         messageId: message.id,
@@ -197,14 +246,30 @@ class MessageController {
         processTime: Date.now() - startTime,
       });
 
-      // RESPUESTA SIEMPRE 200 OK
+      // ✅ RESPUESTA SIEMPRE 200 OK A TWILIO
+      console.log('📤 CONTROLLER - Respondiendo 200 OK a Twilio');
       res.status(200).json({
         status: 'success',
         messageId: message.id,
         processTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
       });
+
     } catch (error) {
-      // ERROR MANEJADO: Loguear pero SIEMPRE responder 200 OK
+      // ❌ ERROR MANEJADO: Loguear pero SIEMPRE responder 200 OK
+      console.error('❌ CONTROLLER - Error procesando webhook:', {
+        error: error.message,
+        stack: error.stack.split('\n').slice(0, 3), // Primeras 3 líneas
+        webhookData: {
+          from: req.body?.From,
+          to: req.body?.To,
+          messageSid: req.body?.MessageSid,
+          numMedia: req.body?.NumMedia,
+        },
+        processTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      });
+
       logger.error('❌ Error procesando webhook (respondiendo 200 OK para Twilio)', {
         error: error.message,
         stack: error.stack,
@@ -212,12 +277,14 @@ class MessageController {
         processTime: Date.now() - startTime,
       });
 
-      // CRÍTICO: SIEMPRE responder 200 OK a Twilio
+      // ✅ CRÍTICO: SIEMPRE responder 200 OK a Twilio
+      console.log('📤 CONTROLLER - Error manejado, respondiendo 200 OK a Twilio');
       res.status(200).json({
         status: 'error_logged',
         message: 'Error procesado y registrado, no reintente',
         error: error.message,
         processTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
       });
     }
   }
