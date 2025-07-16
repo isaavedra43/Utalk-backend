@@ -278,13 +278,54 @@ const schemas = {
     }),
   },
 
+  // Conversaciones con validaciones estrictas
+  conversation: {
+    assign: Joi.object({
+      assignedTo: Joi.string().min(1).max(128).required(),
+    }),
+
+    changeStatus: Joi.object({
+      status: Joi.string().valid('open', 'closed', 'assigned', 'pending', 'archived').required(),
+    }),
+
+    list: Joi.object({
+      page: Joi.number().integer().min(1).default(1),
+      limit: Joi.number().integer().min(1).max(100).default(20),
+      assignedTo: Joi.string().max(128).optional(),
+      status: Joi.string().valid('open', 'closed', 'assigned', 'pending', 'archived').optional(),
+      customerPhone: commonSchemas.phone.optional(),
+      sortBy: Joi.string().valid('lastMessageAt', 'createdAt', 'updatedAt', 'messageCount').default('lastMessageAt'),
+      sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
+      search: Joi.string().max(200).optional(),
+    }),
+  },
+
   // Mensajes con validación de contenido
   message: {
     send: Joi.object({
-      contactId: commonSchemas.id,
+      to: commonSchemas.phone,
       content: Joi.string().min(1).max(4096).required(),
       type: Joi.string().valid('text', 'image', 'document', 'audio', 'video').default('text'),
       metadata: Joi.object().max(20).optional(),
+    }),
+
+    create: Joi.object({
+      conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).required(),
+      from: commonSchemas.phone,
+      to: commonSchemas.phone,
+      content: Joi.string().max(4096).allow(''),
+      type: Joi.string().valid('text', 'image', 'document', 'audio', 'video').default('text'),
+      direction: Joi.string().valid('inbound', 'outbound').required(),
+      status: Joi.string().valid('pending', 'sent', 'delivered', 'read', 'failed').default('pending'),
+      twilioSid: Joi.string().max(100).optional(),
+      mediaUrls: Joi.array().items(Joi.string().uri()).default([]),
+      metadata: Joi.object().max(20).default({}),
+      userId: Joi.string().max(128).optional(),
+    }),
+
+    readMultiple: Joi.object({
+      messageIds: Joi.array().items(Joi.string().min(1).max(128)).min(1).max(100).required(),
+      conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).optional(),
     }),
 
     webhook: Joi.object({

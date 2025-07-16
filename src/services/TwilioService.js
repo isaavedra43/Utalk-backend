@@ -1,7 +1,10 @@
 const { client, twilioConfig } = require('../config/twilio');
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
+const Conversation = require('../models/Conversation');
+const MediaService = require('./MediaService');
 const logger = require('../utils/logger');
+const { generateConversationId, normalizePhoneNumber } = require('../utils/conversation');
 
 class TwilioService {
   /**
@@ -17,10 +20,18 @@ class TwilioService {
         body: content,
       });
 
+      // Normalizar números de teléfono
+      const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
+      const toPhone = normalizePhoneNumber(to);
+      
+      // Generar conversationId consistente
+      const conversationId = generateConversationId(fromPhone, toPhone);
+
       // Guardar mensaje en Firestore
       const messageData = {
-        from: twilioConfig.whatsappNumber.replace('whatsapp:', ''),
-        to,
+        conversationId, // CRÍTICO: Siempre asignar
+        from: fromPhone,
+        to: toPhone,
         content,
         type: 'text',
         direction: 'outbound',
@@ -54,9 +65,14 @@ class TwilioService {
 
       // Guardar mensaje fallido
       if (userId) {
+        const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
+        const toPhone = normalizePhoneNumber(to);
+        const conversationId = generateConversationId(fromPhone, toPhone);
+        
         await Message.create({
-          from: twilioConfig.whatsappNumber.replace('whatsapp:', ''),
-          to,
+          conversationId, // CRÍTICO: Siempre asignar
+          from: fromPhone,
+          to: toPhone,
           content,
           type: 'text',
           direction: 'outbound',
@@ -178,12 +194,19 @@ class TwilioService {
         return existingMessage;
       }
 
-      // Limpiar números de teléfono
-      const fromPhone = From.replace('whatsapp:', '');
-      const toPhone = To.replace('whatsapp:', '');
+      // ✅ NORMALIZAR NÚMEROS usando utilidad consistente
+      const fromPhone = normalizePhoneNumber(From);
+      const toPhone = normalizePhoneNumber(To);
+      
+      // ✅ GENERAR conversationId CONSISTENTE (CRÍTICO)
+      const conversationId = generateConversationId(fromPhone, toPhone);
 
-      console.log('📞 NÚMEROS PROCESADOS:', {
+      console.log('📞 NÚMEROS Y CONVERSACIÓN PROCESADOS:', {
         originalFrom: From,
+        originalTo: To,
+        normalizedFrom: fromPhone,
+        normalizedTo: toPhone,
+        conversationId: conversationId,
         cleanFrom: fromPhone,
         originalTo: To,
         cleanTo: toPhone,
@@ -227,8 +250,9 @@ class TwilioService {
         console.log('⚠️ CONTACTO TEMPORAL creado como fallback');
       }
 
-      // ✅ PROCESAR MULTIMEDIA con manejo robusto
+      // ✅ PROCESAR MULTIMEDIA con manejo robusto y almacenamiento permanente
       const mediaUrls = [];
+      const processedMedia = [];
       const numMedia = parseInt(NumMedia) || 0;
 
       console.log('🎬 PROCESANDO MULTIMEDIA:', { numMedia });
@@ -239,22 +263,63 @@ class TwilioService {
           const mediaContentType = webhookData[`MediaContentType${i}`];
 
           if (mediaUrl) {
+            // Guardar URL original para compatibilidad
             mediaUrls.push({
               url: mediaUrl,
               contentType: mediaContentType,
               index: i,
             });
-            console.log(`✅ MEDIA ${i} procesado:`, {
+
+            console.log(`📎 MEDIA ${i} encontrado:`, {
               url: mediaUrl.substring(0, 50) + '...',
               contentType: mediaContentType,
             });
+
+            // ✅ PROCESAR Y GUARDAR MULTIMEDIA PERMANENTEMENTE
+            try {
+              console.log(`📥 Descargando y procesando media ${i}...`);
+              
+              const processedMediaInfo = await MediaService.processWebhookMedia(
+                mediaUrl,
+                MessageSid,
+                i
+              );
+              
+              processedMedia.push(processedMediaInfo);
+              
+              console.log(`✅ MEDIA ${i} procesada exitosamente:`, {
+                fileId: processedMediaInfo.id,
+                category: processedMediaInfo.category,
+                size: processedMediaInfo.sizeFormatted,
+                publicUrl: processedMediaInfo.publicUrl
+              });
+
+            } catch (mediaProcessError) {
+              console.error(`❌ ERROR PROCESANDO MEDIA ${i}:`, {
+                error: mediaProcessError.message,
+                mediaUrl: mediaUrl.substring(0, 100) + '...',
+              });
+              
+              logger.error(`Error procesando media ${i}`, {
+                error: mediaProcessError.message,
+                stack: mediaProcessError.stack,
+                mediaUrl,
+                messageSid: MessageSid,
+              });
+
+              // Continuar con URL original si falla el procesamiento
+              // El mensaje se guardará con la URL de Twilio como fallback
+            }
           }
         } catch (mediaError) {
-          console.error(`❌ ERROR procesando media ${i}:`, {
+          console.error(`❌ ERROR GENERAL procesando media ${i}:`, {
             error: mediaError.message,
             mediaUrl: webhookData[`MediaUrl${i}`],
           });
-          // Continuar con siguiente media
+          logger.error(`Error general procesando media ${i}`, {
+            error: mediaError.message,
+            messageSid: MessageSid,
+          });
         }
       }
 
@@ -281,6 +346,7 @@ class TwilioService {
 
       // ✅ CREAR MENSAJE con datos completos y manejo de errores
       const messageData = {
+        conversationId, // CRÍTICO: SIEMPRE asignar conversationId
         from: fromPhone,
         to: toPhone,
         content: Body || '',
@@ -292,6 +358,7 @@ class TwilioService {
         metadata: {
           numMedia,
           mediaInfo: mediaUrls,
+          processedMedia: processedMedia, // URLs permanentes y metadata
           profileName: webhookData.ProfileName,
           waId: webhookData.WaId,
           originalWebhookData: {
@@ -320,6 +387,45 @@ class TwilioService {
           to: toPhone,
           type: messageType,
         });
+
+        // ✅ CREAR O ACTUALIZAR CONVERSACIÓN (CRÍTICO)
+        try {
+          await this.createOrUpdateConversation(conversationId, message, contact);
+          console.log('✅ CONVERSACIÓN ACTUALIZADA:', { conversationId });
+        } catch (conversationError) {
+          console.error('❌ ERROR ACTUALIZANDO CONVERSACIÓN:', {
+            error: conversationError.message,
+            conversationId,
+          });
+          // No fallar por error de conversación, el mensaje ya se guardó
+          logger.error('Error actualizando conversación', {
+            conversationId,
+            messageId: message.id,
+            error: conversationError.message
+          });
+        }
+
+        // ✅ EMITIR EVENTO DE TIEMPO REAL (CRÍTICO)
+        try {
+          if (global.socketManager) {
+            global.socketManager.emitNewMessage(conversationId, message.toJSON());
+            console.log('📡 EVENTO SOCKET.IO EMITIDO:', { conversationId, messageId: message.id });
+          } else {
+            console.log('⚠️ Socket.IO no disponible - mensaje guardado sin tiempo real');
+          }
+        } catch (socketError) {
+          console.error('❌ ERROR EMITIENDO SOCKET.IO:', {
+            error: socketError.message,
+            conversationId,
+            messageId: message.id
+          });
+          // No fallar por error de socket, el mensaje ya se guardó
+          logger.error('Error emitiendo evento Socket.IO', {
+            conversationId,
+            messageId: message.id,
+            error: socketError.message
+          });
+        }
       } catch (firebaseError) {
         console.error('❌ FIREBASE - Error guardando mensaje:', {
           error: firebaseError.message,
@@ -536,6 +642,74 @@ class TwilioService {
     }
 
     return results;
+  }
+
+  /**
+   * Crear o actualizar conversación cuando llega un mensaje
+   */
+  static async createOrUpdateConversation (conversationId, message, contact) {
+    try {
+      // Intentar obtener conversación existente
+      let conversation = await Conversation.getById(conversationId);
+
+      if (conversation) {
+        // Actualizar conversación existente
+        await conversation.updateLastMessage(message);
+        console.log('📋 CONVERSACIÓN ACTUALIZADA:', {
+          conversationId,
+          newMessageCount: conversation.messageCount + 1,
+          lastMessage: message.content?.substring(0, 50) || '[Multimedia]'
+        });
+      } else {
+        // Crear nueva conversación
+        const customerPhone = contact?.phone || message.from;
+        const agentPhone = message.to;
+
+        const conversationData = {
+          id: conversationId,
+          participants: [customerPhone, agentPhone],
+          lastMessage: message.content || '[Multimedia]',
+          lastMessageAt: message.timestamp,
+          lastMessageId: message.id,
+          messageCount: 1,
+          unreadCount: message.direction === 'inbound' ? 1 : 0,
+          customerPhone,
+          agentPhone,
+          status: 'open',
+          priority: 'normal',
+          tags: contact?.tags || [],
+          metadata: {
+            contactId: contact?.id,
+            firstMessageId: message.id,
+            createdFromWebhook: true,
+            twilioSid: message.twilioSid
+          }
+        };
+
+        conversation = await Conversation.createOrUpdate(conversationData);
+        console.log('📋 NUEVA CONVERSACIÓN CREADA:', {
+          conversationId,
+          customerPhone,
+          firstMessage: message.content?.substring(0, 50) || '[Multimedia]'
+        });
+
+        logger.info('Nueva conversación creada automáticamente', {
+          conversationId,
+          customerPhone,
+          messageId: message.id,
+          contactId: contact?.id
+        });
+      }
+
+      return conversation;
+    } catch (error) {
+      console.error('❌ ERROR EN createOrUpdateConversation:', {
+        error: error.message,
+        conversationId,
+        messageId: message.id
+      });
+      throw error;
+    }
   }
 
   /**

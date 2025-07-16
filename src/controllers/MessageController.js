@@ -343,6 +343,136 @@ class MessageController {
   }
 
   /**
+   * Marcar mensaje como leído
+   * PUT /api/messages/:id/read
+   */
+  static async markAsRead (req, res, next) {
+    try {
+      const { id } = req.params;
+      const userId = req.user.uid;
+
+      const message = await Message.getById(id);
+      if (!message) {
+        return res.status(404).json({
+          error: 'Mensaje no encontrado',
+          message: `No se encontró un mensaje con ID ${id}`
+        });
+      }
+
+      // Verificar que no esté ya marcado como leído
+      if (message.status === 'read') {
+        return res.json({
+          message: 'Mensaje ya estaba marcado como leído',
+          messageId: id,
+          status: 'read'
+        });
+      }
+
+      // Marcar como leído
+      await message.updateStatus('read');
+
+      // ✅ EMITIR EVENTO SOCKET.IO
+      if (global.socketManager) {
+        global.socketManager.emitMessageRead(message.conversationId, id, userId);
+      }
+
+      logger.info('Mensaje marcado como leído', {
+        messageId: id,
+        conversationId: message.conversationId,
+        userId
+      });
+
+      res.json({
+        message: 'Mensaje marcado como leído exitosamente',
+        messageId: id,
+        conversationId: message.conversationId,
+        status: 'read'
+      });
+    } catch (error) {
+      logger.error('Error al marcar mensaje como leído:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Marcar múltiples mensajes como leídos
+   * PUT /api/messages/read-multiple
+   */
+  static async markMultipleAsRead (req, res, next) {
+    try {
+      const { messageIds, conversationId } = req.body;
+      const userId = req.user.uid;
+
+      if (!messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
+        return res.status(400).json({
+          error: 'messageIds requerido',
+          message: 'Debe proporcionar un array de IDs de mensajes'
+        });
+      }
+
+      if (messageIds.length > 100) {
+        return res.status(400).json({
+          error: 'Demasiados mensajes',
+          message: 'Máximo 100 mensajes por solicitud'
+        });
+      }
+
+      const results = [];
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Procesar cada mensaje
+      for (const messageId of messageIds) {
+        try {
+          const message = await Message.getById(messageId);
+          
+          if (!message) {
+            results.push({ messageId, success: false, error: 'Mensaje no encontrado' });
+            errorCount++;
+            continue;
+          }
+
+          if (message.status !== 'read') {
+            await message.updateStatus('read');
+            
+            // ✅ EMITIR EVENTO SOCKET.IO
+            if (global.socketManager) {
+              global.socketManager.emitMessageRead(message.conversationId, messageId, userId);
+            }
+          }
+
+          results.push({ messageId, success: true, status: 'read' });
+          successCount++;
+        } catch (error) {
+          results.push({ messageId, success: false, error: error.message });
+          errorCount++;
+        }
+      }
+
+      logger.info('Múltiples mensajes marcados como leídos', {
+        userId,
+        conversationId,
+        successCount,
+        errorCount,
+        totalMessages: messageIds.length
+      });
+
+      res.json({
+        message: `${successCount} mensajes marcados como leídos`,
+        summary: {
+          total: messageIds.length,
+          success: successCount,
+          errors: errorCount
+        },
+        results
+      });
+    } catch (error) {
+      logger.error('Error al marcar múltiples mensajes como leídos:', error);
+      next(error);
+    }
+  }
+
+  /**
    * Buscar mensajes por contenido
    */
   static async search (req, res, next) {

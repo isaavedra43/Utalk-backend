@@ -44,10 +44,16 @@ tags:
     description: Gestión de contactos y datos de clientes
   - name: messages
     description: Mensajería WhatsApp y comunicación
+  - name: conversations
+    description: Gestión de conversaciones y chat en tiempo real
   - name: campaigns
     description: Campañas de marketing y envío masivo
   - name: knowledge
     description: Base de conocimiento y documentación
+  - name: media
+    description: Archivos multimedia y gestión de contenido
+  - name: realtime
+    description: Comunicación en tiempo real con Socket.IO
   - name: dashboard
     description: Métricas y analytics del sistema
   - name: team
@@ -1777,3 +1783,59 @@ paths:
                     type: string
                   temporaryPassword:
                     type: string 
+
+# ==========================================
+# CONVERSACIONES Y TIEMPO REAL - NUEVOS ENDPOINTS
+# ==========================================
+
+## Socket.IO para Tiempo Real
+
+### Conexión
+```javascript
+const socket = io('https://utalk-backend.railway.app', {
+  auth: {
+    token: 'firebase_jwt_token'
+  }
+});
+```
+
+### Eventos principales:
+- **join-conversation**: Unirse a conversación específica
+- **new-message**: Nuevo mensaje en tiempo real
+- **message-read**: Mensaje marcado como leído
+- **conversation-status-changed**: Cambio de estado
+- **typing-start/stop**: Indicadores de escritura
+
+### Nuevos Endpoints REST:
+- GET /api/conversations - Lista de conversaciones
+- GET /api/conversations/{id}/messages - Mensajes por conversación  
+- PUT /api/conversations/{id}/read - Marcar como leída
+- PUT /api/conversations/{id}/assign - Asignar a agente
+- PUT /api/conversations/{id}/status - Cambiar estado
+- GET /media/{category}/{filename} - Archivos multimedia
+- PUT /api/messages/{id}/read - Marcar mensaje como leído
+- PUT /api/messages/read-multiple - Marcar múltiples como leídos
+
+### Estructura de Conversación:
+```json
+{
+  "id": "conv_1234567890_0987654321",
+  "participants": ["+1234567890", "+0987654321"],
+  "lastMessage": "Hola, ¿cómo estás?",
+  "lastMessageAt": "2024-01-15T10:30:00Z",
+  "messageCount": 25,
+  "unreadCount": 3,
+  "assignedTo": "agent-user-id",
+  "status": "open",
+  "priority": "normal",
+  "customerPhone": "+1234567890",
+  "agentPhone": "+0987654321"
+}
+```
+
+### Multimedia:
+- Descarga automática de archivos de Twilio
+- Almacenamiento permanente categorizado (images, videos, audio, documents)
+- URLs públicas seguras con autenticación
+- Validación de tipos de archivo y tamaños
+- Optimización automática de almacenamiento

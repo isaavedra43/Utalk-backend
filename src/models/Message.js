@@ -1,14 +1,33 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const { prepareForFirestore } = require('../utils/firestore');
+const { isValidConversationId } = require('../utils/conversation');
 
 class Message {
   constructor (data) {
+    // Validación crítica: conversationId es obligatorio
+    if (!data.conversationId) {
+      throw new Error('conversationId es obligatorio para crear un mensaje');
+    }
+    
+    if (!isValidConversationId(data.conversationId)) {
+      throw new Error(`conversationId inválido: ${data.conversationId}. Debe tener formato conv_XXXXXX_YYYYYY`);
+    }
+
+    // Validar campos críticos
+    if (!data.from || !data.to) {
+      throw new Error('Los campos from y to son obligatorios');
+    }
+
+    if (!data.direction || !['inbound', 'outbound'].includes(data.direction)) {
+      throw new Error('direction debe ser "inbound" o "outbound"');
+    }
+
     this.id = data.id || uuidv4();
-    this.conversationId = data.conversationId;
+    this.conversationId = data.conversationId; // SIEMPRE requerido
     this.from = data.from; // Número de teléfono
     this.to = data.to; // Número de teléfono
-    this.content = data.content;
+    this.content = data.content || '';
     this.type = data.type || 'text'; // 'text', 'image', 'document', 'audio'
     this.direction = data.direction; // 'inbound', 'outbound'
     this.status = data.status || 'pending'; // 'pending', 'sent', 'delivered', 'read', 'failed'
@@ -48,6 +67,40 @@ class Message {
       return null;
     }
     return new Message({ id: doc.id, ...doc.data() });
+  }
+
+  /**
+   * Obtener mensajes por conversación con paginación
+   */
+  static async getByConversation (conversationId, options = {}) {
+    const {
+      limit = 50,
+      startAfter = null,
+      orderBy = 'timestamp',
+      order = 'desc'
+    } = options;
+
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
+
+    let query = firestore
+      .collection('messages')
+      .where('conversationId', '==', conversationId)
+      .orderBy(orderBy, order);
+
+    if (startAfter) {
+      // Obtener el documento de referencia para paginación
+      const startAfterDoc = await firestore.collection('messages').doc(startAfter).get();
+      if (startAfterDoc.exists) {
+        query = query.startAfter(startAfterDoc);
+      }
+    }
+
+    query = query.limit(limit);
+
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
   }
 
   /**

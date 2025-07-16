@@ -63,10 +63,12 @@ try {
   const authRoutes = require('./routes/auth');
   const contactRoutes = require('./routes/contacts');
   const messageRoutes = require('./routes/messages');
+  const conversationRoutes = require('./routes/conversations');
   const campaignRoutes = require('./routes/campaigns');
   const knowledgeRoutes = require('./routes/knowledge');
   const dashboardRoutes = require('./routes/dashboard');
   const teamRoutes = require('./routes/team');
+  const mediaRoutes = require('./routes/media');
 
   console.log('✅ Rutas cargadas exitosamente');
 
@@ -273,10 +275,12 @@ try {
   app.use('/api/auth', authRoutes);
   app.use('/api/contacts', authMiddleware, contactRoutes);
   app.use('/api/messages', authMiddleware, messageRoutes);
+  app.use('/api/conversations', authMiddleware, conversationRoutes);
   app.use('/api/campaigns', authMiddleware, campaignRoutes);
   app.use('/api/knowledge', authMiddleware, knowledgeRoutes);
   app.use('/api/dashboard', authMiddleware, dashboardRoutes);
   app.use('/api/team', authMiddleware, teamRoutes);
+  app.use('/media', mediaRoutes); // Sin prefijo /api para URLs más limpias
   console.log('✅ Rutas protegidas registradas');
 
   // ✅ RUTA POR DEFECTO CON DEBUG INFO
@@ -341,6 +345,12 @@ try {
         console.log('✅ Servidor completamente inicializado y listo');
       }, 1000);
     });
+
+    // ✅ INICIALIZAR SOCKET.IO PARA TIEMPO REAL
+    console.log('🔌 Inicializando Socket.IO...');
+    const SocketManager = require('./socket');
+    global.socketManager = new SocketManager(server);
+    console.log('✅ Socket.IO inicializado - tiempo real habilitado');
 
     // ✅ MANEJO DE CIERRE GRACEFUL
     process.on('SIGTERM', () => {

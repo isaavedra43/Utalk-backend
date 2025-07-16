@@ -54,6 +54,25 @@ router.put('/:id/status',
 );
 
 /**
+ * @route PUT /api/messages/:id/read
+ * @desc Marcar mensaje como leído
+ * @access Private
+ */
+router.put('/:id/read',
+  MessageController.markAsRead,
+);
+
+/**
+ * @route PUT /api/messages/read-multiple
+ * @desc Marcar múltiples mensajes como leídos
+ * @access Private
+ */
+router.put('/read-multiple',
+  validate(schemas.message.readMultiple),
+  MessageController.markMultipleAsRead,
+);
+
+/**
  * @route GET /api/messages/search
  * @desc Buscar mensajes por contenido
  * @access Private
