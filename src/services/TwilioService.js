@@ -133,15 +133,47 @@ class TwilioService {
     try {
       const { From, To, Body, MessageSid, NumMedia } = webhookData;
 
+      // ✅ RAILWAY LOGGING: Visible en Railway console
+      console.log('📨 PROCESANDO MENSAJE ENTRANTE', {
+        from: From,
+        to: To,
+        messageSid: MessageSid,
+        hasBody: !!Body,
+        numMedia: NumMedia || 0,
+      });
+
       logger.info('Procesando mensaje entrante', {
         from: From,
         to: To,
         messageSid: MessageSid,
       });
 
+      // ✅ VALIDACIÓN CRÍTICA: Verificar campos requeridos
+      if (!From || !To || !MessageSid) {
+        const error = new Error('Campos requeridos faltantes en webhook');
+        console.error('❌ WEBHOOK - Campos requeridos faltantes:', {
+          hasFrom: !!From,
+          hasTo: !!To,
+          hasMessageSid: !!MessageSid,
+          receivedFields: Object.keys(webhookData),
+        });
+        throw error;
+      }
+
       // Verificar que no sea un mensaje duplicado
-      const existingMessage = await Message.getByTwilioSid(MessageSid);
+      let existingMessage;
+      try {
+        existingMessage = await Message.getByTwilioSid(MessageSid);
+      } catch (firebaseError) {
+        console.error('❌ FIREBASE - Error verificando duplicado:', {
+          error: firebaseError.message,
+          messageSid: MessageSid,
+        });
+        // Continuar procesamiento aunque falle la verificación
+      }
+
       if (existingMessage) {
+        console.log('⚠️ MENSAJE DUPLICADO detectado:', { twilioSid: MessageSid });
         logger.warn('Mensaje duplicado recibido', { twilioSid: MessageSid });
         return existingMessage;
       }
@@ -150,34 +182,79 @@ class TwilioService {
       const fromPhone = From.replace('whatsapp:', '');
       const toPhone = To.replace('whatsapp:', '');
 
-      // Buscar o crear contacto
-      let contact = await Contact.getByPhone(fromPhone);
-      if (!contact) {
-        contact = await Contact.create({
-          name: fromPhone, // Se puede actualizar después
+      console.log('📞 NÚMEROS PROCESADOS:', {
+        originalFrom: From,
+        cleanFrom: fromPhone,
+        originalTo: To,
+        cleanTo: toPhone,
+      });
+
+      // ✅ BUSCAR O CREAR CONTACTO con manejo robusto
+      let contact;
+      try {
+        contact = await Contact.getByPhone(fromPhone);
+        if (!contact) {
+          console.log('👤 CREANDO NUEVO CONTACTO:', { phone: fromPhone });
+          contact = await Contact.create({
+            name: fromPhone, // Se puede actualizar después
+            phone: fromPhone,
+            userId: null, // Se asignará cuando un agente responda
+          });
+          console.log('✅ CONTACTO CREADO:', {
+            contactId: contact.id,
+            phone: fromPhone,
+          });
+          logger.info('Nuevo contacto creado automáticamente', {
+            contactId: contact.id,
+            phone: fromPhone,
+          });
+        } else {
+          console.log('✅ CONTACTO EXISTENTE encontrado:', { contactId: contact.id });
+        }
+      } catch (contactError) {
+        console.error('❌ ERROR EN CONTACTO:', {
+          error: contactError.message,
           phone: fromPhone,
-          userId: null, // Se asignará cuando un agente responda
+          action: 'create_or_find',
         });
-        logger.info('Nuevo contacto creado automáticamente', {
-          contactId: contact.id,
+        
+        // Crear contacto básico como fallback
+        contact = {
+          id: `temp_${Date.now()}`,
           phone: fromPhone,
-        });
+          name: fromPhone,
+        };
+        console.log('⚠️ CONTACTO TEMPORAL creado como fallback');
       }
 
-      // Procesar archivos multimedia si existen
+      // ✅ PROCESAR MULTIMEDIA con manejo robusto
       const mediaUrls = [];
       const numMedia = parseInt(NumMedia) || 0;
 
-      for (let i = 0; i < numMedia; i++) {
-        const mediaUrl = webhookData[`MediaUrl${i}`];
-        const mediaContentType = webhookData[`MediaContentType${i}`];
+      console.log('🎬 PROCESANDO MULTIMEDIA:', { numMedia });
 
-        if (mediaUrl) {
-          mediaUrls.push({
-            url: mediaUrl,
-            contentType: mediaContentType,
-            index: i,
+      for (let i = 0; i < numMedia; i++) {
+        try {
+          const mediaUrl = webhookData[`MediaUrl${i}`];
+          const mediaContentType = webhookData[`MediaContentType${i}`];
+
+          if (mediaUrl) {
+            mediaUrls.push({
+              url: mediaUrl,
+              contentType: mediaContentType,
+              index: i,
+            });
+            console.log(`✅ MEDIA ${i} procesado:`, {
+              url: mediaUrl.substring(0, 50) + '...',
+              contentType: mediaContentType,
+            });
+          }
+        } catch (mediaError) {
+          console.error(`❌ ERROR procesando media ${i}:`, {
+            error: mediaError.message,
+            mediaUrl: webhookData[`MediaUrl${i}`],
           });
+          // Continuar con siguiente media
         }
       }
 
@@ -196,7 +273,13 @@ class TwilioService {
         }
       }
 
-      // Crear mensaje con todos los campos requeridos
+      console.log('📝 TIPO DE MENSAJE determinado:', { 
+        messageType, 
+        hasText: !!Body,
+        mediaCount: mediaUrls.length,
+      });
+
+      // ✅ CREAR MENSAJE con datos completos y manejo de errores
       const messageData = {
         from: fromPhone,
         to: toPhone,
@@ -219,19 +302,73 @@ class TwilioService {
         },
       };
 
-      const message = await Message.create(messageData);
+      console.log('💾 GUARDANDO MENSAJE EN FIREBASE:', {
+        messageType,
+        contentLength: messageData.content.length,
+        mediaCount: mediaUrls.length,
+        twilioSid: MessageSid,
+      });
 
-      // Actualizar último contacto
-      await contact.updateLastContact();
+      // ✅ GUARDAR EN FIREBASE con manejo robusto
+      let message;
+      try {
+        message = await Message.create(messageData);
+        console.log('✅ MENSAJE GUARDADO EXITOSAMENTE:', {
+          messageId: message.id,
+          twilioSid: MessageSid,
+          from: fromPhone,
+          to: toPhone,
+          type: messageType,
+        });
+      } catch (firebaseError) {
+        console.error('❌ FIREBASE - Error guardando mensaje:', {
+          error: firebaseError.message,
+          stack: firebaseError.stack.split('\n')[0],
+          messageData: {
+            from: fromPhone,
+            to: toPhone,
+            twilioSid: MessageSid,
+            type: messageType,
+          },
+        });
+        throw new Error(`Firebase save failed: ${firebaseError.message}`);
+      }
 
-      logger.info('Mensaje entrante procesado', {
+      // ✅ LOG FINAL DE ÉXITO
+      console.log('🎉 WEBHOOK PROCESADO COMPLETAMENTE:', {
         messageId: message.id,
+        contactId: contact.id,
+        processedAt: new Date().toISOString(),
+      });
+
+      logger.info('Mensaje entrante procesado exitosamente', {
+        messageId: message.id,
+        from: fromPhone,
         contactId: contact.id,
       });
 
       return message;
+
     } catch (error) {
-      logger.error('Error al procesar mensaje entrante:', error);
+      // ❌ ERROR FINAL: Log completo pero no lanzar excepción
+      console.error('❌ TWILIO SERVICE - Error procesando mensaje:', {
+        error: error.message,
+        stack: error.stack.split('\n').slice(0, 3), // Primeras 3 líneas del stack
+        webhookData: {
+          from: webhookData?.From,
+          to: webhookData?.To,
+          messageSid: webhookData?.MessageSid,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.error('Error procesando mensaje entrante', {
+        error: error.message,
+        stack: error.stack,
+        webhookData,
+      });
+
+      // ✅ RE-LANZAR ERROR: Para que el controlador lo maneje
       throw error;
     }
   }

@@ -19,7 +19,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 // Importar configuraciones y middlewares
-const firebaseConfig = require('./config/firebase');
+const { firestore } = require('./config/firebase');
 const errorHandler = require('./middleware/errorHandler');
 // FIXED: Usar destructuring para importar solo la función authMiddleware del objeto exportado
 const { authMiddleware } = require('./middleware/auth');
@@ -61,14 +61,49 @@ app.use(morgan('combined')); // Logging
 app.use(express.json({ limit: '10mb' })); // Parse JSON
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
+// Health check endpoint con validación Firebase
+app.get('/health', async (req, res) => {
+  const healthcheck = {
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     version: require('../package.json').version,
-  });
+    checks: {
+      firebase: 'unknown',
+      twilio: 'unknown',
+    },
+  };
+
+  // ✅ RAILWAY LOGGING: Visible en Railway console
+  console.log('🏥 HEALTH CHECK iniciado');
+
+  try {
+    // Verificar conexión Firebase
+    await firestore.collection('health').limit(1).get();
+    healthcheck.checks.firebase = 'connected';
+    console.log('✅ HEALTH - Firebase conectado');
+  } catch (firebaseError) {
+    healthcheck.checks.firebase = 'disconnected';
+    healthcheck.status = 'DEGRADED';
+    console.error('❌ HEALTH - Firebase desconectado:', firebaseError.message);
+  }
+
+  // Verificar variables Twilio
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    healthcheck.checks.twilio = 'configured';
+    console.log('✅ HEALTH - Twilio configurado');
+  } else {
+    healthcheck.checks.twilio = 'not_configured';
+    healthcheck.status = 'DEGRADED';
+    console.log('⚠️ HEALTH - Twilio no configurado');
+  }
+
+  // ✅ RESPUESTA APROPIADA: 200 si OK, 503 si degraded
+  const statusCode = healthcheck.status === 'OK' ? 200 : 503;
+
+  console.log(`🏥 HEALTH CHECK completado: ${healthcheck.status}`);
+
+  res.status(statusCode).json(healthcheck);
 });
 
 // Rutas públicas sin autenticación (DEBEN IR ANTES del authMiddleware)

@@ -347,9 +347,7 @@ const schemas = {
 
       // ForwardedFrom field for forwarded messages
       ForwardedFrom: Joi.string().optional(),
-
-      // Allow additional unknown fields (Twilio may add new fields)
-    }).unknown(true), // CRÍTICO: Permitir campos adicionales de Twilio
+    }).unknown(true), // ✅ CRÍTICO: Permitir campos adicionales de Twilio
 
     markRead: Joi.object({
       messageId: commonSchemas.id,
