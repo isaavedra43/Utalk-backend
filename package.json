@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "build": "npm install",
+    "build": "echo \"No build step required for JavaScript project\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/",
