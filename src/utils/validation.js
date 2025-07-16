@@ -11,27 +11,27 @@ const sanitizeData = (data) => {
       allowedTags: [],
       allowedAttributes: {},
       disallowedTagsMode: 'discard',
-      textFilter: function(text) {
+      textFilter: function (text) {
         return text
           .replace(/javascript:/gi, '')
           .replace(/on\w+=/gi, '')
           .replace(/data:/gi, '')
           .replace(/vbscript:/gi, '');
-      }
+      },
     });
-    
+
     // Escapar caracteres especiales adicionales
     sanitized = sanitized
       .replace(/[<>]/g, '')
       .trim();
-    
+
     return sanitized;
   }
-  
+
   if (Array.isArray(data)) {
     return data.map(sanitizeData);
   }
-  
+
   if (data && typeof data === 'object') {
     const sanitizedObj = {};
     for (const [key, value] of Object.entries(data)) {
@@ -40,7 +40,7 @@ const sanitizeData = (data) => {
     }
     return sanitizedObj;
   }
-  
+
   return data;
 };
 
@@ -57,7 +57,7 @@ const validate = (schema, options = {}) => {
     } = options;
 
     let dataToValidate = req[property];
-    
+
     // Aplicar sanitización si está habilitada
     if (sanitize && dataToValidate) {
       dataToValidate = sanitizeData(dataToValidate);
@@ -195,22 +195,22 @@ const validateFile = (options = {}) => {
 const commonSchemas = {
   // Validación de ID más estricta
   id: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required(),
-  
+
   // Validación de email con dominio
   email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
-  
+
   // Validación de teléfono internacional mejorada
   phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
-  
+
   // Validación de texto con límites de seguridad
   safeText: (maxLength = 100) => Joi.string().min(1).max(maxLength).pattern(/^[^<>]*$/),
-  
+
   // Validación de URL
   url: Joi.string().uri({ scheme: ['http', 'https'] }).max(2048),
-  
+
   // Validación de fecha
   date: Joi.date().iso().max('now').required(),
-  
+
   // Validación de tags con límites
   tags: Joi.array().items(Joi.string().max(50).pattern(/^[a-zA-Z0-9_-]+$/)).max(20),
 };
@@ -228,7 +228,7 @@ const schemas = {
         otherwise: Joi.optional(),
       }),
     }),
-    
+
     refreshToken: Joi.object({
       refreshToken: Joi.string().min(10).max(512).required(),
     }),
@@ -246,12 +246,12 @@ const schemas = {
         Joi.alternatives().try(
           Joi.string().max(500),
           Joi.number().min(-999999999).max(999999999),
-          Joi.boolean()
-        )
+          Joi.boolean(),
+        ),
       ).max(20),
       notes: Joi.string().max(1000).allow(''),
     }),
-    
+
     update: Joi.object({
       name: commonSchemas.safeText(100),
       phone: commonSchemas.phone,
@@ -262,12 +262,12 @@ const schemas = {
         Joi.alternatives().try(
           Joi.string().max(500),
           Joi.number().min(-999999999).max(999999999),
-          Joi.boolean()
-        )
+          Joi.boolean(),
+        ),
       ).max(20),
       notes: Joi.string().max(1000).allow(''),
     }),
-    
+
     importCsv: Joi.object({
       overwrite: Joi.boolean().default(false),
       skipErrors: Joi.boolean().default(true),
@@ -286,17 +286,70 @@ const schemas = {
       type: Joi.string().valid('text', 'image', 'document', 'audio', 'video').default('text'),
       metadata: Joi.object().max(20).optional(),
     }),
-    
+
     webhook: Joi.object({
+      // Campos requeridos por Twilio
       From: Joi.string().required(),
       To: Joi.string().required(),
-      Body: Joi.string().max(4096).allow(''),
       MessageSid: Joi.string().required(),
       AccountSid: Joi.string().required(),
-      NumMedia: Joi.string().pattern(/^\d+$/),
+
+      // Campos opcionales comunes
+      Body: Joi.string().max(4096).allow('').optional(),
+      NumMedia: Joi.alternatives().try(
+        Joi.string().pattern(/^\d+$/),
+        Joi.number().integer().min(0),
+      ).optional(),
+
+      // Media handling - hasta 10 archivos posibles
       MediaUrl0: Joi.string().uri().optional(),
       MediaContentType0: Joi.string().max(100).optional(),
-    }),
+      MediaUrl1: Joi.string().uri().optional(),
+      MediaContentType1: Joi.string().max(100).optional(),
+      MediaUrl2: Joi.string().uri().optional(),
+      MediaContentType2: Joi.string().max(100).optional(),
+      MediaUrl3: Joi.string().uri().optional(),
+      MediaContentType3: Joi.string().max(100).optional(),
+      MediaUrl4: Joi.string().uri().optional(),
+      MediaContentType4: Joi.string().max(100).optional(),
+
+      // Status callback fields
+      MessageStatus: Joi.string().valid('sent', 'delivered', 'undelivered', 'failed', 'received', 'read').optional(),
+      SmsStatus: Joi.string().optional(),
+      SmsSid: Joi.string().optional(),
+      SmsMessageSid: Joi.string().optional(),
+
+      // WhatsApp specific fields
+      ProfileName: Joi.string().max(200).optional(),
+      WaId: Joi.string().optional(),
+
+      // Geolocation fields
+      Latitude: Joi.string().pattern(/^-?\d+\.?\d*$/).optional(),
+      Longitude: Joi.string().pattern(/^-?\d+\.?\d*$/).optional(),
+
+      // Error handling
+      ErrorCode: Joi.string().optional(),
+      ErrorMessage: Joi.string().max(500).optional(),
+
+      // Timestamp fields
+      Timestamp: Joi.string().optional(),
+      DateCreated: Joi.string().optional(),
+      DateUpdated: Joi.string().optional(),
+      DateSent: Joi.string().optional(),
+
+      // Additional Twilio fields (flexible approach)
+      ApiVersion: Joi.string().optional(),
+      Direction: Joi.string().valid('inbound', 'outbound-api', 'outbound-call', 'outbound-reply').optional(),
+      Price: Joi.string().optional(),
+      PriceUnit: Joi.string().optional(),
+      Uri: Joi.string().uri().optional(),
+      SubresourceUris: Joi.object().optional(),
+
+      // ForwardedFrom field for forwarded messages
+      ForwardedFrom: Joi.string().optional(),
+
+      // Allow additional unknown fields (Twilio may add new fields)
+    }).unknown(true), // CRÍTICO: Permitir campos adicionales de Twilio
 
     markRead: Joi.object({
       messageId: commonSchemas.id,
@@ -314,7 +367,7 @@ const schemas = {
       budget: Joi.number().min(0).max(1000000).optional(),
       template: Joi.object().max(50).optional(),
     }),
-    
+
     update: Joi.object({
       name: commonSchemas.safeText(200),
       message: Joi.string().min(1).max(4096),
@@ -342,7 +395,7 @@ const schemas = {
       fileUrl: commonSchemas.url.optional(),
       fileName: Joi.string().max(255).optional(),
     }),
-    
+
     update: Joi.object({
       title: commonSchemas.safeText(200),
       content: Joi.string().min(1).max(50000),
@@ -378,7 +431,7 @@ const schemas = {
       displayName: commonSchemas.safeText(100).required(),
       role: Joi.string().valid('admin', 'agent', 'viewer').default('viewer'),
     }),
-    
+
     update: Joi.object({
       displayName: commonSchemas.safeText(100),
       role: Joi.string().valid('admin', 'agent', 'viewer'),
@@ -415,7 +468,7 @@ const schemas = {
       endDate: Joi.date().iso().greater(Joi.ref('startDate')),
       tags: Joi.alternatives().try(
         Joi.string().max(50),
-        Joi.array().items(Joi.string().max(50)).max(10)
+        Joi.array().items(Joi.string().max(50)).max(10),
       ),
     }),
 
@@ -454,7 +507,7 @@ const rateLimitConfig = {
   '/contacts/import/csv': { windowMs: 60 * 60 * 1000, max: 3 }, // 3 importaciones por hora
   '/team/invite': { windowMs: 60 * 60 * 1000, max: 10 }, // 10 invitaciones por hora
   '/knowledge/upload': { windowMs: 60 * 60 * 1000, max: 20 }, // 20 uploads por hora
-  'default': { windowMs: 15 * 60 * 1000, max: 1000 }, // 1000 requests por 15 min
+  default: { windowMs: 15 * 60 * 1000, max: 1000 }, // 1000 requests por 15 min
 };
 
 // EXPORT PATTERN: Object with multiple utility functions and schemas
@@ -469,4 +522,4 @@ module.exports = {
   schemas,
   commonSchemas,
   rateLimitConfig,
-}; 
+};

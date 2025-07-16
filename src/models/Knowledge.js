@@ -2,7 +2,7 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 
 class Knowledge {
-  constructor(data) {
+  constructor (data) {
     this.id = data.id || uuidv4();
     this.title = data.title;
     this.content = data.content;
@@ -33,26 +33,26 @@ class Knowledge {
   /**
    * Crear nuevo documento de conocimiento
    */
-  static async create(knowledgeData) {
+  static async create (knowledgeData) {
     const knowledge = new Knowledge(knowledgeData);
-    
+
     if (knowledge.isPublic) {
       knowledge.publishedAt = FieldValue.serverTimestamp();
     }
-    
+
     await firestore.collection('knowledge').doc(knowledge.id).set({
       ...knowledge,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    
+
     return knowledge;
   }
 
   /**
    * Obtener documento por ID
    */
-  static async getById(id) {
+  static async getById (id) {
     const doc = await firestore.collection('knowledge').doc(id).get();
     if (!doc.exists) {
       return null;
@@ -63,16 +63,16 @@ class Knowledge {
   /**
    * Listar documentos con filtros
    */
-  static async list({ 
-    limit = 20, 
-    startAfter = null, 
-    category = null, 
+  static async list ({
+    limit = 20,
+    startAfter = null,
+    category = null,
     type = null,
     isPublic = null,
     isPinned = null,
     tags = null,
     createdBy = null,
-    isActive = true 
+    isActive = true,
   } = {}) {
     let query = firestore.collection('knowledge');
 
@@ -106,8 +106,8 @@ class Knowledge {
 
     // Ordenar por pinned primero, luego por fecha
     query = query.orderBy('isPinned', 'desc')
-                 .orderBy('createdAt', 'desc')
-                 .limit(limit);
+      .orderBy('createdAt', 'desc')
+      .limit(limit);
 
     if (startAfter) {
       query = query.startAfter(startAfter);
@@ -120,7 +120,7 @@ class Knowledge {
   /**
    * Buscar documentos por texto
    */
-  static async search(searchTerm, { isPublic = null, category = null } = {}) {
+  static async search (searchTerm, { isPublic = null, category = null } = {}) {
     let query = firestore.collection('knowledge').where('isActive', '==', true);
 
     if (isPublic !== null) {
@@ -133,13 +133,13 @@ class Knowledge {
 
     const snapshot = await query.get();
     const searchLower = searchTerm.toLowerCase();
-    
+
     return snapshot.docs
       .map(doc => new Knowledge({ id: doc.id, ...doc.data() }))
-      .filter(knowledge => 
+      .filter(knowledge =>
         knowledge.title.toLowerCase().includes(searchLower) ||
         knowledge.content.toLowerCase().includes(searchLower) ||
-        knowledge.tags.some(tag => tag.toLowerCase().includes(searchLower))
+        knowledge.tags.some(tag => tag.toLowerCase().includes(searchLower)),
       )
       .sort((a, b) => {
         // Priorizar por relevancia en título
@@ -154,7 +154,7 @@ class Knowledge {
   /**
    * Obtener categorías disponibles
    */
-  static async getCategories() {
+  static async getCategories () {
     const snapshot = await firestore
       .collection('knowledge')
       .where('isActive', '==', true)
@@ -175,7 +175,7 @@ class Knowledge {
   /**
    * Obtener tags más populares
    */
-  static async getPopularTags(limit = 20) {
+  static async getPopularTags (limit = 20) {
     const snapshot = await firestore
       .collection('knowledge')
       .where('isActive', '==', true)
@@ -193,7 +193,7 @@ class Knowledge {
     });
 
     return Object.entries(tagCount)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, limit)
       .map(([tag, count]) => ({ tag, count }));
   }
@@ -201,7 +201,7 @@ class Knowledge {
   /**
    * Obtener artículos relacionados
    */
-  async getRelatedArticles(limit = 5) {
+  async getRelatedArticles (limit = 5) {
     // Buscar por tags similares
     const relatedByTags = await firestore
       .collection('knowledge')
@@ -222,20 +222,20 @@ class Knowledge {
   /**
    * Actualizar documento
    */
-  async update(updates) {
-    const validUpdates = { 
-      ...updates, 
+  async update (updates) {
+    const validUpdates = {
+      ...updates,
       updatedAt: FieldValue.serverTimestamp(),
-      lastModifiedBy: updates.lastModifiedBy || this.lastModifiedBy
+      lastModifiedBy: updates.lastModifiedBy || this.lastModifiedBy,
     };
-    
+
     // Si se publica por primera vez
     if (updates.isPublic && !this.isPublic) {
       validUpdates.publishedAt = FieldValue.serverTimestamp();
     }
-    
+
     await firestore.collection('knowledge').doc(this.id).update(validUpdates);
-    
+
     // Actualizar propiedades locales
     Object.assign(this, updates);
     this.updatedAt = Timestamp.now();
@@ -244,9 +244,9 @@ class Knowledge {
   /**
    * Incrementar contador de vistas
    */
-  async incrementViews() {
+  async incrementViews () {
     await firestore.collection('knowledge').doc(this.id).update({
-      views: FieldValue.increment(1)
+      views: FieldValue.increment(1),
     });
     this.views++;
   }
@@ -254,9 +254,9 @@ class Knowledge {
   /**
    * Votar como útil
    */
-  async voteHelpful() {
+  async voteHelpful () {
     await firestore.collection('knowledge').doc(this.id).update({
-      helpful: FieldValue.increment(1)
+      helpful: FieldValue.increment(1),
     });
     this.helpful++;
   }
@@ -264,9 +264,9 @@ class Knowledge {
   /**
    * Votar como no útil
    */
-  async voteNotHelpful() {
+  async voteNotHelpful () {
     await firestore.collection('knowledge').doc(this.id).update({
-      notHelpful: FieldValue.increment(1)
+      notHelpful: FieldValue.increment(1),
     });
     this.notHelpful++;
   }
@@ -274,73 +274,73 @@ class Knowledge {
   /**
    * Agregar calificación
    */
-  async addRating(rating) {
+  async addRating (rating) {
     const newRatingCount = this.ratingCount + 1;
     const newRating = ((this.rating * this.ratingCount) + rating) / newRatingCount;
-    
+
     await this.update({
       rating: newRating,
-      ratingCount: newRatingCount
+      ratingCount: newRatingCount,
     });
   }
 
   /**
    * Publicar documento
    */
-  async publish() {
+  async publish () {
     await this.update({
       isPublic: true,
-      publishedAt: FieldValue.serverTimestamp()
+      publishedAt: FieldValue.serverTimestamp(),
     });
   }
 
   /**
    * Despublicar documento
    */
-  async unpublish() {
+  async unpublish () {
     await this.update({
-      isPublic: false
+      isPublic: false,
     });
   }
 
   /**
    * Fijar documento
    */
-  async pin() {
+  async pin () {
     await this.update({ isPinned: true });
   }
 
   /**
    * Desfijar documento
    */
-  async unpin() {
+  async unpin () {
     await this.update({ isPinned: false });
   }
 
   /**
    * Eliminar documento (soft delete)
    */
-  async delete() {
-    await this.update({ 
-      isActive: false, 
-      deletedAt: FieldValue.serverTimestamp() 
+  async delete () {
+    await this.update({
+      isActive: false,
+      deletedAt: FieldValue.serverTimestamp(),
     });
   }
 
   /**
    * Eliminar documento permanentemente
    */
-  async hardDelete() {
+  async hardDelete () {
     await firestore.collection('knowledge').doc(this.id).delete();
   }
 
   /**
    * Obtener estadísticas del documento
    */
-  getStats() {
+  getStats () {
     const totalVotes = this.helpful + this.notHelpful;
     const helpfulRatio = totalVotes > 0 ? (this.helpful / totalVotes) * 100 : 0;
-    
+
     return {
       views: this.views,
       helpful: this.helpful,
@@ -355,7 +355,7 @@ class Knowledge {
   /**
    * Convertir a objeto plano para respuestas JSON
    */
-  toJSON() {
+  toJSON () {
     return {
       id: this.id,
       title: this.title,
@@ -387,4 +387,4 @@ class Knowledge {
   }
 }
 
-module.exports = Knowledge; 
+module.exports = Knowledge;

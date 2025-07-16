@@ -17,10 +17,10 @@ router.get('/', KnowledgeController.list);
  * @desc Crear nuevo documento
  * @access Private (Admin)
  */
-router.post('/', 
+router.post('/',
   requireAdmin,
   validate(schemas.knowledge.create),
-  KnowledgeController.create
+  KnowledgeController.create,
 );
 
 /**
@@ -49,10 +49,10 @@ router.get('/:id', KnowledgeController.getById);
  * @desc Actualizar documento
  * @access Private (Admin)
  */
-router.put('/:id', 
+router.put('/:id',
   requireAdmin,
   validate(schemas.knowledge.update),
-  KnowledgeController.update
+  KnowledgeController.update,
 );
 
 /**
@@ -60,9 +60,9 @@ router.put('/:id',
  * @desc Eliminar documento
  * @access Private (Admin)
  */
-router.delete('/:id', 
+router.delete('/:id',
   requireAdmin,
-  KnowledgeController.delete
+  KnowledgeController.delete,
 );
 
 /**
@@ -70,9 +70,9 @@ router.delete('/:id',
  * @desc Publicar documento
  * @access Private (Admin)
  */
-router.post('/:id/publish', 
+router.post('/:id/publish',
   requireAdmin,
-  KnowledgeController.publish
+  KnowledgeController.publish,
 );
 
 /**
@@ -80,11 +80,11 @@ router.post('/:id/publish',
  * @desc Despublicar documento
  * @access Private (Admin)
  */
-router.post('/:id/unpublish', 
+router.post('/:id/unpublish',
   requireAdmin,
-  KnowledgeController.unpublish
+  KnowledgeController.unpublish,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const knowledgeRoutes = require('./routes/knowledge');
-module.exports = router; 
+module.exports = router;

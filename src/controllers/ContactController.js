@@ -6,24 +6,24 @@ const multer = require('multer');
 const fs = require('fs');
 
 // Configuración de multer para subida de archivos
-const upload = multer({ 
+const upload = multer({
   dest: 'uploads/',
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
 class ContactController {
   /**
    * Listar contactos con filtros y paginación
    */
-  static async list(req, res, next) {
+  static async list (req, res, next) {
     try {
-      const { 
-        page = 1, 
-        limit = 20, 
-        search, 
-        tags, 
-        sortBy = 'createdAt', 
-        sortOrder = 'desc' 
+      const {
+        page = 1,
+        limit = 20,
+        search,
+        tags,
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
       } = req.query;
 
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -35,10 +35,10 @@ class ContactController {
         userId,
       });
 
-      logger.info('Contactos listados', { 
+      logger.info('Contactos listados', {
         userId: req.user.uid,
         count: contacts.length,
-        filters: { search, tags }
+        filters: { search, tags },
       });
 
       res.json({
@@ -58,7 +58,7 @@ class ContactController {
   /**
    * Crear nuevo contacto
    */
-  static async create(req, res, next) {
+  static async create (req, res, next) {
     try {
       const contactData = {
         ...req.body,
@@ -76,10 +76,10 @@ class ContactController {
 
       const contact = await Contact.create(contactData);
 
-      logger.info('Contacto creado', { 
+      logger.info('Contacto creado', {
         contactId: contact.id,
         phone: contact.phone,
-        createdBy: req.user.uid 
+        createdBy: req.user.uid,
       });
 
       res.status(201).json({
@@ -95,7 +95,7 @@ class ContactController {
   /**
    * Obtener contacto por ID
    */
-  static async getById(req, res, next) {
+  static async getById (req, res, next) {
     try {
       const { id } = req.params;
       const contact = await Contact.getById(id);
@@ -127,7 +127,7 @@ class ContactController {
   /**
    * Actualizar contacto
    */
-  static async update(req, res, next) {
+  static async update (req, res, next) {
     try {
       const { id } = req.params;
       const updates = req.body;
@@ -161,10 +161,10 @@ class ContactController {
 
       await contact.update(updates);
 
-      logger.info('Contacto actualizado', { 
+      logger.info('Contacto actualizado', {
         contactId: contact.id,
         updatedBy: req.user.uid,
-        fields: Object.keys(updates)
+        fields: Object.keys(updates),
       });
 
       res.json({
@@ -180,7 +180,7 @@ class ContactController {
   /**
    * Eliminar contacto (soft delete)
    */
-  static async delete(req, res, next) {
+  static async delete (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -202,9 +202,9 @@ class ContactController {
 
       await contact.delete();
 
-      logger.info('Contacto eliminado', { 
+      logger.info('Contacto eliminado', {
         contactId: contact.id,
-        deletedBy: req.user.uid 
+        deletedBy: req.user.uid,
       });
 
       res.json({
@@ -219,7 +219,7 @@ class ContactController {
   /**
    * Buscar contactos por texto
    */
-  static async search(req, res, next) {
+  static async search (req, res, next) {
     try {
       const { q: searchTerm, limit = 20 } = req.query;
 
@@ -246,11 +246,11 @@ class ContactController {
   /**
    * Obtener todos los tags disponibles
    */
-  static async getTags(req, res, next) {
+  static async getTags (req, res, next) {
     try {
       const userId = req.user.role === 'admin' ? null : req.user.uid;
       const contacts = await Contact.list({ userId });
-      
+
       const allTags = contacts.reduce((tags, contact) => {
         return [...tags, ...contact.tags];
       }, []);
@@ -270,7 +270,7 @@ class ContactController {
   /**
    * Agregar tags a un contacto
    */
-  static async addTags(req, res, next) {
+  static async addTags (req, res, next) {
     try {
       const { id } = req.params;
       const { tags } = req.body;
@@ -304,7 +304,7 @@ class ContactController {
   /**
    * Remover tags de un contacto
    */
-  static async removeTags(req, res, next) {
+  static async removeTags (req, res, next) {
     try {
       const { id } = req.params;
       const { tags } = req.body;
@@ -331,7 +331,7 @@ class ContactController {
   /**
    * Exportar contactos a CSV
    */
-  static async exportCSV(req, res, next) {
+  static async exportCSV (req, res, next) {
     try {
       const userId = req.user.role === 'admin' ? null : req.user.uid;
       const contacts = await Contact.exportToCSV(userId);
@@ -345,9 +345,9 @@ class ContactController {
       res.attachment('contactos.csv');
       res.send(csv);
 
-      logger.info('Contactos exportados', { 
+      logger.info('Contactos exportados', {
         userId: req.user.uid,
-        count: contacts.length 
+        count: contacts.length,
       });
     } catch (error) {
       logger.error('Error al exportar contactos:', error);
@@ -358,9 +358,9 @@ class ContactController {
   /**
    * Importar contactos desde CSV
    */
-  static async importCSV(req, res, next) {
+  static async importCSV (req, res, next) {
     const uploadHandler = upload.single('file');
-    
+
     uploadHandler(req, res, async (err) => {
       if (err) {
         return res.status(400).json({
@@ -435,11 +435,11 @@ class ContactController {
         // Limpiar archivo temporal
         fs.unlinkSync(req.file.path);
 
-        logger.info('Contactos importados', { 
+        logger.info('Contactos importados', {
           userId: req.user.uid,
           imported: results.imported,
           errors: results.errors.length,
-          duplicates: results.duplicates
+          duplicates: results.duplicates,
         });
 
         res.json({
@@ -458,4 +458,4 @@ class ContactController {
   }
 }
 
-module.exports = ContactController; 
+module.exports = ContactController;

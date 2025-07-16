@@ -52,4 +52,4 @@ module.exports = {
   firestore,
   FieldValue: admin.firestore.FieldValue,
   Timestamp: admin.firestore.Timestamp,
-}; 
+};

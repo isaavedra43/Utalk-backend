@@ -54,4 +54,4 @@ router.get('/performance', DashboardController.getPerformanceMetrics);
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const dashboardRoutes = require('./routes/dashboard');
-module.exports = router; 
+module.exports = router;

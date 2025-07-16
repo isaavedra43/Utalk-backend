@@ -82,7 +82,7 @@ const errorHandler = (err, req, res, next) => {
 /**
  * Traduce códigos de error de Firebase Auth a mensajes amigables
  */
-function getFirebaseAuthErrorMessage(code) {
+function getFirebaseAuthErrorMessage (code) {
   const errorMessages = {
     'auth/user-not-found': 'Usuario no encontrado',
     'auth/wrong-password': 'Contraseña incorrecta',
@@ -101,4 +101,4 @@ function getFirebaseAuthErrorMessage(code) {
 
 // EXPORT PATTERN: Single function export
 // USAGE: const errorHandler = require('./errorHandler');
-module.exports = errorHandler; 
+module.exports = errorHandler;

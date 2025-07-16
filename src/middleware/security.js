@@ -8,7 +8,7 @@ const logger = require('../utils/logger');
  */
 const createRateLimit = (endpoint) => {
   const config = rateLimitConfig[endpoint] || rateLimitConfig.default;
-  
+
   return rateLimit({
     windowMs: config.windowMs,
     max: config.max,
@@ -43,16 +43,16 @@ const createRateLimit = (endpoint) => {
 const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.twilio.com", "https://firestore.googleapis.com"],
-      frameSrc: ["'none'"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
+      defaultSrc: ['\'self\''],
+      styleSrc: ['\'self\'', '\'unsafe-inline\'', 'https://fonts.googleapis.com'],
+      fontSrc: ['\'self\'', 'https://fonts.gstatic.com'],
+      imgSrc: ['\'self\'', 'data:', 'https:'],
+      scriptSrc: ['\'self\''],
+      connectSrc: ['\'self\'', 'https://api.twilio.com', 'https://firestore.googleapis.com'],
+      frameSrc: ['\'none\''],
+      objectSrc: ['\'none\''],
+      baseUri: ['\'self\''],
+      formAction: ['\'self\''],
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -77,8 +77,8 @@ const validateOrigin = (req, res, next) => {
 
   // Validar origin si está configurado
   if (allowedOrigins.length > 0 && origin) {
-    const isAllowed = allowedOrigins.some(allowedOrigin => 
-      origin.startsWith(allowedOrigin.trim())
+    const isAllowed = allowedOrigins.some(allowedOrigin =>
+      origin.startsWith(allowedOrigin.trim()),
     );
 
     if (!isAllowed) {
@@ -105,16 +105,16 @@ const attackDetection = (req, res, next) => {
   const suspiciousPatterns = [
     // SQL Injection
     /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC)\b.*\b(FROM|INTO|SET|WHERE|TABLE)\b)/i,
-    
+
     // XSS básico
     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
     /javascript:/i,
     /on\w+\s*=/i,
-    
+
     // Path traversal
     /\.\.\//g,
     /\.\.\\/g,
-    
+
     // Command injection
     /[;&|`$(){}[\]]/,
   ];
@@ -125,8 +125,8 @@ const attackDetection = (req, res, next) => {
     params: req.params,
   });
 
-  const isSuspicious = suspiciousPatterns.some(pattern => 
-    pattern.test(requestString)
+  const isSuspicious = suspiciousPatterns.some(pattern =>
+    pattern.test(requestString),
   );
 
   if (isSuspicious) {
@@ -162,8 +162,8 @@ const securityLogger = (req, res, next) => {
     '/knowledge/upload',
   ];
 
-  const isSensitive = sensitiveEndpoints.some(endpoint => 
-    req.originalUrl.includes(endpoint)
+  const isSensitive = sensitiveEndpoints.some(endpoint =>
+    req.originalUrl.includes(endpoint),
   );
 
   if (isSensitive) {
@@ -185,8 +185,8 @@ const securityLogger = (req, res, next) => {
 const validatePayloadSize = (maxSize = '10mb') => {
   return (req, res, next) => {
     const contentLength = parseInt(req.get('Content-Length') || '0');
-    const maxBytes = typeof maxSize === 'string' 
-      ? parseInt(maxSize) * 1024 * 1024 
+    const maxBytes = typeof maxSize === 'string'
+      ? parseInt(maxSize) * 1024 * 1024
       : maxSize;
 
     if (contentLength > maxBytes) {
@@ -212,8 +212,8 @@ const validatePayloadSize = (maxSize = '10mb') => {
  */
 const validateRequiredHeaders = (req, res, next) => {
   const requiredHeaders = ['user-agent'];
-  const missingHeaders = requiredHeaders.filter(header => 
-    !req.get(header)
+  const missingHeaders = requiredHeaders.filter(header =>
+    !req.get(header),
   );
 
   if (missingHeaders.length > 0) {
@@ -333,4 +333,4 @@ module.exports = {
   createRateLimit,
   applyEndpointRateLimit,
   applySecurity,
-}; 
+};

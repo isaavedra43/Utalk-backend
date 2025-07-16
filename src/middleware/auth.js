@@ -33,10 +33,10 @@ const authMiddleware = async (req, res, next) => {
 
     // Verificar el token con Firebase
     const decodedToken = await auth.verifyIdToken(token);
-    
+
     // Obtener información adicional del usuario
     const userRecord = await auth.getUser(decodedToken.uid);
-    
+
     // Agregar información del usuario al request
     req.user = {
       uid: decodedToken.uid,
@@ -106,7 +106,7 @@ const requireRole = (roles) => {
         error: 'Permisos insuficientes',
         message: `Necesitas uno de los siguientes roles: ${allowedRoles.join(', ')}`,
         requiredRoles: allowedRoles,
-        userRole: userRole,
+        userRole,
       });
     }
 
@@ -132,4 +132,4 @@ module.exports = {
   requireRole,
   requireAdmin,
   requireAgentOrAdmin,
-}; 
+};

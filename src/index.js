@@ -1,11 +1,11 @@
 /**
  * FUNDAY BACKEND API - UTalk WhatsApp Management System
- * 
+ *
  * CRITICAL FIX: Router.use() middleware error resolved
  * - Fixed: authMiddleware import using destructuring to get function, not object
  * - Standardized: All middleware/route import patterns documented
  * - Date: 2025-01-15
- * 
+ *
  * Deploy requirements: Firebase + Twilio environment variables
  * See: DEPLOY_GUIDE.md for complete setup instructions
  */
@@ -71,7 +71,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rutas de la API
+// Rutas públicas sin autenticación (DEBEN IR ANTES del authMiddleware)
+// CRÍTICO: Webhook de Twilio debe ser público para recibir mensajes de WhatsApp
+app.use('/api/messages/webhook', require('./routes/webhook'));
+
+// Rutas de la API protegidas
 app.use('/api/auth', authRoutes);
 app.use('/api/contacts', authMiddleware, contactRoutes);
 app.use('/api/messages', authMiddleware, messageRoutes);
@@ -101,28 +105,31 @@ app.use('*', (req, res) => {
 // Middleware de manejo de errores (debe ir al final)
 app.use(errorHandler);
 
-// Inicializar servidor
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Servidor Funday Backend ejecutándose en puerto ${PORT}`);
-  console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-});
-
-// Manejo de cierre graceful
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM recibido, cerrando servidor...');
-  server.close(() => {
-    console.log('✅ Servidor cerrado correctamente');
-    process.exit(0);
+// Solo inicializar servidor si NO estamos en modo test
+if (process.env.NODE_ENV !== 'test') {
+  // Inicializar servidor
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 Servidor Funday Backend ejecutándose en puerto ${PORT}`);
+    console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT recibido, cerrando servidor...');
-  server.close(() => {
-    console.log('✅ Servidor cerrado correctamente');
-    process.exit(0);
+  // Manejo de cierre graceful
+  process.on('SIGTERM', () => {
+    console.log('🛑 SIGTERM recibido, cerrando servidor...');
+    server.close(() => {
+      console.log('✅ Servidor cerrado correctamente');
+      process.exit(0);
+    });
   });
-});
 
-module.exports = app; 
+  process.on('SIGINT', () => {
+    console.log('🛑 SIGINT recibido, cerrando servidor...');
+    server.close(() => {
+      console.log('✅ Servidor cerrado correctamente');
+      process.exit(0);
+    });
+  });
+}
+
+module.exports = app;

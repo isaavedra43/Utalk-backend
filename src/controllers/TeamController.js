@@ -10,16 +10,16 @@ class TeamController {
   /**
    * Listar miembros del equipo
    */
-  static async list(req, res, next) {
+  static async list (req, res, next) {
     try {
-      const { 
-        page = 1, 
-        limit = 20, 
-        role, 
-        isActive, 
+      const {
+        page = 1,
+        limit = 20,
+        role,
+        isActive,
         search,
-        sortBy = 'createdAt', 
-        sortOrder = 'desc' 
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
       } = req.query;
 
       let users;
@@ -27,9 +27,9 @@ class TeamController {
         // Búsqueda por nombre o email
         const allUsers = await User.list({ isActive: true });
         const searchLower = search.toLowerCase();
-        users = allUsers.filter(user => 
+        users = allUsers.filter(user =>
           user.displayName?.toLowerCase().includes(searchLower) ||
-          user.email?.toLowerCase().includes(searchLower)
+          user.email?.toLowerCase().includes(searchLower),
         );
       } else {
         users = await User.list({
@@ -47,13 +47,13 @@ class TeamController {
             ...user.toJSON(),
             kpis: kpis.summary,
           };
-        })
+        }),
       );
 
-      logger.info('Miembros del equipo listados', { 
+      logger.info('Miembros del equipo listados', {
         userId: req.user.uid,
         count: usersWithKPIs.length,
-        filters: { role, isActive, search }
+        filters: { role, isActive, search },
       });
 
       res.json({
@@ -73,7 +73,7 @@ class TeamController {
   /**
    * Invitar nuevo miembro al equipo
    */
-  static async invite(req, res, next) {
+  static async invite (req, res, next) {
     try {
       const { email, displayName, role = 'viewer' } = req.body;
 
@@ -117,11 +117,11 @@ class TeamController {
       // TODO: Enviar email de invitación con contraseña temporal
       // await this.sendInvitationEmail(email, displayName, temporaryPassword);
 
-      logger.info('Miembro invitado al equipo', { 
+      logger.info('Miembro invitado al equipo', {
         newUserId: user.uid,
         email: user.email,
         role: user.role,
-        invitedBy: req.user.uid 
+        invitedBy: req.user.uid,
       });
 
       res.status(201).json({
@@ -138,7 +138,7 @@ class TeamController {
   /**
    * Obtener miembro por ID
    */
-  static async getById(req, res, next) {
+  static async getById (req, res, next) {
     try {
       const { id } = req.params;
       const user = await User.getByUid(id);
@@ -176,7 +176,7 @@ class TeamController {
   /**
    * Actualizar miembro del equipo
    */
-  static async update(req, res, next) {
+  static async update (req, res, next) {
     try {
       const { id } = req.params;
       const updates = req.body;
@@ -216,10 +216,10 @@ class TeamController {
 
       await user.update(updates);
 
-      logger.info('Miembro actualizado', { 
+      logger.info('Miembro actualizado', {
         userId: user.uid,
         updatedBy: req.user.uid,
-        fields: Object.keys(updates)
+        fields: Object.keys(updates),
       });
 
       res.json({
@@ -235,7 +235,7 @@ class TeamController {
   /**
    * Eliminar miembro del equipo
    */
-  static async delete(req, res, next) {
+  static async delete (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -269,9 +269,9 @@ class TeamController {
       // Desactivar en Firebase Auth
       await auth.updateUser(user.uid, { disabled: true });
 
-      logger.info('Miembro eliminado', { 
+      logger.info('Miembro eliminado', {
         userId: user.uid,
-        deletedBy: req.user.uid 
+        deletedBy: req.user.uid,
       });
 
       res.json({
@@ -286,7 +286,7 @@ class TeamController {
   /**
    * Activar miembro
    */
-  static async activate(req, res, next) {
+  static async activate (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -308,9 +308,9 @@ class TeamController {
       await user.setActive(true);
       await auth.updateUser(user.uid, { disabled: false });
 
-      logger.info('Miembro activado', { 
+      logger.info('Miembro activado', {
         userId: user.uid,
-        activatedBy: req.user.uid 
+        activatedBy: req.user.uid,
       });
 
       res.json({
@@ -326,7 +326,7 @@ class TeamController {
   /**
    * Desactivar miembro
    */
-  static async deactivate(req, res, next) {
+  static async deactivate (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -356,9 +356,9 @@ class TeamController {
       await user.setActive(false);
       await auth.updateUser(user.uid, { disabled: true });
 
-      logger.info('Miembro desactivado', { 
+      logger.info('Miembro desactivado', {
         userId: user.uid,
-        deactivatedBy: req.user.uid 
+        deactivatedBy: req.user.uid,
       });
 
       res.json({
@@ -374,7 +374,7 @@ class TeamController {
   /**
    * Obtener KPIs de un miembro
    */
-  static async getKPIs(req, res, next) {
+  static async getKPIs (req, res, next) {
     try {
       const { id } = req.params;
       const { period = '30d' } = req.query;
@@ -415,7 +415,7 @@ class TeamController {
   /**
    * Resetear contraseña de miembro
    */
-  static async resetPassword(req, res, next) {
+  static async resetPassword (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -445,9 +445,9 @@ class TeamController {
       // TODO: Enviar email con nueva contraseña
       // await this.sendPasswordResetEmail(user.email, user.displayName, temporaryPassword);
 
-      logger.info('Contraseña reseteada', { 
+      logger.info('Contraseña reseteada', {
         userId: user.uid,
-        resetBy: req.user.uid 
+        resetBy: req.user.uid,
       });
 
       res.json({
@@ -465,7 +465,7 @@ class TeamController {
   /**
    * Obtener KPIs detallados de un usuario
    */
-  static async getUserKPIs(userId, period) {
+  static async getUserKPIs (userId, period) {
     const { start, end } = this.getPeriodDates(period);
 
     // Obtener métricas paralelas
@@ -505,22 +505,22 @@ class TeamController {
   /**
    * Calcular fechas según período
    */
-  static getPeriodDates(period) {
+  static getPeriodDates (period) {
     const end = new Date();
     let start;
 
     switch (period) {
-      case '7d':
-        start = moment().subtract(7, 'days').toDate();
-        break;
-      case '30d':
-        start = moment().subtract(30, 'days').toDate();
-        break;
-      case '90d':
-        start = moment().subtract(90, 'days').toDate();
-        break;
-      default:
-        start = moment().subtract(30, 'days').toDate();
+    case '7d':
+      start = moment().subtract(7, 'days').toDate();
+      break;
+    case '30d':
+      start = moment().subtract(30, 'days').toDate();
+      break;
+    case '90d':
+      start = moment().subtract(90, 'days').toDate();
+      break;
+    default:
+      start = moment().subtract(30, 'days').toDate();
     }
 
     return { start, end };
@@ -529,7 +529,7 @@ class TeamController {
   /**
    * Obtener estadísticas de contactos para un usuario
    */
-  static async getContactStats(userId, startDate, endDate) {
+  static async getContactStats (userId, startDate, endDate) {
     const contacts = await Contact.list({ userId, isActive: true });
     const newContacts = contacts.filter(contact => {
       const createdAt = contact.createdAt?.toDate?.();
@@ -546,7 +546,7 @@ class TeamController {
   /**
    * Obtener estadísticas de campañas para un usuario
    */
-  static async getCampaignStats(userId, startDate, endDate) {
+  static async getCampaignStats (userId, startDate, endDate) {
     const campaigns = await Campaign.list({ createdBy: userId, isActive: true });
     const newCampaigns = campaigns.filter(campaign => {
       const createdAt = campaign.createdAt?.toDate?.();
@@ -564,7 +564,7 @@ class TeamController {
   /**
    * Calcular tiempo promedio de respuesta
    */
-  static async calculateResponseTime(userId, startDate, endDate) {
+  static async calculateResponseTime (userId, startDate, endDate) {
     // Implementación simplificada
     // En una implementación real, se calcularía basado en conversaciones
     return Math.floor(Math.random() * 60) + 15; // 15-75 minutos (mock)
@@ -573,14 +573,14 @@ class TeamController {
   /**
    * Calcular productividad
    */
-  static calculateProductivity(messageStats, contactStats, campaignStats) {
+  static calculateProductivity (messageStats, contactStats, campaignStats) {
     const messages = messageStats.outbound || 0;
     const contacts = contactStats.new || 0;
     const campaigns = campaignStats.completed || 0;
 
     // Fórmula de productividad ponderada
     const score = (messages * 1) + (contacts * 3) + (campaigns * 5);
-    
+
     // Normalizar a escala 0-100
     return Math.min(100, Math.max(0, score / 10));
   }
@@ -588,7 +588,7 @@ class TeamController {
   /**
    * Calcular satisfacción del cliente
    */
-  static async calculateSatisfaction(userId, startDate, endDate) {
+  static async calculateSatisfaction (userId, startDate, endDate) {
     // Implementación simplificada
     // En una implementación real, se basaría en encuestas o feedback
     return Math.floor(Math.random() * 20) + 80; // 80-100% (mock)
@@ -597,17 +597,17 @@ class TeamController {
   /**
    * Generar contraseña temporal
    */
-  static generateTemporaryPassword() {
+  static generateTemporaryPassword () {
     const length = 12;
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
     let password = '';
-    
+
     for (let i = 0; i < length; i++) {
       password += charset.charAt(Math.floor(Math.random() * charset.length));
     }
-    
+
     return password;
   }
 }
 
-module.exports = TeamController; 
+module.exports = TeamController;

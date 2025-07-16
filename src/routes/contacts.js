@@ -10,9 +10,9 @@ const router = express.Router();
  * @desc Listar contactos con filtros y paginación
  * @access Private (Agent+)
  */
-router.get('/', 
+router.get('/',
   validate(schemas.contact.list, 'query'),
-  ContactController.list
+  ContactController.list,
 );
 
 /**
@@ -20,10 +20,10 @@ router.get('/',
  * @desc Crear nuevo contacto
  * @access Private (Agent+)
  */
-router.post('/', 
+router.post('/',
   requireAgentOrAdmin,
   validate(schemas.contact.create),
-  ContactController.create
+  ContactController.create,
 );
 
 /**
@@ -59,10 +59,10 @@ router.get('/:id', ContactController.getById);
  * @desc Actualizar contacto
  * @access Private (Agent+)
  */
-router.put('/:id', 
+router.put('/:id',
   requireAgentOrAdmin,
   validate(schemas.contact.update),
-  ContactController.update
+  ContactController.update,
 );
 
 /**
@@ -70,9 +70,9 @@ router.put('/:id',
  * @desc Eliminar contacto (soft delete)
  * @access Private (Agent+)
  */
-router.delete('/:id', 
+router.delete('/:id',
   requireAgentOrAdmin,
-  ContactController.delete
+  ContactController.delete,
 );
 
 /**
@@ -80,9 +80,9 @@ router.delete('/:id',
  * @desc Agregar tags a un contacto
  * @access Private (Agent+)
  */
-router.post('/:id/tags', 
+router.post('/:id/tags',
   requireAgentOrAdmin,
-  ContactController.addTags
+  ContactController.addTags,
 );
 
 /**
@@ -90,9 +90,9 @@ router.post('/:id/tags',
  * @desc Remover tags de un contacto
  * @access Private (Agent+)
  */
-router.delete('/:id/tags', 
+router.delete('/:id/tags',
   requireAgentOrAdmin,
-  ContactController.removeTags
+  ContactController.removeTags,
 );
 
 /**
@@ -100,11 +100,11 @@ router.delete('/:id/tags',
  * @desc Importar contactos desde CSV
  * @access Private (Agent+)
  */
-router.post('/import', 
+router.post('/import',
   requireAgentOrAdmin,
-  ContactController.importCSV
+  ContactController.importCSV,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const contactRoutes = require('./routes/contacts');
-module.exports = router; 
+module.exports = router;

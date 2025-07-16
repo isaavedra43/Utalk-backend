@@ -8,15 +8,15 @@ class CampaignController {
   /**
    * Listar campañas con filtros y paginación
    */
-  static async list(req, res, next) {
+  static async list (req, res, next) {
     try {
-      const { 
-        page = 1, 
-        limit = 20, 
-        status, 
+      const {
+        page = 1,
+        limit = 20,
+        status,
         search,
-        sortBy = 'createdAt', 
-        sortOrder = 'desc' 
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
       } = req.query;
 
       const createdBy = req.user.role === 'admin' ? null : req.user.uid;
@@ -32,10 +32,10 @@ class CampaignController {
         });
       }
 
-      logger.info('Campañas listadas', { 
+      logger.info('Campañas listadas', {
         userId: req.user.uid,
         count: campaigns.length,
-        filters: { status, search }
+        filters: { status, search },
       });
 
       res.json({
@@ -55,7 +55,7 @@ class CampaignController {
   /**
    * Crear nueva campaña
    */
-  static async create(req, res, next) {
+  static async create (req, res, next) {
     try {
       const campaignData = {
         ...req.body,
@@ -66,11 +66,11 @@ class CampaignController {
       // Validar que los contactos existen
       if (campaignData.contacts && campaignData.contacts.length > 0) {
         const contactChecks = await Promise.all(
-          campaignData.contacts.map(contactId => Contact.getById(contactId))
+          campaignData.contacts.map(contactId => Contact.getById(contactId)),
         );
-        
+
         const validContacts = contactChecks.filter(contact => contact !== null);
-        
+
         if (validContacts.length !== campaignData.contacts.length) {
           return res.status(400).json({
             error: 'Contactos inválidos',
@@ -83,11 +83,11 @@ class CampaignController {
 
       const campaign = await Campaign.create(campaignData);
 
-      logger.info('Campaña creada', { 
+      logger.info('Campaña creada', {
         campaignId: campaign.id,
         name: campaign.name,
         contactCount: campaign.contacts.length,
-        createdBy: req.user.uid 
+        createdBy: req.user.uid,
       });
 
       res.status(201).json({
@@ -103,7 +103,7 @@ class CampaignController {
   /**
    * Obtener campaña por ID
    */
-  static async getById(req, res, next) {
+  static async getById (req, res, next) {
     try {
       const { id } = req.params;
       const campaign = await Campaign.getById(id);
@@ -138,7 +138,7 @@ class CampaignController {
   /**
    * Actualizar campaña
    */
-  static async update(req, res, next) {
+  static async update (req, res, next) {
     try {
       const { id } = req.params;
       const updates = req.body;
@@ -170,11 +170,11 @@ class CampaignController {
       // Validar contactos si se están actualizando
       if (updates.contacts) {
         const contactChecks = await Promise.all(
-          updates.contacts.map(contactId => Contact.getById(contactId))
+          updates.contacts.map(contactId => Contact.getById(contactId)),
         );
-        
+
         const validContacts = contactChecks.filter(contact => contact !== null);
-        
+
         if (validContacts.length !== updates.contacts.length) {
           return res.status(400).json({
             error: 'Contactos inválidos',
@@ -187,10 +187,10 @@ class CampaignController {
 
       await campaign.update(updates);
 
-      logger.info('Campaña actualizada', { 
+      logger.info('Campaña actualizada', {
         campaignId: campaign.id,
         updatedBy: req.user.uid,
-        fields: Object.keys(updates)
+        fields: Object.keys(updates),
       });
 
       res.json({
@@ -206,7 +206,7 @@ class CampaignController {
   /**
    * Eliminar campaña
    */
-  static async delete(req, res, next) {
+  static async delete (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -228,9 +228,9 @@ class CampaignController {
 
       await campaign.delete();
 
-      logger.info('Campaña eliminada', { 
+      logger.info('Campaña eliminada', {
         campaignId: campaign.id,
-        deletedBy: req.user.uid 
+        deletedBy: req.user.uid,
       });
 
       res.json({
@@ -245,7 +245,7 @@ class CampaignController {
   /**
    * Enviar campaña
    */
-  static async sendCampaign(req, res, next) {
+  static async sendCampaign (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -277,7 +277,7 @@ class CampaignController {
 
       // Obtener contactos
       const contacts = await Promise.all(
-        campaign.contacts.map(contactId => Contact.getById(contactId))
+        campaign.contacts.map(contactId => Contact.getById(contactId)),
       );
       const validContacts = contacts.filter(contact => contact !== null);
 
@@ -285,7 +285,7 @@ class CampaignController {
       const results = await TwilioService.sendBulkMessages(
         validContacts,
         campaign.message,
-        req.user.uid
+        req.user.uid,
       );
 
       // Actualizar métricas de la campaña
@@ -303,11 +303,11 @@ class CampaignController {
       // Cambiar estado a completado
       await campaign.updateStatus('completed');
 
-      logger.info('Campaña enviada', { 
+      logger.info('Campaña enviada', {
         campaignId: campaign.id,
         sentCount,
         failedCount,
-        sentBy: req.user.uid 
+        sentBy: req.user.uid,
       });
 
       res.json({
@@ -329,7 +329,7 @@ class CampaignController {
   /**
    * Pausar campaña
    */
-  static async pauseCampaign(req, res, next) {
+  static async pauseCampaign (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -356,9 +356,9 @@ class CampaignController {
 
       await campaign.pause();
 
-      logger.info('Campaña pausada', { 
+      logger.info('Campaña pausada', {
         campaignId: campaign.id,
-        pausedBy: req.user.uid 
+        pausedBy: req.user.uid,
       });
 
       res.json({
@@ -374,7 +374,7 @@ class CampaignController {
   /**
    * Reanudar campaña
    */
-  static async resumeCampaign(req, res, next) {
+  static async resumeCampaign (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -401,9 +401,9 @@ class CampaignController {
 
       await campaign.resume();
 
-      logger.info('Campaña reanudada', { 
+      logger.info('Campaña reanudada', {
         campaignId: campaign.id,
-        resumedBy: req.user.uid 
+        resumedBy: req.user.uid,
       });
 
       res.json({
@@ -419,7 +419,7 @@ class CampaignController {
   /**
    * Obtener reporte de campaña
    */
-  static async getReport(req, res, next) {
+  static async getReport (req, res, next) {
     try {
       const { id } = req.params;
       const { format } = req.query;
@@ -489,4 +489,4 @@ class CampaignController {
   }
 }
 
-module.exports = CampaignController; 
+module.exports = CampaignController;

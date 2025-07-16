@@ -2,11 +2,11 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 
 class Message {
-  constructor(data) {
+  constructor (data) {
     this.id = data.id || uuidv4();
     this.conversationId = data.conversationId;
     this.from = data.from; // Número de teléfono
-    this.to = data.to;     // Número de teléfono
+    this.to = data.to; // Número de teléfono
     this.content = data.content;
     this.type = data.type || 'text'; // 'text', 'image', 'document', 'audio'
     this.direction = data.direction; // 'inbound', 'outbound'
@@ -23,7 +23,7 @@ class Message {
   /**
    * Crear un nuevo mensaje
    */
-  static async create(messageData) {
+  static async create (messageData) {
     const message = new Message(messageData);
     await firestore.collection('messages').doc(message.id).set({
       ...message,
@@ -37,7 +37,7 @@ class Message {
   /**
    * Obtener mensaje por ID
    */
-  static async getById(id) {
+  static async getById (id) {
     const doc = await firestore.collection('messages').doc(id).get();
     if (!doc.exists) {
       return null;
@@ -48,17 +48,17 @@ class Message {
   /**
    * Obtener mensaje por SID de Twilio
    */
-  static async getByTwilioSid(twilioSid) {
+  static async getByTwilioSid (twilioSid) {
     const snapshot = await firestore
       .collection('messages')
       .where('twilioSid', '==', twilioSid)
       .limit(1)
       .get();
-    
+
     if (snapshot.empty) {
       return null;
     }
-    
+
     const doc = snapshot.docs[0];
     return new Message({ id: doc.id, ...doc.data() });
   }
@@ -66,7 +66,7 @@ class Message {
   /**
    * Listar mensajes de una conversación
    */
-  static async getByConversation(conversationId, { limit = 50, startAfter = null } = {}) {
+  static async getByConversation (conversationId, { limit = 50, startAfter = null } = {}) {
     let query = firestore
       .collection('messages')
       .where('conversationId', '==', conversationId)
@@ -84,29 +84,51 @@ class Message {
   /**
    * Listar mensajes entre dos números
    */
-  static async getByPhones(phone1, phone2, { limit = 50, startAfter = null } = {}) {
-    let query = firestore.collection('messages');
-    
-    // Buscar mensajes en ambas direcciones
-    query = query.where(
-      Filter.or(
-        Filter.and(Filter.where('from', '==', phone1), Filter.where('to', '==', phone2)),
-        Filter.and(Filter.where('from', '==', phone2), Filter.where('to', '==', phone1))
-      )
-    ).orderBy('timestamp', 'desc').limit(limit);
+  static async getByPhones (phone1, phone2, { limit = 50, startAfter = null } = {}) {
+    // Buscar mensajes en ambas direcciones usando consultas separadas
+    // Firestore no soporta OR queries complejas de forma nativa
+
+    // Consulta 1: phone1 -> phone2
+    let query1 = firestore.collection('messages')
+      .where('from', '==', phone1)
+      .where('to', '==', phone2)
+      .orderBy('timestamp', 'desc')
+      .limit(limit);
+
+    // Consulta 2: phone2 -> phone1
+    let query2 = firestore.collection('messages')
+      .where('from', '==', phone2)
+      .where('to', '==', phone1)
+      .orderBy('timestamp', 'desc')
+      .limit(limit);
 
     if (startAfter) {
-      query = query.startAfter(startAfter);
+      query1 = query1.startAfter(startAfter);
+      query2 = query2.startAfter(startAfter);
     }
 
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
+    // Ejecutar ambas consultas en paralelo
+    const [snapshot1, snapshot2] = await Promise.all([
+      query1.get(),
+      query2.get(),
+    ]);
+
+    // Combinar y ordenar resultados
+    const messages = [
+      ...snapshot1.docs.map(doc => new Message({ id: doc.id, ...doc.data() })),
+      ...snapshot2.docs.map(doc => new Message({ id: doc.id, ...doc.data() })),
+    ];
+
+    // Ordenar por timestamp y limitar resultados
+    return messages
+      .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
+      .slice(0, limit);
   }
 
   /**
    * Obtener mensajes recientes para un usuario
    */
-  static async getRecentMessages(userId, limit = 20) {
+  static async getRecentMessages (userId, limit = 20) {
     const snapshot = await firestore
       .collection('messages')
       .where('userId', '==', userId)
@@ -120,7 +142,7 @@ class Message {
   /**
    * Buscar mensajes por contenido
    */
-  static async search(searchTerm, userId = null) {
+  static async search (searchTerm, userId = null) {
     let query = firestore.collection('messages');
 
     if (userId) {
@@ -129,18 +151,18 @@ class Message {
 
     const snapshot = await query.get();
     const searchLower = searchTerm.toLowerCase();
-    
+
     return snapshot.docs
       .map(doc => new Message({ id: doc.id, ...doc.data() }))
-      .filter(message => 
-        message.content.toLowerCase().includes(searchLower)
+      .filter(message =>
+        message.content.toLowerCase().includes(searchLower),
       );
   }
 
   /**
    * Obtener estadísticas de mensajes
    */
-  static async getStats(userId = null, startDate = null, endDate = null) {
+  static async getStats (userId = null, startDate = null, endDate = null) {
     let query = firestore.collection('messages');
 
     if (userId) {
@@ -181,17 +203,17 @@ class Message {
   /**
    * Actualizar estado del mensaje
    */
-  async updateStatus(status) {
+  async updateStatus (status) {
     await this.update({ status });
   }
 
   /**
    * Actualizar mensaje
    */
-  async update(updates) {
+  async update (updates) {
     const validUpdates = { ...updates, updatedAt: FieldValue.serverTimestamp() };
     await firestore.collection('messages').doc(this.id).update(validUpdates);
-    
+
     // Actualizar propiedades locales
     Object.assign(this, updates);
     this.updatedAt = Timestamp.now();
@@ -200,21 +222,21 @@ class Message {
   /**
    * Marcar como leído
    */
-  async markAsRead() {
+  async markAsRead () {
     await this.updateStatus('read');
   }
 
   /**
    * Eliminar mensaje
    */
-  async delete() {
+  async delete () {
     await firestore.collection('messages').doc(this.id).delete();
   }
 
   /**
    * Convertir a objeto plano para respuestas JSON
    */
-  toJSON() {
+  toJSON () {
     return {
       id: this.id,
       conversationId: this.conversationId,
@@ -235,4 +257,4 @@ class Message {
   }
 }
 
-module.exports = Message; 
+module.exports = Message;

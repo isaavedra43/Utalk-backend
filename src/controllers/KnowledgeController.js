@@ -16,13 +16,13 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
+  },
 });
 
-const upload = multer({ 
+const upload = multer({
   storage,
-  limits: { 
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB
+  limits: {
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024, // 10MB
   },
   fileFilter: (req, file, cb) => {
     // Permitir documentos, imágenes y videos
@@ -35,35 +35,35 @@ const upload = multer({
     } else {
       cb(new Error('Tipo de archivo no permitido'));
     }
-  }
+  },
 });
 
 class KnowledgeController {
   /**
    * Listar documentos de conocimiento
    */
-  static async list(req, res, next) {
+  static async list (req, res, next) {
     try {
-      const { 
-        page = 1, 
-        limit = 20, 
-        category, 
+      const {
+        page = 1,
+        limit = 20,
+        category,
         type,
         isPublic,
         isPinned,
         tags,
         search,
-        sortBy = 'createdAt', 
-        sortOrder = 'desc' 
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
       } = req.query;
 
       const createdBy = req.user.role === 'admin' ? null : req.user.uid;
 
       let documents;
       if (search) {
-        documents = await Knowledge.search(search, { 
+        documents = await Knowledge.search(search, {
           isPublic: req.user.role !== 'admin' ? true : isPublic,
-          category 
+          category,
         });
       } else {
         documents = await Knowledge.list({
@@ -77,10 +77,10 @@ class KnowledgeController {
         });
       }
 
-      logger.info('Documentos de conocimiento listados', { 
+      logger.info('Documentos de conocimiento listados', {
         userId: req.user.uid,
         count: documents.length,
-        filters: { category, type, isPublic, search }
+        filters: { category, type, isPublic, search },
       });
 
       res.json({
@@ -100,7 +100,7 @@ class KnowledgeController {
   /**
    * Crear nuevo documento
    */
-  static async create(req, res, next) {
+  static async create (req, res, next) {
     try {
       const documentData = {
         ...req.body,
@@ -115,11 +115,11 @@ class KnowledgeController {
 
       const document = await Knowledge.create(documentData);
 
-      logger.info('Documento de conocimiento creado', { 
+      logger.info('Documento de conocimiento creado', {
         documentId: document.id,
         title: document.title,
         category: document.category,
-        createdBy: req.user.uid 
+        createdBy: req.user.uid,
       });
 
       res.status(201).json({
@@ -135,7 +135,7 @@ class KnowledgeController {
   /**
    * Obtener documento por ID
    */
-  static async getById(req, res, next) {
+  static async getById (req, res, next) {
     try {
       const { id } = req.params;
       const document = await Knowledge.getById(id);
@@ -176,7 +176,7 @@ class KnowledgeController {
   /**
    * Actualizar documento
    */
-  static async update(req, res, next) {
+  static async update (req, res, next) {
     try {
       const { id } = req.params;
       const updates = {
@@ -207,10 +207,10 @@ class KnowledgeController {
 
       await document.update(updates);
 
-      logger.info('Documento actualizado', { 
+      logger.info('Documento actualizado', {
         documentId: document.id,
         updatedBy: req.user.uid,
-        fields: Object.keys(updates)
+        fields: Object.keys(updates),
       });
 
       res.json({
@@ -226,7 +226,7 @@ class KnowledgeController {
   /**
    * Eliminar documento
    */
-  static async delete(req, res, next) {
+  static async delete (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -248,9 +248,9 @@ class KnowledgeController {
 
       await document.delete();
 
-      logger.info('Documento eliminado', { 
+      logger.info('Documento eliminado', {
         documentId: document.id,
-        deletedBy: req.user.uid 
+        deletedBy: req.user.uid,
       });
 
       res.json({
@@ -265,7 +265,7 @@ class KnowledgeController {
   /**
    * Buscar en la base de conocimiento
    */
-  static async search(req, res, next) {
+  static async search (req, res, next) {
     try {
       const { q: searchTerm, category, limit = 20 } = req.query;
 
@@ -295,7 +295,7 @@ class KnowledgeController {
   /**
    * Obtener categorías disponibles
    */
-  static async getCategories(req, res, next) {
+  static async getCategories (req, res, next) {
     try {
       const categories = await Knowledge.getCategories();
 
@@ -312,7 +312,7 @@ class KnowledgeController {
   /**
    * Publicar documento
    */
-  static async publish(req, res, next) {
+  static async publish (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -333,9 +333,9 @@ class KnowledgeController {
 
       await document.publish();
 
-      logger.info('Documento publicado', { 
+      logger.info('Documento publicado', {
         documentId: document.id,
-        publishedBy: req.user.uid 
+        publishedBy: req.user.uid,
       });
 
       res.json({
@@ -351,7 +351,7 @@ class KnowledgeController {
   /**
    * Despublicar documento
    */
-  static async unpublish(req, res, next) {
+  static async unpublish (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -372,9 +372,9 @@ class KnowledgeController {
 
       await document.unpublish();
 
-      logger.info('Documento despublicado', { 
+      logger.info('Documento despublicado', {
         documentId: document.id,
-        unpublishedBy: req.user.uid 
+        unpublishedBy: req.user.uid,
       });
 
       res.json({
@@ -390,7 +390,7 @@ class KnowledgeController {
   /**
    * Votar documento como útil
    */
-  static async voteHelpful(req, res, next) {
+  static async voteHelpful (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -416,7 +416,7 @@ class KnowledgeController {
   /**
    * Votar documento como no útil
    */
-  static async voteNotHelpful(req, res, next) {
+  static async voteNotHelpful (req, res, next) {
     try {
       const { id } = req.params;
 
@@ -442,9 +442,9 @@ class KnowledgeController {
   /**
    * Subir archivo adjunto
    */
-  static async uploadFile(req, res, next) {
+  static async uploadFile (req, res, next) {
     const uploadHandler = upload.single('file');
-    
+
     uploadHandler(req, res, async (err) => {
       if (err) {
         return res.status(400).json({
@@ -490,4 +490,4 @@ class KnowledgeController {
   }
 }
 
-module.exports = KnowledgeController; 
+module.exports = KnowledgeController;

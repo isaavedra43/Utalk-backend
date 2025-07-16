@@ -17,7 +17,7 @@ if (missingVars.length > 0) {
 // Inicializar cliente de Twilio
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
+  process.env.TWILIO_AUTH_TOKEN,
 );
 
 // Configuración de WhatsApp
@@ -33,4 +33,4 @@ console.log('✅ Cliente Twilio inicializado correctamente');
 module.exports = {
   client,
   twilioConfig,
-}; 
+};

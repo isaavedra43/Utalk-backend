@@ -10,9 +10,9 @@ const router = express.Router();
  * @desc Listar campañas
  * @access Private (Agent+)
  */
-router.get('/', 
+router.get('/',
   requireAgentOrAdmin,
-  CampaignController.list
+  CampaignController.list,
 );
 
 /**
@@ -20,10 +20,10 @@ router.get('/',
  * @desc Crear nueva campaña
  * @access Private (Agent+)
  */
-router.post('/', 
+router.post('/',
   requireAgentOrAdmin,
   validate(schemas.campaign.create),
-  CampaignController.create
+  CampaignController.create,
 );
 
 /**
@@ -31,9 +31,9 @@ router.post('/',
  * @desc Obtener campaña por ID
  * @access Private (Agent+)
  */
-router.get('/:id', 
+router.get('/:id',
   requireAgentOrAdmin,
-  CampaignController.getById
+  CampaignController.getById,
 );
 
 /**
@@ -41,10 +41,10 @@ router.get('/:id',
  * @desc Actualizar campaña
  * @access Private (Agent+)
  */
-router.put('/:id', 
+router.put('/:id',
   requireAgentOrAdmin,
   validate(schemas.campaign.update),
-  CampaignController.update
+  CampaignController.update,
 );
 
 /**
@@ -52,9 +52,9 @@ router.put('/:id',
  * @desc Eliminar campaña
  * @access Private (Admin)
  */
-router.delete('/:id', 
+router.delete('/:id',
   requireAdmin,
-  CampaignController.delete
+  CampaignController.delete,
 );
 
 /**
@@ -62,9 +62,9 @@ router.delete('/:id',
  * @desc Enviar campaña
  * @access Private (Agent+)
  */
-router.post('/:id/send', 
+router.post('/:id/send',
   requireAgentOrAdmin,
-  CampaignController.sendCampaign
+  CampaignController.sendCampaign,
 );
 
 /**
@@ -72,9 +72,9 @@ router.post('/:id/send',
  * @desc Pausar campaña
  * @access Private (Agent+)
  */
-router.post('/:id/pause', 
+router.post('/:id/pause',
   requireAgentOrAdmin,
-  CampaignController.pauseCampaign
+  CampaignController.pauseCampaign,
 );
 
 /**
@@ -82,9 +82,9 @@ router.post('/:id/pause',
  * @desc Reanudar campaña
  * @access Private (Agent+)
  */
-router.post('/:id/resume', 
+router.post('/:id/resume',
   requireAgentOrAdmin,
-  CampaignController.resumeCampaign
+  CampaignController.resumeCampaign,
 );
 
 /**
@@ -92,11 +92,11 @@ router.post('/:id/resume',
  * @desc Obtener reporte de campaña
  * @access Private (Agent+)
  */
-router.get('/:id/report', 
+router.get('/:id/report',
   requireAgentOrAdmin,
-  CampaignController.getReport
+  CampaignController.getReport,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const campaignRoutes = require('./routes/campaigns');
-module.exports = router; 
+module.exports = router;

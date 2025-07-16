@@ -6,11 +6,10 @@ Backend API para la aplicación Funday (anteriormente UTalk) - Plataforma de men
 
 - **Autenticación**: Firebase Auth con JWT
 - **Base de datos**: Firebase Firestore
-- **Mensajería**: Integración con Twilio WhatsApp
-- **WebSockets**: Mensajería en tiempo real
+- **Mensajería**: Integración con Twilio WhatsApp Business API
 - **API RESTful**: Endpoints para todas las funcionalidades
 - **Seguridad**: Validación, sanitización y rate limiting
-- **Despliegue**: Railway con CI/CD
+- **Despliegue**: Railway con CI/CD automatizado
 
 ## 📁 Estructura del proyecto
 
@@ -18,7 +17,7 @@ Backend API para la aplicación Funday (anteriormente UTalk) - Plataforma de men
 src/
 ├── controllers/         # Controladores de rutas
 ├── routes/             # Definición de rutas
-├── services/           # Lógica de negocio
+├── services/           # Lógica de negocio  
 ├── models/             # Modelos de datos Firestore
 ├── middleware/         # Middlewares de Express
 ├── utils/              # Utilidades y helpers
@@ -42,7 +41,7 @@ npm install
 3. **Configurar variables de entorno**
 ```bash
 cp .env.example .env
-# Edita .env con tus credenciales
+# Edita .env con tus credenciales reales
 ```
 
 4. **Configurar Firebase**
@@ -90,7 +89,7 @@ npm run lint:fix
 ### Mensajes
 - `GET /api/messages` - Listar conversaciones
 - `POST /api/messages/send` - Enviar mensaje
-- `POST /api/messages/webhook` - Webhook Twilio
+- `POST /api/messages/webhook` - Webhook Twilio (público)
 
 ### Campañas
 - `GET /api/campaigns` - Listar campañas
@@ -114,6 +113,9 @@ npm run lint:fix
 - `POST /api/team` - Invitar miembro
 - `PUT /api/team/:id` - Actualizar miembro
 - `DELETE /api/team/:id` - Eliminar miembro
+
+### Salud del sistema
+- `GET /health` - Health check del servidor
 
 ## 🗄️ Colecciones Firestore
 
@@ -175,7 +177,7 @@ npm run lint:fix
 
 1. **Firestore Rules** (ver `firestore.rules`)
 2. **Authentication** - Habilitar Email/Password y Google
-3. **Storage** - Para archivos multimedia
+3. **Storage** - Para archivos multimedia de WhatsApp
 
 ## 🚀 Despliegue en Railway
 
@@ -192,16 +194,17 @@ npm run deploy
 
 - Autenticación con Firebase Auth
 - Validación de entrada con Joi
-- Rate limiting
+- Rate limiting por IP
 - CORS configurado
 - Sanitización HTML
 - Headers de seguridad con Helmet
+- Validación de firma Twilio para webhooks
 
 ## 📊 Monitoreo
 
-- Logs estructurados con Morgan
-- Métricas de API
-- Alertas de errores
+- Logs estructurados con Winston
+- Métricas de API con Morgan
+- Health checks automáticos
 
 ## 🧪 Testing
 

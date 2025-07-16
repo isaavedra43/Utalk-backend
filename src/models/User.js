@@ -1,7 +1,7 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 
 class User {
-  constructor(data) {
+  constructor (data) {
     this.uid = data.uid;
     this.email = data.email;
     this.displayName = data.displayName;
@@ -17,7 +17,7 @@ class User {
   /**
    * Crear un nuevo usuario en Firestore
    */
-  static async create(userData) {
+  static async create (userData) {
     const user = new User(userData);
     await firestore.collection('users').doc(user.uid).set({
       ...user,
@@ -30,7 +30,7 @@ class User {
   /**
    * Obtener usuario por UID
    */
-  static async getByUid(uid) {
+  static async getByUid (uid) {
     const doc = await firestore.collection('users').doc(uid).get();
     if (!doc.exists) {
       return null;
@@ -41,17 +41,17 @@ class User {
   /**
    * Obtener usuario por email
    */
-  static async getByEmail(email) {
+  static async getByEmail (email) {
     const snapshot = await firestore
       .collection('users')
       .where('email', '==', email)
       .limit(1)
       .get();
-    
+
     if (snapshot.empty) {
       return null;
     }
-    
+
     const doc = snapshot.docs[0];
     return new User({ uid: doc.id, ...doc.data() });
   }
@@ -59,7 +59,7 @@ class User {
   /**
    * Listar usuarios con filtros y paginación
    */
-  static async list({ limit = 20, startAfter = null, role = null, isActive = null } = {}) {
+  static async list ({ limit = 20, startAfter = null, role = null, isActive = null } = {}) {
     let query = firestore.collection('users');
 
     if (role) {
@@ -83,10 +83,10 @@ class User {
   /**
    * Actualizar usuario
    */
-  async update(updates) {
+  async update (updates) {
     const validUpdates = { ...updates, updatedAt: FieldValue.serverTimestamp() };
     await firestore.collection('users').doc(this.uid).update(validUpdates);
-    
+
     // Actualizar propiedades locales
     Object.assign(this, updates);
     this.updatedAt = Timestamp.now();
@@ -95,7 +95,7 @@ class User {
   /**
    * Actualizar último login
    */
-  async updateLastLogin() {
+  async updateLastLogin () {
     const now = FieldValue.serverTimestamp();
     await firestore.collection('users').doc(this.uid).update({
       lastLoginAt: now,
@@ -107,21 +107,21 @@ class User {
   /**
    * Cambiar rol del usuario
    */
-  async changeRole(newRole) {
+  async changeRole (newRole) {
     await this.update({ role: newRole });
   }
 
   /**
    * Activar/desactivar usuario
    */
-  async setActive(isActive) {
+  async setActive (isActive) {
     await this.update({ isActive });
   }
 
   /**
    * Actualizar configuraciones del usuario
    */
-  async updateSettings(newSettings) {
+  async updateSettings (newSettings) {
     const settings = { ...this.settings, ...newSettings };
     await this.update({ settings });
   }
@@ -129,21 +129,21 @@ class User {
   /**
    * Eliminar usuario (soft delete)
    */
-  async delete() {
+  async delete () {
     await this.update({ isActive: false, deletedAt: FieldValue.serverTimestamp() });
   }
 
   /**
    * Eliminar usuario permanentemente
    */
-  async hardDelete() {
+  async hardDelete () {
     await firestore.collection('users').doc(this.uid).delete();
   }
 
   /**
    * Convertir a objeto plano para respuestas JSON
    */
-  toJSON() {
+  toJSON () {
     return {
       uid: this.uid,
       email: this.email,
@@ -159,4 +159,4 @@ class User {
   }
 }
 
-module.exports = User; 
+module.exports = User;

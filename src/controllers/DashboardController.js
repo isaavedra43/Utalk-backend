@@ -11,7 +11,7 @@ class DashboardController {
   /**
    * Obtener métricas generales del dashboard
    */
-  static async getMetrics(req, res, next) {
+  static async getMetrics (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -25,13 +25,13 @@ class DashboardController {
         contactStats,
         campaignStats,
         userActivity,
-        recentActivity
+        recentActivity,
       ] = await Promise.all([
         this.getMessageMetrics(userId, start, end),
         this.getContactMetrics(userId, start, end),
         this.getCampaignMetrics(userId, start, end),
         this.getUserActivityMetrics(userId, start, end),
-        this.getRecentActivity(userId, 10)
+        this.getRecentActivity(userId, 10),
       ]);
 
       const metrics = {
@@ -54,10 +54,10 @@ class DashboardController {
         trends: await this.getTrendData(userId, start, end),
       };
 
-      logger.info('Métricas del dashboard obtenidas', { 
+      logger.info('Métricas del dashboard obtenidas', {
         userId: req.user.uid,
         period,
-        metricsCount: Object.keys(metrics).length
+        metricsCount: Object.keys(metrics).length,
       });
 
       res.json(metrics);
@@ -70,7 +70,7 @@ class DashboardController {
   /**
    * Obtener estadísticas específicas de mensajes
    */
-  static async getMessageStats(req, res, next) {
+  static async getMessageStats (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -91,7 +91,7 @@ class DashboardController {
   /**
    * Obtener estadísticas específicas de contactos
    */
-  static async getContactStats(req, res, next) {
+  static async getContactStats (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -112,7 +112,7 @@ class DashboardController {
   /**
    * Obtener estadísticas específicas de campañas
    */
-  static async getCampaignStats(req, res, next) {
+  static async getCampaignStats (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -133,7 +133,7 @@ class DashboardController {
   /**
    * Obtener actividad reciente
    */
-  static async getRecentActivity(req, res, next) {
+  static async getRecentActivity (req, res, next) {
     try {
       const { limit = 20 } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -153,7 +153,7 @@ class DashboardController {
   /**
    * Exportar reporte completo
    */
-  static async exportReport(req, res, next) {
+  static async exportReport (req, res, next) {
     try {
       const { format = 'json', period = '30d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.uid;
@@ -229,7 +229,7 @@ class DashboardController {
   /**
    * Obtener métricas de rendimiento del equipo
    */
-  static async getPerformanceMetrics(req, res, next) {
+  static async getPerformanceMetrics (req, res, next) {
     try {
       const { period = '30d', startDate, endDate } = req.query;
 
@@ -267,7 +267,7 @@ class DashboardController {
               productivity: this.calculateProductivityScore(messageStats, contactStats, campaignStats),
             },
           };
-        })
+        }),
       );
 
       // Calcular rankings
@@ -310,7 +310,7 @@ class DashboardController {
   /**
    * Calcular fechas según período
    */
-  static getPeriodDates(period, startDate, endDate) {
+  static getPeriodDates (period, startDate, endDate) {
     if (startDate && endDate) {
       return {
         start: new Date(startDate),
@@ -322,23 +322,23 @@ class DashboardController {
     let start;
 
     switch (period) {
-      case '1d':
-        start = moment().subtract(1, 'day').toDate();
-        break;
-      case '7d':
-        start = moment().subtract(7, 'days').toDate();
-        break;
-      case '30d':
-        start = moment().subtract(30, 'days').toDate();
-        break;
-      case '90d':
-        start = moment().subtract(90, 'days').toDate();
-        break;
-      case '1y':
-        start = moment().subtract(1, 'year').toDate();
-        break;
-      default:
-        start = moment().subtract(7, 'days').toDate();
+    case '1d':
+      start = moment().subtract(1, 'day').toDate();
+      break;
+    case '7d':
+      start = moment().subtract(7, 'days').toDate();
+      break;
+    case '30d':
+      start = moment().subtract(30, 'days').toDate();
+      break;
+    case '90d':
+      start = moment().subtract(90, 'days').toDate();
+      break;
+    case '1y':
+      start = moment().subtract(1, 'year').toDate();
+      break;
+    default:
+      start = moment().subtract(7, 'days').toDate();
     }
 
     return { start, end };
@@ -347,9 +347,9 @@ class DashboardController {
   /**
    * Obtener métricas de mensajes
    */
-  static async getMessageMetrics(userId, startDate, endDate) {
+  static async getMessageMetrics (userId, startDate, endDate) {
     const stats = await Message.getStats(userId, startDate, endDate);
-    
+
     return {
       total: stats.total,
       inbound: stats.inbound,
@@ -363,9 +363,9 @@ class DashboardController {
   /**
    * Obtener métricas de contactos
    */
-  static async getContactMetrics(userId, startDate, endDate) {
+  static async getContactMetrics (userId, startDate, endDate) {
     let query = firestore.collection('contacts').where('isActive', '==', true);
-    
+
     if (userId) {
       query = query.where('userId', '==', userId);
     }
@@ -397,9 +397,9 @@ class DashboardController {
   /**
    * Obtener métricas de campañas
    */
-  static async getCampaignMetrics(userId, startDate, endDate) {
+  static async getCampaignMetrics (userId, startDate, endDate) {
     let query = firestore.collection('campaigns').where('isActive', '==', true);
-    
+
     if (userId) {
       query = query.where('createdBy', '==', userId);
     }
@@ -428,7 +428,7 @@ class DashboardController {
   /**
    * Obtener métricas de actividad de usuarios
    */
-  static async getUserActivityMetrics(userId, startDate, endDate) {
+  static async getUserActivityMetrics (userId, startDate, endDate) {
     let query = firestore.collection('messages')
       .where('timestamp', '>=', Timestamp.fromDate(startDate))
       .where('timestamp', '<=', Timestamp.fromDate(endDate))
@@ -454,7 +454,7 @@ class DashboardController {
   /**
    * Obtener actividad reciente
    */
-  static async getRecentActivity(userId, limit) {
+  static async getRecentActivity (userId, limit) {
     const activities = [];
 
     // Mensajes recientes
@@ -468,10 +468,10 @@ class DashboardController {
     })));
 
     // Contactos recientes
-    const recentContacts = await Contact.list({ 
-      limit: Math.floor(limit / 4), 
+    const recentContacts = await Contact.list({
+      limit: Math.floor(limit / 4),
       userId,
-      isActive: true 
+      isActive: true,
     });
     activities.push(...recentContacts.map(contact => ({
       type: 'contact',
@@ -482,10 +482,10 @@ class DashboardController {
     })));
 
     // Campañas recientes
-    const recentCampaigns = await Campaign.list({ 
-      limit: Math.floor(limit / 4), 
+    const recentCampaigns = await Campaign.list({
+      limit: Math.floor(limit / 4),
       createdBy: userId,
-      isActive: true 
+      isActive: true,
     });
     activities.push(...recentCampaigns.map(campaign => ({
       type: 'campaign',
@@ -504,7 +504,7 @@ class DashboardController {
   /**
    * Obtener datos de tendencias
    */
-  static async getTrendData(userId, startDate, endDate) {
+  static async getTrendData (userId, startDate, endDate) {
     const days = moment(endDate).diff(moment(startDate), 'days');
     const trends = [];
 
@@ -532,7 +532,7 @@ class DashboardController {
   /**
    * Calcular tiempo promedio de respuesta
    */
-  static async calculateAverageResponseTime(userId, startDate, endDate) {
+  static async calculateAverageResponseTime (userId, startDate, endDate) {
     // Implementación simplificada
     // En producción sería más complejo, considerando conversaciones y turnos
     return Math.floor(Math.random() * 120) + 30; // 30-150 minutos (mock)
@@ -541,15 +541,15 @@ class DashboardController {
   /**
    * Obtener contactos activos
    */
-  static async getActiveContacts(userId, startDate, endDate) {
+  static async getActiveContacts (userId, startDate, endDate) {
     let query = firestore.collection('contacts').where('isActive', '==', true);
-    
+
     if (userId) {
       query = query.where('userId', '==', userId);
     }
 
     query = query.where('lastContactAt', '>=', Timestamp.fromDate(startDate))
-                 .where('lastContactAt', '<=', Timestamp.fromDate(endDate));
+      .where('lastContactAt', '<=', Timestamp.fromDate(endDate));
 
     const snapshot = await query.get();
     return snapshot.docs.length;
@@ -558,7 +558,7 @@ class DashboardController {
   /**
    * Calcular sesiones
    */
-  static calculateSessions(messages) {
+  static calculateSessions (messages) {
     // Implementación simplificada
     // Agrupa mensajes por usuario y fecha para calcular sesiones
     const sessions = new Set();
@@ -574,14 +574,14 @@ class DashboardController {
   /**
    * Calcular score de productividad
    */
-  static calculateProductivityScore(messageStats, contactStats, campaignStats) {
+  static calculateProductivityScore (messageStats, contactStats, campaignStats) {
     // Fórmula simple de productividad basada en actividad
     const messageScore = (messageStats.outbound || 0) * 2;
     const contactScore = (contactStats.new || 0) * 5;
     const campaignScore = (campaignStats.completed || 0) * 10;
-    
+
     return messageScore + contactScore + campaignScore;
   }
 }
 
-module.exports = DashboardController; 
+module.exports = DashboardController;

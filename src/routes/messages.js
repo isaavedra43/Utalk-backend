@@ -24,21 +24,17 @@ router.get('/conversation/:phone', MessageController.getConversationByPhone);
  * @desc Enviar mensaje de WhatsApp
  * @access Private (Agent+)
  */
-router.post('/send', 
+router.post('/send',
   requireAgentOrAdmin,
   validate(schemas.message.send),
-  MessageController.sendMessage
+  MessageController.sendMessage,
 );
 
 /**
- * @route POST /api/messages/webhook
- * @desc Webhook para recibir mensajes de Twilio
- * @access Public (con validación de webhook)
+ * NOTA: El webhook se movió a /src/routes/webhook.js para ser público
+ * La ruta /api/messages/webhook ahora está en /api/messages/webhook (archivo dedicado)
+ * Esto permite que Twilio acceda sin autenticación mientras las demás rutas están protegidas
  */
-router.post('/webhook', 
-  validate(schemas.message.webhook),
-  MessageController.handleWebhook
-);
 
 /**
  * @route GET /api/messages/stats
@@ -52,9 +48,9 @@ router.get('/stats', MessageController.getStats);
  * @desc Actualizar estado de mensaje
  * @access Private (Agent+)
  */
-router.put('/:id/status', 
+router.put('/:id/status',
   requireAgentOrAdmin,
-  MessageController.updateStatus
+  MessageController.updateStatus,
 );
 
 /**
@@ -66,4 +62,4 @@ router.get('/search', MessageController.search);
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const messageRoutes = require('./routes/messages');
-module.exports = router; 
+module.exports = router;

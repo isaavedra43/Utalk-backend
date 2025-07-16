@@ -17,10 +17,10 @@ router.get('/', TeamController.list);
  * @desc Invitar nuevo miembro
  * @access Private (Admin)
  */
-router.post('/invite', 
+router.post('/invite',
   requireAdmin,
   validate(schemas.team.invite),
-  TeamController.invite
+  TeamController.invite,
 );
 
 /**
@@ -35,10 +35,10 @@ router.get('/:id', TeamController.getById);
  * @desc Actualizar miembro del equipo
  * @access Private (Admin)
  */
-router.put('/:id', 
+router.put('/:id',
   requireAdmin,
   validate(schemas.team.update),
-  TeamController.update
+  TeamController.update,
 );
 
 /**
@@ -46,9 +46,9 @@ router.put('/:id',
  * @desc Eliminar miembro del equipo
  * @access Private (Admin)
  */
-router.delete('/:id', 
+router.delete('/:id',
   requireAdmin,
-  TeamController.delete
+  TeamController.delete,
 );
 
 /**
@@ -56,9 +56,9 @@ router.delete('/:id',
  * @desc Activar miembro
  * @access Private (Admin)
  */
-router.post('/:id/activate', 
+router.post('/:id/activate',
   requireAdmin,
-  TeamController.activate
+  TeamController.activate,
 );
 
 /**
@@ -66,9 +66,9 @@ router.post('/:id/activate',
  * @desc Desactivar miembro
  * @access Private (Admin)
  */
-router.post('/:id/deactivate', 
+router.post('/:id/deactivate',
   requireAdmin,
-  TeamController.deactivate
+  TeamController.deactivate,
 );
 
 /**
@@ -83,11 +83,11 @@ router.get('/:id/kpis', TeamController.getKPIs);
  * @desc Resetear contraseña de miembro
  * @access Private (Admin)
  */
-router.post('/:id/reset-password', 
+router.post('/:id/reset-password',
   requireAdmin,
-  TeamController.resetPassword
+  TeamController.resetPassword,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const teamRoutes = require('./routes/team');
-module.exports = router; 
+module.exports = router;

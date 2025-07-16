@@ -6,18 +6,18 @@ class AuthController {
   /**
    * Login con Firebase
    */
-  static async login(req, res, next) {
+  static async login (req, res, next) {
     try {
       const { email, password } = req.body;
 
       // Nota: En Firebase Auth, la verificación de credenciales se hace en el frontend
       // Aquí solo verificamos que el usuario existe y lo creamos/actualizamos en Firestore
-      
+
       logger.info('Intento de login', { email });
 
       // Buscar o crear usuario en Firestore
-      let user = await User.getByEmail(email);
-      
+      const user = await User.getByEmail(email);
+
       if (!user) {
         // Si el usuario no existe en Firestore pero tiene token válido de Firebase,
         // lo creamos (esto se maneja mejor en el middleware de auth)
@@ -37,10 +37,10 @@ class AuthController {
       // Actualizar último login
       await user.updateLastLogin();
 
-      logger.info('Login exitoso', { 
-        uid: user.uid, 
+      logger.info('Login exitoso', {
+        uid: user.uid,
         email: user.email,
-        role: user.role 
+        role: user.role,
       });
 
       res.json({
@@ -56,7 +56,7 @@ class AuthController {
   /**
    * Logout
    */
-  static async logout(req, res, next) {
+  static async logout (req, res, next) {
     try {
       const { uid } = req.user;
 
@@ -77,7 +77,7 @@ class AuthController {
   /**
    * Refrescar token
    */
-  static async refreshToken(req, res, next) {
+  static async refreshToken (req, res, next) {
     try {
       const { refreshToken } = req.body;
 
@@ -96,7 +96,7 @@ class AuthController {
   /**
    * Obtener perfil del usuario actual
    */
-  static async getProfile(req, res, next) {
+  static async getProfile (req, res, next) {
     try {
       const { uid } = req.user;
 
@@ -120,7 +120,7 @@ class AuthController {
   /**
    * Actualizar perfil del usuario
    */
-  static async updateProfile(req, res, next) {
+  static async updateProfile (req, res, next) {
     try {
       const { uid } = req.user;
       const updates = req.body;
@@ -139,9 +139,9 @@ class AuthController {
 
       await user.update(updates);
 
-      logger.info('Perfil actualizado', { 
-        uid, 
-        updates: Object.keys(updates) 
+      logger.info('Perfil actualizado', {
+        uid,
+        updates: Object.keys(updates),
       });
 
       res.json({
@@ -157,7 +157,7 @@ class AuthController {
   /**
    * Crear usuario (solo administradores)
    */
-  static async createUser(req, res, next) {
+  static async createUser (req, res, next) {
     try {
       const { email, displayName, role = 'viewer' } = req.body;
       const { uid: adminUid } = req.user;
@@ -188,11 +188,11 @@ class AuthController {
         role,
       });
 
-      logger.info('Usuario creado', { 
-        uid: user.uid, 
+      logger.info('Usuario creado', {
+        uid: user.uid,
         email: user.email,
         role: user.role,
-        createdBy: adminUid 
+        createdBy: adminUid,
       });
 
       res.status(201).json({
@@ -206,4 +206,4 @@ class AuthController {
   }
 }
 
-module.exports = AuthController; 
+module.exports = AuthController;

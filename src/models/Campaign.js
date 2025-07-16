@@ -2,7 +2,7 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 
 class Campaign {
-  constructor(data) {
+  constructor (data) {
     this.id = data.id || uuidv4();
     this.name = data.name;
     this.message = data.message;
@@ -29,7 +29,7 @@ class Campaign {
   /**
    * Crear nueva campaña
    */
-  static async create(campaignData) {
+  static async create (campaignData) {
     const campaign = new Campaign(campaignData);
     await firestore.collection('campaigns').doc(campaign.id).set({
       ...campaign,
@@ -42,7 +42,7 @@ class Campaign {
   /**
    * Obtener campaña por ID
    */
-  static async getById(id) {
+  static async getById (id) {
     const doc = await firestore.collection('campaigns').doc(id).get();
     if (!doc.exists) {
       return null;
@@ -53,12 +53,12 @@ class Campaign {
   /**
    * Listar campañas con filtros
    */
-  static async list({ 
-    limit = 20, 
-    startAfter = null, 
-    status = null, 
+  static async list ({
+    limit = 20,
+    startAfter = null,
+    status = null,
     createdBy = null,
-    isActive = true 
+    isActive = true,
   } = {}) {
     let query = firestore.collection('campaigns');
 
@@ -87,7 +87,7 @@ class Campaign {
   /**
    * Buscar campañas por nombre
    */
-  static async search(searchTerm, createdBy = null) {
+  static async search (searchTerm, createdBy = null) {
     let query = firestore.collection('campaigns').where('isActive', '==', true);
 
     if (createdBy) {
@@ -96,19 +96,19 @@ class Campaign {
 
     const snapshot = await query.get();
     const searchLower = searchTerm.toLowerCase();
-    
+
     return snapshot.docs
       .map(doc => new Campaign({ id: doc.id, ...doc.data() }))
-      .filter(campaign => 
+      .filter(campaign =>
         campaign.name.toLowerCase().includes(searchLower) ||
-        campaign.message.toLowerCase().includes(searchLower)
+        campaign.message.toLowerCase().includes(searchLower),
       );
   }
 
   /**
    * Obtener campañas por estado
    */
-  static async getByStatus(status, createdBy = null) {
+  static async getByStatus (status, createdBy = null) {
     let query = firestore.collection('campaigns')
       .where('status', '==', status)
       .where('isActive', '==', true);
@@ -124,10 +124,10 @@ class Campaign {
   /**
    * Actualizar campaña
    */
-  async update(updates) {
+  async update (updates) {
     const validUpdates = { ...updates, updatedAt: FieldValue.serverTimestamp() };
     await firestore.collection('campaigns').doc(this.id).update(validUpdates);
-    
+
     // Actualizar propiedades locales
     Object.assign(this, updates);
     this.updatedAt = Timestamp.now();
@@ -136,20 +136,20 @@ class Campaign {
   /**
    * Cambiar estado de la campaña
    */
-  async updateStatus(newStatus) {
+  async updateStatus (newStatus) {
     const updates = { status: newStatus };
-    
+
     if (newStatus === 'completed') {
       updates.completedAt = FieldValue.serverTimestamp();
     }
-    
+
     await this.update(updates);
   }
 
   /**
    * Agregar resultado de envío
    */
-  async addResult(result) {
+  async addResult (result) {
     const newResults = [...this.results, result];
     await this.update({ results: newResults });
   }
@@ -157,7 +157,7 @@ class Campaign {
   /**
    * Actualizar métricas de la campaña
    */
-  async updateMetrics(metrics) {
+  async updateMetrics (metrics) {
     const updates = {
       sentCount: metrics.sentCount || this.sentCount,
       deliveredCount: metrics.deliveredCount || this.deliveredCount,
@@ -165,33 +165,33 @@ class Campaign {
       openedCount: metrics.openedCount || this.openedCount,
       clickedCount: metrics.clickedCount || this.clickedCount,
     };
-    
+
     await this.update(updates);
   }
 
   /**
    * Programar campaña
    */
-  async schedule(scheduledAt) {
+  async schedule (scheduledAt) {
     await this.update({
       scheduledAt: Timestamp.fromDate(new Date(scheduledAt)),
-      status: 'scheduled'
+      status: 'scheduled',
     });
   }
 
   /**
    * Pausar campaña
    */
-  async pause() {
+  async pause () {
     await this.updateStatus('paused');
   }
 
   /**
    * Reanudar campaña
    */
-  async resume() {
-    const newStatus = this.scheduledAt && this.scheduledAt.toDate() > new Date() 
-      ? 'scheduled' 
+  async resume () {
+    const newStatus = this.scheduledAt && this.scheduledAt.toDate() > new Date()
+      ? 'scheduled'
       : 'sending';
     await this.updateStatus(newStatus);
   }
@@ -199,31 +199,31 @@ class Campaign {
   /**
    * Cancelar campaña
    */
-  async cancel() {
+  async cancel () {
     await this.updateStatus('cancelled');
   }
 
   /**
    * Eliminar campaña (soft delete)
    */
-  async delete() {
-    await this.update({ 
-      isActive: false, 
-      deletedAt: FieldValue.serverTimestamp() 
+  async delete () {
+    await this.update({
+      isActive: false,
+      deletedAt: FieldValue.serverTimestamp(),
     });
   }
 
   /**
    * Eliminar campaña permanentemente
    */
-  async hardDelete() {
+  async hardDelete () {
     await firestore.collection('campaigns').doc(this.id).delete();
   }
 
   /**
    * Obtener estadísticas de la campaña
    */
-  getStats() {
+  getStats () {
     const total = this.sentCount || 0;
     const delivered = this.deliveredCount || 0;
     const failed = this.failedCount || 0;
@@ -246,30 +246,30 @@ class Campaign {
   /**
    * Verificar si la campaña puede ser enviada
    */
-  canBeSent() {
-    return ['draft', 'scheduled', 'paused'].includes(this.status) && 
-           this.contacts.length > 0 && 
-           this.message && 
+  canBeSent () {
+    return ['draft', 'scheduled', 'paused'].includes(this.status) &&
+           this.contacts.length > 0 &&
+           this.message &&
            this.message.trim().length > 0;
   }
 
   /**
    * Verificar si la campaña puede ser editada
    */
-  canBeEdited() {
+  canBeEdited () {
     return ['draft', 'scheduled', 'paused'].includes(this.status);
   }
 
   /**
    * Obtener campaña con detalles de contactos
    */
-  async getWithContactDetails() {
+  async getWithContactDetails () {
     const Contact = require('./Contact');
     const contactDetails = await Promise.all(
       this.contacts.map(async (contactId) => {
         const contact = await Contact.getById(contactId);
         return contact ? contact.toJSON() : null;
-      })
+      }),
     );
 
     return {
@@ -281,7 +281,7 @@ class Campaign {
   /**
    * Convertir a objeto plano para respuestas JSON
    */
-  toJSON() {
+  toJSON () {
     return {
       id: this.id,
       name: this.name,
@@ -311,4 +311,4 @@ class Campaign {
   }
 }
 
-module.exports = Campaign; 
+module.exports = Campaign;
