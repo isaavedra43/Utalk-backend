@@ -191,6 +191,57 @@ const requireAdmin = requireRole(['admin']);
  */
 const requireAgentOrAdmin = requireRole(['agent', 'admin']);
 
+/**
+ * Middleware para usuarios que pueden leer conversaciones (incluye viewer)
+ * Para endpoints GET de conversaciones y mensajes
+ */
+const requireReadAccess = requireRole(['admin', 'agent', 'viewer']);
+
+/**
+ * Middleware para usuarios que pueden escribir/modificar (excluye viewer)
+ * Para endpoints POST, PUT, PATCH, DELETE
+ */
+const requireWriteAccess = requireRole(['admin', 'agent']);
+
+/**
+ * Middleware para verificar acceso específico del viewer
+ * Los viewers solo pueden leer, no escribir
+ */
+const requireViewerOrHigher = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Usuario no autenticado',
+      message: 'Debes estar autenticado para acceder a este recurso',
+    });
+  }
+
+  const userRole = req.user.role;
+  const allowedRoles = ['admin', 'agent', 'viewer'];
+
+  if (!allowedRoles.includes(userRole)) {
+    logger.warn('Rol no autorizado para acceso básico', {
+      uid: req.user.uid,
+      userRole,
+      ip: req.ip,
+    });
+    
+    return res.status(403).json({
+      error: 'Rol no autorizado',
+      message: 'Tu rol no tiene acceso a este sistema',
+    });
+  }
+
+  // Log de acceso para auditoria
+  logger.info('Acceso autorizado para viewer o superior', {
+    uid: req.user.uid,
+    userRole,
+    method: req.method,
+    url: req.originalUrl,
+  });
+
+  next();
+};
+
 // IMPORTANTE: Este middleware ahora usa JWT propio (jsonwebtoken), NO Firebase ID Token
 // Propiedades disponibles en req.user después de autenticación:
 // - uid: string (ID único del usuario)
@@ -201,4 +252,7 @@ module.exports = {
   requireRole,
   requireAdmin,
   requireAgentOrAdmin,
+  requireReadAccess,
+  requireWriteAccess,
+  requireViewerOrHigher,
 };

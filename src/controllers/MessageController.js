@@ -515,56 +515,63 @@ class MessageController {
 
   /**
    * Actualizar estado de mensaje
+   * Nueva API: PUT /api/conversations/:conversationId/messages/:id/status
    */
   static async updateStatus (req, res, next) {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, conversationId } = req.body;
 
-      // NOTA: Operación costosa - buscar en todas las conversaciones
-      // TODO: Cambiar API a /api/conversations/:conversationId/messages/:id/status
-      const message = await Message.getByIdAnyConversation(id);
+      if (!status) {
+        return res.status(400).json({ error: 'Estado requerido' });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: 'conversationId requerido' });
+      }
+
+      const message = await Message.getById(id, conversationId);
       if (!message) {
-        return res.status(404).json({
-          error: 'Mensaje no encontrado',
-        });
+        return res.status(404).json({ error: 'Mensaje no encontrado' });
       }
 
       await message.updateStatus(status);
 
       res.json({
-        message: 'Estado actualizado exitosamente',
-        status,
+        message: 'Estado actualizado correctamente',
+        messageId: id,
+        newStatus: status,
       });
     } catch (error) {
-      logger.error('Error al actualizar estado:', error);
       next(error);
     }
   }
 
   /**
    * Marcar mensaje como leído
+   * Nueva API: PUT /api/conversations/:conversationId/messages/:id/read
    */
   static async markAsRead (req, res, next) {
     try {
       const { id } = req.params;
+      const { conversationId } = req.body;
 
-      // NOTA: Operación costosa - buscar en todas las conversaciones
-      // TODO: Cambiar API a /api/conversations/:conversationId/messages/:id/read
-      const message = await Message.getByIdAnyConversation(id);
+      if (!conversationId) {
+        return res.status(400).json({ error: 'conversationId requerido' });
+      }
+
+      const message = await Message.getById(id, conversationId);
       if (!message) {
-        return res.status(404).json({
-          error: 'Mensaje no encontrado',
-        });
+        return res.status(404).json({ error: 'Mensaje no encontrado' });
       }
 
       await message.markAsRead();
 
       res.json({
         message: 'Mensaje marcado como leído',
+        messageId: id,
       });
     } catch (error) {
-      logger.error('Error al marcar como leído:', error);
       next(error);
     }
   }
@@ -633,6 +640,33 @@ class MessageController {
       });
     } catch (error) {
       logger.error('Error al buscar mensajes:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener mensaje por ID
+   * API mejorada que requiere conversationId para optimización
+   */
+  static async getById (req, res, next) {
+    try {
+      const { id } = req.params;
+      const { conversationId } = req.query;
+
+      if (!conversationId) {
+        return res.status(400).json({ 
+          error: 'conversationId requerido como query parameter',
+          example: '/api/messages/MSG123?conversationId=conv_123_456'
+        });
+      }
+
+      const message = await Message.getById(id, conversationId);
+      if (!message) {
+        return res.status(404).json({ error: 'Mensaje no encontrado' });
+      }
+
+      res.json(message.toJSON());
+    } catch (error) {
       next(error);
     }
   }

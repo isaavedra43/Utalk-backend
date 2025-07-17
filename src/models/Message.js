@@ -120,6 +120,7 @@ class Message {
 
   /**
    * Obtener mensajes por conversación con paginación
+   * Maneja tanto timestamp como createdAt para retrocompatibilidad
    */
   static async getByConversation (conversationId, options = {}) {
     const {
@@ -133,6 +134,8 @@ class Message {
       throw new Error(`conversationId inválido: ${conversationId}`);
     }
 
+    // SOLUCIÓN PARA TIMESTAMP VS CREATEDAT
+    // Primero intentar con el campo solicitado, luego fallback
     let query = firestore
       .collection('conversations')
       .doc(conversationId)
@@ -155,12 +158,83 @@ class Message {
 
     query = query.limit(limit);
 
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => new Message({
-      id: doc.id,
-      conversationId,
-      ...doc.data(),
-    }));
+    try {
+      const snapshot = await query.get();
+
+      // Si no hay resultados y estábamos buscando por timestamp, intentar con createdAt
+      if (snapshot.empty && orderBy === 'timestamp') {
+        console.warn(`No se encontraron mensajes con timestamp para conversación ${conversationId}, intentando con createdAt`);
+
+        let fallbackQuery = firestore
+          .collection('conversations')
+          .doc(conversationId)
+          .collection('messages')
+          .orderBy('createdAt', order);
+
+        if (startAfter) {
+          const startAfterDoc = await firestore
+            .collection('conversations')
+            .doc(conversationId)
+            .collection('messages')
+            .doc(startAfter)
+            .get();
+
+          if (startAfterDoc.exists) {
+            fallbackQuery = fallbackQuery.startAfter(startAfterDoc);
+          }
+        }
+
+        fallbackQuery = fallbackQuery.limit(limit);
+        const fallbackSnapshot = await fallbackQuery.get();
+
+        return fallbackSnapshot.docs.map(doc => new Message({
+          id: doc.id,
+          conversationId,
+          ...doc.data(),
+        }));
+      }
+
+      return snapshot.docs.map(doc => new Message({
+        id: doc.id,
+        conversationId,
+        ...doc.data(),
+      }));
+    } catch (error) {
+      // Si falla la query principal (posiblemente por índice faltante), intentar con createdAt
+      if (orderBy === 'timestamp') {
+        console.warn(`Error en query con timestamp para conversación ${conversationId}, intentando con createdAt:`, error.message);
+
+        let fallbackQuery = firestore
+          .collection('conversations')
+          .doc(conversationId)
+          .collection('messages')
+          .orderBy('createdAt', order);
+
+        if (startAfter) {
+          const startAfterDoc = await firestore
+            .collection('conversations')
+            .doc(conversationId)
+            .collection('messages')
+            .doc(startAfter)
+            .get();
+
+          if (startAfterDoc.exists) {
+            fallbackQuery = fallbackQuery.startAfter(startAfterDoc);
+          }
+        }
+
+        fallbackQuery = fallbackQuery.limit(limit);
+        const fallbackSnapshot = await fallbackQuery.get();
+
+        return fallbackSnapshot.docs.map(doc => new Message({
+          id: doc.id,
+          conversationId,
+          ...doc.data(),
+        }));
+      }
+
+      throw error;
+    }
   }
 
   /**

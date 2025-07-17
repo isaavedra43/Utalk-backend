@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAgentOrAdmin } = require('../middleware/auth');
+const { requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const MessageController = require('../controllers/MessageController');
 
 const router = express.Router();
@@ -8,24 +8,30 @@ const router = express.Router();
 /**
  * @route GET /api/messages
  * @desc Listar mensajes individuales con filtros flexibles
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/', MessageController.getMessages);
+router.get('/', 
+  requireReadAccess,
+  MessageController.getMessages
+);
 
 /**
  * @route GET /api/messages/conversation/:phone
  * @desc Obtener mensajes de una conversación por teléfono
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/conversation/:phone', MessageController.getConversationByPhone);
+router.get('/conversation/:phone', 
+  requireReadAccess,
+  MessageController.getConversationByPhone
+);
 
 /**
  * @route POST /api/messages/send
  * @desc Enviar mensaje de WhatsApp
- * @access Private (Agent+)
+ * @access Private (Admin, Agent only)
  */
 router.post('/send',
-  requireAgentOrAdmin,
+  requireWriteAccess,
   validate(schemas.message.send),
   MessageController.sendMessage,
 );
@@ -39,35 +45,40 @@ router.post('/send',
 /**
  * @route GET /api/messages/stats
  * @desc Obtener estadísticas de mensajes
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/stats', MessageController.getStats);
+router.get('/stats', 
+  requireReadAccess,
+  MessageController.getStats
+);
 
 /**
  * @route PUT /api/messages/:id/status
  * @desc Actualizar estado de mensaje
- * @access Private (Agent+)
+ * @access Private (Admin, Agent only)
  */
 router.put('/:id/status',
-  requireAgentOrAdmin,
+  requireWriteAccess,
   MessageController.updateStatus,
 );
 
 /**
  * @route PUT /api/messages/:id/read
  * @desc Marcar mensaje como leído
- * @access Private
+ * @access Private (Admin, Agent only)
  */
 router.put('/:id/read',
+  requireWriteAccess,
   MessageController.markAsRead,
 );
 
 /**
  * @route PUT /api/messages/read-multiple
  * @desc Marcar múltiples mensajes como leídos
- * @access Private
+ * @access Private (Admin, Agent only)
  */
 router.put('/read-multiple',
+  requireWriteAccess,
   validate(schemas.message.readMultiple),
   MessageController.markMultipleAsRead,
 );
@@ -75,9 +86,12 @@ router.put('/read-multiple',
 /**
  * @route GET /api/messages/search
  * @desc Buscar mensajes por contenido
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/search', MessageController.search);
+router.get('/search', 
+  requireReadAccess,
+  MessageController.search
+);
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const messageRoutes = require('./routes/messages');
