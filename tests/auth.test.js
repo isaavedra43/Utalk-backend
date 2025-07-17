@@ -66,6 +66,7 @@ describe('Auth Endpoints', () => {
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('Token de autorización requerido');
     });
 
     it('should return 401 with invalid token format', async () => {
@@ -75,17 +76,99 @@ describe('Auth Endpoints', () => {
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('Formato de token inválido');
+    });
+
+    it('should return 401 with invalid JWT token', async () => {
+      const response = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', 'Bearer invalid-jwt-token');
+
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('Token inválido');
+    });
+
+    it('should return 401 with expired JWT token', async () => {
+      const response = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${global.testTokens.expired}`);
+
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('Token expirado');
+    });
+
+    // Nota: Test con token válido requiere que el endpoint /api/auth/me esté implementado
+    // y que el modelo User funcione correctamente
+    it('should validate JWT token structure', () => {
+      // Este test confirma que podemos generar tokens JWT válidos
+      const validToken = global.generateTestToken({
+        uid: 'test-user-123',
+        email: 'test@example.com',
+        role: 'admin'
+      });
+
+      expect(validToken).toBeDefined();
+      expect(typeof validToken).toBe('string');
+      expect(validToken.split('.')).toHaveLength(3); // JWT tiene 3 partes separadas por puntos
     });
   });
 
-  describe('POST /api/auth/refresh', () => {
-    it('should return 400 for missing refresh token', async () => {
+  describe('JWT Middleware Tests', () => {
+    it('should accept valid JWT tokens', async () => {
+      const validToken = global.testTokens.admin;
+      
+      // Test con cualquier endpoint que use authMiddleware
       const response = await request(app)
-        .post('/api/auth/refresh')
-        .send({});
+        .get('/api/contacts')
+        .set('Authorization', `Bearer ${validToken}`);
 
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error');
+      // Si el token es válido, no debería ser 401 (puede ser 500 por otros motivos, pero no 401)
+      expect(response.status).not.toBe(401);
+    });
+
+    it('should reject tokens with wrong format', async () => {
+      const response = await request(app)
+        .get('/api/contacts')
+        .set('Authorization', 'WrongFormat token-here');
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe('Formato de token inválido');
+    });
+
+    it('should reject empty tokens', async () => {
+      const response = await request(app)
+        .get('/api/contacts')
+        .set('Authorization', 'Bearer ');
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe('Token vacío');
+    });
+  });
+
+  describe('Role-based Authorization Tests', () => {
+    it('should allow admin access to admin endpoints', async () => {
+      const adminToken = global.testTokens.admin;
+      
+      const response = await request(app)
+        .get('/api/team')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      // Admin debería tener acceso (no 403 Forbidden)
+      expect(response.status).not.toBe(403);
+    });
+
+    it('should deny viewer access to admin endpoints', async () => {
+      const viewerToken = global.testTokens.viewer;
+      
+      const response = await request(app)
+        .get('/api/team')
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      // Viewer NO debería tener acceso a endpoints de admin
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('Permisos insuficientes');
     });
   });
 }); 

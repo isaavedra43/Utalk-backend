@@ -38,15 +38,16 @@ class SocketManager {
           throw new Error('Token de autenticación requerido');
         }
 
-        // Verificar token con Firebase
-        const decodedToken = await auth.verifyIdToken(token);
-        const userRecord = await auth.getUser(decodedToken.uid);
+        // CRÍTICO: Verificar JWT propio (NO Firebase ID Token)
+        // Socket.IO ahora usa el mismo sistema de autenticación que el REST API
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Agregar información del usuario al socket
-        socket.userId = decodedToken.uid;
-        socket.userEmail = decodedToken.email;
-        socket.userRole = decodedToken.role || 'viewer';
-        socket.displayName = userRecord.displayName || decodedToken.email;
+        // Agregar información del usuario al socket (compatible con JWT propio)
+        socket.userId = decoded.uid;
+        socket.userEmail = decoded.email;
+        socket.userRole = decoded.role;
+        socket.displayName = decoded.email; // Usar email como displayName por compatibilidad
 
         logger.info('🔐 Socket autenticado', {
           userId: socket.userId,
