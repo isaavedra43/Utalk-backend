@@ -1,6 +1,7 @@
 const { auth } = require('../config/firebase');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
 
 class AuthController {
   /**
@@ -8,7 +9,7 @@ class AuthController {
    */
   static async login (req, res, next) {
     try {
-      const { email, password } = req.body;
+      const { email, password } = req.body; // password se valida en frontend con Firebase Auth
 
       // Nota: En Firebase Auth, la verificación de credenciales se hace en el frontend
       // Aquí solo verificamos que el usuario existe y lo creamos/actualizamos en Firestore
@@ -37,15 +38,30 @@ class AuthController {
       // Actualizar último login
       await user.updateLastLogin();
 
+      // CRÍTICO: Generar JWT token para autenticación del frontend
+      // Este token es OBLIGATORIO para que el frontend pueda procesar correctamente el login
+      const token = jwt.sign(
+        {
+          uid: user.uid,
+          email: user.email,
+          role: user.role,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      );
+
       logger.info('Login exitoso', {
         uid: user.uid,
         email: user.email,
         role: user.role,
       });
 
+      // IMPORTANTE: La respuesta DEBE incluir el token a nivel raíz
+      // El frontend espera esta estructura para procesar correctamente el login
       res.json({
         message: 'Login exitoso',
         user: user.toJSON(),
+        token, // ← CRÍTICO: Token JWT requerido por el frontend
       });
     } catch (error) {
       logger.error('Error en login:', error);
