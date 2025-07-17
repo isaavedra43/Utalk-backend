@@ -3,16 +3,16 @@ const { prepareForFirestore } = require('../utils/firestore');
 
 class User {
   constructor (data) {
-    this.uid = data.uid;
+    this.id = data.id; // Anteriormente uid
     this.email = data.email;
-    this.displayName = data.displayName;
+    this.name = data.name; // Anteriormente displayName
     this.photoURL = data.photoURL;
     this.role = data.role || 'viewer';
-    this.isActive = data.isActive !== undefined ? data.isActive : true;
+    this.status = data.status || 'active'; // Anteriormente isActive
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
     this.lastLoginAt = data.lastLoginAt;
-    this.settings = data.settings || {};
+    this.performance = data.performance || null;
   }
 
   /**
@@ -28,19 +28,19 @@ class User {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    await firestore.collection('users').doc(user.uid).set(cleanData);
+    await firestore.collection('users').doc(user.id).set(cleanData);
     return user;
   }
 
   /**
-   * Obtener usuario por UID
+   * Obtener usuario por ID
    */
-  static async getByUid (uid) {
-    const doc = await firestore.collection('users').doc(uid).get();
+  static async getById (id) {
+    const doc = await firestore.collection('users').doc(id).get();
     if (!doc.exists) {
       return null;
     }
-    return new User({ uid: doc.id, ...doc.data() });
+    return new User({ id: doc.id, ...doc.data() });
   }
 
   /**
@@ -58,21 +58,21 @@ class User {
     }
 
     const doc = snapshot.docs[0];
-    return new User({ uid: doc.id, ...doc.data() });
+    return new User({ id: doc.id, ...doc.data() });
   }
 
   /**
    * Listar usuarios con filtros y paginación
    */
-  static async list ({ limit = 20, startAfter = null, role = null, isActive = null } = {}) {
+  static async list ({ limit = 20, startAfter = null, role = null, status = null } = {}) {
     let query = firestore.collection('users');
 
     if (role) {
       query = query.where('role', '==', role);
     }
 
-    if (isActive !== null) {
-      query = query.where('isActive', '==', isActive);
+    if (status !== null) {
+      query = query.where('status', '==', status);
     }
 
     query = query.orderBy('createdAt', 'desc').limit(limit);
@@ -82,7 +82,7 @@ class User {
     }
 
     const snapshot = await query.get();
-    return snapshot.docs.map(doc => new User({ uid: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => new User({ id: doc.id, ...doc.data() }));
   }
 
   /**
@@ -94,7 +94,7 @@ class User {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    await firestore.collection('users').doc(this.uid).update(validUpdates);
+    await firestore.collection('users').doc(this.id).update(validUpdates);
 
     // Actualizar propiedades locales
     Object.assign(this, updates);
@@ -106,7 +106,7 @@ class User {
    */
   async updateLastLogin () {
     const now = FieldValue.serverTimestamp();
-    await firestore.collection('users').doc(this.uid).update({
+    await firestore.collection('users').doc(this.id).update({
       lastLoginAt: now,
       updatedAt: now,
     });
@@ -124,7 +124,7 @@ class User {
    * Activar/desactivar usuario
    */
   async setActive (isActive) {
-    await this.update({ isActive });
+    await this.update({ status: isActive ? 'active' : 'inactive' });
   }
 
   /**
@@ -139,14 +139,14 @@ class User {
    * Eliminar usuario (soft delete)
    */
   async delete () {
-    await this.update({ isActive: false, deletedAt: FieldValue.serverTimestamp() });
+    await this.update({ status: 'inactive', deletedAt: FieldValue.serverTimestamp() });
   }
 
   /**
    * Eliminar usuario permanentemente
    */
   async hardDelete () {
-    await firestore.collection('users').doc(this.uid).delete();
+    await firestore.collection('users').doc(this.id).delete();
   }
 
   /**
@@ -154,16 +154,17 @@ class User {
    */
   toJSON () {
     return {
-      uid: this.uid,
-      email: this.email,
-      displayName: this.displayName,
-      photoURL: this.photoURL,
+      id: this.id,
+      name: this.name,
       role: this.role,
-      isActive: this.isActive,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-      lastLoginAt: this.lastLoginAt,
-      settings: this.settings,
+      status: this.status,
+      performance: this.performance,
+      
+      // Se mantienen para uso interno/compatibilidad si es necesario, pero no en el contrato principal
+      // email: this.email,
+      // photoURL: this.photoURL,
+      // createdAt: this.createdAt,
+      // lastLoginAt: this.lastLoginAt,
     };
   }
 }
