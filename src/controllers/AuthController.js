@@ -9,7 +9,7 @@ class AuthController {
    */
   static async login (req, res, next) {
     try {
-      const { email, password } = req.body; // password se valida en frontend con Firebase Auth
+      const { email } = req.body; // password se valida en frontend con Firebase Auth
 
       // Nota: En Firebase Auth, la verificación de credenciales se hace en el frontend
       // Aquí solo verificamos que el usuario existe y lo creamos/actualizamos en Firestore
@@ -95,8 +95,6 @@ class AuthController {
    */
   static async refreshToken (req, res, next) {
     try {
-      const { refreshToken } = req.body;
-
       // Nota: El refresh de tokens se maneja en el frontend con Firebase SDK
       // Aquí podríamos implementar lógica adicional si es necesario
 

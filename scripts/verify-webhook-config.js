@@ -8,7 +8,6 @@
  */
 
 require('dotenv').config();
-const logger = require('../src/utils/logger');
 
 // Colores para output
 const colors = {

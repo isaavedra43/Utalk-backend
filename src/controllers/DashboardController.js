@@ -525,7 +525,7 @@ class DashboardController {
   /**
    * Calcular tiempo promedio de respuesta
    */
-  static async calculateAverageResponseTime (userId, startDate, endDate) {
+  static async calculateAverageResponseTime (_userId, _startDate, _endDate) {
     // Implementación simplificada
     // En producción sería más complejo, considerando conversaciones y turnos
     return Math.floor(Math.random() * 120) + 30; // 30-150 minutos (mock)

@@ -1,5 +1,4 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
-const { v4: uuidv4 } = require('uuid');
 const { prepareForFirestore } = require('../utils/firestore');
 const logger = require('../utils/logger');
 const { isValidConversationId, extractParticipants } = require('../utils/conversation');
@@ -295,7 +294,6 @@ class Conversation {
     try {
       // ✅ CENTRALIZADO: Usar modelo Message para obtener estadísticas
       const Message = require('./Message');
-      const messageStats = await Message.getStats(null, null, null); // Sin filtros de usuario/fecha
 
       // Para esta conversación específica, necesitamos filtrar por conversationId
       // Esto es más eficiente que hacer query directo

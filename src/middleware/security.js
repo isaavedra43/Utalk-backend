@@ -26,7 +26,7 @@ const createRateLimit = (endpoint) => {
       }
       return false;
     },
-    onLimitReached: (req, res, options) => {
+    onLimitReached: (req, _res, _options) => {
       logger.warn('Rate limit alcanzado', {
         ip: req.ip,
         userAgent: req.get('User-Agent'),

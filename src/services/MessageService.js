@@ -5,7 +5,7 @@ const TwilioService = require('./TwilioService');
 const MediaService = require('./MediaService');
 const logger = require('../utils/logger');
 const { generateConversationId, normalizePhoneNumber } = require('../utils/conversation');
-const { validateMessageResponse, validateMessagesArrayResponse } = require('../utils/validation');
+const { validateMessagesArrayResponse } = require('../utils/validation');
 
 /**
  * Servicio centralizado para toda la lógica de mensajes
@@ -254,7 +254,6 @@ class MessageService {
     // Procesar cada archivo de media
     for (let i = 0; i < numMedia; i++) {
       const mediaUrl = webhookData[`MediaUrl${i}`];
-      const contentType = webhookData[`MediaContentType${i}`];
 
       if (mediaUrl) {
         try {
@@ -300,7 +299,6 @@ class MessageService {
       const {
         conversationId,
         userId,
-        customerPhone,
         direction,
         status,
         type,

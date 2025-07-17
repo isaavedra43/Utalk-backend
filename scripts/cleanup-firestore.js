@@ -6,8 +6,7 @@
  */
 
 require('dotenv').config();
-const { firestore, FieldValue, Timestamp } = require('../src/config/firebase');
-const logger = require('../src/utils/logger');
+const { firestore, Timestamp } = require('../src/config/firebase');
 
 // Configuración por argumentos de línea de comandos
 const args = process.argv.slice(2);
@@ -160,7 +159,6 @@ class FirestoreCleanup {
 
       for (const doc of conversationsSnapshot.docs) {
         this.stats.documentsScanned++;
-        const data = doc.data();
 
         // Verificar si tiene mensajes asociados
         const messagesSnapshot = await firestore

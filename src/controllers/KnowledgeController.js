@@ -53,8 +53,6 @@ class KnowledgeController {
         isPinned,
         tags,
         search,
-        sortBy = 'createdAt',
-        sortOrder = 'desc',
       } = req.query;
 
       const createdBy = req.user.role === 'admin' ? null : req.user.uid;

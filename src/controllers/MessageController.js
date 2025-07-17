@@ -364,7 +364,7 @@ class MessageController {
    */
   static async sendMessage (req, res, next) {
     try {
-      const { to, content, type = 'text' } = req.body;
+      const { to, content } = req.body;
       const userId = req.user.uid;
 
       const result = await TwilioService.sendWhatsAppMessage(to, content, userId);

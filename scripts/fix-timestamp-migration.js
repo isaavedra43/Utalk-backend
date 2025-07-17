@@ -9,8 +9,6 @@
  * Ejecutar con: node scripts/fix-timestamp-migration.js
  */
 
-const admin = require('firebase-admin');
-
 // Configurar Firebase Admin - usar la misma configuración que el backend
 const { firestore } = require('../src/config/firebase');
 

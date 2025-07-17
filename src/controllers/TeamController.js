@@ -18,8 +18,6 @@ class TeamController {
         role,
         isActive,
         search,
-        sortBy = 'createdAt',
-        sortOrder = 'desc',
       } = req.query;
 
       let users;
@@ -564,7 +562,7 @@ class TeamController {
   /**
    * Calcular tiempo promedio de respuesta
    */
-  static async calculateResponseTime (userId, startDate, endDate) {
+  static async calculateResponseTime (_userId, _startDate, _endDate) {
     // Implementación simplificada
     // En una implementación real, se calcularía basado en conversaciones
     return Math.floor(Math.random() * 60) + 15; // 15-75 minutos (mock)
@@ -588,7 +586,7 @@ class TeamController {
   /**
    * Calcular satisfacción del cliente
    */
-  static async calculateSatisfaction (userId, startDate, endDate) {
+  static async calculateSatisfaction (_userId, _startDate, _endDate) {
     // Implementación simplificada
     // En una implementación real, se basaría en encuestas o feedback
     return Math.floor(Math.random() * 20) + 80; // 80-100% (mock)

@@ -1,6 +1,5 @@
 const os = require('os');
 const fs = require('fs').promises;
-const path = require('path');
 const logger = require('./logger');
 const { firestore } = require('../config/firebase');
 
@@ -471,7 +470,7 @@ class MonitoringService {
     }
 
     // Limpiar métricas de rendimiento antiguas
-    for (const [key, values] of this.metrics.performance.entries()) {
+    for (const values of this.metrics.performance.values()) {
       if (values.length > 50) {
         values.splice(0, values.length - 50);
       }

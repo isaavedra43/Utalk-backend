@@ -732,7 +732,6 @@ class MediaService {
         quality = 85,
         maxWidth = 1920,
         maxHeight = 1080,
-        skipIfSmaller = true,
         dryRun = false,
       } = options;
 

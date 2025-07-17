@@ -22,8 +22,6 @@ class ContactController {
         limit = 20,
         search,
         tags,
-        sortBy = 'createdAt',
-        sortOrder = 'desc',
       } = req.query;
 
       const userId = req.user.role === 'admin' ? null : req.user.uid;

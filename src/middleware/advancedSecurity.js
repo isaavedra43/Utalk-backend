@@ -1,6 +1,5 @@
 const rateLimit = require('express-rate-limit');
 const slowDown = require('express-slow-down');
-const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
@@ -618,7 +617,7 @@ class AdvancedSecurity {
   /**
    * Validar claims adicionales del token
    */
-  async validateTokenClaims (decoded, req) {
+  async validateTokenClaims (decoded, _req) {
     // Verificar estructura básica
     if (!decoded.uid || !decoded.email || !decoded.role) {
       return { valid: false, reason: 'Token incompleto' };

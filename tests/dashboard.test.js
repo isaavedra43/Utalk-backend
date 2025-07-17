@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../src/index');
+const _app = require('../src/index');
 const { initializeTestApp, cleanupTest } = require('./setup');
 
 describe('Dashboard API', () => {

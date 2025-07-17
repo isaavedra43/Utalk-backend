@@ -7,7 +7,6 @@
 
 require('dotenv').config();
 const MediaService = require('../src/services/MediaService');
-const logger = require('../src/utils/logger');
 
 // Configuración por argumentos de línea de comandos
 const args = process.argv.slice(2);
