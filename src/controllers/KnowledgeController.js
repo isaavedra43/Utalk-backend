@@ -449,7 +449,7 @@ class KnowledgeController {
       if (err) {
         return res.status(400).json({
           error: 'Error de archivo',
-          message: err.message,
+          message: typeof err.message === 'string' ? err.message : '(no message)',
         });
       }
 

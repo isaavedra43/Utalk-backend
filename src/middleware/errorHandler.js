@@ -2,16 +2,22 @@ const logger = require('../utils/logger');
 
 /**
  * Middleware global de manejo de errores
+ *
+ * CRÍTICO: Validación robusta de tipos para prevenir errores en producción
+ * Todos los accesos a propiedades de error deben validar el tipo primero
  */
-const errorHandler = (err, req, res, next) => {
-  // Log del error
-  logger.error('Error en la aplicación:', {
-    error: err.message,
-    stack: err.stack,
+const errorHandler = (err, req, res, _next) => {
+  // Log del error con validación robusta de tipos
+  logger.error('[API ERROR]', {
+    code: typeof err.code === 'string' ? err.code : '(no code)',
+    error: typeof err.message === 'string' ? err.message : '(no message)',
+    stack: typeof err.stack === 'string' ? err.stack : '(no stack)',
+    status: typeof err.status === 'number' ? err.status : '(no status)',
     url: req.originalUrl,
     method: req.method,
     ip: req.ip,
     userAgent: req.get('User-Agent'),
+    user: req.user && req.user.uid ? req.user.uid : null,
   });
 
   // Errores de validación de Joi
@@ -27,7 +33,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Errores de Firebase
-  if (err.code && err.code.startsWith('auth/')) {
+  if (typeof err.code === 'string' && err.code.startsWith('auth/')) {
     return res.status(401).json({
       error: 'Error de autenticación',
       message: getFirebaseAuthErrorMessage(err.code),
@@ -36,7 +42,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Errores de Firestore
-  if (err.code && (err.code.includes('firestore') || err.code.includes('permission-denied'))) {
+  if (typeof err.code === 'string' && (err.code.includes('firestore') || err.code.includes('permission-denied'))) {
     return res.status(403).json({
       error: 'Error de permisos',
       message: 'No tienes permisos para realizar esta acción',
