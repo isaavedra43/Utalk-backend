@@ -2,6 +2,7 @@
 
 /**
  * SCRIPT DE MIGRACIÓN: Mensajes de colección raíz a subcolecciones
+ * ESLint Standard: JavaScript Standard Style
  *
  * Este script migra todos los mensajes de la colección raíz /messages
  * a las subcolecciones /conversations/{conversationId}/messages
@@ -61,7 +62,7 @@ class MessageMigration {
   /**
    * Verificar conexión a Firestore
    */
-  async verifyConnection() {
+  async verifyConnection () {
     try {
       console.log('🔍 Verificando conexión a Firestore...');
       await firestore.collection('users').limit(1).get();
@@ -74,7 +75,7 @@ class MessageMigration {
   /**
    * Obtener estadísticas iniciales
    */
-  async getInitialStats() {
+  async getInitialStats () {
     console.log('📊 Obteniendo estadísticas iniciales...');
 
     try {
@@ -86,16 +87,14 @@ class MessageMigration {
       const conversationsSnapshot = await firestore.collection('conversations').get();
       const conversationsCount = conversationsSnapshot.size;
 
-      console.log(`📈 Estadísticas iniciales:`);
+      console.log('📈 Estadísticas iniciales:');
       console.log(`   - Mensajes en raíz: ${this.stats.total}`);
       console.log(`   - Conversaciones existentes: ${conversationsCount}`);
       console.log('');
 
       if (this.stats.total === 0) {
         console.log('✅ No hay mensajes para migrar');
-        return;
       }
-
     } catch (error) {
       throw new Error(`Error obteniendo estadísticas: ${error.message}`);
     }
@@ -104,7 +103,7 @@ class MessageMigration {
   /**
    * Migrar mensajes en lotes
    */
-  async migrateInBatches() {
+  async migrateInBatches () {
     if (this.stats.total === 0) return;
 
     console.log('🔄 Iniciando migración por lotes...');
@@ -146,9 +145,9 @@ class MessageMigration {
   /**
    * Procesar un lote de mensajes
    */
-  async processBatch(docs, batchNumber) {
+  async processBatch (docs, batchNumber) {
     const promises = docs.map((doc, index) =>
-      this.migrateMessage(doc, `${batchNumber}.${index + 1}`)
+      this.migrateMessage(doc, `${batchNumber}.${index + 1}`),
     );
 
     const results = await Promise.allSettled(promises);
@@ -160,7 +159,7 @@ class MessageMigration {
         this.stats[outcome]++;
       } else {
         this.stats.errors++;
-        console.error(`❌ Error en migración:`, result.reason?.message || result.reason);
+        console.error('❌ Error en migración:', result.reason?.message || result.reason);
       }
     });
 
@@ -170,7 +169,7 @@ class MessageMigration {
   /**
    * Migrar un mensaje individual
    */
-  async migrateMessage(doc, index) {
+  async migrateMessage (doc, index) {
     try {
       const messageData = doc.data();
       const messageId = doc.id;
@@ -236,7 +235,6 @@ class MessageMigration {
       }
 
       return 'migrated';
-
     } catch (error) {
       console.error(`❌ [${index}] Error migrando mensaje ${doc.id}:`, error.message);
       throw error;
@@ -246,10 +244,10 @@ class MessageMigration {
   /**
    * Imprimir reporte final
    */
-  printFinalReport() {
+  printFinalReport () {
     console.log('\n📋 REPORTE FINAL DE MIGRACIÓN');
     console.log('=====================================');
-    console.log(`📊 Estadísticas:`);
+    console.log('📊 Estadísticas:');
     console.log(`   - Total procesados: ${this.stats.total}`);
     console.log(`   - Migrados exitosamente: ${this.stats.migrated}`);
     console.log(`   - Duplicados omitidos: ${this.stats.duplicates}`);
@@ -277,7 +275,7 @@ class MessageMigration {
   /**
    * Pausa de ejecución
    */
-  sleep(ms) {
+  sleep (ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
@@ -292,7 +290,7 @@ if (require.main === module) {
     if (arg === '--dry-run') {
       options.dryRun = true;
     } else if (arg.startsWith('--batch-size=')) {
-      options.batchSize = parseInt(arg.split('=')[1]) || 100;
+      options.batchSize = parseInt(arg.split('=')[1], 10) || 100;
     }
   });
 
@@ -300,4 +298,4 @@ if (require.main === module) {
   migration.migrate().catch(console.error);
 }
 
-module.exports = MessageMigration; 
+module.exports = MessageMigration;

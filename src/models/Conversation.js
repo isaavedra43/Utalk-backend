@@ -219,8 +219,9 @@ class Conversation {
    */
   async getStats () {
     const messagesQuery = firestore
-      .collection('messages')
-      .where('conversationId', '==', this.id);
+      .collection('conversations')
+      .doc(this.id)
+      .collection('messages');
 
     const snapshot = await messagesQuery.get();
     const messages = snapshot.docs.map(doc => doc.data());
