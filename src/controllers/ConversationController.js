@@ -1,7 +1,6 @@
 // ConversationController.js
 // Controlador robusto para gestión de conversaciones
 // Implementa: paginación, filtros, logs exhaustivos, mapping content → text, manejo de errores
-// Cumple estrictamente con las reglas de ESLint del proyecto
 
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
@@ -25,58 +24,6 @@ class ConversationController {
   /**
    * LISTAR CONVERSACIONES CON FILTROS Y PAGINACIÓN
    * GET /api/conversations
-   *
-   * ESTRUCTURA DE RESPUESTA GARANTIZADA:
-   * {
-   *   "conversations": [
-   *     {
-   *       "id": "conv_123456_789012",
-   *       "customerPhone": "+1234567890",
-   *       "agentPhone": "+0987654321",
-   *       "lastMessage": "Texto del último mensaje",
-   *       "lastMessageAt": "2024-01-15T10:30:00.000Z",
-   *       "messageCount": 15,
-   *       "status": "open|closed|pending|assigned",
-   *       "assignedTo": "agent_001|null",
-   *       "createdAt": "2024-01-15T09:00:00.000Z",
-   *       "updatedAt": "2024-01-15T10:30:00.000Z",
-   *       "unreadCount": 2,
-   *       "lastMessageDetails": {
-   *         "id": "msg_789012_345678",
-   *         "text": "Texto del mensaje",
-   *         "content": "Texto del mensaje",
-   *         "type": "text|image|document",
-   *         "timestamp": "2024-01-15T10:30:00.000Z",
-   *         "from": "+1234567890",
-   *         "to": "+0987654321",
-   *         "status": "sent|delivered|read"
-   *       }
-   *     }
-   *   ],
-   *   "pagination": {
-   *     "page": 1,
-   *     "limit": 20,
-   *     "total": 1,
-   *     "totalPages": 1,
-   *     "hasMore": false,
-   *     "showing": 1
-   *   },
-   *   "filters": {
-   *     "assignedTo": "agent_001|null",
-   *     "status": "open|null",
-   *     "customerPhone": "+1234567890|null",
-   *     "search": "término de búsqueda|null",
-   *     "sortBy": "lastMessageAt",
-   *     "sortOrder": "desc"
-   *   },
-   *   "meta": {
-   *     "executionTime": 150,
-   *     "timestamp": "2024-01-15T10:31:00.000Z",
-   *     "requestId": "req_123456789",
-   *     "userId": "user_123",
-   *     "userRole": "admin|agent"
-   *   }
-   * }
    */
   static async list (req, res) {
     const startTime = Date.now();
@@ -97,7 +44,7 @@ class ConversationController {
 
       // Validar y sanitizar parámetros numéricos
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20)); // Máximo 100 por performance
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
       // Validar parámetros de ordenamiento
       const validSortFields = ['lastMessageAt', 'createdAt', 'updatedAt', 'messageCount'];
@@ -105,7 +52,6 @@ class ConversationController {
       const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastMessageAt';
       const safeSortOrder = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
 
-      // LOG INICIAL EXHAUSTIVO
       logger.info('[CONVERSATIONS API] Iniciando listado de conversaciones', {
         requestId,
         userId: req.user?.uid || 'anonymous',
@@ -156,8 +102,11 @@ class ConversationController {
       };
 
       // PASO 3: APLICACIÓN DE FILTROS CON LOGS DETALLADOS
+      let hasFiltersApplied = false;
+
       if (assignedTo) {
         queryOptions.assignedTo = assignedTo;
+        hasFiltersApplied = true;
         logger.info('[CONVERSATIONS API] Aplicando filtro por agente asignado', {
           requestId,
           assignedTo,
@@ -166,6 +115,7 @@ class ConversationController {
       } else if (userRole !== 'admin') {
         // Para agentes no-admin, mostrar solo sus conversaciones asignadas
         queryOptions.assignedTo = userId;
+        hasFiltersApplied = true;
         logger.info('[CONVERSATIONS API] Aplicando filtro automático para agente no-admin', {
           requestId,
           userId,
@@ -175,10 +125,10 @@ class ConversationController {
       }
 
       if (status) {
-        // Validar que el status sea válido
         const validStatuses = ['open', 'closed', 'pending', 'assigned', 'archived'];
         if (validStatuses.includes(status)) {
           queryOptions.status = status;
+          hasFiltersApplied = true;
           logger.info('[CONVERSATIONS API] Aplicando filtro por estado', {
             requestId,
             status,
@@ -194,10 +144,10 @@ class ConversationController {
       }
 
       if (customerPhone) {
-        // Sanitizar número de teléfono
         const sanitizedPhone = customerPhone.replace(/[^\d+]/g, '');
         if (sanitizedPhone.length >= 10) {
           queryOptions.customerPhone = sanitizedPhone;
+          hasFiltersApplied = true;
           logger.info('[CONVERSATIONS API] Aplicando filtro por teléfono del cliente', {
             requestId,
             customerPhone: sanitizedPhone,
@@ -211,18 +161,31 @@ class ConversationController {
         }
       }
 
+      // Log si NO hay filtros aplicados
+      if (!hasFiltersApplied && !search) {
+        logger.info('[CONVERSATIONS API] SIN FILTROS APLICADOS - Obteniendo TODAS las conversaciones', {
+          requestId,
+          userId,
+          userRole,
+          note: 'Si el resultado es vacío, es porque no hay conversaciones en Firestore',
+        });
+      }
+
       // PASO 4: EJECUCIÓN DE CONSULTA CON MANEJO ROBUSTO DE ERRORES
       let conversations = [];
       let totalCount = 0;
 
-      logger.info('[CONVERSATIONS API] Ejecutando consulta a base de datos', {
+      logger.info('[CONVERSATIONS API] Ejecutando consulta a Firestore', {
         requestId,
         queryOptions,
         hasSearch: !!search,
         searchTerm: search || null,
+        hasFilters: hasFiltersApplied,
       });
 
       try {
+        let rawResults = null;
+
         if (search && search.trim().length > 0) {
           const searchTerm = search.trim();
           logger.info('[CONVERSATIONS API] Realizando búsqueda con término', {
@@ -231,43 +194,65 @@ class ConversationController {
             searchLength: searchTerm.length,
           });
 
-          const searchResults = await Conversation.search(searchTerm, queryOptions);
-
-          // Validar respuesta del modelo de búsqueda
-          if (searchResults && typeof searchResults === 'object') {
-            conversations = Array.isArray(searchResults.conversations)
-              ? searchResults.conversations
-              : Array.isArray(searchResults) ? searchResults : [];
-            totalCount = typeof searchResults.total === 'number' ? searchResults.total : conversations.length;
-          } else {
-            conversations = [];
-            totalCount = 0;
-          }
+          rawResults = await Conversation.search(searchTerm, queryOptions);
         } else {
           logger.info('[CONVERSATIONS API] Listando conversaciones sin búsqueda', {
             requestId,
           });
 
-          const listResults = await Conversation.list(queryOptions);
+          rawResults = await Conversation.list(queryOptions);
+        }
 
-          // Validar respuesta del modelo de listado
-          if (listResults && typeof listResults === 'object') {
-            conversations = Array.isArray(listResults.conversations)
-              ? listResults.conversations
-              : Array.isArray(listResults) ? listResults : [];
-            totalCount = typeof listResults.total === 'number' ? listResults.total : conversations.length;
-          } else {
-            conversations = [];
-            totalCount = 0;
+        // Log datos RAW de Firestore
+        logger.info('[CONVERSATIONS API] DATOS RAW de Firestore obtenidos:', {
+          requestId,
+          rawResultsType: typeof rawResults,
+          rawResultsIsArray: Array.isArray(rawResults),
+          rawResultsKeys: rawResults ? Object.keys(rawResults) : null,
+          hasConversationsProperty: !!rawResults?.conversations,
+          rawConversationsCount: rawResults?.conversations?.length || 0,
+          rawTotal: rawResults?.total || 0,
+        });
+
+        // Validar respuesta del modelo
+        if (rawResults && typeof rawResults === 'object') {
+          conversations = Array.isArray(rawResults.conversations)
+            ? rawResults.conversations
+            : Array.isArray(rawResults) ? rawResults : [];
+          totalCount = typeof rawResults.total === 'number' ? rawResults.total : conversations.length;
+
+          // Log primera conversación RAW
+          if (conversations.length > 0) {
+            const firstRawConv = conversations[0];
+            logger.info('[CONVERSATIONS API] Primera conversación RAW:', {
+              requestId,
+              conversationFields: Object.keys(firstRawConv),
+              hasToJSON: typeof firstRawConv.toJSON === 'function',
+              sampleData: {
+                id: firstRawConv.id,
+                customerPhone: firstRawConv.customerPhone || firstRawConv.phone,
+                agentPhone: firstRawConv.agentPhone || firstRawConv.agent_phone,
+                status: firstRawConv.status,
+                lastMessage: firstRawConv.lastMessage || firstRawConv.last_message,
+              },
+            });
           }
+        } else {
+          conversations = [];
+          totalCount = 0;
+          logger.warn('[CONVERSATIONS API] Respuesta de Firestore inválida o vacía', {
+            requestId,
+            rawResults,
+          });
         }
       } catch (queryError) {
-        logger.error('[CONVERSATIONS API] Error en consulta a base de datos', {
+        logger.error('[CONVERSATIONS API] Error en consulta a Firestore', {
           requestId,
           error: {
             message: typeof queryError.message === 'string' ? queryError.message : 'Error de consulta',
             code: typeof queryError.code === 'string' ? queryError.code : null,
             name: queryError.name || 'QueryError',
+            stack: queryError.stack,
           },
           queryOptions,
         });
@@ -275,17 +260,23 @@ class ConversationController {
         totalCount = 0;
       }
 
-      // LOG DE RESULTADOS OBTENIDOS
-      logger.info('[CONVERSATIONS API] Consulta ejecutada exitosamente', {
+      // Log resultados obtenidos de Firestore
+      logger.info('[CONVERSATIONS API] Consulta a Firestore completada:', {
         requestId,
         conversationsFound: conversations.length,
         totalInDatabase: totalCount,
         userId,
         userRole,
         queryExecutionTime: Date.now() - startTime,
+        isEmpty: conversations.length === 0,
       });
 
       // PASO 5: MAPPING ROBUSTO CON MANEJO DE ERRORES POR CONVERSACIÓN
+      logger.info('[CONVERSATIONS API] Iniciando mapping de conversaciones...', {
+        requestId,
+        conversationsToMap: conversations.length,
+      });
+
       const conversationsWithDetails = await Promise.all(
         conversations.map(async (conversation, index) => {
           try {
@@ -302,20 +293,82 @@ class ConversationController {
             // Extraer datos base de la conversación
             const conversationData = conversation.toJSON ? conversation.toJSON() : conversation;
 
-            // MAPPING ROBUSTO DE CAMPOS REQUERIDOS
+            // Log datos antes del mapping (solo primera conversación)
+            if (index === 0) {
+              logger.info('[CONVERSATIONS API] Datos RAW de conversación ANTES del mapping:', {
+                requestId,
+                originalFields: Object.keys(conversationData),
+                originalData: conversationData,
+              });
+            }
+
+            // MAPPING EXPLÍCITO Y ROBUSTO DE CAMPOS REQUERIDOS
             const mappedConversation = {
-              id: conversationData.id || `conv_unknown_${index}`,
-              customerPhone: conversationData.customerPhone || conversationData.phone || '',
-              agentPhone: conversationData.agentPhone || conversationData.agent_phone || '',
-              lastMessage: conversationData.lastMessage || conversationData.last_message || '',
-              lastMessageAt: conversationData.lastMessageAt || conversationData.last_message_at || conversationData.updatedAt || new Date().toISOString(),
-              messageCount: parseInt(conversationData.messageCount || conversationData.message_count || 0, 10),
+              // ID - REQUERIDO
+              id: conversationData.id || conversationData._id || `conv_unknown_${index}`,
+
+              // TELÉFONOS - REQUERIDOS
+              customerPhone: conversationData.customerPhone ||
+                           conversationData.customer_phone ||
+                           conversationData.phone ||
+                           conversationData.from || '',
+
+              agentPhone: conversationData.agentPhone ||
+                        conversationData.agent_phone ||
+                        conversationData.to ||
+                        conversationData.businessPhone || '',
+
+              // ÚLTIMO MENSAJE - REQUERIDO
+              lastMessage: conversationData.lastMessage ||
+                         conversationData.last_message ||
+                         conversationData.lastMessageText ||
+                         conversationData.message || '',
+
+              // TIMESTAMP DEL ÚLTIMO MENSAJE - REQUERIDO
+              lastMessageAt: conversationData.lastMessageAt ||
+                           conversationData.last_message_at ||
+                           conversationData.lastMessageTimestamp ||
+                           conversationData.updatedAt ||
+                           conversationData.updated_at ||
+                           new Date().toISOString(),
+
+              // CONTADORES - REQUERIDOS
+              messageCount: parseInt(conversationData.messageCount ||
+                                  conversationData.message_count ||
+                                  conversationData.totalMessages || 0, 10),
+
+              unreadCount: parseInt(conversationData.unreadCount ||
+                                  conversationData.unread_count ||
+                                  conversationData.unreadMessages || 0, 10),
+
+              // ESTADO - REQUERIDO
               status: conversationData.status || 'open',
-              assignedTo: conversationData.assignedTo || conversationData.assigned_to || null,
-              createdAt: conversationData.createdAt || conversationData.created_at || new Date().toISOString(),
-              updatedAt: conversationData.updatedAt || conversationData.updated_at || new Date().toISOString(),
-              unreadCount: parseInt(conversationData.unreadCount || conversationData.unread_count || 0, 10),
+
+              // ASIGNACIÓN - PUEDE SER NULL
+              assignedTo: conversationData.assignedTo ||
+                        conversationData.assigned_to ||
+                        conversationData.agentId || null,
+
+              // TIMESTAMPS DE SISTEMA - REQUERIDOS
+              createdAt: conversationData.createdAt ||
+                       conversationData.created_at ||
+                       conversationData.timestamp ||
+                       new Date().toISOString(),
+
+              updatedAt: conversationData.updatedAt ||
+                       conversationData.updated_at ||
+                       conversationData.lastModified ||
+                       new Date().toISOString(),
             };
+
+            // Log después del mapping (solo primera conversación)
+            if (index === 0) {
+              logger.info('[CONVERSATIONS API] Datos DESPUÉS del mapping:', {
+                requestId,
+                mappedFields: Object.keys(mappedConversation),
+                mappedData: mappedConversation,
+              });
+            }
 
             // AGREGAR DETALLES DEL ÚLTIMO MENSAJE DE FORMA ROBUSTA
             if (conversation.lastMessageId || conversationData.lastMessageId) {
@@ -334,14 +387,20 @@ class ConversationController {
                   const lastMessageData = lastMessage.toJSON ? lastMessage.toJSON() : lastMessage;
 
                   // MAPPING CRÍTICO: Asegurar que tanto 'text' como 'content' estén disponibles
-                  const messageText = lastMessageData.content || lastMessageData.text || lastMessageData.message || '';
+                  const messageText = lastMessageData.content ||
+                                    lastMessageData.text ||
+                                    lastMessageData.message ||
+                                    lastMessageData.body || '';
 
                   mappedConversation.lastMessageDetails = {
                     id: lastMessageData.id || lastMessageId,
                     text: messageText, // Campo requerido por frontend
                     content: messageText, // Mantener compatibilidad
                     type: lastMessageData.type || lastMessageData.messageType || 'text',
-                    timestamp: lastMessageData.timestamp || lastMessageData.createdAt || lastMessageData.created_at || new Date().toISOString(),
+                    timestamp: lastMessageData.timestamp ||
+                             lastMessageData.createdAt ||
+                             lastMessageData.created_at ||
+                             new Date().toISOString(),
                     from: lastMessageData.from || lastMessageData.sender || '',
                     to: lastMessageData.to || lastMessageData.recipient || '',
                     status: lastMessageData.status || lastMessageData.messageStatus || 'sent',
@@ -396,19 +455,33 @@ class ConversationController {
       // Filtrar conversaciones que fallaron en el mapeo
       const validConversations = conversationsWithDetails.filter(conv => conv !== null);
 
+      // Log después del mapping completo
+      logger.info('[CONVERSATIONS API] Mapping completado:', {
+        requestId,
+        originalCount: conversations.length,
+        validAfterMapping: validConversations.length,
+        failedMapping: conversations.length - validConversations.length,
+      });
+
       // CÁLCULO DE PAGINACIÓN PRECISO
       const totalPages = Math.ceil(totalCount / limitNum);
       const hasMore = (pageNum * limitNum) < totalCount;
 
       // ADVERTENCIA SI NO HAY CONVERSACIONES
       if (validConversations.length === 0) {
-        logger.warn('[CONVERSATIONS API] No se encontraron conversaciones', {
+        logger.warn('[CONVERSATIONS API] NO SE ENCONTRARON CONVERSACIONES', {
           requestId,
           filters: { assignedTo, status, customerPhone, search },
           user: userId,
           role: userRole,
           totalInDatabase: totalCount,
           queryOptions,
+          possibleCauses: [
+            'No hay conversaciones en Firestore',
+            'Los filtros aplicados son muy restrictivos',
+            'Error en el modelo Conversation.list()',
+            'Error en el mapping de campos',
+          ],
         });
       }
 
@@ -440,8 +513,8 @@ class ConversationController {
         },
       };
 
-      // LOG FINAL DE RESPUESTA EXITOSA
-      logger.info('[CONVERSATIONS API] Respuesta preparada exitosamente', {
+      // Log respuesta final
+      logger.info('[CONVERSATIONS API] Respuesta preparada exitosamente:', {
         requestId,
         totalConversations: validConversations.length,
         totalInDatabase: totalCount,
@@ -451,6 +524,14 @@ class ConversationController {
         totalPages,
         executionTime: Date.now() - startTime,
         filters: { assignedTo, status, customerPhone, search },
+        firstConversationPreview: validConversations.length > 0
+          ? {
+            id: validConversations[0].id,
+            customerPhone: validConversations[0].customerPhone,
+            status: validConversations[0].status,
+            lastMessage: validConversations[0].lastMessage?.substring(0, 50) + '...',
+          }
+          : null,
       });
 
       // ENVÍO DE RESPUESTA CON STATUS 200

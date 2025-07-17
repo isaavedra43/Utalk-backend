@@ -1,9 +1,12 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAgentOrAdmin, requireAdmin } = require('../middleware/auth');
+const { requireAgentOrAdmin } = require('../middleware/auth');
 const ConversationController = require('../controllers/ConversationController');
 
 const router = express.Router();
+
+// 🔍 DEBUG: Endpoint temporal para datos RAW de Firestore
+router.get('/debug/raw', requireAgentOrAdmin, ConversationController.debugRawData);
 
 /**
  * @route GET /api/conversations
@@ -87,4 +90,4 @@ router.delete('/:id',
   ConversationController.archive,
 );
 
-module.exports = router; 
+module.exports = router;
