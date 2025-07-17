@@ -158,7 +158,6 @@ try {
         },
       };
       console.log('✅ HEALTH - Firebase: Lectura y escritura OK');
-
     } catch (firebaseError) {
       healthcheck.checks.firebase = {
         status: 'disconnected',
@@ -203,7 +202,6 @@ try {
         },
       };
       console.log('✅ HEALTH - Twilio: Variables y formato OK');
-
     } catch (twilioError) {
       healthcheck.checks.twilio = {
         status: 'misconfigured',
@@ -233,7 +231,6 @@ try {
         },
       };
       console.log('✅ HEALTH - Webhook URL configurado:', webhookUrl);
-
     } catch (webhookError) {
       healthcheck.checks.webhook = {
         status: 'error',
@@ -326,7 +323,7 @@ try {
   // ✅ INICIALIZACIÓN DEL SERVIDOR (Solo si NO estamos en modo test)
   if (process.env.NODE_ENV !== 'test') {
     console.log('🚀 Iniciando servidor HTTP...');
-    
+
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log('🎉 ===================================');
       console.log('🎉 FUNDAY BACKEND INICIADO CON ÉXITO');
@@ -338,7 +335,7 @@ try {
       console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
       console.log(`💾 Memoria: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
       console.log('🎉 ===================================');
-      
+
       // ✅ TEST INMEDIATO POST-STARTUP
       console.log('🧪 Ejecutando test de funcionalidad...');
       setTimeout(() => {
@@ -386,7 +383,6 @@ try {
 
   // ✅ EXPORTAR APP PARA TESTING
   module.exports = app;
-
 } catch (initError) {
   console.error('❌ ERROR CRÍTICO EN INICIALIZACIÓN PRINCIPAL:', initError.message);
   console.error('Stack completo:', initError.stack);
@@ -396,17 +392,17 @@ try {
   console.error('- FIREBASE_CLIENT_EMAIL:', !!process.env.FIREBASE_CLIENT_EMAIL);
   console.error('- TWILIO_ACCOUNT_SID:', !!process.env.TWILIO_ACCOUNT_SID);
   console.error('- TWILIO_AUTH_TOKEN:', !!process.env.TWILIO_AUTH_TOKEN);
-  
+
   console.error('💥 EL SERVIDOR NO PUEDE CONTINUAR - VERIFICA CONFIGURACIÓN EN RAILWAY');
-  
+
   // En Railway, es mejor enviar una respuesta que crashear completamente
   if (process.env.NODE_ENV === 'production') {
     console.error('🚨 Modo producción - intentando respuesta básica de error...');
-    
+
     const express = require('express');
     const errorApp = express();
     const PORT = process.env.PORT || 3000;
-    
+
     errorApp.get('*', (req, res) => {
       res.status(500).json({
         error: 'Configuration Error',
@@ -415,7 +411,7 @@ try {
         issue: initError.message,
       });
     });
-    
+
     errorApp.listen(PORT, () => {
       console.log(`🚨 Error server running on port ${PORT} - check Railway logs`);
     });

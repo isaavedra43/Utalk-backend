@@ -7,7 +7,7 @@ describe('Dashboard API', () => {
 
   beforeAll(async () => {
     testApp = await initializeTestApp();
-    
+
     adminToken = 'Bearer test-admin-token';
     agentToken = 'Bearer test-agent-token';
     viewerToken = 'Bearer test-viewer-token';
@@ -46,7 +46,7 @@ describe('Dashboard API', () => {
     it('debería permitir fechas específicas', async () => {
       const startDate = '2023-01-01';
       const endDate = '2023-01-31';
-      
+
       const response = await request(testApp)
         .get(`/dashboard/metrics?startDate=${startDate}&endDate=${endDate}`)
         .set('Authorization', adminToken)
@@ -426,4 +426,4 @@ describe('Dashboard API', () => {
       expect(response.body.period).toBeDefined();
     });
   });
-}); 
+});

@@ -23,14 +23,14 @@ class Contact {
    */
   static async create (contactData) {
     const contact = new Contact(contactData);
-    
+
     // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
     const cleanData = prepareForFirestore({
       ...contact,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    
+
     await firestore.collection('contacts').doc(contact.id).set(cleanData);
     return contact;
   }
@@ -154,11 +154,11 @@ class Contact {
    * Actualizar contacto
    */
   async update (updates) {
-    const validUpdates = prepareForFirestore({ 
-      ...updates, 
-      updatedAt: FieldValue.serverTimestamp() 
+    const validUpdates = prepareForFirestore({
+      ...updates,
+      updatedAt: FieldValue.serverTimestamp(),
     });
-    
+
     await firestore.collection('contacts').doc(this.id).update(validUpdates);
 
     // Actualizar propiedades locales

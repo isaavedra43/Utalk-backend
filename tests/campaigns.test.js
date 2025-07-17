@@ -7,7 +7,7 @@ describe('Campaigns API', () => {
 
   beforeAll(async () => {
     testApp = await initializeTestApp();
-    
+
     adminToken = 'Bearer test-admin-token';
     agentToken = 'Bearer test-agent-token';
 
@@ -17,7 +17,7 @@ describe('Campaigns API', () => {
       .set('Authorization', adminToken)
       .send({
         name: 'Campaign Test Contact',
-        phone: '+1234567890'
+        phone: '+1234567890',
       });
     testContactId = contactResponse.body.contact.id;
   });
@@ -69,7 +69,7 @@ describe('Campaigns API', () => {
         name: 'Campaña de Prueba',
         message: 'Hola, este es un mensaje de prueba para la campaña.',
         contacts: [testContactId],
-        status: 'draft'
+        status: 'draft',
       };
 
       const response = await request(testApp)
@@ -83,13 +83,13 @@ describe('Campaigns API', () => {
       expect(response.body.campaign).toMatchObject({
         name: newCampaign.name,
         message: newCampaign.message,
-        status: 'draft'
+        status: 'draft',
       });
     });
 
     it('debería validar campos requeridos', async () => {
       const invalidCampaign = {
-        contacts: [testContactId]
+        contacts: [testContactId],
         // Falta name y message
       };
 
@@ -104,7 +104,7 @@ describe('Campaigns API', () => {
       const campaignWithInvalidContacts = {
         name: 'Test Campaign',
         message: 'Test message',
-        contacts: ['nonexistent-contact-id']
+        contacts: ['nonexistent-contact-id'],
       };
 
       await request(testApp)
@@ -118,7 +118,7 @@ describe('Campaigns API', () => {
       const campaign = {
         name: 'Reach Test',
         message: 'Test message',
-        contacts: [testContactId]
+        contacts: [testContactId],
       };
 
       const response = await request(testApp)
@@ -141,7 +141,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Test Campaign',
           message: 'Test message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
     });
@@ -184,7 +184,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Original Campaign',
           message: 'Original message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
     });
@@ -192,7 +192,7 @@ describe('Campaigns API', () => {
     it('debería actualizar una campaña en estado draft', async () => {
       const updates = {
         name: 'Updated Campaign',
-        message: 'Updated message'
+        message: 'Updated message',
       };
 
       const response = await request(testApp)
@@ -209,7 +209,7 @@ describe('Campaigns API', () => {
       // Primero cambiar estado a completed (esto sería un test adicional)
       // Por ahora asumimos que no se puede editar
       const updates = {
-        name: 'Should not update'
+        name: 'Should not update',
       };
 
       await request(testApp)
@@ -221,7 +221,7 @@ describe('Campaigns API', () => {
 
     it('debería validar contactos al actualizar', async () => {
       const updates = {
-        contacts: ['invalid-contact-id']
+        contacts: ['invalid-contact-id'],
       };
 
       await request(testApp)
@@ -242,7 +242,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'To Delete',
           message: 'Delete message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
     });
@@ -279,7 +279,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Send Test',
           message: 'Message to send',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
     });
@@ -318,7 +318,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Empty Campaign',
           message: 'No contacts',
-          contacts: []
+          contacts: [],
         });
 
       await request(testApp)
@@ -338,7 +338,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Pause Test',
           message: 'Message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
     });
@@ -363,7 +363,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Resume Test',
           message: 'Message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
 
@@ -393,7 +393,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Report Test',
           message: 'Message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
       campaignId = response.body.campaign.id;
     });
@@ -429,7 +429,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Agent Campaign',
           message: 'Agent message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         })
         .expect(201);
     });
@@ -448,7 +448,7 @@ describe('Campaigns API', () => {
         .send({
           name: 'Agent Send Test',
           message: 'Message',
-          contacts: [testContactId]
+          contacts: [testContactId],
         });
 
       await request(testApp)
@@ -457,4 +457,4 @@ describe('Campaigns API', () => {
         .expect(200);
     });
   });
-}); 
+});

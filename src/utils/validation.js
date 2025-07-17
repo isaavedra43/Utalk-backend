@@ -191,6 +191,101 @@ const validateFile = (options = {}) => {
   };
 };
 
+/**
+ * Validar que un objeto mensaje tenga todos los campos obligatorios
+ * según la especificación del sistema
+ * @param {Object} message - Objeto mensaje a validar
+ * @returns {Object} Objeto validado con campos obligatorios garantizados
+ */
+const validateMessageResponse = (message) => {
+  if (!message || typeof message !== 'object') {
+    throw new Error('El mensaje debe ser un objeto válido');
+  }
+
+  // ✅ CAMPOS OBLIGATORIOS SEGÚN ESPECIFICACIÓN
+  const requiredFields = [
+    'id', 'content', 'timestamp', 'from', 'to',
+    'direction', 'status', 'conversationId',
+  ];
+
+  // Verificar que todos los campos obligatorios estén presentes
+  const missingFields = requiredFields.filter(field =>
+    message[field] === null || message[field] === undefined,
+  );
+
+  if (missingFields.length > 0) {
+    throw new Error(`Campos obligatorios faltantes en mensaje: ${missingFields.join(', ')}`);
+  }
+
+  // Validar valores específicos
+  if (!['inbound', 'outbound', 'unknown'].includes(message.direction)) {
+    throw new Error(`Direction inválido: ${message.direction}`);
+  }
+
+  if (!['pending', 'sent', 'delivered', 'read', 'failed'].includes(message.status)) {
+    throw new Error(`Status inválido: ${message.status}`);
+  }
+
+  // ✅ GARANTIZAR QUE TEXT ESTÉ PRESENTE PARA COMPATIBILIDAD CON FRONTEND
+  if (!Object.prototype.hasOwnProperty.call(message, 'text')) {
+    message.text = message.content || '';
+  }
+
+  return message;
+};
+
+/**
+ * Validar un array de mensajes
+ * @param {Array} messages - Array de mensajes a validar
+ * @returns {Array} Array de mensajes validados
+ */
+const validateMessagesArrayResponse = (messages) => {
+  if (!Array.isArray(messages)) {
+    throw new Error('Messages debe ser un array');
+  }
+
+  return messages.map((message, index) => {
+    try {
+      return validateMessageResponse(message);
+    } catch (error) {
+      throw new Error(`Error en mensaje ${index}: ${error.message}`);
+    }
+  });
+};
+
+/**
+ * Crear respuesta de mensajes garantizada como válida
+ * @param {Array} messages - Array de instancias del modelo Message
+ * @param {Object} pagination - Información de paginación
+ * @param {Object} additionalData - Datos adicionales (filtros, etc.)
+ * @returns {Object} Respuesta validada
+ */
+const createValidatedMessagesResponse = (messages, pagination = {}, additionalData = {}) => {
+  // Convertir instancias de Message a JSON y validar
+  const jsonMessages = messages.map(message => {
+    if (typeof message.toJSON === 'function') {
+      return message.toJSON();
+    }
+    return message;
+  });
+
+  // Validar que todos los mensajes tengan los campos correctos
+  const validatedMessages = validateMessagesArrayResponse(jsonMessages);
+
+  return {
+    messages: validatedMessages,
+    pagination: {
+      limit: pagination.limit || 50,
+      startAfter: pagination.startAfter || null,
+      nextStartAfter: pagination.nextStartAfter || null,
+      hasNextPage: pagination.hasNextPage || false,
+      messageCount: validatedMessages.length,
+      ...pagination,
+    },
+    ...additionalData,
+  };
+};
+
 // Esquemas de validación comunes mejorados
 const commonSchemas = {
   // Validación de ID más estricta
@@ -561,4 +656,7 @@ module.exports = {
   schemas,
   commonSchemas,
   rateLimitConfig,
+  validateMessageResponse,
+  validateMessagesArrayResponse,
+  createValidatedMessagesResponse,
 };

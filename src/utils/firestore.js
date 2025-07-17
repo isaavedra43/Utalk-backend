@@ -7,21 +7,21 @@
  * @param {Object} obj - Objeto a limpiar
  * @returns {Object} - Objeto limpio sin valores undefined, null o cadenas vacías
  */
-function cleanFirestoreObject(obj) {
+function cleanFirestoreObject (obj) {
   if (!obj || typeof obj !== 'object') {
     return obj;
   }
 
   // Si es un array, limpiar cada elemento
   if (Array.isArray(obj)) {
-    return obj.map(item => cleanFirestoreObject(item)).filter(item => 
-      item !== undefined && item !== null && item !== ''
+    return obj.map(item => cleanFirestoreObject(item)).filter(item =>
+      item !== undefined && item !== null && item !== '',
     );
   }
 
   // Para objetos, filtrar propiedades válidas
   const cleaned = {};
-  
+
   for (const [key, value] of Object.entries(obj)) {
     // Saltar valores undefined, null o cadenas vacías
     if (value === undefined || value === null || value === '') {
@@ -49,9 +49,9 @@ function cleanFirestoreObject(obj) {
  * @param {Object} obj - Objeto a preparar
  * @returns {Object} - Objeto listo para Firestore
  */
-function prepareForFirestore(obj) {
+function prepareForFirestore (obj) {
   const cleaned = cleanFirestoreObject(obj);
-  
+
   // Log para debugging en desarrollo
   if (process.env.NODE_ENV !== 'production') {
     const removedFields = [];
@@ -64,11 +64,11 @@ function prepareForFirestore(obj) {
       console.log(`🧹 Campos removidos de Firestore: ${removedFields.join(', ')}`);
     }
   }
-  
+
   return cleaned;
 }
 
 module.exports = {
   cleanFirestoreObject,
-  prepareForFirestore
-}; 
+  prepareForFirestore,
+};

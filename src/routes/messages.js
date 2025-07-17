@@ -10,9 +10,9 @@ const router = express.Router();
  * @desc Listar mensajes individuales con filtros flexibles
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/', 
+router.get('/',
   requireReadAccess,
-  MessageController.getMessages
+  MessageController.getMessages,
 );
 
 /**
@@ -20,9 +20,9 @@ router.get('/',
  * @desc Obtener mensajes de una conversación por teléfono
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/conversation/:phone', 
+router.get('/conversation/:phone',
   requireReadAccess,
-  MessageController.getConversationByPhone
+  MessageController.getConversationByPhone,
 );
 
 /**
@@ -47,9 +47,9 @@ router.post('/send',
  * @desc Obtener estadísticas de mensajes
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/stats', 
+router.get('/stats',
   requireReadAccess,
-  MessageController.getStats
+  MessageController.getStats,
 );
 
 /**
@@ -88,9 +88,9 @@ router.put('/read-multiple',
  * @desc Buscar mensajes por contenido
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/search', 
+router.get('/search',
   requireReadAccess,
-  MessageController.search
+  MessageController.search,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)

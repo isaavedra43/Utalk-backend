@@ -1,15 +1,14 @@
 const { Server } = require('socket.io');
-const { auth } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { isValidConversationId } = require('../utils/conversation');
 
 class SocketManager {
-  constructor(server) {
+  constructor (server) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.FRONTEND_URL || "*",
-        methods: ["GET", "POST"],
-        credentials: true
+        origin: process.env.FRONTEND_URL || '*',
+        methods: ['GET', 'POST'],
+        credentials: true,
       },
       transports: ['websocket', 'polling'],
       pingTimeout: 60000,
@@ -20,54 +19,154 @@ class SocketManager {
     this.userRoles = new Map(); // userId -> role
     this.conversationUsers = new Map(); // conversationId -> Set(userIds)
 
+    // ✅ NUEVO: Rate limiting para prevenir spam
+    this.eventRateLimits = new Map(); // socketId -> Map(event -> lastTime)
+    this.rateLimitConfig = {
+      'typing-start': 1000, // 1 segundo
+      'typing-stop': 1000,
+      'join-conversation': 5000, // 5 segundos
+      'status-change': 10000, // 10 segundos
+    };
+
     this.setupMiddleware();
     this.setupEventHandlers();
-    
-    logger.info('🔌 Socket.IO server inicializado');
+
+    // ✅ NUEVO: Limpieza periódica de rate limits
+    setInterval(() => this.cleanupRateLimits(), 300000); // 5 minutos
+
+    logger.info('Socket.IO server inicializado con mejoras de seguridad');
   }
 
   /**
-   * Middleware de autenticación para Socket.IO
+   * ✅ MEJORADO: Middleware de autenticación más robusto
    */
-  setupMiddleware() {
+  setupMiddleware () {
     this.io.use(async (socket, next) => {
       try {
         const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
-        
+
         if (!token) {
+          logger.warn('Socket connection rejected - No token provided', {
+            socketId: socket.id,
+            ip: socket.handshake.address,
+          });
           throw new Error('Token de autenticación requerido');
         }
 
-        // CRÍTICO: Verificar JWT propio (NO Firebase ID Token)
-        // Socket.IO ahora usa el mismo sistema de autenticación que el REST API
+        // ✅ ROBUSTO: Verificar JWT propio con validación completa
         const jwt = require('jsonwebtoken');
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Agregar información del usuario al socket (compatible con JWT propio)
+        // ✅ VALIDACIÓN ADICIONAL: Verificar campos obligatorios
+        if (!decoded.uid || !decoded.email || !decoded.role) {
+          throw new Error('Token incompleto - faltan campos obligatorios');
+        }
+
+        // ✅ VALIDACIÓN DE ROL: Solo roles válidos
+        const validRoles = ['admin', 'agent', 'viewer'];
+        if (!validRoles.includes(decoded.role)) {
+          throw new Error('Rol no autorizado');
+        }
+
+        // ✅ PREVENIR DOBLE CONEXIÓN del mismo usuario
+        const existingSocketId = this.connectedUsers.get(decoded.uid);
+        if (existingSocketId && this.io.sockets.sockets.has(existingSocketId)) {
+          logger.info('Desconectando socket anterior del mismo usuario', {
+            userId: decoded.uid,
+            oldSocketId: existingSocketId,
+            newSocketId: socket.id,
+          });
+          this.io.sockets.sockets.get(existingSocketId).disconnect(true);
+        }
+
+        // Agregar información del usuario al socket
         socket.userId = decoded.uid;
         socket.userEmail = decoded.email;
         socket.userRole = decoded.role;
-        socket.displayName = decoded.email; // Usar email como displayName por compatibilidad
+        socket.displayName = decoded.email;
+        socket.authenticatedAt = Date.now();
 
-        logger.info('🔐 Socket autenticado', {
+        logger.info('Socket autenticado exitosamente', {
           userId: socket.userId,
           email: socket.userEmail,
           role: socket.userRole,
-          socketId: socket.id
+          socketId: socket.id,
         });
 
         next();
       } catch (error) {
-        logger.error('❌ Error autenticando socket:', error);
-        next(new Error('Autenticación fallida'));
+        logger.error('Socket authentication failed', {
+          error: error.message,
+          socketId: socket.id,
+          ip: socket.handshake.address,
+        });
+        next(new Error('Autenticación fallida: ' + error.message));
       }
     });
   }
 
   /**
+   * ✅ NUEVO: Rate limiting para eventos
+   */
+  checkRateLimit (socketId, eventType) {
+    if (!this.rateLimitConfig[eventType]) return true; // Sin límite
+
+    const now = Date.now();
+    const userLimits = this.eventRateLimits.get(socketId) || new Map();
+    const lastTime = userLimits.get(eventType) || 0;
+    const minInterval = this.rateLimitConfig[eventType];
+
+    if (now - lastTime < minInterval) {
+      return false; // Rate limit exceeded
+    }
+
+    userLimits.set(eventType, now);
+    this.eventRateLimits.set(socketId, userLimits);
+    return true;
+  }
+
+  /**
+   * ✅ NUEVO: Limpiar rate limits antiguos
+   */
+  cleanupRateLimits () {
+    const now = Date.now();
+    const maxAge = 600000; // 10 minutos
+
+    this.eventRateLimits.forEach((userLimits, socketId) => {
+      const cleanedLimits = new Map();
+      userLimits.forEach((lastTime, eventType) => {
+        if (now - lastTime < maxAge) {
+          cleanedLimits.set(eventType, lastTime);
+        }
+      });
+
+      if (cleanedLimits.size > 0) {
+        this.eventRateLimits.set(socketId, cleanedLimits);
+      } else {
+        this.eventRateLimits.delete(socketId);
+      }
+    });
+  }
+
+  /**
+   * ✅ NUEVO: Validar permisos para operaciones específicas
+   */
+  hasPermission (userRole, operation) {
+    const permissions = {
+      'view-conversations': ['admin', 'agent', 'viewer'],
+      'send-messages': ['admin', 'agent'],
+      'manage-conversations': ['admin', 'agent'],
+      'assign-conversations': ['admin'],
+      'view-all-conversations': ['admin'],
+    };
+
+    return permissions[operation]?.includes(userRole) || false;
+  }
+
+  /**
    * Configurar manejadores de eventos
    */
-  setupEventHandlers() {
+  setupEventHandlers () {
     this.io.on('connection', (socket) => {
       this.handleConnection(socket);
     });
@@ -76,19 +175,19 @@ class SocketManager {
   /**
    * Manejar nueva conexión
    */
-  handleConnection(socket) {
+  handleConnection (socket) {
     const { userId, userRole, displayName } = socket;
 
     // Registrar usuario conectado
     this.connectedUsers.set(userId, socket.id);
     this.userRoles.set(userId, userRole);
 
-    console.log('🔌 USUARIO CONECTADO:', {
+    logger.info('Usuario conectado', {
       userId,
       role: userRole,
       displayName,
       socketId: socket.id,
-      totalConnected: this.connectedUsers.size
+      totalConnected: this.connectedUsers.size,
     });
 
     // Unir a sala general por rol
@@ -100,7 +199,7 @@ class SocketManager {
 
     // Eventos de conversaciones
     this.setupConversationEvents(socket);
-    
+
     // Eventos de mensajes
     this.setupMessageEvents(socket);
 
@@ -123,109 +222,165 @@ class SocketManager {
       role: userRole,
       displayName,
       timestamp: Date.now(),
-      capabilities: this.getUserCapabilities(userRole)
+      capabilities: this.getUserCapabilities(userRole),
     });
   }
 
   /**
-   * Configurar eventos de conversaciones
+   * ✅ MEJORADO: Configurar eventos de conversaciones con validación robusta
    */
-  setupConversationEvents(socket) {
+  setupConversationEvents (socket) {
     const { userId, userRole } = socket;
 
-    // Unirse a una conversación específica
+    // ✅ MEJORADO: Unirse a conversación con validación y rate limiting
     socket.on('join-conversation', (conversationId, callback) => {
       try {
-        if (!isValidConversationId(conversationId)) {
-          throw new Error('conversationId inválido');
+        // ✅ RATE LIMITING: Prevenir spam
+        if (!this.checkRateLimit(socket.id, 'join-conversation')) {
+          logger.warn('Rate limit exceeded for join-conversation', {
+            userId,
+            socketId: socket.id,
+          });
+          if (callback) {
+            callback({
+              success: false,
+              error: 'Rate limit exceeded - intenta en unos segundos',
+            });
+          }
+          return;
         }
 
+        // ✅ VALIDACIÓN: conversationId válido
+        if (!isValidConversationId(conversationId)) {
+          logger.warn('Intento de unirse a conversación con ID inválido', {
+            userId,
+            conversationId,
+          });
+          if (callback) {
+            callback({
+              success: false,
+              error: 'ID de conversación inválido',
+            });
+          }
+          return;
+        }
+
+        // ✅ PERMISOS: Verificar que puede ver conversaciones
+        if (!this.hasPermission(userRole, 'view-conversations')) {
+          logger.warn('Usuario sin permisos intentó unirse a conversación', {
+            userId,
+            userRole,
+            conversationId,
+          });
+          if (callback) {
+            callback({
+              success: false,
+              error: 'Sin permisos para ver conversaciones',
+            });
+          }
+          return;
+        }
+
+        // ✅ UNIRSE A SALA
         socket.join(`conversation-${conversationId}`);
-        
+
         // Registrar usuario en la conversación
         if (!this.conversationUsers.has(conversationId)) {
           this.conversationUsers.set(conversationId, new Set());
         }
         this.conversationUsers.get(conversationId).add(userId);
 
-        console.log('👥 USUARIO SE UNIÓ A CONVERSACIÓN:', {
-          userId,
-          conversationId,
-          socketId: socket.id
-        });
-
         logger.info('Usuario se unió a conversación', {
           userId,
           conversationId,
-          role: userRole
+          userRole,
+          socketId: socket.id,
         });
 
         if (callback) callback({ success: true, conversationId });
       } catch (error) {
-        logger.error('Error uniéndose a conversación:', error);
+        logger.error('Error uniéndose a conversación', {
+          userId,
+          conversationId,
+          error: error.message,
+        });
         if (callback) callback({ success: false, error: error.message });
       }
     });
 
-    // Salir de una conversación
+    // ✅ MEJORADO: Salir de conversación con limpieza robusta
     socket.on('leave-conversation', (conversationId, callback) => {
       try {
+        if (!isValidConversationId(conversationId)) {
+          if (callback) callback({ success: false, error: 'ID inválido' });
+          return;
+        }
+
         socket.leave(`conversation-${conversationId}`);
-        
+
+        // ✅ LIMPIEZA ROBUSTA: Remover usuario de tracking
         if (this.conversationUsers.has(conversationId)) {
           this.conversationUsers.get(conversationId).delete(userId);
-          
+
           // Limpiar si no hay usuarios
           if (this.conversationUsers.get(conversationId).size === 0) {
             this.conversationUsers.delete(conversationId);
           }
         }
 
-        console.log('👤 USUARIO SALIÓ DE CONVERSACIÓN:', {
+        logger.info('Usuario salió de conversación', {
           userId,
-          conversationId
+          conversationId,
         });
 
         if (callback) callback({ success: true });
       } catch (error) {
-        logger.error('Error saliendo de conversación:', error);
+        logger.error('Error saliendo de conversación', {
+          userId,
+          conversationId,
+          error: error.message,
+        });
         if (callback) callback({ success: false, error: error.message });
       }
     });
 
-    // Eventos de escritura (typing indicators)
+    // ✅ MEJORADO: Typing indicators con rate limiting
     socket.on('typing-start', (conversationId) => {
-      if (isValidConversationId(conversationId)) {
-        socket.to(`conversation-${conversationId}`).emit('user-typing', {
-          userId,
-          conversationId,
-          displayName: socket.displayName,
-          timestamp: Date.now()
-        });
-      }
+      if (!this.checkRateLimit(socket.id, 'typing-start')) return;
+      if (!isValidConversationId(conversationId)) return;
+      if (!this.hasPermission(userRole, 'view-conversations')) return;
+
+      socket.to(`conversation-${conversationId}`).emit('user-typing', {
+        userId,
+        conversationId,
+        displayName: socket.displayName,
+        timestamp: Date.now(),
+      });
     });
 
     socket.on('typing-stop', (conversationId) => {
-      if (isValidConversationId(conversationId)) {
-        socket.to(`conversation-${conversationId}`).emit('user-stopped-typing', {
-          userId,
-          conversationId,
-          timestamp: Date.now()
-        });
-      }
+      if (!this.checkRateLimit(socket.id, 'typing-stop')) return;
+      if (!isValidConversationId(conversationId)) return;
+      if (!this.hasPermission(userRole, 'view-conversations')) return;
+
+      socket.to(`conversation-${conversationId}`).emit('user-stopped-typing', {
+        userId,
+        conversationId,
+        timestamp: Date.now(),
+      });
     });
   }
 
   /**
    * Configurar eventos de mensajes
    */
-  setupMessageEvents(socket) {
+  setupMessageEvents (socket) {
     // El frontend puede solicitar reenvío de mensaje fallido
     socket.on('retry-message', async (messageId, callback) => {
       try {
         // Implementar lógica de reenvío
         logger.info('Solicitud de reenvío de mensaje', { messageId, userId: socket.userId });
-        
+
         if (callback) callback({ success: true, messageId });
       } catch (error) {
         logger.error('Error reenviando mensaje:', error);
@@ -237,23 +392,23 @@ class SocketManager {
   /**
    * Configurar eventos de estado
    */
-  setupStatusEvents(socket) {
+  setupStatusEvents (socket) {
     // Cambiar estado del usuario (online, away, busy)
     socket.on('status-change', (status) => {
       const validStatuses = ['online', 'away', 'busy', 'offline'];
       if (validStatuses.includes(status)) {
         socket.userStatus = status;
-        
+
         // Notificar a otros usuarios relevantes
         this.io.to(`role-${socket.userRole}`).emit('user-status-changed', {
           userId: socket.userId,
           status,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
 
         logger.info('Estado de usuario cambiado', {
           userId: socket.userId,
-          status
+          status,
         });
       }
     });
@@ -262,7 +417,7 @@ class SocketManager {
   /**
    * Manejar desconexión
    */
-  handleDisconnection(socket) {
+  handleDisconnection (socket) {
     const { userId, userRole } = socket;
 
     // Remover de usuarios conectados
@@ -277,34 +432,27 @@ class SocketManager {
       }
     }
 
-    console.log('🔌 USUARIO DESCONECTADO:', {
+    logger.info('Usuario desconectado', {
       userId,
       role: userRole,
-      socketId: socket.id,
-      totalConnected: this.connectedUsers.size
+      connectedTime: Date.now() - socket.handshake.time,
     });
 
     // Notificar desconexión a usuarios relevantes
     this.io.to(`role-${userRole}`).emit('user-disconnected', {
       userId,
-      timestamp: Date.now()
-    });
-
-    logger.info('Usuario desconectado', {
-      userId,
-      role: userRole,
-      connectedTime: Date.now() - socket.handshake.time
+      timestamp: Date.now(),
     });
   }
 
   /**
    * Obtener capacidades del usuario según su rol
    */
-  getUserCapabilities(role) {
+  getUserCapabilities (role) {
     const capabilities = {
       viewer: ['view-conversations', 'view-messages'],
       agent: ['view-conversations', 'view-messages', 'send-messages', 'manage-conversations'],
-      admin: ['view-conversations', 'view-messages', 'send-messages', 'manage-conversations', 'manage-users', 'view-all-conversations']
+      admin: ['view-conversations', 'view-messages', 'send-messages', 'manage-conversations', 'manage-users', 'view-all-conversations'],
     };
 
     return capabilities[role] || capabilities.viewer;
@@ -317,7 +465,7 @@ class SocketManager {
   /**
    * Emitir nuevo mensaje a conversación
    */
-  emitNewMessage(conversationId, messageData) {
+  emitNewMessage (conversationId, messageData) {
     if (!isValidConversationId(conversationId)) {
       logger.error('conversationId inválido para emitir mensaje', { conversationId });
       return;
@@ -327,7 +475,7 @@ class SocketManager {
       type: 'new-message',
       conversationId,
       message: messageData,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     // Emitir a todos los usuarios en la conversación
@@ -336,24 +484,17 @@ class SocketManager {
     // También emitir a admins si no están en la conversación
     this.io.to('role-admin').emit('message-notification', eventData);
 
-    console.log('📨 NUEVO MENSAJE EMITIDO:', {
-      conversationId,
-      messageId: messageData.id,
-      direction: messageData.direction,
-      usersInConversation: this.conversationUsers.get(conversationId)?.size || 0
-    });
-
     logger.info('Nuevo mensaje emitido via Socket.IO', {
       conversationId,
       messageId: messageData.id,
-      direction: messageData.direction
+      direction: messageData.direction,
     });
   }
 
   /**
    * Emitir mensaje leído
    */
-  emitMessageRead(conversationId, messageId, userId) {
+  emitMessageRead (conversationId, messageId, userId) {
     if (!isValidConversationId(conversationId)) return;
 
     const eventData = {
@@ -361,7 +502,7 @@ class SocketManager {
       conversationId,
       messageId,
       readBy: userId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     this.io.to(`conversation-${conversationId}`).emit('message-read', eventData);
@@ -369,14 +510,14 @@ class SocketManager {
     logger.info('Mensaje marcado como leído via Socket.IO', {
       conversationId,
       messageId,
-      readBy: userId
+      readBy: userId,
     });
   }
 
   /**
    * Emitir cambio de estado de conversación
    */
-  emitConversationStatusChanged(conversationId, status, userId) {
+  emitConversationStatusChanged (conversationId, status, userId) {
     if (!isValidConversationId(conversationId)) return;
 
     const eventData = {
@@ -384,7 +525,7 @@ class SocketManager {
       conversationId,
       status,
       changedBy: userId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     this.io.to(`conversation-${conversationId}`).emit('conversation-status-changed', eventData);
@@ -393,14 +534,14 @@ class SocketManager {
     logger.info('Estado de conversación cambiado via Socket.IO', {
       conversationId,
       status,
-      changedBy: userId
+      changedBy: userId,
     });
   }
 
   /**
    * Emitir conversación asignada
    */
-  emitConversationAssigned(conversationId, assignedTo, assignedBy) {
+  emitConversationAssigned (conversationId, assignedTo, assignedBy) {
     if (!isValidConversationId(conversationId)) return;
 
     const eventData = {
@@ -408,7 +549,7 @@ class SocketManager {
       conversationId,
       assignedTo,
       assignedBy,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     // Notificar al agente asignado
@@ -424,24 +565,24 @@ class SocketManager {
     logger.info('Conversación asignada via Socket.IO', {
       conversationId,
       assignedTo,
-      assignedBy
+      assignedBy,
     });
   }
 
   /**
    * Obtener estadísticas de conexiones
    */
-  getStats() {
+  getStats () {
     return {
       connectedUsers: this.connectedUsers.size,
       activeConversations: this.conversationUsers.size,
       usersByRole: {
         admin: Array.from(this.userRoles.values()).filter(role => role === 'admin').length,
         agent: Array.from(this.userRoles.values()).filter(role => role === 'agent').length,
-        viewer: Array.from(this.userRoles.values()).filter(role => role === 'viewer').length
-      }
+        viewer: Array.from(this.userRoles.values()).filter(role => role === 'viewer').length,
+      },
     };
   }
 }
 
-module.exports = SocketManager; 
+module.exports = SocketManager;

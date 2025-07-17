@@ -20,14 +20,14 @@ class User {
    */
   static async create (userData) {
     const user = new User(userData);
-    
+
     // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
     const cleanData = prepareForFirestore({
       ...user,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    
+
     await firestore.collection('users').doc(user.uid).set(cleanData);
     return user;
   }
@@ -89,11 +89,11 @@ class User {
    * Actualizar usuario
    */
   async update (updates) {
-    const validUpdates = prepareForFirestore({ 
-      ...updates, 
-      updatedAt: FieldValue.serverTimestamp() 
+    const validUpdates = prepareForFirestore({
+      ...updates,
+      updatedAt: FieldValue.serverTimestamp(),
     });
-    
+
     await firestore.collection('users').doc(this.uid).update(validUpdates);
 
     // Actualizar propiedades locales

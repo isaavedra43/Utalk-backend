@@ -59,12 +59,12 @@ try {
   // Inicializar Firebase Admin SDK solo si no está inicializado
   if (!admin.apps.length) {
     console.log('🔥 FIREBASE - Inicializando Admin SDK...');
-    
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       projectId: process.env.FIREBASE_PROJECT_ID,
     });
-    
+
     console.log('✅ FIREBASE - Admin SDK inicializado exitosamente');
   } else {
     console.log('✅ FIREBASE - Admin SDK ya estaba inicializado');
@@ -99,11 +99,10 @@ try {
       console.log('⚠️ FIREBASE - Test de conectividad falló (verificar permisos):', connectError.message);
       // No bloquear la inicialización por esto
     });
-
 } catch (initError) {
   console.error('❌ FIREBASE - Error crítico en inicialización:', initError.message);
   console.error('❌ FIREBASE - Stack trace:', initError.stack);
-  
+
   // Mostrar información específica del error
   if (initError.message.includes('private_key')) {
     console.error('❌ FIREBASE - Problema con FIREBASE_PRIVATE_KEY - verificar formato y escapes');
@@ -114,15 +113,15 @@ try {
   if (initError.message.includes('project_id')) {
     console.error('❌ FIREBASE - Problema con FIREBASE_PROJECT_ID - verificar proyecto');
   }
-  
+
   console.error('❌ FIREBASE - Creando instancias MOCK para debugging');
-  
+
   // ✅ CREAR MOCKS PARA QUE LA APP NO CRASHEE
   auth = {
     verifyIdToken: () => Promise.reject(new Error('Firebase no inicializado')),
     getUser: () => Promise.reject(new Error('Firebase no inicializado')),
   };
-  
+
   firestore = {
     collection: () => ({
       limit: () => ({
@@ -142,15 +141,15 @@ try {
       }),
     }),
   };
-  
+
   FieldValue = {
     serverTimestamp: () => new Date(),
   };
-  
+
   Timestamp = {
     now: () => new Date(),
   };
-  
+
   console.log('⚠️ FIREBASE - Mocks creados - la app continuará pero Firebase NO funcionará');
 }
 

@@ -687,7 +687,8 @@ class ConversationController {
   }
 
   /**
-   * OBTENER MENSAJES DE UNA CONVERSACIÓN
+   * ✅ REFACTORIZADO: OBTENER MENSAJES DE UNA CONVERSACIÓN
+   * Usa formato estandarizado y centraliza lógica en modelo Message
    * GET /api/conversations/:id/messages
    */
   static async getMessages (req, res, next) {
@@ -697,11 +698,15 @@ class ConversationController {
     try {
       const { id } = req.params;
       const {
-        limit = 50,
+        limit: rawLimit = 50,
         startAfter = null,
         orderBy = 'timestamp',
         order = 'desc',
       } = req.query;
+
+      // ✅ CENTRALIZADO: Usar utilidad de validación estandarizada
+      const { validatePaginationParams } = require('../utils/pagination');
+      const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
 
       logger.info('[CONVERSATION MESSAGES] Obteniendo mensajes de conversación', {
         requestId,
@@ -732,8 +737,9 @@ class ConversationController {
         });
       }
 
+      // ✅ CENTRALIZADO: Usar modelo Message con opciones estándar
       const messages = await Message.getByConversation(id, {
-        limit: parseInt(limit, 10),
+        limit,
         startAfter,
         orderBy,
         order,
@@ -747,32 +753,27 @@ class ConversationController {
         executionTime: Date.now() - startTime,
       });
 
-      res.json({
-        conversationId: id,
-        messages: messages.map(msg => {
-          const msgData = msg.toJSON();
-          // Asegurar mapping de content → text
-          if (msgData.content && !msgData.text) {
-            msgData.text = msgData.content;
-          }
-          return msgData;
-        }),
-        pagination: {
-          limit: parseInt(limit, 10),
-          hasMore: messages.length === parseInt(limit, 10),
-          lastMessageId: messages.length > 0 ? messages[messages.length - 1].id : null,
-        },
-        meta: {
+      // ✅ CENTRALIZADO: Usar formato estandarizado de respuesta
+      const { createMessagesPaginatedResponse } = require('../utils/pagination');
+      const response = createMessagesPaginatedResponse(
+        messages, // Ya vienen con toJSON() aplicado desde Message.getByConversation
+        limit,
+        startAfter,
+        {
+          conversationId: id,
           requestId,
           executionTime: Date.now() - startTime,
-          timestamp: new Date().toISOString(),
         },
-      });
+      );
+
+      res.json(response);
     } catch (error) {
       logger.error('[CONVERSATION MESSAGES] Error obteniendo mensajes', {
         requestId,
         conversationId: req.params.id,
+        userId: req.user?.uid,
         error: error.message,
+        executionTime: Date.now() - startTime,
       });
       next(error);
     }

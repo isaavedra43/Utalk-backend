@@ -7,7 +7,7 @@ module.exports = {
   },
   extends: [
     'eslint:recommended',
-    'standard'
+    'standard',
   ],
   parserOptions: {
     ecmaVersion: 'latest',
@@ -15,10 +15,10 @@ module.exports = {
   },
   rules: {
     'no-console': 'off',
-    'no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
-    'indent': ['error', 2],
-    'quotes': ['error', 'single'],
-    'semi': ['error', 'always'],
+    'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    indent: ['error', 2],
+    quotes: ['error', 'single'],
+    semi: ['error', 'always'],
     'comma-dangle': ['error', 'always-multiline'],
   },
   globals: {
@@ -26,5 +26,5 @@ module.exports = {
     Buffer: 'readonly',
     __dirname: 'readonly',
     __filename: 'readonly',
-  }
-}; 
+  },
+};

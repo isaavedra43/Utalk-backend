@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const KnowledgeController = require('../controllers/KnowledgeController');
 
 const router = express.Router();
@@ -8,17 +8,20 @@ const router = express.Router();
 /**
  * @route GET /api/knowledge
  * @desc Listar documentos de la base de conocimiento
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/', KnowledgeController.list);
+router.get('/',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  KnowledgeController.list,
+);
 
 /**
  * @route POST /api/knowledge
  * @desc Crear nuevo documento
- * @access Private (Admin)
+ * @access Private (Agent, Admin)
  */
 router.post('/',
-  requireAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess para permitir agents
   validate(schemas.knowledge.create),
   KnowledgeController.create,
 );
@@ -26,23 +29,32 @@ router.post('/',
 /**
  * @route GET /api/knowledge/search
  * @desc Buscar en la base de conocimiento
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/search', KnowledgeController.search);
+router.get('/search',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  KnowledgeController.search,
+);
 
 /**
  * @route GET /api/knowledge/categories
  * @desc Obtener categorías disponibles
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/categories', KnowledgeController.getCategories);
+router.get('/categories',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  KnowledgeController.getCategories,
+);
 
 /**
  * @route GET /api/knowledge/:id
  * @desc Obtener documento por ID
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:id', KnowledgeController.getById);
+router.get('/:id',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  KnowledgeController.getById,
+);
 
 /**
  * @route PUT /api/knowledge/:id

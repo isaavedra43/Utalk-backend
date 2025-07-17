@@ -2,18 +2,32 @@ const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const TwilioService = require('../services/TwilioService');
 const logger = require('../utils/logger');
+const {
+  createMessagesPaginatedResponse,
+  validatePaginationParams,
+  createEmptyPaginatedResponse,
+} = require('../utils/pagination');
 
 class MessageController {
   /**
    * Obtener conversaciones (últimos mensajes por contacto)
+   * ✅ ACTUALIZADO: Usa paginación cursor-based eficiente
    */
-  static async getConversations (req, res, next) {
+  static async getConversations (req, res, _next) {
     try {
-      const { limit = 20 } = req.query;
+      const { limit: rawLimit = 20, startAfter = null } = req.query;
+      const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
       const userId = req.user.role === 'admin' ? null : req.user.uid;
 
-      // Para simplificar, obtenemos mensajes recientes y agrupamos por teléfono
-      const recentMessages = await Message.getRecentMessages(userId, parseInt(limit) * 5);
+      logger.info('[CONVERSATIONS API] Obteniendo conversaciones', {
+        limit,
+        startAfter,
+        userId: req.user.uid,
+        role: req.user.role,
+      });
+
+      // Para obtener conversaciones, necesitamos más mensajes iniciales para agrupar
+      const recentMessages = await Message.getRecentMessages(userId, limit * 3);
 
       // Agrupar por número de teléfono y obtener el último mensaje de cada conversación
       const conversationsMap = new Map();
@@ -27,9 +41,22 @@ class MessageController {
         }
       }
 
-      const conversations = Array.from(conversationsMap.values())
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, parseInt(limit));
+      let conversations = Array.from(conversationsMap.values())
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      // Aplicar paginación cursor-based si hay startAfter
+      if (startAfter) {
+        const startIndex = conversations.findIndex(conv => {
+          const phoneKey = conv.direction === 'inbound' ? conv.from : conv.to;
+          return phoneKey === startAfter;
+        });
+        if (startIndex >= 0) {
+          conversations = conversations.slice(startIndex + 1);
+        }
+      }
+
+      // Limitar resultados
+      conversations = conversations.slice(0, limit);
 
       // Obtener información de contactos
       const conversationsWithContacts = await Promise.all(
@@ -45,18 +72,36 @@ class MessageController {
         }),
       );
 
-      res.json({
+      // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED
+      const response = {
         conversations: conversationsWithContacts,
-        total: conversationsWithContacts.length,
+        pagination: {
+          limit,
+          startAfter,
+          nextStartAfter: conversationsWithContacts.length === limit
+            ? conversationsWithContacts[conversationsWithContacts.length - 1].phone
+            : null,
+          hasNextPage: conversationsWithContacts.length === limit,
+          conversationCount: conversationsWithContacts.length,
+        },
+      };
+
+      logger.info('[CONVERSATIONS API] Respuesta enviada', {
+        conversationCount: conversationsWithContacts.length,
+        hasNextPage: response.pagination.hasNextPage,
+        nextStartAfter: response.pagination.nextStartAfter,
       });
+
+      res.json(response);
     } catch (error) {
       logger.error('Error al obtener conversaciones:', error);
-      next(error);
+      res.status(500).json(createEmptyPaginatedResponse('Error al obtener conversaciones', 20));
     }
   }
 
   /**
    * Obtener mensajes con filtros flexibles por conversationId y userId
+   * ✅ ACTUALIZADO: Usa paginación cursor-based eficiente
    *
    * SOPORTA LOS SIGUIENTES FILTROS:
    * - conversationId: Filtrar por ID de conversación específica
@@ -68,26 +113,30 @@ class MessageController {
    * - Se mantiene content para retrocompatibilidad
    *
    * RESPUESTA SIEMPRE ES UN ARRAY (nunca null/undefined)
+   * ✅ INCLUYE: nextStartAfter, hasNextPage para paginación eficiente
    */
-  static async getMessages (req, res, next) {
+  static async getMessages (req, res, _next) {
     try {
       const {
         conversationId,
         userId,
         customerPhone,
-        limit = 50,
-        page = 1,
+        limit: rawLimit = 50,
+        startAfter = null,
         orderBy = 'timestamp',
         order = 'desc',
       } = req.query;
+
+      // ✅ VALIDACIÓN DE PARÁMETROS DE PAGINACIÓN
+      const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
 
       // ✅ LOG EXHAUSTIVO: Query recibida
       logger.info('[MESSAGES API] Query recibida', {
         conversationId: conversationId || '(no filtro)',
         userId: userId || '(no filtro)',
         customerPhone: customerPhone || '(no filtro)',
-        limit: parseInt(limit),
-        page: parseInt(page),
+        limit,
+        startAfter: startAfter || '(primera página)',
         orderBy,
         order,
         userAgent: req.get('User-Agent'),
@@ -102,7 +151,7 @@ class MessageController {
         });
 
         // Fallback al comportamiento anterior (conversaciones)
-        return MessageController.getConversations(req, res, next);
+        return MessageController.getConversations(req, res, _next);
       }
 
       let messages = [];
@@ -113,7 +162,8 @@ class MessageController {
 
         try {
           messages = await Message.getByConversation(conversationId, {
-            limit: parseInt(limit),
+            limit,
+            startAfter, // ✅ CURSOR-BASED PAGINATION
             orderBy,
             order,
           });
@@ -121,7 +171,8 @@ class MessageController {
           logger.info('[MESSAGES API] Resultados por conversationId', {
             conversationId,
             count: messages.length,
-            limit: parseInt(limit),
+            limit,
+            hasResults: messages.length > 0,
           });
         } catch (error) {
           logger.error('[MESSAGES API] Error filtrando por conversationId', {
@@ -130,17 +181,18 @@ class MessageController {
             code: typeof error.code === 'string' ? error.code : '(no code)',
           });
 
-          // Si hay error, devolver array vacío pero no fallar
-          messages = [];
+          // Si hay error, devolver respuesta vacía pero no fallar
+          return res.status(500).json(createEmptyPaginatedResponse(
+            'Error al obtener mensajes por conversación', limit));
         }
-      }
-      // ✅ FILTRO POR USERID
-      else if (userId) {
+      } else if (userId) {
+        // ✅ FILTRO POR USERID
         logger.info('[MESSAGES API] Filtrando por userId', { userId });
 
         try {
           messages = await Message.getByUserId(userId, {
-            limit: parseInt(limit),
+            limit,
+            startAfter, // ✅ CURSOR-BASED PAGINATION
             orderBy,
             order,
           });
@@ -148,7 +200,7 @@ class MessageController {
           logger.info('[MESSAGES API] Resultados por userId', {
             userId,
             count: messages.length,
-            limit: parseInt(limit),
+            limit,
           });
         } catch (error) {
           logger.error('[MESSAGES API] Error filtrando por userId', {
@@ -157,23 +209,24 @@ class MessageController {
             code: typeof error.code === 'string' ? error.code : '(no code)',
           });
 
-          messages = [];
+          return res.status(500).json(createEmptyPaginatedResponse(
+            'Error al obtener mensajes por usuario', limit));
         }
-      }
-      // ✅ FILTRO POR CUSTOMERPHONE
-      else if (customerPhone) {
+      } else if (customerPhone) {
+        // ✅ FILTRO POR CUSTOMERPHONE
         logger.info('[MESSAGES API] Filtrando por customerPhone', { customerPhone });
 
         try {
           const companyPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '');
           messages = await Message.getByPhones(customerPhone, companyPhone, {
-            limit: parseInt(limit),
+            limit,
+            startAfter, // ✅ CURSOR-BASED PAGINATION
           });
 
           logger.info('[MESSAGES API] Resultados por customerPhone', {
             customerPhone,
             count: messages.length,
-            limit: parseInt(limit),
+            limit,
           });
         } catch (error) {
           logger.error('[MESSAGES API] Error filtrando por customerPhone', {
@@ -182,26 +235,20 @@ class MessageController {
             code: typeof error.code === 'string' ? error.code : '(no code)',
           });
 
-          messages = [];
+          return res.status(500).json(createEmptyPaginatedResponse(
+            'Error al obtener mensajes por teléfono', limit));
         }
       }
 
-      // ✅ MAPPING: content → text para compatibilidad con frontend
-      const mappedMessages = messages.map(message => {
-        const messageJson = message.toJSON();
-
-        // CRÍTICO: Mapear content a text para que el frontend funcione
-        if (messageJson.content && !messageJson.text) {
-          messageJson.text = messageJson.content;
-        }
-
-        return messageJson;
-      });
+      // ✅ CONVERTIR MENSAJES A JSON CON NORMALIZACIÓN AUTOMÁTICA
+      // Nota: El método toJSON() ya incluye el mapping content → text
+      const mappedMessages = messages.map(message => message.toJSON());
 
       // ✅ LOG DE RESULTADOS
       logger.info('[MESSAGES API] Respuesta preparada', {
         totalMessages: mappedMessages.length,
         hasMessages: mappedMessages.length > 0,
+        hasNextPage: mappedMessages.length === limit,
         filters: {
           conversationId: conversationId || null,
           userId: userId || null,
@@ -221,21 +268,19 @@ class MessageController {
         });
       }
 
-      // ✅ RESPUESTA SIEMPRE ES UN ARRAY
-      res.json({
-        messages: mappedMessages, // SIEMPRE array, nunca null/undefined
-        total: mappedMessages.length,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: mappedMessages.length,
-        },
-        filters: {
+      // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED ESTANDARIZADA
+      const response = createMessagesPaginatedResponse(
+        mappedMessages,
+        limit,
+        startAfter,
+        {
           conversationId: conversationId || null,
           userId: userId || null,
           customerPhone: customerPhone || null,
         },
-      });
+      );
+
+      res.json(response);
     } catch (error) {
       logger.error('[MESSAGES API] Error crítico', {
         error: typeof error.message === 'string' ? error.message : '(no message)',
@@ -244,47 +289,73 @@ class MessageController {
         user: req.user ? req.user.uid : null,
       });
 
-      // ✅ RESPUESTA DE ERROR PERO SIEMPRE ARRAY
-      res.status(500).json({
-        error: 'Error interno del servidor',
-        message: 'Ha ocurrido un error al obtener los mensajes',
-        messages: [], // SIEMPRE array vacío en caso de error
-        total: 0,
-      });
+      // ✅ RESPUESTA DE ERROR PERO SIEMPRE CON FORMATO CORRECTO
+      res.status(500).json(createEmptyPaginatedResponse(
+        'Error interno del servidor al obtener mensajes', 50));
     }
   }
 
   /**
-   * Obtener mensajes de una conversación específica
+   * Obtener conversación por teléfono
+   * ✅ ACTUALIZADO: Usa paginación cursor-based eficiente
    */
-  static async getConversationByPhone (req, res, next) {
+  static async getConversationByPhone (req, res, _next) {
     try {
       const { phone } = req.params;
-      const { limit = 50, page = 1 } = req.query;
+      const { limit: rawLimit = 50, startAfter = null } = req.query;
+
+      // ✅ VALIDACIÓN DE PARÁMETROS DE PAGINACIÓN
+      const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
+
+      logger.info('[CONVERSATION API] Obteniendo conversación por teléfono', {
+        phone,
+        limit,
+        startAfter,
+        userId: req.user.uid,
+      });
 
       // Obtener el número de WhatsApp de la empresa
       const companyPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '');
 
       const messages = await Message.getByPhones(phone, companyPhone, {
-        limit: parseInt(limit),
+        limit,
+        startAfter, // ✅ CURSOR-BASED PAGINATION
       });
 
       // Obtener información del contacto
       const contact = await Contact.getByPhone(phone);
 
-      res.json({
+      // ✅ CONVERTIR MENSAJES A JSON CON NORMALIZACIÓN AUTOMÁTICA
+      // Nota: El método toJSON() ya incluye el mapping content → text
+      const mappedMessages = messages.map(msg => msg.toJSON());
+
+      // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED
+      const response = {
         phone,
         contact: contact?.toJSON() || null,
-        messages: messages.map(msg => msg.toJSON()),
+        messages: mappedMessages, // Mantenemos el nombre para compatibilidad
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: messages.length,
+          limit,
+          startAfter,
+          nextStartAfter: mappedMessages.length === limit
+            ? mappedMessages[mappedMessages.length - 1].id
+            : null,
+          hasNextPage: mappedMessages.length === limit,
+          messageCount: mappedMessages.length,
         },
+      };
+
+      logger.info('[CONVERSATION API] Respuesta enviada', {
+        phone,
+        messageCount: mappedMessages.length,
+        hasNextPage: response.pagination.hasNextPage,
+        contactFound: !!contact,
       });
+
+      res.json(response);
     } catch (error) {
       logger.error('Error al obtener conversación:', error);
-      next(error);
+      res.status(500).json(createEmptyPaginatedResponse('Error al obtener conversación', 50));
     }
   }
 
@@ -315,173 +386,98 @@ class MessageController {
   }
 
   /**
-   * Webhook de Twilio para mensajes entrantes (MÉTODO LEGACY - mantenido para compatibilidad)
-   * NOTA: Este método puede responder con errores 4xx/5xx
-   * Para uso en producción, usar handleWebhookSafe()
-   */
-  static async handleWebhook (req, res, next) {
-    try {
-      // Validar webhook de Twilio (opcional pero recomendado)
-      const signature = req.headers['x-twilio-signature'];
-      const url = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
-
-      if (process.env.NODE_ENV === 'production' && signature) {
-        const isValid = TwilioService.validateWebhook(signature, url, req.body);
-        if (!isValid) {
-          return res.status(403).json({ error: 'Invalid webhook signature' });
-        }
-      }
-
-      const message = await TwilioService.processIncomingMessage(req.body);
-
-      logger.info('Mensaje entrante procesado via webhook', {
-        messageId: message.id,
-        from: message.from,
-      });
-
-      res.status(200).send('OK');
-    } catch (error) {
-      logger.error('Error en webhook:', error);
-      res.status(500).send('Error');
-    }
-  }
-
-  /**
-   * Webhook SEGURO de Twilio - SIEMPRE responde 200 OK
-   * Método recomendado para producción según mejores prácticas de Twilio
+   * Webhook de Twilio SEGURO - SIEMPRE responde 200 OK
+   * ✅ ROBUSTO: Maneja errores sin fallar
+   * ✅ PRODUCCIÓN: Nunca devuelve 4xx/5xx que podrían causar reenvíos
    */
   static async handleWebhookSafe (req, res) {
-    const startTime = Date.now();
-
     try {
-      // ✅ RAILWAY LOGGING: Log inicial visible en Railway console
-      console.log('📨 CONTROLLER - Procesando webhook seguro', {
-        from: req.body.From,
-        to: req.body.To,
-        messageSid: req.body.MessageSid,
-        hasBody: !!req.body.Body,
-        numMedia: req.body.NumMedia || 0,
-        userAgent: req.headers['user-agent'],
-        timestamp: new Date().toISOString(),
+      // ✅ LOG INICIAL - Solo información necesaria
+      logger.info('Webhook Twilio recibido', {
+        hasBody: !!req.body,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        userAgent: req.get('User-Agent'),
+        twilioSignature: !!req.headers['x-twilio-signature'],
       });
 
-      logger.info('📨 Procesando mensaje entrante vía webhook seguro', {
-        from: req.body.From,
-        to: req.body.To,
-        messageSid: req.body.MessageSid,
-        timestamp: new Date().toISOString(),
-      });
+      // ✅ VALIDACIÓN CRÍTICA: Verificar datos mínimos
+      const requiredFields = ['From', 'To', 'MessageSid'];
+      const missingFields = requiredFields.filter(field => !req.body[field]);
 
-      // ✅ VALIDACIÓN DE DATOS CRÍTICOS ANTES DE PROCESAR
-      const { From, To, MessageSid, Body } = req.body;
-
-      if (!From || !To || !MessageSid) {
-        console.error('❌ CONTROLLER - Datos críticos faltantes:', {
-          hasFrom: !!From,
-          hasTo: !!To,
-          hasMessageSid: !!MessageSid,
-          receivedFields: Object.keys(req.body),
+      if (missingFields.length > 0) {
+        logger.error('Webhook - Datos críticos faltantes', {
+          missingFields,
+          bodyReceived: req.body,
         });
-
-        // Responder 200 OK pero logear el problema
+        // ✅ RESPUESTA 200 SIEMPRE (Twilio spec)
         return res.status(200).json({
-          status: 'warning',
-          message: 'Datos críticos faltantes en webhook',
-          processTime: Date.now() - startTime,
+          status: 'received',
+          message: 'Webhook procesado (datos insuficientes)',
         });
       }
 
-      console.log('✅ CONTROLLER - Datos críticos verificados');
+      logger.info('Webhook - Datos críticos verificados correctamente');
 
-      // ✅ VALIDACIÓN DE FIRMA TWILIO (opcional en producción)
-      const signature = req.headers['x-twilio-signature'];
-      const url = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
-
-      if (process.env.NODE_ENV === 'production' && signature && process.env.TWILIO_AUTH_TOKEN) {
-        try {
-          console.log('🔍 CONTROLLER - Validando firma Twilio...');
+      // ✅ VALIDACIÓN OPCIONAL: Firma Twilio (recomendado pero no crítico)
+      try {
+        const signature = req.headers['x-twilio-signature'];
+        if (signature && process.env.TWILIO_AUTH_TOKEN) {
+          logger.info('Validando firma Twilio...');
+          const url = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
           const isValid = TwilioService.validateWebhook(signature, url, req.body);
+
           if (!isValid) {
-            console.log('⚠️ CONTROLLER - Firma Twilio inválida, pero procesando por seguridad');
-            logger.warn('⚠️ Firma Twilio inválida, pero procesando mensaje por seguridad', {
-              signature: signature ? 'presente' : 'ausente',
-              url,
-            });
-            // NO retornar error - seguir procesando por seguridad
+            logger.warn('Firma Twilio inválida, pero procesando por seguridad');
           } else {
-            console.log('✅ CONTROLLER - Firma Twilio válida');
-            logger.info('✅ Firma Twilio válida');
+            logger.info('Firma Twilio válida');
           }
-        } catch (signatureError) {
-          console.log('⚠️ CONTROLLER - Error validando firma:', signatureError.message);
-          logger.warn('⚠️ Error validando firma Twilio, pero continuando procesamiento', {
-            error: signatureError.message,
-          });
-          // NO retornar error - seguir procesando
+        } else {
+          logger.info('Validación de firma omitida (desarrollo o sin configurar)');
         }
-      } else {
-        console.log('🔍 CONTROLLER - Validación de firma omitida (desarrollo o sin configurar)');
+      } catch (signatureError) {
+        logger.warn('Error validando firma', { error: signatureError.message });
       }
 
-      // ✅ PROCESAR MENSAJE ENTRANTE
-      console.log('🔄 CONTROLLER - Enviando a TwilioService para procesamiento...');
+      // ✅ PROCESAMIENTO PRINCIPAL: Enviar a TwilioService
+      logger.info('Enviando a TwilioService para procesamiento...');
       const message = await TwilioService.processIncomingMessage(req.body);
 
-      // ✅ LOG DE ÉXITO PARA RAILWAY
-      console.log('✅ CONTROLLER - Mensaje procesado exitosamente:', {
+      logger.info('Mensaje procesado exitosamente', {
         messageId: message.id,
         from: message.from,
         to: message.to,
-        type: message.type,
-        contentLength: message.content ? message.content.length : 0,
-        processTime: Date.now() - startTime,
+        hasContent: !!message.content,
+        hasMedia: message.metadata?.mediaUrls?.length > 0,
+        twilioSid: req.body.MessageSid,
+        processedAt: new Date().toISOString(),
       });
 
-      logger.info('✅ Mensaje entrante procesado exitosamente', {
-        messageId: message.id,
-        from: message.from,
-        to: message.to,
-        content: message.content.substring(0, 50),
-        processTime: Date.now() - startTime,
-      });
-
-      // ✅ RESPUESTA SIEMPRE 200 OK A TWILIO
-      console.log('📤 CONTROLLER - Respondiendo 200 OK a Twilio');
+      // ✅ RESPUESTA EXITOSA: 200 OK siempre
+      logger.info('Respondiendo 200 OK a Twilio');
       res.status(200).json({
         status: 'success',
         messageId: message.id,
-        processTime: Date.now() - startTime,
-        timestamp: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
       });
     } catch (error) {
-      // ❌ ERROR MANEJADO: Loguear pero SIEMPRE responder 200 OK
-      console.error('❌ CONTROLLER - Error procesando webhook:', {
+      // ✅ MANEJO DE ERRORES: Log pero NUNCA fallar
+      logger.error('Error procesando webhook', {
         error: error.message,
-        stack: error.stack.split('\n').slice(0, 3), // Primeras 3 líneas
-        webhookData: {
-          from: req.body?.From,
-          to: req.body?.To,
-          messageSid: req.body?.MessageSid,
-          numMedia: req.body?.NumMedia,
+        stack: error.stack?.split('\n')[0], // Solo primera línea del stack
+        body: req.body,
+        headers: {
+          'content-type': req.headers['content-type'],
+          'user-agent': req.headers['user-agent'],
+          'x-twilio-signature': !!req.headers['x-twilio-signature'],
         },
-        processTime: Date.now() - startTime,
         timestamp: new Date().toISOString(),
       });
 
-      logger.error('❌ Error procesando webhook (respondiendo 200 OK para Twilio)', {
-        error: error.message,
-        stack: error.stack,
-        webhookData: req.body,
-        processTime: Date.now() - startTime,
-      });
-
-      // ✅ CRÍTICO: SIEMPRE responder 200 OK a Twilio
-      console.log('📤 CONTROLLER - Error manejado, respondiendo 200 OK a Twilio');
+      // ✅ RESPUESTA 200 INCLUSO EN ERROR (Twilio spec)
+      logger.info('Error manejado, respondiendo 200 OK a Twilio');
       res.status(200).json({
-        status: 'error_logged',
-        message: 'Error procesado y registrado, no reintente',
-        error: error.message,
-        processTime: Date.now() - startTime,
+        status: 'error_handled',
+        message: 'Webhook recibido pero con errores',
         timestamp: new Date().toISOString(),
       });
     }
@@ -654,9 +650,9 @@ class MessageController {
       const { conversationId } = req.query;
 
       if (!conversationId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'conversationId requerido como query parameter',
-          example: '/api/messages/MSG123?conversationId=conv_123_456'
+          example: '/api/messages/MSG123?conversationId=conv_123_456',
         });
       }
 

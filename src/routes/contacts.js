@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAgentOrAdmin } = require('../middleware/auth');
+const { requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const ContactController = require('../controllers/ContactController');
 
 const router = express.Router();
@@ -8,9 +8,10 @@ const router = express.Router();
 /**
  * @route GET /api/contacts
  * @desc Listar contactos con filtros y paginación
- * @access Private (Agent+)
+ * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess para viewers, agents, admins
   validate(schemas.contact.list, 'query'),
   ContactController.list,
 );
@@ -21,7 +22,7 @@ router.get('/',
  * @access Private (Agent+)
  */
 router.post('/',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess (solo agent, admin)
   validate(schemas.contact.create),
   ContactController.create,
 );
@@ -29,38 +30,50 @@ router.post('/',
 /**
  * @route GET /api/contacts/search
  * @desc Buscar contactos por texto
- * @access Private (Agent+)
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/search', ContactController.search);
+router.get('/search',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  ContactController.search,
+);
 
 /**
  * @route GET /api/contacts/export
  * @desc Exportar contactos a CSV
- * @access Private (Agent+)
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/export', ContactController.exportCSV);
+router.get('/export',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  ContactController.exportCSV,
+);
 
 /**
  * @route GET /api/contacts/tags
  * @desc Obtener todos los tags disponibles
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/tags', ContactController.getTags);
+router.get('/tags',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  ContactController.getTags,
+);
 
 /**
  * @route GET /api/contacts/:id
  * @desc Obtener contacto por ID
- * @access Private
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:id', ContactController.getById);
+router.get('/:id',
+  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  ContactController.getById,
+);
 
 /**
  * @route PUT /api/contacts/:id
  * @desc Actualizar contacto
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.put('/:id',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   validate(schemas.contact.update),
   ContactController.update,
 );
@@ -68,40 +81,40 @@ router.put('/:id',
 /**
  * @route DELETE /api/contacts/:id
  * @desc Eliminar contacto (soft delete)
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.delete('/:id',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   ContactController.delete,
 );
 
 /**
  * @route POST /api/contacts/:id/tags
  * @desc Agregar tags a un contacto
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.post('/:id/tags',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   ContactController.addTags,
 );
 
 /**
  * @route DELETE /api/contacts/:id/tags
  * @desc Remover tags de un contacto
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.delete('/:id/tags',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   ContactController.removeTags,
 );
 
 /**
  * @route POST /api/contacts/import
  * @desc Importar contactos desde CSV
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.post('/import',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   ContactController.importCSV,
 );
 

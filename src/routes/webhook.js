@@ -55,9 +55,9 @@ router.post('/', async (req, res) => {
       console.log('⚠️ WEBHOOK - Validación falló pero procesando', {
         errors: error.details.map(d => ({ field: d.path, message: d.message })),
         receivedFields: Object.keys(webhookData),
-             });
+      });
 
-       logger.warn('⚠️ Webhook validación falló pero respondiendo 200 OK', {
+      logger.warn('⚠️ Webhook validación falló pero respondiendo 200 OK', {
         validationErrors: error.details,
         receivedFields: Object.keys(webhookData),
         webhookData,
@@ -83,7 +83,6 @@ router.post('/', async (req, res) => {
 
     // Llamar al controlador para procesar el mensaje
     await MessageController.handleWebhookSafe(req, res);
-
   } catch (error) {
     // ❌ ERROR CRÍTICO: Log visible en Railway + responder 200 OK
     console.error('❌ WEBHOOK - Error crítico (respondiendo 200 OK):', {

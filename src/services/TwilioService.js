@@ -23,7 +23,7 @@ class TwilioService {
       // Normalizar números de teléfono
       const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
       const toPhone = normalizePhoneNumber(to);
-      
+
       // Generar conversationId consistente
       const conversationId = generateConversationId(fromPhone, toPhone);
 
@@ -68,7 +68,7 @@ class TwilioService {
         const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
         const toPhone = normalizePhoneNumber(to);
         const conversationId = generateConversationId(fromPhone, toPhone);
-        
+
         await Message.create({
           conversationId, // CRÍTICO: Siempre asignar
           from: fromPhone,
@@ -149,8 +149,8 @@ class TwilioService {
     try {
       const { From, To, Body, MessageSid, NumMedia } = webhookData;
 
-      // ✅ RAILWAY LOGGING: Visible en Railway console
-      console.log('📨 PROCESANDO MENSAJE ENTRANTE', {
+      // ✅ LOG CENTRALIZADO: Información del mensaje entrante
+      logger.info('Procesando mensaje entrante', {
         from: From,
         to: To,
         messageSid: MessageSid,
@@ -158,16 +158,10 @@ class TwilioService {
         numMedia: NumMedia || 0,
       });
 
-      logger.info('Procesando mensaje entrante', {
-        from: From,
-        to: To,
-        messageSid: MessageSid,
-      });
-
       // ✅ VALIDACIÓN CRÍTICA: Verificar campos requeridos
       if (!From || !To || !MessageSid) {
         const error = new Error('Campos requeridos faltantes en webhook');
-        console.error('❌ WEBHOOK - Campos requeridos faltantes:', {
+        logger.error('Webhook - Campos requeridos faltantes', {
           hasFrom: !!From,
           hasTo: !!To,
           hasMessageSid: !!MessageSid,
@@ -181,7 +175,7 @@ class TwilioService {
       try {
         existingMessage = await Message.getByTwilioSid(MessageSid);
       } catch (firebaseError) {
-        console.error('❌ FIREBASE - Error verificando duplicado:', {
+        logger.error('Firebase - Error verificando duplicado', {
           error: firebaseError.message,
           messageSid: MessageSid,
         });
@@ -189,7 +183,6 @@ class TwilioService {
       }
 
       if (existingMessage) {
-        console.log('⚠️ MENSAJE DUPLICADO detectado:', { twilioSid: MessageSid });
         logger.warn('Mensaje duplicado recibido', { twilioSid: MessageSid });
         return existingMessage;
       }
@@ -197,65 +190,51 @@ class TwilioService {
       // ✅ NORMALIZAR NÚMEROS usando utilidad consistente
       const fromPhone = normalizePhoneNumber(From);
       const toPhone = normalizePhoneNumber(To);
-      
+
       // ✅ GENERAR conversationId CONSISTENTE (CRÍTICO)
       const conversationId = generateConversationId(fromPhone, toPhone);
-
-      console.log('📞 NÚMEROS Y CONVERSACIÓN PROCESADOS:', {
-        originalFrom: From,
-        originalTo: To,
-        normalizedFrom: fromPhone,
-        normalizedTo: toPhone,
-        conversationId: conversationId,
-        cleanFrom: fromPhone,
-        originalTo: To,
-        cleanTo: toPhone,
-      });
 
       // ✅ BUSCAR O CREAR CONTACTO con manejo robusto
       let contact;
       try {
         contact = await Contact.getByPhone(fromPhone);
         if (!contact) {
-          console.log('👤 CREANDO NUEVO CONTACTO:', { phone: fromPhone });
+          logger.info('Nuevo contacto creado automáticamente', {
+            contactId: contact.id,
+            phone: fromPhone,
+          });
           contact = await Contact.create({
             name: fromPhone, // Se puede actualizar después
             phone: fromPhone,
             userId: null, // Se asignará cuando un agente responda
           });
-          console.log('✅ CONTACTO CREADO:', {
-            contactId: contact.id,
-            phone: fromPhone,
-          });
-          logger.info('Nuevo contacto creado automáticamente', {
+          logger.info('Contacto creado', {
             contactId: contact.id,
             phone: fromPhone,
           });
         } else {
-          console.log('✅ CONTACTO EXISTENTE encontrado:', { contactId: contact.id });
+          logger.info('Contacto existente encontrado', { contactId: contact.id });
         }
       } catch (contactError) {
-        console.error('❌ ERROR EN CONTACTO:', {
+        logger.error('Error en Contacto', {
           error: contactError.message,
           phone: fromPhone,
           action: 'create_or_find',
         });
-        
+
         // Crear contacto básico como fallback
         contact = {
           id: `temp_${Date.now()}`,
           phone: fromPhone,
           name: fromPhone,
         };
-        console.log('⚠️ CONTACTO TEMPORAL creado como fallback');
+        logger.warn('Contacto temporal creado como fallback');
       }
 
       // ✅ PROCESAR MULTIMEDIA con manejo robusto y almacenamiento permanente
       const mediaUrls = [];
       const processedMedia = [];
       const numMedia = parseInt(NumMedia) || 0;
-
-      console.log('🎬 PROCESANDO MULTIMEDIA:', { numMedia });
 
       for (let i = 0; i < numMedia; i++) {
         try {
@@ -270,36 +249,16 @@ class TwilioService {
               index: i,
             });
 
-            console.log(`📎 MEDIA ${i} encontrado:`, {
-              url: mediaUrl.substring(0, 50) + '...',
-              contentType: mediaContentType,
-            });
-
             // ✅ PROCESAR Y GUARDAR MULTIMEDIA PERMANENTEMENTE
             try {
-              console.log(`📥 Descargando y procesando media ${i}...`);
-              
               const processedMediaInfo = await MediaService.processWebhookMedia(
                 mediaUrl,
                 MessageSid,
-                i
+                i,
               );
-              
-              processedMedia.push(processedMediaInfo);
-              
-              console.log(`✅ MEDIA ${i} procesada exitosamente:`, {
-                fileId: processedMediaInfo.id,
-                category: processedMediaInfo.category,
-                size: processedMediaInfo.sizeFormatted,
-                publicUrl: processedMediaInfo.publicUrl
-              });
 
+              processedMedia.push(processedMediaInfo);
             } catch (mediaProcessError) {
-              console.error(`❌ ERROR PROCESANDO MEDIA ${i}:`, {
-                error: mediaProcessError.message,
-                mediaUrl: mediaUrl.substring(0, 100) + '...',
-              });
-              
               logger.error(`Error procesando media ${i}`, {
                 error: mediaProcessError.message,
                 stack: mediaProcessError.stack,
@@ -312,10 +271,6 @@ class TwilioService {
             }
           }
         } catch (mediaError) {
-          console.error(`❌ ERROR GENERAL procesando media ${i}:`, {
-            error: mediaError.message,
-            mediaUrl: webhookData[`MediaUrl${i}`],
-          });
           logger.error(`Error general procesando media ${i}`, {
             error: mediaError.message,
             messageSid: MessageSid,
@@ -338,12 +293,6 @@ class TwilioService {
         }
       }
 
-      console.log('📝 TIPO DE MENSAJE determinado:', { 
-        messageType, 
-        hasText: !!Body,
-        mediaCount: mediaUrls.length,
-      });
-
       // ✅ CREAR MENSAJE con datos completos y manejo de errores
       const messageData = {
         conversationId, // CRÍTICO: SIEMPRE asignar conversationId
@@ -358,7 +307,7 @@ class TwilioService {
         metadata: {
           numMedia,
           mediaInfo: mediaUrls,
-          processedMedia: processedMedia, // URLs permanentes y metadata
+          processedMedia, // URLs permanentes y metadata
           profileName: webhookData.ProfileName,
           waId: webhookData.WaId,
           originalWebhookData: {
@@ -369,39 +318,19 @@ class TwilioService {
         },
       };
 
-      console.log('💾 GUARDANDO MENSAJE EN FIREBASE:', {
-        messageType,
-        contentLength: messageData.content.length,
-        mediaCount: mediaUrls.length,
-        twilioSid: MessageSid,
-      });
-
       // ✅ GUARDAR EN FIREBASE con manejo robusto
       let message;
       try {
         message = await Message.create(messageData);
-        console.log('✅ MENSAJE GUARDADO EXITOSAMENTE:', {
-          messageId: message.id,
-          twilioSid: MessageSid,
-          from: fromPhone,
-          to: toPhone,
-          type: messageType,
-        });
 
         // ✅ CREAR O ACTUALIZAR CONVERSACIÓN (CRÍTICO)
         try {
           await this.createOrUpdateConversation(conversationId, message, contact);
-          console.log('✅ CONVERSACIÓN ACTUALIZADA:', { conversationId });
         } catch (conversationError) {
-          console.error('❌ ERROR ACTUALIZANDO CONVERSACIÓN:', {
-            error: conversationError.message,
-            conversationId,
-          });
-          // No fallar por error de conversación, el mensaje ya se guardó
           logger.error('Error actualizando conversación', {
             conversationId,
             messageId: message.id,
-            error: conversationError.message
+            error: conversationError.message,
           });
         }
 
@@ -409,25 +338,18 @@ class TwilioService {
         try {
           if (global.socketManager) {
             global.socketManager.emitNewMessage(conversationId, message.toJSON());
-            console.log('📡 EVENTO SOCKET.IO EMITIDO:', { conversationId, messageId: message.id });
           } else {
-            console.log('⚠️ Socket.IO no disponible - mensaje guardado sin tiempo real');
+            logger.warn('Socket.IO no disponible - mensaje guardado sin tiempo real');
           }
         } catch (socketError) {
-          console.error('❌ ERROR EMITIENDO SOCKET.IO:', {
-            error: socketError.message,
-            conversationId,
-            messageId: message.id
-          });
-          // No fallar por error de socket, el mensaje ya se guardó
           logger.error('Error emitiendo evento Socket.IO', {
             conversationId,
             messageId: message.id,
-            error: socketError.message
+            error: socketError.message,
           });
         }
       } catch (firebaseError) {
-        console.error('❌ FIREBASE - Error guardando mensaje:', {
+        logger.error('Firebase - Error guardando mensaje', {
           error: firebaseError.message,
           stack: firebaseError.stack.split('\n')[0],
           messageData: {
@@ -441,12 +363,6 @@ class TwilioService {
       }
 
       // ✅ LOG FINAL DE ÉXITO
-      console.log('🎉 WEBHOOK PROCESADO COMPLETAMENTE:', {
-        messageId: message.id,
-        contactId: contact.id,
-        processedAt: new Date().toISOString(),
-      });
-
       logger.info('Mensaje entrante procesado exitosamente', {
         messageId: message.id,
         from: fromPhone,
@@ -454,10 +370,9 @@ class TwilioService {
       });
 
       return message;
-
     } catch (error) {
       // ❌ ERROR FINAL: Log completo pero no lanzar excepción
-      console.error('❌ TWILIO SERVICE - Error procesando mensaje:', {
+      logger.error('Twilio Service - Error procesando mensaje', {
         error: error.message,
         stack: error.stack.split('\n').slice(0, 3), // Primeras 3 líneas del stack
         webhookData: {
@@ -655,11 +570,6 @@ class TwilioService {
       if (conversation) {
         // Actualizar conversación existente
         await conversation.updateLastMessage(message);
-        console.log('📋 CONVERSACIÓN ACTUALIZADA:', {
-          conversationId,
-          newMessageCount: conversation.messageCount + 1,
-          lastMessage: message.content?.substring(0, 50) || '[Multimedia]'
-        });
       } else {
         // Crear nueva conversación
         const customerPhone = contact?.phone || message.from;
@@ -682,31 +592,19 @@ class TwilioService {
             contactId: contact?.id,
             firstMessageId: message.id,
             createdFromWebhook: true,
-            twilioSid: message.twilioSid
-          }
+            twilioSid: message.twilioSid,
+          },
         };
 
         conversation = await Conversation.createOrUpdate(conversationData);
-        console.log('📋 NUEVA CONVERSACIÓN CREADA:', {
-          conversationId,
-          customerPhone,
-          firstMessage: message.content?.substring(0, 50) || '[Multimedia]'
-        });
-
-        logger.info('Nueva conversación creada automáticamente', {
-          conversationId,
-          customerPhone,
-          messageId: message.id,
-          contactId: contact?.id
-        });
       }
 
       return conversation;
     } catch (error) {
-      console.error('❌ ERROR EN createOrUpdateConversation:', {
+      logger.error('Error en createOrUpdateConversation', {
         error: error.message,
         conversationId,
-        messageId: message.id
+        messageId: message.id,
       });
       throw error;
     }

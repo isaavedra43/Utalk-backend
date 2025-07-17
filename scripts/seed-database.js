@@ -31,7 +31,7 @@ const seedData = {
       displayName: 'Juan Pérez',
       role: 'agent',
       isActive: true,
-    }
+    },
   ],
   contacts: [
     {
@@ -41,10 +41,10 @@ const seedData = {
       tags: ['vip', 'cliente'],
       customFields: {
         empresa: 'Tech Corp',
-        cargo: 'CEO'
+        cargo: 'CEO',
       },
       userId: 'agent-user-1',
-      totalMessages: 15
+      totalMessages: 15,
     },
     {
       name: 'Prospecto Interesado',
@@ -53,10 +53,10 @@ const seedData = {
       tags: ['prospecto', 'interesado'],
       customFields: {
         fuente: 'website',
-        interes: 'producto-premium'
+        interes: 'producto-premium',
       },
       userId: 'agent-user-1',
-      totalMessages: 8
+      totalMessages: 8,
     },
     {
       name: 'Cliente Frecuente',
@@ -65,11 +65,11 @@ const seedData = {
       tags: ['cliente', 'frecuente'],
       customFields: {
         ultimaCompra: '2024-01-15',
-        montoTotal: 15000
+        montoTotal: 15000,
       },
       userId: 'agent-user-2',
-      totalMessages: 32
-    }
+      totalMessages: 32,
+    },
   ],
   knowledge: [
     {
@@ -89,7 +89,7 @@ const seedData = {
       category: 'configuracion',
       tags: ['whatsapp', 'twilio', 'configuracion'],
       isPublic: true,
-      createdBy: 'admin-user-1'
+      createdBy: 'admin-user-1',
     },
     {
       title: 'Mejores prácticas para campañas',
@@ -110,8 +110,8 @@ const seedData = {
       category: 'marketing',
       tags: ['campañas', 'whatsapp', 'marketing'],
       isPublic: true,
-      createdBy: 'admin-user-1'
-    }
+      createdBy: 'admin-user-1',
+    },
   ],
   settings: {
     id: 'global',
@@ -119,7 +119,7 @@ const seedData = {
       name: 'Funday',
       phone: '+525512345678',
       email: 'contacto@funday.com',
-      website: 'https://funday.com'
+      website: 'https://funday.com',
     },
     whatsappConfig: {
       welcomeMessage: '¡Hola! 👋 Gracias por contactar a Funday. ¿En qué podemos ayudarte?',
@@ -134,19 +134,19 @@ const seedData = {
           thursday: { start: '09:00', end: '18:00' },
           friday: { start: '09:00', end: '18:00' },
           saturday: { start: '10:00', end: '14:00' },
-          sunday: { start: null, end: null }
-        }
-      }
+          sunday: { start: null, end: null },
+        },
+      },
     },
     notificationSettings: {
       emailNotifications: true,
       newMessageAlert: true,
-      campaignReports: true
-    }
-  }
+      campaignReports: true,
+    },
+  },
 };
 
-async function seedDatabase() {
+async function seedDatabase () {
   try {
     console.log('🌱 Iniciando población de base de datos...');
 
@@ -159,7 +159,7 @@ async function seedDatabase() {
           uid: userData.uid,
           email: userData.email,
           displayName: userData.displayName,
-          password: 'temporal123' // Se debe cambiar en primer login
+          password: 'temporal123', // Se debe cambiar en primer login
         });
 
         // Establecer custom claims
@@ -169,7 +169,7 @@ async function seedDatabase() {
         const cleanUserData = prepareForFirestore({
           ...userData,
           createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp(),
         });
         await firestore.collection('users').doc(userData.uid).set(cleanUserData);
 
@@ -191,7 +191,7 @@ async function seedDatabase() {
         id: docRef.id,
         ...contactData,
         createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await docRef.set(cleanContactData);
       console.log(`  ✅ Contacto creado: ${contactData.name}`);
@@ -208,7 +208,7 @@ async function seedDatabase() {
         helpful: 0,
         notHelpful: 0,
         createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await docRef.set(cleanKnowledgeData);
       console.log(`  ✅ Documento creado: ${knowledgeData.title}`);
@@ -219,7 +219,7 @@ async function seedDatabase() {
     const cleanSettingsData = prepareForFirestore({
       ...seedData.settings,
       updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: 'admin-user-1'
+      updatedBy: 'admin-user-1',
     });
     await firestore.collection('settings').doc('global').set(cleanSettingsData);
     console.log('  ✅ Configuraciones creadas');
@@ -230,7 +230,7 @@ async function seedDatabase() {
     console.log(`  - ${seedData.contacts.length} contactos`);
     console.log(`  - ${seedData.knowledge.length} documentos de conocimiento`);
     console.log('  - 1 configuración global');
-    
+
     console.log('\n🔐 Credenciales de prueba:');
     seedData.users.forEach(user => {
       console.log(`  ${user.email} / temporal123 (${user.role})`);
@@ -248,4 +248,4 @@ if (require.main === module) {
   seedDatabase();
 }
 
-module.exports = { seedDatabase, seedData }; 
+module.exports = { seedDatabase, seedData };

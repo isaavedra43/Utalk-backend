@@ -7,7 +7,7 @@ describe('Messages API', () => {
 
   beforeAll(async () => {
     testApp = await initializeTestApp();
-    
+
     adminToken = 'Bearer test-admin-token';
     agentToken = 'Bearer test-agent-token';
     viewerToken = 'Bearer test-viewer-token';
@@ -18,7 +18,7 @@ describe('Messages API', () => {
       .set('Authorization', adminToken)
       .send({
         name: 'Message Test Contact',
-        phone: '+1234567890'
+        phone: '+1234567890',
       });
     testContactId = contactResponse.body.contact.id;
   });
@@ -84,7 +84,7 @@ describe('Messages API', () => {
     it('debería permitir filtros por rango de fechas', async () => {
       const startDate = '2023-01-01';
       const endDate = '2023-12-31';
-      
+
       const response = await request(testApp)
         .get(`/messages?startDate=${startDate}&endDate=${endDate}`)
         .set('Authorization', adminToken)
@@ -101,7 +101,7 @@ describe('Messages API', () => {
 
       expect(response.body.pagination).toMatchObject({
         page: 1,
-        limit: 10
+        limit: 10,
       });
     });
   });
@@ -111,7 +111,7 @@ describe('Messages API', () => {
       const messageData = {
         contactId: testContactId,
         content: 'Hola, este es un mensaje de prueba.',
-        type: 'text'
+        type: 'text',
       };
 
       const response = await request(testApp)
@@ -126,13 +126,13 @@ describe('Messages API', () => {
         contactId: messageData.contactId,
         content: messageData.content,
         direction: 'outbound',
-        status: 'sent'
+        status: 'sent',
       });
     });
 
     it('debería validar campos requeridos', async () => {
       const invalidMessage = {
-        content: 'Mensaje sin contacto'
+        content: 'Mensaje sin contacto',
         // Falta contactId
       };
 
@@ -146,7 +146,7 @@ describe('Messages API', () => {
     it('debería validar que el contacto existe', async () => {
       const messageWithInvalidContact = {
         contactId: 'nonexistent-contact',
-        content: 'Mensaje a contacto inexistente'
+        content: 'Mensaje a contacto inexistente',
       };
 
       await request(testApp)
@@ -160,7 +160,7 @@ describe('Messages API', () => {
       const messageWithHtml = {
         contactId: testContactId,
         content: '<script>alert("xss")</script>Mensaje con HTML',
-        type: 'text'
+        type: 'text',
       };
 
       const response = await request(testApp)
@@ -177,7 +177,7 @@ describe('Messages API', () => {
       const messageData = {
         contactId: testContactId,
         content: 'Mensaje enviado por agente',
-        type: 'text'
+        type: 'text',
       };
 
       await request(testApp)
@@ -191,7 +191,7 @@ describe('Messages API', () => {
       const messageData = {
         contactId: testContactId,
         content: 'Mensaje no permitido',
-        type: 'text'
+        type: 'text',
       };
 
       await request(testApp)
@@ -212,7 +212,7 @@ describe('Messages API', () => {
         .send({
           contactId: testContactId,
           content: 'Mensaje para obtener por ID',
-          type: 'text'
+          type: 'text',
         });
       messageId = response.body.messageRecord.id;
     });
@@ -256,7 +256,7 @@ describe('Messages API', () => {
         .send({
           contactId: testContactId,
           content: 'Mensaje para marcar como leído',
-          type: 'text'
+          type: 'text',
         });
       messageId = response.body.messageRecord.id;
     });
@@ -288,7 +288,7 @@ describe('Messages API', () => {
         .send({
           contactId: testContactId,
           content: 'Primer mensaje',
-          type: 'text'
+          type: 'text',
         });
 
       await request(testApp)
@@ -297,7 +297,7 @@ describe('Messages API', () => {
         .send({
           contactId: testContactId,
           content: 'Segundo mensaje',
-          type: 'text'
+          type: 'text',
         });
     });
 
@@ -345,7 +345,7 @@ describe('Messages API', () => {
 
       expect(response.body.pagination).toMatchObject({
         page: 1,
-        limit: 5
+        limit: 5,
       });
     });
 
@@ -383,7 +383,7 @@ describe('Messages API', () => {
     it('debería permitir filtros por fechas específicas', async () => {
       const startDate = '2023-01-01';
       const endDate = '2023-12-31';
-      
+
       const response = await request(testApp)
         .get(`/messages/stats?startDate=${startDate}&endDate=${endDate}`)
         .set('Authorization', adminToken)
@@ -413,20 +413,20 @@ describe('Messages API', () => {
               messaging_product: 'whatsapp',
               metadata: {
                 display_phone_number: '+1234567890',
-                phone_number_id: 'test-phone-id'
+                phone_number_id: 'test-phone-id',
               },
               messages: [{
                 from: testContactId,
                 id: 'test-message-id',
                 timestamp: Math.floor(Date.now() / 1000).toString(),
                 text: {
-                  body: 'Mensaje de prueba desde WhatsApp'
+                  body: 'Mensaje de prueba desde WhatsApp',
                 },
-                type: 'text'
-              }]
-            }
-          }]
-        }]
+                type: 'text',
+              }],
+            },
+          }],
+        }],
       };
 
       const response = await request(testApp)
@@ -439,7 +439,7 @@ describe('Messages API', () => {
 
     it('debería validar signature de Twilio', async () => {
       const invalidWebhookData = {
-        invalid: 'data'
+        invalid: 'data',
       };
 
       // Sin signature válida, debería fallar
@@ -460,20 +460,20 @@ describe('Messages API', () => {
               messaging_product: 'whatsapp',
               metadata: {
                 display_phone_number: '+1234567890',
-                phone_number_id: 'test-phone-id'
+                phone_number_id: 'test-phone-id',
               },
               messages: [{
                 from: newPhoneNumber,
                 id: 'test-message-id-2',
                 timestamp: Math.floor(Date.now() / 1000).toString(),
                 text: {
-                  body: 'Mensaje desde nuevo contacto'
+                  body: 'Mensaje desde nuevo contacto',
                 },
-                type: 'text'
-              }]
-            }
-          }]
-        }]
+                type: 'text',
+              }],
+            },
+          }],
+        }],
       };
 
       await request(testApp)
@@ -487,7 +487,7 @@ describe('Messages API', () => {
         .set('Authorization', adminToken);
 
       const newContact = contactsResponse.body.contacts.find(
-        contact => contact.phone === newPhoneNumber
+        contact => contact.phone === newPhoneNumber,
       );
       expect(newContact).toBeDefined();
     });
@@ -502,7 +502,7 @@ describe('Messages API', () => {
               messaging_product: 'whatsapp',
               metadata: {
                 display_phone_number: '+1234567890',
-                phone_number_id: 'test-phone-id'
+                phone_number_id: 'test-phone-id',
               },
               messages: [{
                 from: testContactId,
@@ -511,13 +511,13 @@ describe('Messages API', () => {
                 image: {
                   mime_type: 'image/jpeg',
                   sha256: 'image-hash',
-                  id: 'image-media-id'
+                  id: 'image-media-id',
                 },
-                type: 'image'
-              }]
-            }
-          }]
-        }]
+                type: 'image',
+              }],
+            },
+          }],
+        }],
       };
 
       await request(testApp)
@@ -536,17 +536,17 @@ describe('Messages API', () => {
               messaging_product: 'whatsapp',
               metadata: {
                 display_phone_number: '+1234567890',
-                phone_number_id: 'test-phone-id'
+                phone_number_id: 'test-phone-id',
               },
               statuses: [{
                 id: 'test-message-id',
                 status: 'delivered',
                 timestamp: Math.floor(Date.now() / 1000).toString(),
-                recipient_id: testContactId
-              }]
-            }
-          }]
-        }]
+                recipient_id: testContactId,
+              }],
+            },
+          }],
+        }],
       };
 
       await request(testApp)
@@ -566,7 +566,7 @@ describe('Messages API', () => {
         .query({
           'hub.mode': 'subscribe',
           'hub.verify_token': verifyToken,
-          'hub.challenge': challenge
+          'hub.challenge': challenge,
         })
         .expect(200);
 
@@ -582,7 +582,7 @@ describe('Messages API', () => {
         .query({
           'hub.mode': 'subscribe',
           'hub.verify_token': wrongToken,
-          'hub.challenge': challenge
+          'hub.challenge': challenge,
         })
         .expect(403);
     });
@@ -602,7 +602,7 @@ describe('Messages API', () => {
         .set('Authorization', viewerToken)
         .send({
           contactId: testContactId,
-          content: 'No permitido'
+          content: 'No permitido',
         })
         .expect(403);
     });
@@ -618,7 +618,7 @@ describe('Messages API', () => {
         .set('Authorization', agentToken)
         .send({
           contactId: testContactId,
-          content: 'Mensaje de agente'
+          content: 'Mensaje de agente',
         })
         .expect(201);
     });
@@ -634,7 +634,7 @@ describe('Messages API', () => {
         .set('Authorization', adminToken)
         .send({
           contactId: testContactId,
-          content: 'Mensaje de admin'
+          content: 'Mensaje de admin',
         })
         .expect(201);
 
@@ -644,4 +644,4 @@ describe('Messages API', () => {
         .expect(200);
     });
   });
-}); 
+});

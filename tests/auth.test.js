@@ -106,7 +106,7 @@ describe('Auth Endpoints', () => {
       const validToken = global.generateTestToken({
         uid: 'test-user-123',
         email: 'test@example.com',
-        role: 'admin'
+        role: 'admin',
       });
 
       expect(validToken).toBeDefined();
@@ -118,7 +118,7 @@ describe('Auth Endpoints', () => {
   describe('JWT Middleware Tests', () => {
     it('should accept valid JWT tokens', async () => {
       const validToken = global.testTokens.admin;
-      
+
       // Test con cualquier endpoint que use authMiddleware
       const response = await request(app)
         .get('/api/contacts')
@@ -150,7 +150,7 @@ describe('Auth Endpoints', () => {
   describe('Role-based Authorization Tests', () => {
     it('should allow admin access to admin endpoints', async () => {
       const adminToken = global.testTokens.admin;
-      
+
       const response = await request(app)
         .get('/api/team')
         .set('Authorization', `Bearer ${adminToken}`);
@@ -161,7 +161,7 @@ describe('Auth Endpoints', () => {
 
     it('should deny viewer access to admin endpoints', async () => {
       const viewerToken = global.testTokens.viewer;
-      
+
       const response = await request(app)
         .get('/api/team')
         .set('Authorization', `Bearer ${viewerToken}`);
@@ -171,4 +171,4 @@ describe('Auth Endpoints', () => {
       expect(response.body.error).toBe('Permisos insuficientes');
     });
   });
-}); 
+});

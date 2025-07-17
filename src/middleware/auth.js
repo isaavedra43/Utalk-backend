@@ -3,10 +3,10 @@ const jwt = require('jsonwebtoken');
 
 /**
  * Middleware de autenticación con JWT propio (NO Firebase ID Token)
- * 
+ *
  * CRÍTICO: Este middleware ahora valida ÚNICAMENTE nuestro JWT generado internamente
  * por el backend en el login, NO los tokens de Firebase Auth.
- * 
+ *
  * El JWT contiene: { uid, email, role } y está firmado con JWT_SECRET
  */
 const authMiddleware = (req, res, next) => {
@@ -20,7 +20,7 @@ const authMiddleware = (req, res, next) => {
         userAgent: req.get('User-Agent'),
         url: req.originalUrl,
       });
-      
+
       return res.status(401).json({
         error: 'Token de autorización requerido',
         message: 'Debes incluir el header Authorization con un token Bearer válido',
@@ -32,7 +32,7 @@ const authMiddleware = (req, res, next) => {
         ip: req.ip,
         authHeader: authHeader.substring(0, 20) + '...', // Solo primeros caracteres por seguridad
       });
-      
+
       return res.status(401).json({
         error: 'Formato de token inválido',
         message: 'El token debe tener el formato "Bearer <token>"',
@@ -43,7 +43,7 @@ const authMiddleware = (req, res, next) => {
 
     if (!token) {
       logger.warn('Token vacío detectado', { ip: req.ip });
-      
+
       return res.status(401).json({
         error: 'Token vacío',
         message: 'El token no puede estar vacío',
@@ -59,31 +59,31 @@ const authMiddleware = (req, res, next) => {
             ip: req.ip,
             expiredAt: error.expiredAt,
           });
-          
+
           return res.status(401).json({
             error: 'Token expirado',
             message: 'El token ha expirado, por favor inicia sesión nuevamente',
           });
         }
-        
+
         if (error.name === 'JsonWebTokenError') {
           logger.warn('Token JWT inválido', {
             ip: req.ip,
             error: error.message,
           });
-          
+
           return res.status(401).json({
             error: 'Token inválido',
             message: 'El token proporcionado no es válido',
           });
         }
-        
+
         if (error.name === 'NotBeforeError') {
           logger.warn('Token JWT usado antes de tiempo', {
             ip: req.ip,
             notBefore: error.date,
           });
-          
+
           return res.status(401).json({
             error: 'Token no válido aún',
             message: 'El token no es válido todavía',
@@ -96,7 +96,7 @@ const authMiddleware = (req, res, next) => {
           error: error.message,
           name: error.name,
         });
-        
+
         return res.status(401).json({
           error: 'Error de autenticación',
           message: 'No se pudo verificar el token de autenticación',
@@ -145,7 +145,7 @@ const requireRole = (roles) => {
         ip: req.ip,
         requiredRoles: roles,
       });
-      
+
       return res.status(401).json({
         error: 'Usuario no autenticado',
         message: 'Debes estar autenticado para acceder a este recurso',
@@ -162,7 +162,7 @@ const requireRole = (roles) => {
         requiredRoles: allowedRoles,
         ip: req.ip,
       });
-      
+
       return res.status(403).json({
         error: 'Permisos insuficientes',
         message: `Necesitas uno de los siguientes roles: ${allowedRoles.join(', ')}`,
@@ -224,7 +224,7 @@ const requireViewerOrHigher = (req, res, next) => {
       userRole,
       ip: req.ip,
     });
-    
+
     return res.status(403).json({
       error: 'Rol no autorizado',
       message: 'Tu rol no tiene acceso a este sistema',
@@ -245,7 +245,7 @@ const requireViewerOrHigher = (req, res, next) => {
 // IMPORTANTE: Este middleware ahora usa JWT propio (jsonwebtoken), NO Firebase ID Token
 // Propiedades disponibles en req.user después de autenticación:
 // - uid: string (ID único del usuario)
-// - email: string (email del usuario)  
+// - email: string (email del usuario)
 // - role: string (rol: 'admin', 'agent', 'viewer')
 module.exports = {
   authMiddleware,

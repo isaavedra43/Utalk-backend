@@ -33,7 +33,7 @@ class TimestampMigration {
    */
   async run () {
     console.log('🚀 Iniciando migración de timestamp y messageCount...\n');
-    
+
     try {
       // Paso 1: Obtener todas las conversaciones
       const conversationsSnapshot = await db.collection('conversations').get();
@@ -46,7 +46,6 @@ class TimestampMigration {
 
       // Paso 3: Mostrar resumen
       this.showSummary();
-
     } catch (error) {
       console.error('❌ Error fatal durante la migración:', error);
       process.exit(1);
@@ -56,7 +55,7 @@ class TimestampMigration {
   /**
    * Procesar una conversación individual
    */
-  async processConversation(conversationDoc) {
+  async processConversation (conversationDoc) {
     const conversationId = conversationDoc.id;
     console.log(`🔄 Procesando conversación: ${conversationId}`);
 
@@ -69,7 +68,7 @@ class TimestampMigration {
         .get();
 
       console.log(`  📨 ${messagesSnapshot.size} mensajes encontrados`);
-      
+
       let messagesUpdatedInConv = 0;
       const batch = db.batch();
       let batchOperations = 0;
@@ -81,8 +80,8 @@ class TimestampMigration {
 
         // Verificar si necesita timestamp
         if (!messageData.timestamp && messageData.createdAt) {
-          batch.update(messageRef, { 
-            timestamp: messageData.createdAt 
+          batch.update(messageRef, {
+            timestamp: messageData.createdAt,
           });
           messagesUpdatedInConv++;
           batchOperations++;
@@ -90,7 +89,7 @@ class TimestampMigration {
           // Ejecutar batch cada 500 operaciones para evitar límites
           if (batchOperations >= 500) {
             await batch.commit();
-            console.log(`    ✅ Batch de 500 operaciones ejecutado`);
+            console.log('    ✅ Batch de 500 operaciones ejecutado');
             batchOperations = 0;
           }
         }
@@ -105,10 +104,10 @@ class TimestampMigration {
       // Actualizar messageCount en la conversación
       const currentConvData = conversationDoc.data();
       const actualMessageCount = messagesSnapshot.size;
-      
+
       if (currentConvData.messageCount !== actualMessageCount) {
         await conversationDoc.ref.update({
-          messageCount: actualMessageCount
+          messageCount: actualMessageCount,
         });
         this.stats.messageCountFixed++;
         console.log(`    🔢 MessageCount corregido: ${currentConvData.messageCount} → ${actualMessageCount}`);
@@ -116,14 +115,13 @@ class TimestampMigration {
 
       this.stats.conversationsProcessed++;
       this.stats.messagesUpdated += messagesUpdatedInConv;
-      
-      console.log(`  ✅ Completado: ${messagesUpdatedInConv} mensajes actualizados\n`);
 
+      console.log(`  ✅ Completado: ${messagesUpdatedInConv} mensajes actualizados\n`);
     } catch (error) {
       console.error(`  ❌ Error procesando conversación ${conversationId}:`, error.message);
       this.stats.errors.push({
         conversationId,
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -131,7 +129,7 @@ class TimestampMigration {
   /**
    * Mostrar resumen de la migración
    */
-  showSummary() {
+  showSummary () {
     const endTime = new Date();
     const duration = Math.round((endTime - this.stats.startTime) / 1000);
 
@@ -143,7 +141,7 @@ class TimestampMigration {
     console.log(`📨 Mensajes con timestamp agregado: ${this.stats.messagesUpdated}`);
     console.log(`🔢 Conversaciones con messageCount corregido: ${this.stats.messageCountFixed}`);
     console.log(`❌ Errores: ${this.stats.errors.length}`);
-    
+
     if (this.stats.errors.length > 0) {
       console.log('\n📋 ERRORES ENCONTRADOS:');
       this.stats.errors.forEach((error, index) => {
@@ -158,16 +156,16 @@ class TimestampMigration {
       console.log('\n✅ NO SE NECESITARON CAMBIOS');
       console.log('💡 Todos los mensajes ya tienen timestamp');
     }
-    
+
     console.log('='.repeat(60) + '\n');
   }
 
   /**
    * Verificar integridad después de la migración
    */
-  async verifyIntegrity() {
+  async verifyIntegrity () {
     console.log('🔍 Verificando integridad post-migración...\n');
-    
+
     const conversationsSnapshot = await db.collection('conversations').get();
     let totalMessagesWithoutTimestamp = 0;
     let conversationsWithWrongCount = 0;
@@ -194,7 +192,7 @@ class TimestampMigration {
     console.log('\n📋 RESULTADOS DE VERIFICACIÓN:');
     console.log(`📨 Mensajes sin timestamp: ${totalMessagesWithoutTimestamp}`);
     console.log(`🔢 Conversaciones con messageCount incorrecto: ${conversationsWithWrongCount}`);
-    
+
     if (totalMessagesWithoutTimestamp === 0 && conversationsWithWrongCount === 0) {
       console.log('✅ INTEGRIDAD VERIFICADA - Todo está correcto\n');
     } else {
@@ -204,9 +202,9 @@ class TimestampMigration {
 }
 
 // Ejecutar migración
-async function main() {
+async function main () {
   const migration = new TimestampMigration();
-  
+
   try {
     await migration.run();
     await migration.verifyIntegrity();
@@ -222,4 +220,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = TimestampMigration; 
+module.exports = TimestampMigration;

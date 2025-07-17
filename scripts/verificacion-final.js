@@ -167,7 +167,7 @@ console.log('\n📦 Verificando dependencias...');
 
 try {
   const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-  
+
   const requiredDeps = [
     'express',
     'firebase-admin',
@@ -178,23 +178,22 @@ try {
     'bcrypt',
     'jsonwebtoken',
   ];
-  
+
   requiredDeps.forEach(dep => {
     const exists = packageJson.dependencies && packageJson.dependencies[dep];
     addCheck(`Dependencia ${dep}`, !!exists);
   });
-  
+
   const requiredDevDeps = [
     'jest',
     'supertest',
     'nodemon',
   ];
-  
+
   requiredDevDeps.forEach(dep => {
     const exists = packageJson.devDependencies && packageJson.devDependencies[dep];
     addCheck(`Dev dependency ${dep}`, !!exists);
   });
-  
 } catch (error) {
   addCheck('Verificación package.json', false, 'Error al leer package.json');
 }
@@ -255,4 +254,4 @@ console.log('- Realizar pruebas end-to-end');
 console.log('\n✨ ¡Backend UTalk/Funday completo y listo!\n');
 
 // Salir con código apropiado
-process.exit(percentage >= 95 ? 0 : 1); 
+process.exit(percentage >= 95 ? 0 : 1);

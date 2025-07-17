@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAgentOrAdmin, requireAdmin } = require('../middleware/auth');
+const { requireReadAccess, requireWriteAccess, requireAdmin } = require('../middleware/auth');
 const CampaignController = require('../controllers/CampaignController');
 
 const router = express.Router();
@@ -8,20 +8,20 @@ const router = express.Router();
 /**
  * @route GET /api/campaigns
  * @desc Listar campañas
- * @access Private (Agent+)
+ * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireAgentOrAdmin,
+  requireReadAccess, // ✅ CORREGIDO: Cambiado a requireReadAccess para incluir viewers
   CampaignController.list,
 );
 
 /**
  * @route POST /api/campaigns
  * @desc Crear nueva campaña
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.post('/',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   validate(schemas.campaign.create),
   CampaignController.create,
 );
@@ -29,20 +29,20 @@ router.post('/',
 /**
  * @route GET /api/campaigns/:id
  * @desc Obtener campaña por ID
- * @access Private (Agent+)
+ * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id',
-  requireAgentOrAdmin,
+  requireReadAccess, // ✅ CORREGIDO: Cambiado a requireReadAccess
   CampaignController.getById,
 );
 
 /**
  * @route PUT /api/campaigns/:id
  * @desc Actualizar campaña
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.put('/:id',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   validate(schemas.campaign.update),
   CampaignController.update,
 );
@@ -53,47 +53,47 @@ router.put('/:id',
  * @access Private (Admin)
  */
 router.delete('/:id',
-  requireAdmin,
+  requireAdmin, // ✅ CORRECTO: Mantener requireAdmin para operación crítica
   CampaignController.delete,
 );
 
 /**
  * @route POST /api/campaigns/:id/send
  * @desc Enviar campaña
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.post('/:id/send',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   CampaignController.sendCampaign,
 );
 
 /**
  * @route POST /api/campaigns/:id/pause
  * @desc Pausar campaña
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.post('/:id/pause',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   CampaignController.pauseCampaign,
 );
 
 /**
  * @route POST /api/campaigns/:id/resume
  * @desc Reanudar campaña
- * @access Private (Agent+)
+ * @access Private (Agent, Admin)
  */
 router.post('/:id/resume',
-  requireAgentOrAdmin,
+  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
   CampaignController.resumeCampaign,
 );
 
 /**
  * @route GET /api/campaigns/:id/report
  * @desc Obtener reporte de campaña
- * @access Private (Agent+)
+ * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id/report',
-  requireAgentOrAdmin,
+  requireReadAccess, // ✅ CORREGIDO: Cambiado a requireReadAccess
   CampaignController.getReport,
 );
 

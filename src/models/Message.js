@@ -2,6 +2,7 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
+const { logger } = require('../utils/logger');
 
 class Message {
   constructor (data) {
@@ -482,26 +483,381 @@ class Message {
   }
 
   /**
-   * Convertir a JSON
+   * Convertir a JSON con validación y normalización de campos obligatorios
+   * ✅ ASEGURA: Todos los campos obligatorios siempre presentes, nunca null/undefined
+   * ✅ NORMALIZA: timestamp, status, direction
+   * ✅ COMPATIBILIDAD: content → text mapping para frontend
    */
   toJSON () {
-    return {
-      id: this.id,
-      conversationId: this.conversationId,
-      from: this.from,
-      to: this.to,
-      content: this.content,
-      text: this.content, // Mapping para compatibilidad con frontend
-      type: this.type,
-      direction: this.direction,
-      status: this.status,
-      twilioSid: this.twilioSid,
-      metadata: this.metadata,
-      userId: this.userId,
-      timestamp: this.timestamp,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
+    // ✅ NORMALIZAR TIMESTAMP: Siempre convertir a ISO string
+    let normalizedTimestamp;
+    if (this.timestamp && typeof this.timestamp.toDate === 'function') {
+      // Firestore Timestamp
+      normalizedTimestamp = this.timestamp.toDate().toISOString();
+    } else if (this.timestamp instanceof Date) {
+      // JavaScript Date
+      normalizedTimestamp = this.timestamp.toISOString();
+    } else if (typeof this.timestamp === 'string') {
+      // String ISO
+      normalizedTimestamp = this.timestamp;
+    } else {
+      // Fallback: usar fecha actual
+      normalizedTimestamp = new Date().toISOString();
+    }
+
+    // ✅ NORMALIZAR CAMPOS OBLIGATORIOS CON FALLBACKS SEGUROS
+    const normalizedMessage = {
+      // CAMPOS OBLIGATORIOS - NUNCA NULL/UNDEFINED
+      id: this.id || 'msg_unknown',
+      conversationId: this.conversationId || 'conv_unknown',
+      from: this.from || 'unknown',
+      to: this.to || 'unknown',
+      content: this.content || '', // Contenido vacío es válido
+      direction: ['inbound', 'outbound'].includes(this.direction) ? this.direction : 'unknown',
+      status: ['pending', 'sent', 'delivered', 'read', 'failed'].includes(this.status)
+        ? this.status
+        : 'pending',
+      timestamp: normalizedTimestamp,
+
+      // CAMPO DE COMPATIBILIDAD CON FRONTEND
+      text: this.content || '', // CRÍTICO: Mapear content a text para frontend
+
+      // CAMPOS OPCIONALES - PUEDEN SER NULL PERO NO UNDEFINED
+      type: this.type || 'text',
+      twilioSid: this.twilioSid || null,
+      metadata: this.metadata || {},
+      userId: this.userId || null,
+
+      // TIMESTAMPS ADICIONALES NORMALIZADOS
+      createdAt: this.createdAt && typeof this.createdAt.toDate === 'function'
+        ? this.createdAt.toDate().toISOString()
+        : this.createdAt instanceof Date
+          ? this.createdAt.toISOString()
+          : normalizedTimestamp, // Fallback al timestamp principal
+
+      updatedAt: this.updatedAt && typeof this.updatedAt.toDate === 'function'
+        ? this.updatedAt.toDate().toISOString()
+        : this.updatedAt instanceof Date
+          ? this.updatedAt.toISOString()
+          : normalizedTimestamp, // Fallback al timestamp principal
     };
+
+    return normalizedMessage;
+  }
+
+  /**
+   * ✅ NUEVO: Eliminar mensaje y actualizar messageCount automáticamente
+   * @param {string} messageId - ID del mensaje a eliminar
+   * @param {string} conversationId - ID de la conversación
+   * @returns {boolean} True si se eliminó correctamente
+   */
+  static async deleteById (messageId, conversationId) {
+    if (!conversationId) {
+      throw new Error('conversationId es requerido para eliminar un mensaje');
+    }
+
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
+
+    try {
+      // Obtener el mensaje antes de eliminarlo
+      const messageToDelete = await this.getById(messageId, conversationId);
+      if (!messageToDelete) {
+        logger.warn('Intento de eliminar mensaje inexistente', {
+          messageId,
+          conversationId,
+        });
+        return false;
+      }
+
+      // Verificar si es el último mensaje
+      const Conversation = require('./Conversation');
+      const conversation = await Conversation.getById(conversationId);
+
+      let newLastMessage = null;
+      if (conversation && messageToDelete.id === conversation.lastMessageId) {
+        // Buscar el mensaje anterior
+        const previousMessages = await this.getByConversation(conversationId, {
+          limit: 2,
+          orderBy: 'timestamp',
+          order: 'desc',
+        });
+
+        // El segundo mensaje (índice 1) será el nuevo último mensaje
+        newLastMessage = previousMessages.length > 1 ? previousMessages[1] : null;
+      }
+
+      // Eliminar el mensaje de Firestore
+      await firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(messageId)
+        .delete();
+
+      // Actualizar messageCount en la conversación
+      if (conversation) {
+        await conversation.decrementMessageCount(messageToDelete, newLastMessage);
+      }
+
+      logger.info('Mensaje eliminado y messageCount actualizado', {
+        messageId,
+        conversationId,
+        wasLastMessage: messageToDelete.id === conversation?.lastMessageId,
+        newLastMessageId: newLastMessage?.id || null,
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Error eliminando mensaje', {
+        messageId,
+        conversationId,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Eliminar múltiples mensajes y actualizar messageCount
+   * @param {Array} messageIds - Array de IDs de mensajes a eliminar
+   * @param {string} conversationId - ID de la conversación
+   * @returns {Object} Resultado con estadísticas
+   */
+  static async deleteBatch (messageIds, conversationId) {
+    if (!conversationId || !Array.isArray(messageIds) || messageIds.length === 0) {
+      throw new Error('conversationId y array de messageIds son requeridos');
+    }
+
+    const batch = firestore.batch();
+    let deletedCount = 0;
+    const errors = [];
+
+    try {
+      // Procesar cada mensaje
+      for (const messageId of messageIds) {
+        try {
+          const messageRef = firestore
+            .collection('conversations')
+            .doc(conversationId)
+            .collection('messages')
+            .doc(messageId);
+
+          batch.delete(messageRef);
+          deletedCount++;
+        } catch (error) {
+          errors.push({ messageId, error: error.message });
+        }
+      }
+
+      // Ejecutar eliminación batch
+      await batch.commit();
+
+      // Recalcular messageCount completo (más seguro para operaciones batch)
+      const Conversation = require('./Conversation');
+      const conversation = await Conversation.getById(conversationId);
+      if (conversation) {
+        await conversation.recalculateMessageCount();
+      }
+
+      logger.info('Eliminación batch completada', {
+        conversationId,
+        totalRequested: messageIds.length,
+        deletedCount,
+        errorsCount: errors.length,
+      });
+
+      return {
+        success: true,
+        deletedCount,
+        errors,
+        totalRequested: messageIds.length,
+      };
+    } catch (error) {
+      logger.error('Error en eliminación batch', {
+        conversationId,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Búsqueda global centralizada de mensajes
+   * Garantiza formato consistente para cualquier módulo que necesite buscar mensajes
+   * @param {Object} searchOptions - Opciones de búsqueda
+   * @returns {Array} Mensajes con formato estandarizado
+   */
+  static async searchGlobal (searchOptions = {}) {
+    const {
+      query = '',
+      userId = null,
+      conversationIds = [], // Array de IDs de conversación específicos
+      dateRange = null, // { start: Date, end: Date }
+      direction = null, // 'inbound' | 'outbound'
+      status = null, // 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
+      limit = 100,
+      orderBy = 'timestamp',
+      order = 'desc',
+    } = searchOptions;
+
+    try {
+      let allMessages = [];
+
+      if (conversationIds.length > 0) {
+        // ✅ CENTRALIZADO: Buscar en conversaciones específicas
+        for (const conversationId of conversationIds) {
+          if (isValidConversationId(conversationId)) {
+            const messages = await this.getByConversation(conversationId, {
+              limit,
+              orderBy,
+              order,
+            });
+            allMessages.push(...messages);
+          }
+        }
+      } else {
+        // ✅ CENTRALIZADO: Usar método search existente
+        allMessages = await this.search(query, userId);
+      }
+
+      // ✅ FILTROS ADICIONALES usando lógica centralizada
+      let filteredMessages = allMessages;
+
+      if (direction) {
+        filteredMessages = filteredMessages.filter(msg => msg.direction === direction);
+      }
+
+      if (status) {
+        filteredMessages = filteredMessages.filter(msg => msg.status === status);
+      }
+
+      if (dateRange && dateRange.start && dateRange.end) {
+        filteredMessages = filteredMessages.filter(msg => {
+          const msgTime = msg.timestamp instanceof Date
+            ? msg.timestamp
+            : new Date(msg.timestamp);
+          return msgTime >= dateRange.start && msgTime <= dateRange.end;
+        });
+      }
+
+      // ✅ ORDENAMIENTO Y LÍMITE
+      if (orderBy === 'timestamp') {
+        filteredMessages.sort((a, b) => {
+          const timeA = a.timestamp instanceof Date ? a.timestamp : new Date(a.timestamp);
+          const timeB = b.timestamp instanceof Date ? b.timestamp : new Date(b.timestamp);
+          return order === 'desc' ? timeB - timeA : timeA - timeB;
+        });
+      }
+
+      // ✅ FORMATO ESTANDARIZADO: Usar toJSON() para consistencia
+      const formattedMessages = filteredMessages
+        .slice(0, limit)
+        .map(message => message.toJSON ? message.toJSON() : message);
+
+      logger.info('Búsqueda global de mensajes completada', {
+        searchQuery: query,
+        totalFound: filteredMessages.length,
+        returned: formattedMessages.length,
+        filters: { direction, status, userId },
+      });
+
+      return formattedMessages;
+    } catch (error) {
+      logger.error('Error en búsqueda global de mensajes', {
+        error: error.message,
+        searchOptions,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Obtener mensajes por múltiples criterios (para Dashboard y Campañas)
+   * Centraliza lógica que podría duplicarse en otros módulos
+   * @param {Object} criteria - Criterios de búsqueda
+   * @returns {Object} Resultado con estadísticas y mensajes
+   */
+  static async getMessagesByCriteria (criteria = {}) {
+    const {
+      userIds = [],
+      conversationIds = [],
+      dateRange = null,
+      includeStats = true,
+      limit = 50,
+    } = criteria;
+
+    try {
+      let messages = [];
+      let stats = null;
+
+      // ✅ CENTRALIZADO: Buscar por conversaciones específicas
+      if (conversationIds.length > 0) {
+        for (const conversationId of conversationIds) {
+          const convMessages = await this.getByConversation(conversationId, {
+            limit,
+            orderBy: 'timestamp',
+            order: 'desc',
+          });
+          messages.push(...convMessages);
+        }
+      }
+
+      // ✅ CENTRALIZADO: Buscar por usuarios específicos
+      if (userIds.length > 0) {
+        for (const userId of userIds) {
+          const userMessages = await this.getByUserId(userId, {
+            limit,
+            orderBy: 'timestamp',
+            order: 'desc',
+          });
+          messages.push(...userMessages);
+        }
+      }
+
+      // ✅ FILTRO POR FECHA
+      if (dateRange && dateRange.start && dateRange.end) {
+        messages = messages.filter(msg => {
+          const msgTime = msg.timestamp instanceof Date
+            ? msg.timestamp
+            : new Date(msg.timestamp);
+          return msgTime >= dateRange.start && msgTime <= dateRange.end;
+        });
+      }
+
+      // ✅ ESTADÍSTICAS OPCIONALES usando lógica centralizada
+      if (includeStats) {
+        stats = {
+          total: messages.length,
+          inbound: messages.filter(m => m.direction === 'inbound').length,
+          outbound: messages.filter(m => m.direction === 'outbound').length,
+          byStatus: {},
+        };
+
+        // Contar por status
+        ['pending', 'sent', 'delivered', 'read', 'failed'].forEach(status => {
+          stats.byStatus[status] = messages.filter(m => m.status === status).length;
+        });
+      }
+
+      // ✅ FORMATO CONSISTENTE
+      const formattedMessages = messages.map(message =>
+        message.toJSON ? message.toJSON() : message,
+      );
+
+      return {
+        messages: formattedMessages,
+        stats,
+        total: messages.length,
+      };
+    } catch (error) {
+      logger.error('Error obteniendo mensajes por criterios', {
+        error: error.message,
+        criteria,
+      });
+      throw error;
+    }
   }
 }
 

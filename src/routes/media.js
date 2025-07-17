@@ -21,7 +21,7 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
     if (!allowedCategories.includes(category)) {
       return res.status(400).json({
         error: 'Categoría inválida',
-        message: 'Categoría de archivo no permitida'
+        message: 'Categoría de archivo no permitida',
       });
     }
 
@@ -29,7 +29,7 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
     if (!filename || filename.includes('..') || filename.includes('/')) {
       return res.status(400).json({
         error: 'Nombre de archivo inválido',
-        message: 'El nombre de archivo contiene caracteres no permitidos'
+        message: 'El nombre de archivo contiene caracteres no permitidos',
       });
     }
 
@@ -39,7 +39,7 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
     if (!mediaInfo.exists) {
       return res.status(404).json({
         error: 'Archivo no encontrado',
-        message: 'El archivo solicitado no existe'
+        message: 'El archivo solicitado no existe',
       });
     }
 
@@ -61,7 +61,7 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
       '.ogg': 'audio/ogg',
       '.weba': 'audio/webm',
       '.pdf': 'application/pdf',
-      '.txt': 'text/plain'
+      '.txt': 'text/plain',
     };
 
     if (mimeTypes[ext]) {
@@ -81,15 +81,14 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
       userId: req.user.uid,
       file: relativePath,
       size: mediaInfo.size,
-      contentType
+      contentType,
     });
-
   } catch (error) {
     logger.error('Error sirviendo archivo multimedia:', error);
     res.status(500).json({
-      error: 'Error interno del servidor'
+      error: 'Error interno del servidor',
     });
   }
 });
 
-module.exports = router; 
+module.exports = router;

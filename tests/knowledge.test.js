@@ -7,7 +7,7 @@ describe('Knowledge API', () => {
 
   beforeAll(async () => {
     testApp = await initializeTestApp();
-    
+
     adminToken = 'Bearer test-admin-token';
     agentToken = 'Bearer test-agent-token';
     viewerToken = 'Bearer test-viewer-token';
@@ -83,7 +83,7 @@ describe('Knowledge API', () => {
         category: 'tutorial',
         tags: ['test', 'guia'],
         type: 'article',
-        isPublic: true
+        isPublic: true,
       };
 
       const response = await request(testApp)
@@ -98,13 +98,13 @@ describe('Knowledge API', () => {
         title: newDocument.title,
         content: newDocument.content,
         category: newDocument.category,
-        type: newDocument.type
+        type: newDocument.type,
       });
     });
 
     it('debería validar campos requeridos', async () => {
       const invalidDocument = {
-        content: 'Contenido sin título'
+        content: 'Contenido sin título',
         // Falta title
       };
 
@@ -119,7 +119,7 @@ describe('Knowledge API', () => {
       const document = {
         title: 'Test Tags',
         content: 'Test content',
-        tags: 'tag1, tag2, tag3'
+        tags: 'tag1, tag2, tag3',
       };
 
       const response = await request(testApp)
@@ -135,7 +135,7 @@ describe('Knowledge API', () => {
       const document = {
         title: 'Agent Document',
         content: 'Created by agent',
-        category: 'general'
+        category: 'general',
       };
 
       await request(testApp)
@@ -156,7 +156,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'Test Document',
           content: 'Test content',
-          isPublic: true
+          isPublic: true,
         });
       documentId = response.body.document.id;
     });
@@ -208,7 +208,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'Private Document',
           content: 'Private content',
-          isPublic: false
+          isPublic: false,
         });
 
       await request(testApp)
@@ -227,7 +227,7 @@ describe('Knowledge API', () => {
         .set('Authorization', adminToken)
         .send({
           title: 'Original Title',
-          content: 'Original content'
+          content: 'Original content',
         });
       documentId = response.body.document.id;
     });
@@ -236,7 +236,7 @@ describe('Knowledge API', () => {
       const updates = {
         title: 'Updated Title',
         content: 'Updated content',
-        tags: ['updated']
+        tags: ['updated'],
       };
 
       const response = await request(testApp)
@@ -278,7 +278,7 @@ describe('Knowledge API', () => {
         .set('Authorization', adminToken)
         .send({
           title: 'To Delete',
-          content: 'Will be deleted'
+          content: 'Will be deleted',
         });
       documentId = response.body.document.id;
     });
@@ -314,7 +314,7 @@ describe('Knowledge API', () => {
           title: 'JavaScript Tutorial',
           content: 'Learn JavaScript programming',
           tags: ['javascript', 'programming'],
-          isPublic: true
+          isPublic: true,
         });
 
       await request(testApp)
@@ -324,7 +324,7 @@ describe('Knowledge API', () => {
           title: 'React Guide',
           content: 'Building apps with React',
           tags: ['react', 'javascript'],
-          isPublic: true
+          isPublic: true,
         });
     });
 
@@ -397,7 +397,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'To Publish',
           content: 'Content to publish',
-          isPublic: false
+          isPublic: false,
         });
       documentId = response.body.document.id;
     });
@@ -429,7 +429,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'To Unpublish',
           content: 'Published content',
-          isPublic: true
+          isPublic: true,
         });
       documentId = response.body.document.id;
     });
@@ -454,7 +454,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'Voting Test',
           content: 'Test content',
-          isPublic: true
+          isPublic: true,
         });
       documentId = response.body.document.id;
     });
@@ -480,7 +480,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'Voting Test',
           content: 'Test content',
-          isPublic: true
+          isPublic: true,
         });
       documentId = response.body.document.id;
     });
@@ -499,7 +499,7 @@ describe('Knowledge API', () => {
   describe('POST /knowledge/upload', () => {
     it('debería subir archivo correctamente', async () => {
       const fileContent = 'Test file content';
-      
+
       const response = await request(testApp)
         .post('/knowledge/upload')
         .set('Authorization', adminToken)
@@ -514,7 +514,7 @@ describe('Knowledge API', () => {
 
     it('debería validar tipos de archivo', async () => {
       const fileContent = 'Malicious content';
-      
+
       await request(testApp)
         .post('/knowledge/upload')
         .set('Authorization', adminToken)
@@ -544,7 +544,7 @@ describe('Knowledge API', () => {
         .set('Authorization', viewerToken)
         .send({
           title: 'Should not create',
-          content: 'Not allowed'
+          content: 'Not allowed',
         })
         .expect(403);
     });
@@ -555,7 +555,7 @@ describe('Knowledge API', () => {
         .set('Authorization', agentToken)
         .send({
           title: 'Agent Document',
-          content: 'Agent content'
+          content: 'Agent content',
         })
         .expect(201);
     });
@@ -567,7 +567,7 @@ describe('Knowledge API', () => {
         .send({
           title: 'Test Doc',
           content: 'Test content',
-          isPublic: false
+          isPublic: false,
         });
 
       await request(testApp)
@@ -581,4 +581,4 @@ describe('Knowledge API', () => {
         .expect(200);
     });
   });
-}); 
+});

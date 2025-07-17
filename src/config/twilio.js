@@ -83,7 +83,6 @@ try {
       console.log('⚠️ TWILIO - Test de conectividad falló (verificar credenciales):', authError.message);
       // No bloquear la inicialización por esto
     });
-
 } catch (initError) {
   console.error('❌ TWILIO - Error crítico en inicialización:', initError.message);
   console.error('❌ TWILIO - Stack trace:', initError.stack);

@@ -7,7 +7,7 @@ describe('Contacts API', () => {
 
   beforeAll(async () => {
     testApp = await initializeTestApp();
-    
+
     // Crear tokens de prueba
     adminToken = 'Bearer test-admin-token';
     agentToken = 'Bearer test-agent-token';
@@ -52,7 +52,7 @@ describe('Contacts API', () => {
 
       expect(response.body.pagination).toMatchObject({
         page: 1,
-        limit: 10
+        limit: 10,
       });
     });
   });
@@ -66,8 +66,8 @@ describe('Contacts API', () => {
         tags: ['cliente', 'vip'],
         customFields: {
           empresa: 'Acme Corp',
-          cargo: 'Manager'
-        }
+          cargo: 'Manager',
+        },
       };
 
       const response = await request(testApp)
@@ -81,13 +81,13 @@ describe('Contacts API', () => {
       expect(response.body.contact).toMatchObject({
         name: newContact.name,
         phone: newContact.phone,
-        email: newContact.email
+        email: newContact.email,
       });
     });
 
     it('debería validar campos requeridos', async () => {
       const invalidContact = {
-        email: 'invalid-email'
+        email: 'invalid-email',
       };
 
       await request(testApp)
@@ -100,12 +100,12 @@ describe('Contacts API', () => {
     it('debería rechazar teléfonos duplicados', async () => {
       const contact1 = {
         name: 'Contact 1',
-        phone: '+1111111111'
+        phone: '+1111111111',
       };
 
       const contact2 = {
         name: 'Contact 2',
-        phone: '+1111111111'
+        phone: '+1111111111',
       };
 
       // Crear primer contacto
@@ -134,7 +134,7 @@ describe('Contacts API', () => {
         .set('Authorization', adminToken)
         .send({
           name: 'Test Contact',
-          phone: '+9876543210'
+          phone: '+9876543210',
         });
       contactId = response.body.contact.id;
     });
@@ -166,7 +166,7 @@ describe('Contacts API', () => {
         .set('Authorization', adminToken)
         .send({
           name: 'Original Name',
-          phone: '+5555555555'
+          phone: '+5555555555',
         });
       contactId = response.body.contact.id;
     });
@@ -175,7 +175,7 @@ describe('Contacts API', () => {
       const updates = {
         name: 'Updated Name',
         email: 'updated@example.com',
-        tags: ['actualizado']
+        tags: ['actualizado'],
       };
 
       const response = await request(testApp)
@@ -190,7 +190,7 @@ describe('Contacts API', () => {
 
     it('debería validar datos de actualización', async () => {
       const invalidUpdates = {
-        email: 'invalid-email-format'
+        email: 'invalid-email-format',
       };
 
       await request(testApp)
@@ -210,7 +210,7 @@ describe('Contacts API', () => {
         .set('Authorization', adminToken)
         .send({
           name: 'To Delete',
-          phone: '+1111111111'
+          phone: '+1111111111',
         });
       contactId = response.body.contact.id;
     });
@@ -295,7 +295,7 @@ María García,+0987654321,maria@example.com,prospecto`;
         .set('Authorization', adminToken)
         .send({
           name: 'Tag Test',
-          phone: '+3333333333'
+          phone: '+3333333333',
         });
       contactId = response.body.contact.id;
     });
@@ -338,14 +338,14 @@ María García,+0987654321,maria@example.com,prospecto`;
         .set('Authorization', agentToken)
         .send({
           name: 'Agent Created',
-          phone: '+4444444444'
+          phone: '+4444444444',
         })
         .expect(201);
     });
 
     it('solo admins deberían poder importar CSV', async () => {
       const csvContent = 'name,phone\nTest,+1234567890';
-      
+
       await request(testApp)
         .post('/contacts/import/csv')
         .set('Authorization', agentToken)
@@ -353,4 +353,4 @@ María García,+0987654321,maria@example.com,prospecto`;
         .expect(403);
     });
   });
-}); 
+});

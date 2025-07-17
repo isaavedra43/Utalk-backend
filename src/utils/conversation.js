@@ -4,11 +4,11 @@
 
 /**
  * Genera un conversationId único y consistente para dos números de teléfono
- * @param {string} phone1 - Primer número de teléfono 
+ * @param {string} phone1 - Primer número de teléfono
  * @param {string} phone2 - Segundo número de teléfono
  * @returns {string} - conversationId único y consistente
  */
-function generateConversationId(phone1, phone2) {
+function generateConversationId (phone1, phone2) {
   if (!phone1 || !phone2) {
     throw new Error('Se requieren ambos números de teléfono para generar conversationId');
   }
@@ -24,7 +24,7 @@ function generateConversationId(phone1, phone2) {
 
   // Ordenar consistentemente para que siempre genere el mismo ID
   const sorted = [normalized1, normalized2].sort();
-  
+
   return `conv_${sorted.join('_')}`;
 }
 
@@ -33,20 +33,20 @@ function generateConversationId(phone1, phone2) {
  * @param {string} conversationId - ID de conversación
  * @returns {Object} - {phone1, phone2} números extraídos
  */
-function extractParticipants(conversationId) {
+function extractParticipants (conversationId) {
   if (!conversationId || !conversationId.startsWith('conv_')) {
     throw new Error('conversationId inválido');
   }
 
   const phones = conversationId.replace('conv_', '').split('_');
-  
+
   if (phones.length !== 2) {
     throw new Error('conversationId debe contener exactamente 2 números');
   }
 
   return {
     phone1: phones[0],
-    phone2: phones[1]
+    phone2: phones[1],
   };
 }
 
@@ -55,11 +55,11 @@ function extractParticipants(conversationId) {
  * @param {string} conversationId - ID a validar
  * @returns {boolean} - true si es válido
  */
-function isValidConversationId(conversationId) {
+function isValidConversationId (conversationId) {
   try {
     if (!conversationId || typeof conversationId !== 'string') return false;
     if (!conversationId.startsWith('conv_')) return false;
-    
+
     extractParticipants(conversationId);
     return true;
   } catch {
@@ -72,9 +72,9 @@ function isValidConversationId(conversationId) {
  * @param {string} phone - Número a normalizar
  * @returns {string} - Número normalizado
  */
-function normalizePhoneNumber(phone) {
+function normalizePhoneNumber (phone) {
   if (!phone) return '';
-  
+
   // Remover prefijos de WhatsApp y otros caracteres
   let normalized = phone
     .replace('whatsapp:', '')
@@ -92,5 +92,5 @@ module.exports = {
   generateConversationId,
   extractParticipants,
   isValidConversationId,
-  normalizePhoneNumber
-}; 
+  normalizePhoneNumber,
+};

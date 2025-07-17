@@ -10,4 +10,4 @@ process.env.TWILIO_AUTH_TOKEN = 'test-auth-token';
 process.env.TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886';
 process.env.FRONTEND_URL = 'http://localhost:3000';
 process.env.RATE_LIMIT_WINDOW_MS = '900000';
-process.env.RATE_LIMIT_MAX_REQUESTS = '100'; 
+process.env.RATE_LIMIT_MAX_REQUESTS = '100';
