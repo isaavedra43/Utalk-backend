@@ -5,9 +5,6 @@ const ConversationController = require('../controllers/ConversationController');
 
 const router = express.Router();
 
-// 🔍 DEBUG: Endpoint temporal para datos RAW de Firestore
-router.get('/debug/raw', requireAgentOrAdmin, ConversationController.debugRawData);
-
 /**
  * @route GET /api/conversations
  * @desc Listar conversaciones con filtros y paginación
