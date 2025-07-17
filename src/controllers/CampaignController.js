@@ -57,34 +57,14 @@ class CampaignController {
     try {
       const campaignData = {
         ...req.body,
-        createdBy: req.user.uid,
-        status: 'draft',
+        createdBy: req.user.uid, // Se mantiene internamente
       };
-
-      // Validar que los contactos existen
-      if (campaignData.contacts && campaignData.contacts.length > 0) {
-        const contactChecks = await Promise.all(
-          campaignData.contacts.map(contactId => Contact.getById(contactId)),
-        );
-
-        const validContacts = contactChecks.filter(contact => contact !== null);
-
-        if (validContacts.length !== campaignData.contacts.length) {
-          return res.status(400).json({
-            error: 'Contactos inválidos',
-            message: 'Algunos contactos especificados no existen',
-          });
-        }
-
-        campaignData.estimatedReach = validContacts.length;
-      }
 
       const campaign = await Campaign.create(campaignData);
 
       logger.info('Campaña creada', {
         campaignId: campaign.id,
         name: campaign.name,
-        contactCount: campaign.contacts.length,
         createdBy: req.user.uid,
       });
 
@@ -114,18 +94,15 @@ class CampaignController {
       }
 
       // Verificar permisos (solo admin o creador)
-      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.internalProperties.createdBy !== req.user.uid) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para ver esta campaña',
         });
       }
 
-      // Obtener detalles completos con contactos
-      const campaignWithDetails = await campaign.getWithContactDetails();
-
       res.json({
-        campaign: campaignWithDetails,
+        campaign: campaign.toJSON(),
       });
     } catch (error) {
       logger.error('Error al obtener campaña:', error);

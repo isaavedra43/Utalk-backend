@@ -6,25 +6,17 @@ class Campaign {
   constructor (data) {
     this.id = data.id || uuidv4();
     this.name = data.name;
-    this.message = data.message;
-    this.contacts = data.contacts || []; // Array de contact IDs
-    this.scheduledAt = data.scheduledAt;
-    this.status = data.status || 'draft'; // draft, scheduled, sending, completed, paused, cancelled
-    this.createdBy = data.createdBy;
-    this.sentCount = data.sentCount || 0;
-    this.deliveredCount = data.deliveredCount || 0;
-    this.failedCount = data.failedCount || 0;
-    this.openedCount = data.openedCount || 0;
-    this.clickedCount = data.clickedCount || 0;
-    this.results = data.results || [];
-    this.template = data.template || {};
-    this.targetAudience = data.targetAudience || {};
-    this.estimatedReach = data.estimatedReach || 0;
-    this.budget = data.budget || 0;
+    this.status = data.status || 'draft';
     this.createdAt = data.createdAt || Timestamp.now();
-    this.updatedAt = data.updatedAt || Timestamp.now();
-    this.completedAt = data.completedAt;
-    this.isActive = data.isActive !== undefined ? data.isActive : true;
+    this.messagesSent = data.messagesSent || 0;
+
+    // Propiedades internas no expuestas en la API
+    this.internalProperties = {
+        message: data.message,
+        contacts: data.contacts || [],
+        createdBy: data.createdBy,
+        scheduledAt: data.scheduledAt,
+    };
   }
 
   /**
@@ -294,28 +286,9 @@ class Campaign {
     return {
       id: this.id,
       name: this.name,
-      message: this.message,
-      contacts: this.contacts,
-      scheduledAt: this.scheduledAt,
       status: this.status,
-      createdBy: this.createdBy,
-      sentCount: this.sentCount,
-      deliveredCount: this.deliveredCount,
-      failedCount: this.failedCount,
-      openedCount: this.openedCount,
-      clickedCount: this.clickedCount,
-      results: this.results,
-      template: this.template,
-      targetAudience: this.targetAudience,
-      estimatedReach: this.estimatedReach,
-      budget: this.budget,
-      stats: this.getStats(),
-      canBeSent: this.canBeSent(),
-      canBeEdited: this.canBeEdited(),
-      isActive: this.isActive,
       createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-      completedAt: this.completedAt,
+      messagesSent: this.messagesSent,
     };
   }
 }

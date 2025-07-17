@@ -5,34 +5,29 @@ const { isValidConversationId, extractParticipants } = require('../utils/convers
 
 class Conversation {
   constructor (data) {
-    // Validación crítica: conversationId es obligatorio
     if (!data.id) {
       throw new Error('id (conversationId) es obligatorio para crear una conversación');
     }
-
     if (!isValidConversationId(data.id)) {
       throw new Error(`conversationId inválido: ${data.id}`);
     }
 
-    // Extraer y validar participantes
-    const participants = extractParticipants(data.id);
-
-    this.id = data.id; // conversationId
-    this.participants = data.participants || [participants.phone1, participants.phone2];
-    this.lastMessage = data.lastMessage || '';
-    this.lastMessageAt = data.lastMessageAt || null;
-    this.lastMessageId = data.lastMessageId || null;
-    this.messageCount = data.messageCount || 0;
+    this.id = data.id;
+    this.contact = data.contact || {}; // Debe contener al menos id y name
+    this.lastMessage = data.lastMessage || null;
     this.unreadCount = data.unreadCount || 0;
-    this.assignedTo = data.assignedTo || null; // userId del agente asignado
-    this.status = data.status || 'open'; // 'open', 'closed', 'assigned', 'pending', 'archived'
-    this.priority = data.priority || 'normal'; // 'low', 'normal', 'high', 'urgent'
-    this.tags = data.tags || [];
-    this.customerPhone = data.customerPhone || this.getCustomerPhone();
-    this.agentPhone = data.agentPhone || this.getAgentPhone();
-    this.metadata = data.metadata || {};
-    this.createdAt = data.createdAt || Timestamp.now();
-    this.updatedAt = data.updatedAt || Timestamp.now();
+    this.status = data.status || 'open';
+    this.assignedTo = data.assignedTo || null; // Debe contener id y name
+    
+    // Propiedades internas
+    this.internalProperties = {
+        participants: data.participants,
+        lastMessageAt: data.lastMessageAt,
+        messageCount: data.messageCount,
+        customerPhone: data.customerPhone,
+        createdAt: data.createdAt || Timestamp.now(),
+        updatedAt: data.updatedAt || Timestamp.now(),
+    };
   }
 
   /**
@@ -363,21 +358,11 @@ class Conversation {
   toJSON () {
     return {
       id: this.id,
-      participants: this.participants,
+      contact: this.contact,
       lastMessage: this.lastMessage,
-      lastMessageAt: this.lastMessageAt?.toDate?.() || this.lastMessageAt,
-      lastMessageId: this.lastMessageId,
-      messageCount: this.messageCount,
       unreadCount: this.unreadCount,
-      assignedTo: this.assignedTo,
       status: this.status,
-      priority: this.priority,
-      tags: this.tags,
-      customerPhone: this.customerPhone,
-      agentPhone: this.agentPhone,
-      metadata: this.metadata,
-      createdAt: this.createdAt?.toDate?.() || this.createdAt,
-      updatedAt: this.updatedAt?.toDate?.() || this.updatedAt,
+      assignedTo: this.assignedTo,
     };
   }
 

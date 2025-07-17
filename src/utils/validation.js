@@ -333,34 +333,16 @@ const schemas = {
   contact: {
     create: Joi.object({
       name: commonSchemas.safeText(100).required(),
-      phone: commonSchemas.phone,
+      phone: commonSchemas.phone.required(),
       email: Joi.string().email({ minDomainSegments: 2 }).max(254).optional(),
-      tags: commonSchemas.tags.default([]),
-      customFields: Joi.object().pattern(
-        Joi.string().max(50).pattern(/^[a-zA-Z0-9_]+$/),
-        Joi.alternatives().try(
-          Joi.string().max(500),
-          Joi.number().min(-999999999).max(999999999),
-          Joi.boolean(),
-        ),
-      ).max(20),
-      notes: Joi.string().max(1000).allow(''),
+      tags: commonSchemas.tags.optional().default([]),
     }),
 
     update: Joi.object({
-      name: commonSchemas.safeText(100),
-      phone: commonSchemas.phone,
-      email: Joi.string().email({ minDomainSegments: 2 }).max(254).allow(''),
-      tags: commonSchemas.tags,
-      customFields: Joi.object().pattern(
-        Joi.string().max(50).pattern(/^[a-zA-Z0-9_]+$/),
-        Joi.alternatives().try(
-          Joi.string().max(500),
-          Joi.number().min(-999999999).max(999999999),
-          Joi.boolean(),
-        ),
-      ).max(20),
-      notes: Joi.string().max(1000).allow(''),
+      name: commonSchemas.safeText(100).optional(),
+      phone: commonSchemas.phone.optional(),
+      email: Joi.string().email({ minDomainSegments: 2 }).max(254).optional().allow(''),
+      tags: commonSchemas.tags.optional(),
     }),
 
     importCsv: Joi.object({
@@ -376,20 +358,23 @@ const schemas = {
   // Conversaciones con validaciones estrictas
   conversation: {
     assign: Joi.object({
-      assignedTo: Joi.string().min(1).max(128).required(),
+      assignedTo: Joi.object({
+        id: commonSchemas.id,
+        name: commonSchemas.safeText(100).required(),
+      }).required(),
     }),
 
     changeStatus: Joi.object({
-      status: Joi.string().valid('open', 'closed', 'assigned', 'pending', 'archived').required(),
+      status: Joi.string().valid('open', 'closed').required(),
     }),
 
     list: Joi.object({
       page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(20),
       assignedTo: Joi.string().max(128).optional(),
-      status: Joi.string().valid('open', 'closed', 'assigned', 'pending', 'archived').optional(),
+      status: Joi.string().valid('open', 'closed').optional(),
       customerPhone: commonSchemas.phone.optional(),
-      sortBy: Joi.string().valid('lastMessageAt', 'createdAt', 'updatedAt', 'messageCount').default('lastMessageAt'),
+      sortBy: Joi.string().valid('lastMessageAt', 'createdAt').default('lastMessageAt'),
       sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
       search: Joi.string().max(200).optional(),
     }),
@@ -398,24 +383,33 @@ const schemas = {
   // Mensajes con validación de contenido
   message: {
     send: Joi.object({
-      to: commonSchemas.phone,
+      conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).required(),
+      sender: Joi.object({
+        id: commonSchemas.id,
+        name: commonSchemas.safeText(100).required(),
+      }).required(),
       content: Joi.string().min(1).max(4096).required(),
-      type: Joi.string().valid('text', 'image', 'document', 'audio', 'video').default('text'),
-      metadata: Joi.object().max(20).optional(),
+      timestamp: Joi.string().isoDate().required(),
+      media: Joi.object({
+        url: commonSchemas.url.required(),
+        type: Joi.string().valid('image', 'document', 'audio', 'video').required(),
+      }).optional().allow(null),
+      status: Joi.string().valid('sent', 'pending', 'failed').optional(),
     }),
 
     create: Joi.object({
       conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).required(),
-      from: commonSchemas.phone,
-      to: commonSchemas.phone,
+      sender: Joi.object({
+        id: commonSchemas.id,
+        name: commonSchemas.safeText(100).required(),
+      }).required(),
       content: Joi.string().max(4096).allow(''),
-      type: Joi.string().valid('text', 'image', 'document', 'audio', 'video').default('text'),
-      direction: Joi.string().valid('inbound', 'outbound').required(),
-      status: Joi.string().valid('pending', 'sent', 'delivered', 'read', 'failed').default('pending'),
-      twilioSid: Joi.string().max(100).optional(),
-      mediaUrls: Joi.array().items(Joi.string().uri()).default([]),
-      metadata: Joi.object().max(20).default({}),
-      userId: Joi.string().max(128).optional(),
+      timestamp: Joi.string().isoDate().required(),
+      media: Joi.object({
+        url: commonSchemas.url.required(),
+        type: Joi.string().valid('image', 'document', 'audio', 'video').required(),
+      }).optional().allow(null),
+      status: Joi.string().valid('sent', 'pending', 'failed').optional(),
     }),
 
     readMultiple: Joi.object({
@@ -494,21 +488,12 @@ const schemas = {
   campaign: {
     create: Joi.object({
       name: commonSchemas.safeText(200).required(),
-      message: Joi.string().min(1).max(4096).required(),
-      contacts: Joi.array().items(commonSchemas.id).min(1).max(10000).required(),
-      scheduledAt: Joi.date().greater('now').optional(),
-      status: Joi.string().valid('draft', 'scheduled').default('draft'),
-      budget: Joi.number().min(0).max(1000000).optional(),
-      template: Joi.object().max(50).optional(),
+      status: Joi.string().valid('active', 'draft').required(),
     }),
 
     update: Joi.object({
-      name: commonSchemas.safeText(200),
-      message: Joi.string().min(1).max(4096),
-      contacts: Joi.array().items(commonSchemas.id).min(1).max(10000),
-      scheduledAt: Joi.date().greater('now'),
-      budget: Joi.number().min(0).max(1000000),
-      template: Joi.object().max(50),
+      name: commonSchemas.safeText(200).optional(),
+      status: Joi.string().valid('active', 'draft').optional(),
     }),
 
     send: Joi.object({
@@ -562,14 +547,14 @@ const schemas = {
   team: {
     invite: Joi.object({
       email: commonSchemas.email,
-      displayName: commonSchemas.safeText(100).required(),
+      name: commonSchemas.safeText(100).required(),
       role: Joi.string().valid('admin', 'agent', 'viewer').default('viewer'),
     }),
 
     update: Joi.object({
-      displayName: commonSchemas.safeText(100),
+      name: commonSchemas.safeText(100),
       role: Joi.string().valid('admin', 'agent', 'viewer'),
-      isActive: Joi.boolean(),
+      status: Joi.string().valid('active', 'inactive'),
     }),
 
     resetPassword: Joi.object({

@@ -244,11 +244,6 @@ class Contact {
       phone: this.phone,
       email: this.email,
       tags: this.tags,
-      customFields: this.customFields,
-      userId: this.userId,
-      isActive: this.isActive,
-      lastContactAt: this.lastContactAt,
-      totalMessages: this.totalMessages,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

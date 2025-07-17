@@ -6,39 +6,38 @@ const { logger } = require('../utils/logger');
 
 class Message {
   constructor (data) {
-    // Validación crítica: conversationId es obligatorio
     if (!data.conversationId) {
       throw new Error('conversationId es obligatorio para crear un mensaje');
     }
-
     if (!isValidConversationId(data.conversationId)) {
-      throw new Error(`conversationId inválido: ${data.conversationId}. Debe tener formato conv_XXXXXX_YYYYYY`);
+      throw new Error(`conversationId inválido: ${data.conversationId}.`);
     }
-
-    // Validar campos críticos
-    if (!data.from || !data.to) {
-      throw new Error('Los campos from y to son obligatorios');
+    if (!data.sender || !data.sender.id) {
+      throw new Error('El campo sender con id es obligatorio');
     }
-
-    if (!data.direction || !['inbound', 'outbound'].includes(data.direction)) {
-      throw new Error('direction debe ser "inbound" o "outbound"');
+    if (!data.content && !data.media) {
+      throw new Error('El mensaje debe tener contenido (content) o media.');
     }
 
     this.id = data.id || uuidv4();
-    this.conversationId = data.conversationId; // SIEMPRE requerido
-    this.from = data.from; // Número de teléfono
-    this.to = data.to; // Número de teléfono
+    this.conversationId = data.conversationId;
+    this.sender = {
+      id: data.sender.id,
+      name: data.sender.name || 'Usuario desconocido',
+    };
     this.content = data.content || '';
-    this.type = data.type || 'text'; // 'text', 'image', 'document', 'audio'
-    this.direction = data.direction; // 'inbound', 'outbound'
-    this.status = data.status || 'pending'; // 'pending', 'sent', 'delivered', 'read', 'failed'
-    this.twilioSid = data.twilioSid; // ID de Twilio
-
-    this.metadata = data.metadata || {}; // Información adicional
-    this.userId = data.userId; // Usuario que envió el mensaje (si es outbound)
     this.timestamp = data.timestamp || Timestamp.now();
-    this.createdAt = data.createdAt || Timestamp.now();
-    this.updatedAt = data.updatedAt || Timestamp.now();
+    this.media = data.media || null;
+    this.status = data.status || 'pending';
+    
+    // Campos internos para lógica del backend
+    this.internalProperties = {
+      from: data.from,
+      to: data.to,
+      direction: data.direction,
+      userId: data.userId,
+      twilioSid: data.twilioSid,
+    };
   }
 
   /**
@@ -484,65 +483,28 @@ class Message {
 
   /**
    * Convertir a JSON con validación y normalización de campos obligatorios
-   * ✅ ASEGURA: Todos los campos obligatorios siempre presentes, nunca null/undefined
-   * ✅ NORMALIZA: timestamp, status, direction
-   * ✅ COMPATIBILIDAD: content → text mapping para frontend
    */
   toJSON () {
-    // ✅ NORMALIZAR TIMESTAMP: Siempre convertir a ISO string
     let normalizedTimestamp;
     if (this.timestamp && typeof this.timestamp.toDate === 'function') {
-      // Firestore Timestamp
       normalizedTimestamp = this.timestamp.toDate().toISOString();
     } else if (this.timestamp instanceof Date) {
-      // JavaScript Date
       normalizedTimestamp = this.timestamp.toISOString();
     } else if (typeof this.timestamp === 'string') {
-      // String ISO
       normalizedTimestamp = this.timestamp;
     } else {
-      // Fallback: usar fecha actual
       normalizedTimestamp = new Date().toISOString();
     }
 
-    // ✅ NORMALIZAR CAMPOS OBLIGATORIOS CON FALLBACKS SEGUROS
-    const normalizedMessage = {
-      // CAMPOS OBLIGATORIOS - NUNCA NULL/UNDEFINED
-      id: this.id || 'msg_unknown',
-      conversationId: this.conversationId || 'conv_unknown',
-      from: this.from || 'unknown',
-      to: this.to || 'unknown',
-      content: this.content || '', // Contenido vacío es válido
-      direction: ['inbound', 'outbound'].includes(this.direction) ? this.direction : 'unknown',
-      status: ['pending', 'sent', 'delivered', 'read', 'failed'].includes(this.status)
-        ? this.status
-        : 'pending',
+    return {
+      id: this.id,
+      conversationId: this.conversationId,
+      sender: this.sender,
+      content: this.content,
       timestamp: normalizedTimestamp,
-
-      // CAMPO DE COMPATIBILIDAD CON FRONTEND
-      text: this.content || '', // CRÍTICO: Mapear content a text para frontend
-
-      // CAMPOS OPCIONALES - PUEDEN SER NULL PERO NO UNDEFINED
-      type: this.type || 'text',
-      twilioSid: this.twilioSid || null,
-      metadata: this.metadata || {},
-      userId: this.userId || null,
-
-      // TIMESTAMPS ADICIONALES NORMALIZADOS
-      createdAt: this.createdAt && typeof this.createdAt.toDate === 'function'
-        ? this.createdAt.toDate().toISOString()
-        : this.createdAt instanceof Date
-          ? this.createdAt.toISOString()
-          : normalizedTimestamp, // Fallback al timestamp principal
-
-      updatedAt: this.updatedAt && typeof this.updatedAt.toDate === 'function'
-        ? this.updatedAt.toDate().toISOString()
-        : this.updatedAt instanceof Date
-          ? this.updatedAt.toISOString()
-          : normalizedTimestamp, // Fallback al timestamp principal
+      media: this.media,
+      status: this.status,
     };
-
-    return normalizedMessage;
   }
 
   /**

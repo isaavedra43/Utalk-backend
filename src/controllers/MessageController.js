@@ -7,6 +7,7 @@ const {
   validatePaginationParams,
   createEmptyPaginatedResponse,
 } = require('../utils/pagination');
+const Conversation = require('../models/Conversation'); // Added import for Conversation
 
 class MessageController {
   /**
@@ -58,17 +59,25 @@ class MessageController {
       // Limitar resultados
       conversations = conversations.slice(0, limit);
 
-      // Obtener información de contactos
+      // Obtener información de contactos y construir el objeto de conversación
       const conversationsWithContacts = await Promise.all(
         conversations.map(async (message) => {
           const phoneKey = message.direction === 'inbound' ? message.from : message.to;
           const contact = await Contact.getByPhone(phoneKey);
-
-          return {
-            phone: phoneKey,
+          
+          const conversationObject = new Conversation({
+            id: message.conversationId,
+            contact: {
+              id: contact ? contact.id : phoneKey,
+              name: contact ? contact.name : phoneKey,
+            },
             lastMessage: message.toJSON(),
-            contact: contact?.toJSON() || null,
-          };
+            unreadCount: 1, // Simulado, se debe calcular
+            status: 'open', // Simulado
+            assignedTo: null // Simulado
+          });
+
+          return conversationObject.toJSON();
         }),
       );
 
@@ -329,11 +338,23 @@ class MessageController {
       // Nota: El método toJSON() ya incluye el mapping content → text
       const mappedMessages = messages.map(msg => msg.toJSON());
 
+      // Construir el objeto de conversación
+      const conversationObject = new Conversation({
+          id: messages.length > 0 ? messages[0].conversationId : null,
+          contact: {
+              id: contact ? contact.id : phone,
+              name: contact ? contact.name : phone,
+          },
+          lastMessage: mappedMessages.length > 0 ? mappedMessages[0] : null,
+          unreadCount: 0, // Simulado
+          status: 'open', // Simulado
+          assignedTo: null, // Simulado
+          messages: mappedMessages,
+      });
+
       // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED
       const response = {
-        phone,
-        contact: contact?.toJSON() || null,
-        messages: mappedMessages, // Mantenemos el nombre para compatibilidad
+        conversation: conversationObject.toJSON(),
         pagination: {
           limit,
           startAfter,
@@ -367,7 +388,11 @@ class MessageController {
       const { to, content } = req.body;
       const userId = req.user.uid;
 
-      const result = await TwilioService.sendWhatsAppMessage(to, content, userId);
+      // Adaptar al nuevo contrato de TwilioService/MessageService si es necesario
+      const result = await TwilioService.sendWhatsAppMessage(to, content, {
+        id: userId,
+        name: req.user.displayName || 'Agente'
+      });
 
       logger.info('Mensaje enviado por usuario', {
         userId,
@@ -375,7 +400,7 @@ class MessageController {
         messageId: result.messageId,
       });
 
-      res.json({
+      res.status(201).json({
         message: 'Mensaje enviado exitosamente',
         ...result,
       });
