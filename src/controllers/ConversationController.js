@@ -7,6 +7,24 @@ class ConversationController {
   /**
    * Listar todas las conversaciones con filtros y paginación
    * GET /api/conversations
+   * 
+   * ESTRUCTURA DE RESPUESTA:
+   * {
+   *   conversations:*   [object Object]*       id: string,              // ID único de la conversación
+   *       customerPhone: string,    // Teléfono del cliente
+   *       agentPhone: string,       // Teléfono del agente (si aplica)
+   *       lastMessage: string,      // Último mensaje enviado
+   *       lastMessageAt: timestamp, // Timestamp del último mensaje
+   *       messageCount: number,     // Cantidad total de mensajes
+   *       status: string,           // Estado de la conversación
+   *       assignedTo: string,       // Usuario asignado
+   *       createdAt: timestamp,     // Fecha de creación
+   *       updatedAt: timestamp      // Fecha de última actualización
+   *     }
+   *   ],
+   *   pagination: { page, limit, total, hasMore },
+   *   filters: { assignedTo, status, customerPhone, search }
+   * }
    */
   static async list (req, res, next) {
     try {
@@ -21,6 +39,19 @@ class ConversationController {
         search
       } = req.query;
 
+      // ✅ LOG EXHAUSTIVO: Query recibida
+      logger.info('CONVERSATIONS API] Query recibida, {    page: parseInt(page),
+        limit: parseInt(limit),
+        assignedTo: assignedTo || '(no filtro),    status: status || '(no filtro)',
+        customerPhone: customerPhone || '(no filtro),    search: search ||(no búsqueda)',
+        sortBy,
+        sortOrder,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip,
+        user: req.user ? req.user.uid : null,
+        role: req.user ? req.user.role : null,
+      });
+
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const userId = req.user.role === 'admin' ? null : req.user.uid;
 
@@ -30,40 +61,69 @@ class ConversationController {
         sortOrder
       };
 
-      // Filtrar por agente si no es admin
+      // ✅ FILTROS OPCIONALES: Solo aplicar si se especifican
       if (assignedTo) {
         options.assignedTo = assignedTo;
+        logger.info('CONVERSATIONS API] Aplicando filtro por agente', { assignedTo });
       } else if (userId && req.user.role !== 'admin') {
+        // Para agentes no-admin, mostrar solo sus conversaciones asignadas
         options.assignedTo = userId;
+        logger.info('CONVERSATIONS API] Filtro automático para agente', { userId });
       }
 
-      // Otros filtros
-      if (status) options.status = status;
-      if (customerPhone) options.customerPhone = customerPhone;
+      if (status) {
+        options.status = status;
+        logger.info('CONVERSATIONS API] Aplicando filtro por status', { status });
+      }
+
+      if (customerPhone) {
+        options.customerPhone = customerPhone;
+        logger.info('CONVERSATIONS API] Aplicando filtro por teléfono, {customerPhone });
+      }
 
       let conversations;
       
       if (search) {
+        logger.info('CONVERSATIONS API] Realizando búsqueda', { search });
         conversations = await Conversation.search(search, options);
       } else {
+        logger.info('CONVERSATIONS API] Listando conversaciones sin búsqueda');
         conversations = await Conversation.list(options);
       }
 
-      // Obtener estadísticas adicionales por conversación
+      // ✅ LOG DE RESULTADOS
+      logger.info('CONVERSATIONS API] Conversaciones obtenidas, {
+        count: conversations.length,
+        userId: req.user.uid,
+        role: req.user.role,
+        filters: { assignedTo, status, customerPhone, search }
+      });
+
+      // ✅ Obtener estadísticas adicionales por conversación
       const conversationsWithStats = await Promise.all(
         conversations.map(async (conversation) => {
           const conversationData = conversation.toJSON();
           
-          // Agregar información del último mensaje si existe
+          // ✅ Agregar información del último mensaje si existe
           if (conversation.lastMessageId) {
             try {
               const lastMessage = await Message.getById(conversation.lastMessageId);
-              conversationData.lastMessageDetails = lastMessage?.toJSON() || null;
+              if (lastMessage) {
+                const lastMessageJson = lastMessage.toJSON();
+                // ✅ MAPPING: content → text para compatibilidad con frontend
+                if (lastMessageJson.content && !lastMessageJson.text) {
+                  lastMessageJson.text = lastMessageJson.content;
+                }
+                conversationData.lastMessageDetails = lastMessageJson;
+              } else {
+                conversationData.lastMessageDetails = null;
+              }
             } catch (error) {
-              logger.warn('Error obteniendo último mensaje', { 
+              logger.warn('CONVERSATIONS API] Error obteniendo último mensaje', { 
                 conversationId: conversation.id, 
-                error: error.message 
+                error: typeof error.message === 'string' ? error.message : '(no message)',              code: typeof error.code === 'string' ? error.code : '(no code)',
               });
+              conversationData.lastMessageDetails = null;
             }
           }
 
@@ -71,26 +131,53 @@ class ConversationController {
         })
       );
 
-      logger.info('Conversaciones listadas', {
-        userId: req.user.uid,
-        role: req.user.role,
-        count: conversations.length,
+      // ✅ ADVERTENCIA SI NO HAY CONVERSACIONES
+      if (conversationsWithStats.length === 0) {
+        logger.warn('CONVERSATIONS API] No se encontraron conversaciones', {
+          filters: { assignedTo, status, customerPhone, search },
+          user: req.user ? req.user.uid : null,
+          role: req.user.role : null,
+        });
+      }
+
+      // ✅ LOG DE RESPUESTA PREPARADA
+      logger.info('CONVERSATIONS API] Respuesta preparada, {      totalConversations: conversationsWithStats.length,
+        hasConversations: conversationsWithStats.length > 0,
         filters: { assignedTo, status, customerPhone, search }
       });
 
+      // ✅ RESPUESTA SIEMPRE ES UN ARRAY
       res.json({
-        conversations: conversationsWithStats,
+        conversations: conversationsWithStats, // SIEMPRE array, nunca null/undefined
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: conversations.length,
-          hasMore: conversations.length === parseInt(limit)
+          total: conversationsWithStats.length,
+          hasMore: conversationsWithStats.length === parseInt(limit)
         },
         filters: { assignedTo, status, customerPhone, search }
       });
+
     } catch (error) {
-      logger.error('Error al listar conversaciones:', error);
-      next(error);
+      logger.error('CONVERSATIONS API] Error crítico, {
+        error: typeof error.message === 'string' ? error.message : '(no message)',
+        code: typeof error.code === 'string' ? error.code : '(no code)',
+        stack: typeof error.stack === 'string' ? error.stack : '(no stack)',
+        user: req.user ? req.user.uid : null,
+      });
+      
+      // ✅ RESPUESTA DE ERROR PERO SIEMPRE ARRAY
+      res.status(500).json({
+        error: 'Error interno del servidor',
+        message: 'Ha ocurrido un error al obtener las conversaciones',
+        conversations: [], // SIEMPRE array vacío en caso de error
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          hasMore: false
+        }
+      });
     }
   }
 
