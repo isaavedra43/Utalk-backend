@@ -7,10 +7,10 @@ const router = express.Router();
 
 /**
  * @route GET /api/messages
- * @desc Listar conversaciones
+ * @desc Listar mensajes individuales con filtros flexibles
  * @access Private
  */
-router.get('/', MessageController.getConversations);
+router.get('/', MessageController.getMessages);
 
 /**
  * @route GET /api/messages/conversation/:phone

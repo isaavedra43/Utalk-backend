@@ -9,7 +9,7 @@ class Message {
     if (!data.conversationId) {
       throw new Error('conversationId es obligatorio para crear un mensaje');
     }
-    
+
     if (!isValidConversationId(data.conversationId)) {
       throw new Error(`conversationId inválido: ${data.conversationId}. Debe tener formato conv_XXXXXX_YYYYYY`);
     }
@@ -45,7 +45,7 @@ class Message {
    */
   static async create (messageData) {
     const message = new Message(messageData);
-    
+
     // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
     const cleanData = prepareForFirestore({
       ...message,
@@ -53,7 +53,7 @@ class Message {
       updatedAt: FieldValue.serverTimestamp(),
       timestamp: FieldValue.serverTimestamp(),
     });
-    
+
     await firestore.collection('messages').doc(message.id).set(cleanData);
     return message;
   }
@@ -77,7 +77,7 @@ class Message {
       limit = 50,
       startAfter = null,
       orderBy = 'timestamp',
-      order = 'desc'
+      order = 'desc',
     } = options;
 
     if (!isValidConversationId(conversationId)) {
@@ -119,24 +119,6 @@ class Message {
 
     const doc = snapshot.docs[0];
     return new Message({ id: doc.id, ...doc.data() });
-  }
-
-  /**
-   * Listar mensajes de una conversación
-   */
-  static async getByConversation (conversationId, { limit = 50, startAfter = null } = {}) {
-    let query = firestore
-      .collection('messages')
-      .where('conversationId', '==', conversationId)
-      .orderBy('timestamp', 'desc')
-      .limit(limit);
-
-    if (startAfter) {
-      query = query.startAfter(startAfter);
-    }
-
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
   }
 
   /**
@@ -259,6 +241,20 @@ class Message {
   }
 
   /**
+   * Obtener mensajes por userId
+   */
+  static async getByUserId (userId, { limit = 50, orderBy = 'timestamp', order = 'desc' } = {}) {
+    const query = firestore
+      .collection('messages')
+      .where('userId', '==', userId)
+      .orderBy(orderBy, order)
+      .limit(limit);
+
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
+  }
+
+  /**
    * Actualizar estado del mensaje
    */
   async updateStatus (status) {
@@ -269,11 +265,11 @@ class Message {
    * Actualizar mensaje
    */
   async update (updates) {
-    const validUpdates = prepareForFirestore({ 
-      ...updates, 
-      updatedAt: FieldValue.serverTimestamp() 
+    const validUpdates = prepareForFirestore({
+      ...updates,
+      updatedAt: FieldValue.serverTimestamp(),
     });
-    
+
     await firestore.collection('messages').doc(this.id).update(validUpdates);
 
     // Actualizar propiedades locales
