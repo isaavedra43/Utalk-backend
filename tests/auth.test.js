@@ -41,17 +41,16 @@ describe('Auth Endpoints', () => {
     // Nota: Test de login exitoso requiere configuración completa de Firebase
     // Este test valida que la estructura de respuesta sea correcta cuando se implementa
     it('should have correct response structure for successful login', () => {
-      // Estructura esperada para login exitoso
       const expectedStructure = {
-        message: 'Login exitoso',
+        token: expect.any(String),
         user: {
-          uid: expect.any(String),
-          email: expect.any(String),
-          // otros campos del usuario...
+          id: expect.any(String),
+          name: expect.any(String),
+          role: expect.any(String),
+          // email no es parte del contrato principal de user
         },
-        token: expect.any(String), // ← CRÍTICO: Token JWT debe estar presente
+        expiresIn: expect.any(String),
       };
-
       // Este test valida que conocemos la estructura correcta
       expect(expectedStructure).toHaveProperty('token');
       expect(expectedStructure).toHaveProperty('user');
@@ -112,6 +111,16 @@ describe('Auth Endpoints', () => {
       expect(validToken).toBeDefined();
       expect(typeof validToken).toBe('string');
       expect(validToken.split('.')).toHaveLength(3); // JWT tiene 3 partes separadas por puntos
+    });
+
+    it('should return the profile of the authenticated user', async () => {
+      const token = global.generateTestToken({ id: 'test-user-123', name: 'Test User' });
+      // ... (mock de User.getById)
+      const response = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`);
+      expect(response.body.user.id).toBe('test-user-123');
+      expect(response.body.user.name).toBe('Test User');
     });
   });
 

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const app = require('../src/index'); // Importar la app para inicializarla
 
 // Mock de Firebase Admin SDK
 jest.mock('firebase-admin', () => ({
@@ -60,26 +61,30 @@ process.env.TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886';
  * del nuevo sistema de autenticación (NO Firebase ID Token)
  */
 
-// Generar token JWT válido para testing
-global.generateTestToken = (userData = {}) => {
-  const defaultUser = {
-    uid: 'test-uid-123',
-    email: 'test@example.com',
-    role: 'admin',
-  };
-
-  const user = { ...defaultUser, ...userData };
-
-  return jwt.sign(user, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  });
+const initializeTestApp = async () => {
+  // Aquí se podrían inicializar servicios o bases de datos de prueba
+  return app; // Devuelve la instancia de la app para supertest
 };
 
-// Tokens predefinidos para diferentes roles
+const cleanupTest = async () => {
+  // Aquí se podría limpiar la base de datos de prueba
+};
+
+global.generateTestToken = (userData = {}) => {
+  const defaultUser = {
+    id: 'test-id-123',
+    email: 'test@example.com',
+    role: 'admin',
+    name: 'Test User',
+  };
+  const user = { ...defaultUser, ...userData };
+  return jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '24h' });
+};
+
 global.testTokens = {
-  admin: global.generateTestToken({ uid: 'admin-uid', email: 'admin@test.com', role: 'admin' }),
-  agent: global.generateTestToken({ uid: 'agent-uid', email: 'agent@test.com', role: 'agent' }),
-  viewer: global.generateTestToken({ uid: 'viewer-uid', email: 'viewer@test.com', role: 'viewer' }),
+  admin: global.generateTestToken({ id: 'admin-id', email: 'admin@test.com', role: 'admin', name: 'Admin User' }),
+  agent: global.generateTestToken({ id: 'agent-id', email: 'agent@test.com', role: 'agent', name: 'Agent User' }),
+  viewer: global.generateTestToken({ id: 'viewer-id', email: 'viewer@test.com', role: 'viewer', name: 'Viewer User' }),
   expired: jwt.sign(
     { uid: 'expired-uid', email: 'expired@test.com', role: 'admin' },
     process.env.JWT_SECRET,
@@ -97,3 +102,8 @@ beforeEach(() => {
 afterEach(() => {
   jest.restoreAllMocks();
 });
+
+module.exports = {
+  initializeTestApp,
+  cleanupTest,
+};

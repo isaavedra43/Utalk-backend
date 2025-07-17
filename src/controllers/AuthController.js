@@ -9,64 +9,30 @@ class AuthController {
    */
   static async login (req, res, next) {
     try {
-      const { email } = req.body; // password se valida en frontend con Firebase Auth
-
-      // Nota: En Firebase Auth, la verificación de credenciales se hace en el frontend
-      // Aquí solo verificamos que el usuario existe y lo creamos/actualizamos en Firestore
-
-      logger.info('Intento de login', { email });
-
-      // Buscar o crear usuario en Firestore
+      const { email } = req.body;
       const user = await User.getByEmail(email);
 
-      if (!user) {
-        // Si el usuario no existe en Firestore pero tiene token válido de Firebase,
-        // lo creamos (esto se maneja mejor en el middleware de auth)
-        return res.status(400).json({
-          error: 'Usuario no encontrado',
-          message: 'El usuario debe ser creado primero por un administrador',
-        });
+      if (!user || user.status !== 'active') {
+        return res.status(401).json({ error: 'Credenciales inválidas o usuario inactivo' });
       }
 
-      if (!user.isActive) {
-        return res.status(403).json({
-          error: 'Usuario desactivado',
-          message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
-        });
-      }
-
-      // Actualizar último login
       await user.updateLastLogin();
 
-      // CRÍTICO: Generar JWT token para autenticación del frontend
-      // Este token es OBLIGATORIO para que el frontend pueda procesar correctamente el login
+      const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
       const token = jwt.sign(
-        {
-          uid: user.uid,
-          email: user.email,
-          role: user.role,
-        },
+        { id: user.id, email: user.email, role: user.role },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
+        { expiresIn }
       );
 
-      logger.info('Login exitoso', {
-        uid: user.uid,
-        email: user.email,
-        role: user.role,
-      });
+      logger.info('Login exitoso', { userId: user.id });
 
-      // IMPORTANTE: La respuesta DEBE incluir el token a nivel raíz
-      // El frontend espera esta estructura para procesar correctamente el login
       res.json({
-        message: 'Login exitoso',
+        token,
         user: user.toJSON(),
-        token, // ← CRÍTICO: Token JWT requerido por el frontend
+        expiresIn,
       });
-    } catch (error) {
-      logger.error('Error en login:', error);
-      next(error);
-    }
+    } catch (error) { next(error); }
   }
 
   /**
@@ -112,23 +78,11 @@ class AuthController {
    */
   static async getProfile (req, res, next) {
     try {
-      const { uid } = req.user;
-
-      const user = await User.getByUid(uid);
-      if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-          message: 'El usuario no existe en la base de datos',
-        });
-      }
-
-      res.json({
-        user: user.toJSON(),
-      });
-    } catch (error) {
-      logger.error('Error al obtener perfil:', error);
-      next(error);
-    }
+      const { id } = req.user; // id desde el token JWT
+      const user = await User.getById(id);
+      if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+      res.json({ user: user.toJSON() });
+    } catch (error) { next(error); }
   }
 
   /**
@@ -136,36 +90,20 @@ class AuthController {
    */
   static async updateProfile (req, res, next) {
     try {
-      const { uid } = req.user;
-      const updates = req.body;
-
-      // Campos que no se pueden actualizar por el usuario
-      const forbiddenFields = ['uid', 'email', 'role', 'isActive', 'createdAt'];
-      forbiddenFields.forEach(field => delete updates[field]);
-
-      const user = await User.getByUid(uid);
-      if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-          message: 'El usuario no existe en la base de datos',
-        });
-      }
-
-      await user.update(updates);
-
-      logger.info('Perfil actualizado', {
-        uid,
-        updates: Object.keys(updates),
-      });
-
+      const { id } = req.user;
+      const { name } = req.body; // Solo 'name' es actualizable por el usuario
+      const user = await User.getById(id);
+      if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+      
+      await user.update({ name });
+      
+      logger.info('Perfil actualizado', { userId: id });
+      
       res.json({
         message: 'Perfil actualizado exitosamente',
         user: user.toJSON(),
       });
-    } catch (error) {
-      logger.error('Error al actualizar perfil:', error);
-      next(error);
-    }
+    } catch (error) { next(error); }
   }
 
   /**
@@ -173,9 +111,8 @@ class AuthController {
    */
   static async createUser (req, res, next) {
     try {
-      const { email, displayName, role = 'viewer' } = req.body;
-      const { uid: adminUid } = req.user;
-
+      const { email, name, role = 'viewer' } = req.body;
+      
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
         return res.status(403).json({
@@ -185,38 +122,27 @@ class AuthController {
       }
 
       // Crear usuario en Firebase Auth
-      const userRecord = await auth.createUser({
-        email,
-        displayName,
-        emailVerified: false,
-      });
+      const userRecord = await auth.createUser({ email, displayName: name });
 
       // Establecer claims personalizados
       await auth.setCustomUserClaims(userRecord.uid, { role });
 
       // Crear usuario en Firestore
-      const user = await User.create({
-        uid: userRecord.uid,
+      const newUser = await User.create({
+        id: userRecord.uid,
         email,
-        displayName,
+        name,
         role,
+        status: 'active'
       });
-
-      logger.info('Usuario creado', {
-        uid: user.uid,
-        email: user.email,
-        role: user.role,
-        createdBy: adminUid,
-      });
+      
+      logger.info('Usuario creado', { newUserId: newUser.id, createdBy: req.user.id });
 
       res.status(201).json({
         message: 'Usuario creado exitosamente',
-        user: user.toJSON(),
+        user: newUser.toJSON(),
       });
-    } catch (error) {
-      logger.error('Error al crear usuario:', error);
-      next(error);
-    }
+    } catch (error) { next(error); }
   }
 }
 

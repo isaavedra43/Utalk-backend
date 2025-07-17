@@ -12,25 +12,25 @@ const { prepareForFirestore } = require('../src/utils/firestore');
 const seedData = {
   users: [
     {
-      uid: 'admin-user-1',
+      id: 'admin-user-1',
       email: 'admin@funday.com',
-      displayName: 'Administrador Principal',
+      name: 'Administrador Principal',
       role: 'admin',
-      isActive: true,
+      status: 'active',
     },
     {
-      uid: 'agent-user-1',
+      id: 'agent-user-1',
       email: 'agente1@funday.com',
-      displayName: 'María García',
+      name: 'María García',
       role: 'agent',
-      isActive: true,
+      status: 'active',
     },
     {
-      uid: 'agent-user-2',
+      id: 'agent-user-2',
       email: 'agente2@funday.com',
-      displayName: 'Juan Pérez',
+      name: 'Juan Pérez',
       role: 'agent',
-      isActive: true,
+      status: 'active',
     },
   ],
   contacts: [
@@ -39,36 +39,18 @@ const seedData = {
       phone: '+525512345678',
       email: 'cliente1@example.com',
       tags: ['vip', 'cliente'],
-      customFields: {
-        empresa: 'Tech Corp',
-        cargo: 'CEO',
-      },
-      userId: 'agent-user-1',
-      totalMessages: 15,
     },
     {
       name: 'Prospecto Interesado',
       phone: '+525587654321',
       email: 'prospecto@example.com',
       tags: ['prospecto', 'interesado'],
-      customFields: {
-        fuente: 'website',
-        interes: 'producto-premium',
-      },
-      userId: 'agent-user-1',
-      totalMessages: 8,
     },
     {
       name: 'Cliente Frecuente',
       phone: '+525511111111',
       email: 'frecuente@example.com',
       tags: ['cliente', 'frecuente'],
-      customFields: {
-        ultimaCompra: '2024-01-15',
-        montoTotal: 15000,
-      },
-      userId: 'agent-user-2',
-      totalMessages: 32,
     },
   ],
   knowledge: [
@@ -156,22 +138,18 @@ async function seedDatabase () {
       try {
         // Crear en Firebase Auth
         await auth.createUser({
-          uid: userData.uid,
+          uid: userData.id, // Auth sigue usando uid
           email: userData.email,
-          displayName: userData.displayName,
-          password: 'temporal123', // Se debe cambiar en primer login
+          displayName: userData.name, // Auth sigue usando displayName
+          password: 'temporal123',
         });
 
         // Establecer custom claims
-        await auth.setCustomUserClaims(userData.uid, { role: userData.role });
+        await auth.setCustomUserClaims(userData.id, { role: userData.role });
 
         // Crear en Firestore
-        const cleanUserData = prepareForFirestore({
-          ...userData,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        await firestore.collection('users').doc(userData.uid).set(cleanUserData);
+        const cleanUserData = prepareForFirestore({ ...userData });
+        await firestore.collection('users').doc(userData.id).set(cleanUserData);
 
         console.log(`  ✅ Usuario creado: ${userData.email}`);
       } catch (error) {

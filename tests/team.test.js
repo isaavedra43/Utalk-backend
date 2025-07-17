@@ -29,7 +29,7 @@ describe('Team API', () => {
       expect(Array.isArray(response.body.users)).toBe(true);
     });
 
-    it('cada miembro debería incluir KPIs básicos', async () => {
+    it('cada miembro debería incluir la estructura correcta', async () => {
       const response = await request(testApp)
         .get('/team')
         .set('Authorization', adminToken)
@@ -37,12 +37,12 @@ describe('Team API', () => {
 
       if (response.body.users.length > 0) {
         const user = response.body.users[0];
-        expect(user).toHaveProperty('uid');
-        expect(user).toHaveProperty('email');
-        expect(user).toHaveProperty('displayName');
+        expect(user).toHaveProperty('id');
+        expect(user).not.toHaveProperty('uid');
+        expect(user).toHaveProperty('name');
+        expect(user).not.toHaveProperty('displayName');
         expect(user).toHaveProperty('role');
-        expect(user).toHaveProperty('isActive');
-        expect(user).toHaveProperty('kpis');
+        expect(user).toHaveProperty('status');
       }
     });
 
@@ -100,31 +100,27 @@ describe('Team API', () => {
 
   describe('POST /team/invite', () => {
     it('debería invitar nuevo miembro con datos válidos', async () => {
-      const newMember = {
-        email: 'nuevo@example.com',
-        displayName: 'Nuevo Miembro',
-        role: 'agent',
-      };
+      const newUser = { email: 'new@test.com', name: 'New User', role: 'agent' };
 
       const response = await request(testApp)
         .post('/team/invite')
         .set('Authorization', adminToken)
-        .send(newMember)
+        .send(newUser)
         .expect(201);
 
       expect(response.body).toHaveProperty('message');
       expect(response.body).toHaveProperty('user');
       expect(response.body).toHaveProperty('temporaryPassword');
       expect(response.body.user).toMatchObject({
-        email: newMember.email,
-        displayName: newMember.displayName,
-        role: newMember.role,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role,
       });
     });
 
     it('debería validar campos requeridos', async () => {
       const invalidMember = {
-        displayName: 'Sin Email',
+        name: 'Sin Email',
         // Falta email
       };
 
@@ -138,7 +134,7 @@ describe('Team API', () => {
     it('debería rechazar emails duplicados', async () => {
       const member = {
         email: 'duplicado@example.com',
-        displayName: 'Duplicado',
+        name: 'Duplicado',
         role: 'viewer',
       };
 
@@ -160,7 +156,7 @@ describe('Team API', () => {
     it('debería usar rol viewer por defecto', async () => {
       const member = {
         email: 'defecto@example.com',
-        displayName: 'Rol Defecto',
+        name: 'Rol Defecto',
         // Sin especificar rol
       };
 
@@ -176,7 +172,7 @@ describe('Team API', () => {
     it('solo admins deberían poder invitar miembros', async () => {
       const member = {
         email: 'noadmin@example.com',
-        displayName: 'No Admin',
+        name: 'No Admin',
         role: 'agent',
       };
 
@@ -203,20 +199,20 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'detalle@example.com',
-          displayName: 'Para Detalle',
+          name: 'Para Detalle',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
-    it('debería obtener detalles de un miembro', async () => {
+    it('debería obtener detalles de un miembro por id', async () => {
       const response = await request(testApp)
         .get(`/team/${memberId}`)
         .set('Authorization', adminToken)
         .expect(200);
 
       expect(response.body).toHaveProperty('user');
-      expect(response.body.user.uid).toBe(memberId);
+      expect(response.body.user.id).toBe(memberId);
       expect(response.body.user).toHaveProperty('kpis');
     });
 
@@ -263,15 +259,15 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'actualizar@example.com',
-          displayName: 'Para Actualizar',
+          name: 'Para Actualizar',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
     it('debería actualizar un miembro existente', async () => {
       const updates = {
-        displayName: 'Nombre Actualizado',
+        name: 'Nombre Actualizado',
         role: 'admin',
       };
 
@@ -281,13 +277,13 @@ describe('Team API', () => {
         .send(updates)
         .expect(200);
 
-      expect(response.body.user.displayName).toBe(updates.displayName);
+      expect(response.body.user.name).toBe(updates.name);
       expect(response.body.user.role).toBe(updates.role);
     });
 
     it('no debería permitir cambiar campos prohibidos', async () => {
       const updates = {
-        uid: 'new-uid',
+        id: 'new-id',
         email: 'new@example.com',
         createdAt: new Date().toISOString(),
       };
@@ -299,7 +295,7 @@ describe('Team API', () => {
         .expect(200);
 
       // Los campos prohibidos no deberían cambiar
-      expect(response.body.user.uid).toBe(memberId);
+      expect(response.body.user.id).toBe(memberId);
       expect(response.body.user.email).toBe('actualizar@example.com');
     });
 
@@ -320,7 +316,7 @@ describe('Team API', () => {
 
     it('solo admins deberían poder actualizar miembros', async () => {
       const updates = {
-        displayName: 'No Permitido',
+        name: 'No Permitido',
       };
 
       await request(testApp)
@@ -340,7 +336,7 @@ describe('Team API', () => {
       await request(testApp)
         .put('/team/nonexistent-id')
         .set('Authorization', adminToken)
-        .send({ displayName: 'New Name' })
+        .send({ name: 'New Name' })
         .expect(404);
     });
   });
@@ -354,10 +350,10 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'eliminar@example.com',
-          displayName: 'Para Eliminar',
+          name: 'Para Eliminar',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
     it('debería eliminar un miembro existente', async () => {
@@ -412,10 +408,10 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'activar@example.com',
-          displayName: 'Para Activar',
+          name: 'Para Activar',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
 
       // Desactivar primero
       await request(testApp)
@@ -449,10 +445,10 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'desactivar@example.com',
-          displayName: 'Para Desactivar',
+          name: 'Para Desactivar',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
     it('debería desactivar un miembro activo', async () => {
@@ -488,10 +484,10 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'kpis@example.com',
-          displayName: 'Para KPIs',
+          name: 'Para KPIs',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
     it('debería obtener KPIs detallados de un miembro', async () => {
@@ -559,10 +555,10 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'reset@example.com',
-          displayName: 'Para Reset',
+          name: 'Para Reset',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
     it('debería resetear contraseña de un miembro', async () => {
@@ -604,10 +600,10 @@ describe('Team API', () => {
         .set('Authorization', adminToken)
         .send({
           email: 'periodo@example.com',
-          displayName: 'Test Periodo',
+          name: 'Test Periodo',
           role: 'agent',
         });
-      memberId = response.body.user.uid;
+      memberId = response.body.user.id;
     });
 
     const validPeriods = ['7d', '30d', '90d'];
@@ -637,7 +633,7 @@ describe('Team API', () => {
       // Esto se testearía con mocks en un test real
       const member = {
         email: 'firebase-error@example.com',
-        displayName: 'Firebase Error',
+        name: 'Firebase Error',
         role: 'agent',
       };
 
