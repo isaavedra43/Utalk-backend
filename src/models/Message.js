@@ -32,7 +32,7 @@ class Message {
     this.direction = data.direction; // 'inbound', 'outbound'
     this.status = data.status || 'pending'; // 'pending', 'sent', 'delivered', 'read', 'failed'
     this.twilioSid = data.twilioSid; // ID de Twilio
-    this.mediaUrls = data.mediaUrls || []; // URLs de archivos multimedia
+
     this.metadata = data.metadata || {}; // Información adicional
     this.userId = data.userId; // Usuario que envió el mensaje (si es outbound)
     this.timestamp = data.timestamp || Timestamp.now();
@@ -41,7 +41,7 @@ class Message {
   }
 
   /**
-   * Crear un nuevo mensaje
+   * Crear un nuevo mensaje en la subcolección correspondiente
    */
   static async create (messageData) {
     const message = new Message(messageData);
@@ -54,19 +54,68 @@ class Message {
       timestamp: FieldValue.serverTimestamp(),
     });
 
-    await firestore.collection('messages').doc(message.id).set(cleanData);
+    // Guardar en subcolección: /conversations/{conversationId}/messages/{messageId}
+    await firestore
+      .collection('conversations')
+      .doc(message.conversationId)
+      .collection('messages')
+      .doc(message.id)
+      .set(cleanData);
+
     return message;
   }
 
   /**
-   * Obtener mensaje por ID
+   * Obtener mensaje por ID buscando en todas las conversaciones
+   * NOTA: Esta operación es costosa, usar solo cuando no se conoce el conversationId
+   * Idealmente, la API debería incluir conversationId en la ruta
    */
-  static async getById (id) {
-    const doc = await firestore.collection('messages').doc(id).get();
+  static async getByIdAnyConversation (messageId) {
+    const conversationsSnapshot = await firestore.collection('conversations').get();
+
+    for (const conversationDoc of conversationsSnapshot.docs) {
+      const messageDoc = await firestore
+        .collection('conversations')
+        .doc(conversationDoc.id)
+        .collection('messages')
+        .doc(messageId)
+        .get();
+
+      if (messageDoc.exists) {
+        return new Message({
+          id: messageDoc.id,
+          conversationId: conversationDoc.id,
+          ...messageDoc.data(),
+        });
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Obtener mensaje por ID y conversationId
+   */
+  static async getById (messageId, conversationId) {
+    if (!conversationId) {
+      throw new Error('conversationId es requerido para obtener un mensaje por ID');
+    }
+
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
+
+    const doc = await firestore
+      .collection('conversations')
+      .doc(conversationId)
+      .collection('messages')
+      .doc(messageId)
+      .get();
+
     if (!doc.exists) {
       return null;
     }
-    return new Message({ id: doc.id, ...doc.data() });
+    return new Message({ id: doc.id, conversationId, ...doc.data() });
   }
 
   /**
@@ -85,13 +134,20 @@ class Message {
     }
 
     let query = firestore
+      .collection('conversations')
+      .doc(conversationId)
       .collection('messages')
-      .where('conversationId', '==', conversationId)
       .orderBy(orderBy, order);
 
     if (startAfter) {
       // Obtener el documento de referencia para paginación
-      const startAfterDoc = await firestore.collection('messages').doc(startAfter).get();
+      const startAfterDoc = await firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(startAfter)
+        .get();
+
       if (startAfterDoc.exists) {
         query = query.startAfter(startAfterDoc);
       }
@@ -100,199 +156,259 @@ class Message {
     query = query.limit(limit);
 
     const snapshot = await query.get();
-    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => new Message({
+      id: doc.id,
+      conversationId,
+      ...doc.data(),
+    }));
   }
 
   /**
-   * Obtener mensaje por SID de Twilio
+   * Obtener mensaje por SID de Twilio buscando en todas las conversaciones
+   * NOTA: Esta operación es menos eficiente, considerar cachear twilioSid -> conversationId
    */
   static async getByTwilioSid (twilioSid) {
-    const snapshot = await firestore
-      .collection('messages')
-      .where('twilioSid', '==', twilioSid)
-      .limit(1)
-      .get();
+    // Necesitamos buscar en todas las conversaciones ya que no sabemos en cuál está
+    // Esta es una operación costosa, considerar implementar un índice separado
+    const conversationsSnapshot = await firestore.collection('conversations').get();
 
-    if (snapshot.empty) {
-      return null;
+    for (const conversationDoc of conversationsSnapshot.docs) {
+      const messagesSnapshot = await firestore
+        .collection('conversations')
+        .doc(conversationDoc.id)
+        .collection('messages')
+        .where('twilioSid', '==', twilioSid)
+        .limit(1)
+        .get();
+
+      if (!messagesSnapshot.empty) {
+        const messageDoc = messagesSnapshot.docs[0];
+        return new Message({
+          id: messageDoc.id,
+          conversationId: conversationDoc.id,
+          ...messageDoc.data(),
+        });
+      }
     }
 
-    const doc = snapshot.docs[0];
-    return new Message({ id: doc.id, ...doc.data() });
+    return null;
   }
 
   /**
-   * Listar mensajes entre dos números
+   * Listar mensajes entre dos números usando conversationId
    */
   static async getByPhones (phone1, phone2, { limit = 50, startAfter = null } = {}) {
-    // Buscar mensajes en ambas direcciones usando consultas separadas
-    // Firestore no soporta OR queries complejas de forma nativa
+    // Importar función para generar conversationId
+    const { generateConversationId } = require('../utils/conversation');
 
-    // Consulta 1: phone1 -> phone2
-    let query1 = firestore.collection('messages')
-      .where('from', '==', phone1)
-      .where('to', '==', phone2)
-      .orderBy('timestamp', 'desc')
-      .limit(limit);
+    // Generar conversationId basado en los teléfonos
+    const conversationId = generateConversationId(phone1, phone2);
 
-    // Consulta 2: phone2 -> phone1
-    let query2 = firestore.collection('messages')
-      .where('from', '==', phone2)
-      .where('to', '==', phone1)
-      .orderBy('timestamp', 'desc')
-      .limit(limit);
+    // Usar getByConversation que ya está optimizado
+    return await this.getByConversation(conversationId, { limit, startAfter });
+  }
 
-    if (startAfter) {
-      query1 = query1.startAfter(startAfter);
-      query2 = query2.startAfter(startAfter);
+  /**
+   * Obtener mensajes recientes para un usuario buscando en todas las conversaciones
+   * NOTA: Operación costosa, considerar implementar una vista materializada
+   */
+  static async getRecentMessages (userId, limit = 20) {
+    const conversationsSnapshot = await firestore.collection('conversations').get();
+    const allMessages = [];
+
+    // Buscar en cada conversación los mensajes del usuario
+    for (const conversationDoc of conversationsSnapshot.docs) {
+      try {
+        const messagesSnapshot = await firestore
+          .collection('conversations')
+          .doc(conversationDoc.id)
+          .collection('messages')
+          .where('userId', '==', userId)
+          .orderBy('timestamp', 'desc')
+          .limit(limit)
+          .get();
+
+        const conversationMessages = messagesSnapshot.docs.map(doc =>
+          new Message({
+            id: doc.id,
+            conversationId: conversationDoc.id,
+            ...doc.data(),
+          }),
+        );
+
+        allMessages.push(...conversationMessages);
+      } catch (error) {
+        // Log error pero continuar con otras conversaciones
+        console.warn(`Error al obtener mensajes de conversación ${conversationDoc.id}:`, error.message);
+      }
     }
 
-    // Ejecutar ambas consultas en paralelo
-    const [snapshot1, snapshot2] = await Promise.all([
-      query1.get(),
-      query2.get(),
-    ]);
-
-    // Combinar y ordenar resultados
-    const messages = [
-      ...snapshot1.docs.map(doc => new Message({ id: doc.id, ...doc.data() })),
-      ...snapshot2.docs.map(doc => new Message({ id: doc.id, ...doc.data() })),
-    ];
-
-    // Ordenar por timestamp y limitar resultados
-    return messages
+    // Ordenar todos los mensajes y limitar
+    return allMessages
       .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
       .slice(0, limit);
   }
 
   /**
-   * Obtener mensajes recientes para un usuario
-   */
-  static async getRecentMessages (userId, limit = 20) {
-    const snapshot = await firestore
-      .collection('messages')
-      .where('userId', '==', userId)
-      .orderBy('timestamp', 'desc')
-      .limit(limit)
-      .get();
-
-    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
-  }
-
-  /**
-   * Buscar mensajes por contenido
+   * Buscar mensajes por término en todas las conversaciones
    */
   static async search (searchTerm, userId = null) {
-    let query = firestore.collection('messages');
+    const conversationsSnapshot = await firestore.collection('conversations').get();
+    const allMessages = [];
 
-    if (userId) {
-      query = query.where('userId', '==', userId);
+    for (const conversationDoc of conversationsSnapshot.docs) {
+      try {
+        let query = firestore
+          .collection('conversations')
+          .doc(conversationDoc.id)
+          .collection('messages');
+
+        if (userId) {
+          query = query.where('userId', '==', userId);
+        }
+
+        const snapshot = await query.get();
+        const searchLower = searchTerm.toLowerCase();
+
+        const filteredMessages = snapshot.docs
+          .map(doc => new Message({
+            id: doc.id,
+            conversationId: conversationDoc.id,
+            ...doc.data(),
+          }))
+          .filter(message =>
+            message.content.toLowerCase().includes(searchLower) ||
+            message.from.includes(searchTerm) ||
+            message.to.includes(searchTerm),
+          );
+
+        allMessages.push(...filteredMessages);
+      } catch (error) {
+        console.warn(`Error al buscar en conversación ${conversationDoc.id}:`, error.message);
+      }
     }
 
-    const snapshot = await query.get();
-    const searchLower = searchTerm.toLowerCase();
-
-    return snapshot.docs
-      .map(doc => new Message({ id: doc.id, ...doc.data() }))
-      .filter(message =>
-        message.content.toLowerCase().includes(searchLower),
-      );
+    return allMessages.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
   }
 
   /**
    * Obtener estadísticas de mensajes
    */
   static async getStats (userId = null, startDate = null, endDate = null) {
-    let query = firestore.collection('messages');
+    const conversationsSnapshot = await firestore.collection('conversations').get();
+    let totalMessages = 0;
+    let sentMessages = 0;
+    let receivedMessages = 0;
+    let failedMessages = 0;
 
-    if (userId) {
-      query = query.where('userId', '==', userId);
+    for (const conversationDoc of conversationsSnapshot.docs) {
+      try {
+        let query = firestore
+          .collection('conversations')
+          .doc(conversationDoc.id)
+          .collection('messages');
+
+        if (userId) {
+          query = query.where('userId', '==', userId);
+        }
+
+        if (startDate) {
+          query = query.where('timestamp', '>=', Timestamp.fromDate(startDate));
+        }
+
+        if (endDate) {
+          query = query.where('timestamp', '<=', Timestamp.fromDate(endDate));
+        }
+
+        const snapshot = await query.get();
+
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          totalMessages++;
+
+          if (data.direction === 'outbound') {
+            sentMessages++;
+          } else {
+            receivedMessages++;
+          }
+
+          if (data.status === 'failed') {
+            failedMessages++;
+          }
+        });
+      } catch (error) {
+        console.warn(`Error al obtener estadísticas de conversación ${conversationDoc.id}:`, error.message);
+      }
     }
-
-    if (startDate) {
-      query = query.where('timestamp', '>=', startDate);
-    }
-
-    if (endDate) {
-      query = query.where('timestamp', '<=', endDate);
-    }
-
-    const snapshot = await query.get();
-    const messages = snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
 
     return {
-      total: messages.length,
-      inbound: messages.filter(m => m.direction === 'inbound').length,
-      outbound: messages.filter(m => m.direction === 'outbound').length,
-      byStatus: {
-        pending: messages.filter(m => m.status === 'pending').length,
-        sent: messages.filter(m => m.status === 'sent').length,
-        delivered: messages.filter(m => m.status === 'delivered').length,
-        read: messages.filter(m => m.status === 'read').length,
-        failed: messages.filter(m => m.status === 'failed').length,
-      },
-      byType: {
-        text: messages.filter(m => m.type === 'text').length,
-        image: messages.filter(m => m.type === 'image').length,
-        document: messages.filter(m => m.type === 'document').length,
-        audio: messages.filter(m => m.type === 'audio').length,
-      },
+      total: totalMessages,
+      sent: sentMessages,
+      received: receivedMessages,
+      failed: failedMessages,
+      successRate: totalMessages > 0 ? ((totalMessages - failedMessages) / totalMessages) * 100 : 0,
     };
   }
 
   /**
-   * Obtener mensajes por userId
+   * Marcar mensaje como leído
    */
-  static async getByUserId (userId, { limit = 50, orderBy = 'timestamp', order = 'desc' } = {}) {
-    const query = firestore
-      .collection('messages')
-      .where('userId', '==', userId)
-      .orderBy(orderBy, order)
-      .limit(limit);
+  async markAsRead () {
+    const validUpdates = prepareForFirestore({
+      status: 'read',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => new Message({ id: doc.id, ...doc.data() }));
+    await firestore
+      .collection('conversations')
+      .doc(this.conversationId)
+      .collection('messages')
+      .doc(this.id)
+      .update(validUpdates);
+
+    this.status = 'read';
+    this.updatedAt = Timestamp.now();
   }
 
   /**
    * Actualizar estado del mensaje
    */
-  async updateStatus (status) {
-    await this.update({ status });
-  }
+  async updateStatus (newStatus) {
+    const validStatuses = ['pending', 'sent', 'delivered', 'read', 'failed'];
+    if (!validStatuses.includes(newStatus)) {
+      throw new Error(`Estado inválido: ${newStatus}`);
+    }
 
-  /**
-   * Actualizar mensaje
-   */
-  async update (updates) {
     const validUpdates = prepareForFirestore({
-      ...updates,
+      status: newStatus,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    await firestore.collection('messages').doc(this.id).update(validUpdates);
+    await firestore
+      .collection('conversations')
+      .doc(this.conversationId)
+      .collection('messages')
+      .doc(this.id)
+      .update(validUpdates);
 
-    // Actualizar propiedades locales
-    Object.assign(this, updates);
+    this.status = newStatus;
     this.updatedAt = Timestamp.now();
   }
 
   /**
-   * Marcar como leído
-   */
-  async markAsRead () {
-    await this.updateStatus('read');
-  }
-
-  /**
-   * Eliminar mensaje
+   * Eliminar mensaje (soft delete)
    */
   async delete () {
-    await firestore.collection('messages').doc(this.id).delete();
+    await firestore
+      .collection('conversations')
+      .doc(this.conversationId)
+      .collection('messages')
+      .doc(this.id)
+      .delete();
   }
 
   /**
-   * Convertir a objeto plano para respuestas JSON
+   * Convertir a JSON
    */
   toJSON () {
     return {
@@ -301,11 +417,11 @@ class Message {
       from: this.from,
       to: this.to,
       content: this.content,
+      text: this.content, // Mapping para compatibilidad con frontend
       type: this.type,
       direction: this.direction,
       status: this.status,
       twilioSid: this.twilioSid,
-      mediaUrls: this.mediaUrls,
       metadata: this.metadata,
       userId: this.userId,
       timestamp: this.timestamp,

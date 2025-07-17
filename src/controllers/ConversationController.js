@@ -381,7 +381,7 @@ class ConversationController {
                   lastMessageId,
                 });
 
-                const lastMessage = await Message.getById(lastMessageId);
+                const lastMessage = await Message.getById(lastMessageId, mappedConversation.id);
 
                 if (lastMessage && typeof lastMessage === 'object') {
                   const lastMessageData = lastMessage.toJSON ? lastMessage.toJSON() : lastMessage;

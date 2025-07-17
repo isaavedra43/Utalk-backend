@@ -66,21 +66,25 @@ Conversaciones agrupadas por contacto.
 }
 ```
 
-### 4. messages
+### 4. messages (DEPRECATED - Ahora en subcolecciones)
+**IMPORTANTE: Los mensajes ahora se almacenan como subcolecciones dentro de cada conversación**
+
+Nueva estructura: `/conversations/{conversationId}/messages/{messageId}`
+
 Mensajes individuales de WhatsApp.
 
 ```javascript
 {
   id: "string",                     // ID único del mensaje
-  conversationId: "string",         // ID de la conversación
+  conversationId: "string",         // ID de la conversación (heredado del path)
   from: "+525512345678",            // Número remitente
   to: "+525598765432",              // Número destinatario
   content: "Hola, ¿cómo estás?",    // Contenido del mensaje
+  text: "Hola, ¿cómo estás?",       // Alias de content para compatibilidad frontend
   type: "text",                     // Tipos: text, image, document, audio, video
   direction: "inbound",             // Direcciones: inbound, outbound
   status: "delivered",              // Estados: pending, sent, delivered, read, failed
   twilioSid: "SM...",               // ID de Twilio
-  mediaUrls: ["https://..."],       // URLs de archivos multimedia
   metadata: {                       // Información adicional
     errorCode: null,
     errorMessage: null
@@ -286,3 +290,52 @@ Las reglas de seguridad se encuentran en el archivo `firestore.rules` y aseguran
 - Configurar respaldos automáticos diarios
 - Exportar datos críticos semanalmente
 - Mantener scripts de migración para actualizaciones de esquema 
+
+## ⚠️ CAMBIO IMPORTANTE: Migración de Mensajes a Subcolecciones
+
+### Antes (Estructura Antigua)
+```
+/messages/{messageId}
+├── conversationId: "conv_123_456" 
+└── ... otros campos
+```
+
+### Después (Nueva Estructura)
+```
+/conversations/{conversationId}/messages/{messageId}
+└── ... campos del mensaje (sin conversationId redundante)
+```
+
+### Beneficios de la Nueva Estructura
+1. **Mejor rendimiento**: Consultas más rápidas y eficientes
+2. **Escalabilidad**: Mejor distribución de datos en Firestore
+3. **Seguridad**: Reglas de Firestore más granulares por conversación
+4. **Consistencia**: Estructura jerárquica más clara
+
+### Migración de Datos Existentes
+Para migrar mensajes existentes de la colección raíz a subcolecciones:
+
+```bash
+# Simulación (sin cambios reales)
+node scripts/migrate-messages-to-subcollections.js --dry-run
+
+# Migración real
+node scripts/migrate-messages-to-subcollections.js
+
+# Con batch size personalizado
+node scripts/migrate-messages-to-subcollections.js --batch-size=50
+```
+
+### Cambios en la API
+- **Mantienen compatibilidad**: La mayoría de endpoints siguen funcionando
+- **Operaciones menos eficientes**: Algunos endpoints que requieren buscar por messageId sin conversationId
+- **Recomendación**: Actualizar frontend para incluir conversationId en rutas cuando sea posible
+
+**Endpoints afectados (ahora menos eficientes):**
+- `PUT /api/messages/:id/status` → Busca en todas las conversaciones
+- `PUT /api/messages/:id/read` → Busca en todas las conversaciones  
+- `PUT /api/messages/read-multiple` → Busca en todas las conversaciones
+
+**Optimización futura recomendada:**
+- `PUT /api/conversations/:conversationId/messages/:id/status`
+- `PUT /api/conversations/:conversationId/messages/:id/read` 

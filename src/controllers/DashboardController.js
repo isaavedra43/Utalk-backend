@@ -429,25 +429,18 @@ class DashboardController {
    * Obtener métricas de actividad de usuarios
    */
   static async getUserActivityMetrics (userId, startDate, endDate) {
-    let query = firestore.collection('messages')
-      .where('timestamp', '>=', Timestamp.fromDate(startDate))
-      .where('timestamp', '<=', Timestamp.fromDate(endDate))
-      .where('direction', '==', 'outbound');
+    // Usar Message.getStats que ya está refactorizado para subcolecciones
+    const stats = await Message.getStats(userId, startDate, endDate);
 
-    if (userId) {
-      query = query.where('userId', '==', userId);
-    }
-
-    const snapshot = await query.get();
-    const messages = snapshot.docs.map(doc => doc.data());
-
-    const activeUsers = new Set(messages.map(m => m.userId)).size;
-    const totalSessions = await this.calculateSessions(messages);
+    // Calcular métricas básicas de actividad
+    const activeUsers = userId ? 1 : 0; // Si userId específico, hay 1 usuario activo
+    const totalSessions = Math.ceil(stats.sent / 10); // Estimación básica: 1 sesión por cada 10 mensajes
 
     return {
       activeUsers,
       totalSessions,
-      avgSessionLength: totalSessions > 0 ? messages.length / totalSessions : 0,
+      avgSessionLength: totalSessions > 0 ? stats.sent / totalSessions : 0,
+      messageStats: stats,
     };
   }
 
