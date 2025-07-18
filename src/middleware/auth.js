@@ -105,14 +105,15 @@ const authMiddleware = (req, res, next) => {
 
       // IMPORTANTE: Construir req.user SOLO con propiedades del JWT propio
       // NO incluimos propiedades específicas de Firebase como emailVerified, photoURL, etc.
+      // Ajustamos al contrato centralizado: solo id, email y role.
       req.user = {
-        uid: decoded.uid,
+        id: decoded.id,
         email: decoded.email,
         role: decoded.role,
       };
 
       logger.info('Usuario autenticado con JWT propio', {
-        uid: req.user.uid,
+        id: req.user.id,
         email: req.user.email,
         role: req.user.role,
         ip: req.ip,
@@ -157,7 +158,7 @@ const requireRole = (roles) => {
 
     if (!allowedRoles.includes(userRole)) {
       logger.warn('Permisos insuficientes', {
-        uid: req.user.uid,
+        id: req.user.id,
         userRole,
         requiredRoles: allowedRoles,
         ip: req.ip,
@@ -172,7 +173,7 @@ const requireRole = (roles) => {
     }
 
     logger.info('Acceso autorizado por rol', {
-      uid: req.user.uid,
+      id: req.user.id,
       userRole,
       requiredRoles: allowedRoles,
     });
@@ -220,7 +221,7 @@ const requireViewerOrHigher = (req, res, next) => {
 
   if (!allowedRoles.includes(userRole)) {
     logger.warn('Rol no autorizado para acceso básico', {
-      uid: req.user.uid,
+      id: req.user.id,
       userRole,
       ip: req.ip,
     });
@@ -233,7 +234,7 @@ const requireViewerOrHigher = (req, res, next) => {
 
   // Log de acceso para auditoria
   logger.info('Acceso autorizado para viewer o superior', {
-    uid: req.user.uid,
+    id: req.user.id,
     userRole,
     method: req.method,
     url: req.originalUrl,

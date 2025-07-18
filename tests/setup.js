@@ -86,7 +86,7 @@ global.testTokens = {
   agent: global.generateTestToken({ id: 'agent-id', email: 'agent@test.com', role: 'agent', name: 'Agent User' }),
   viewer: global.generateTestToken({ id: 'viewer-id', email: 'viewer@test.com', role: 'viewer', name: 'Viewer User' }),
   expired: jwt.sign(
-    { uid: 'expired-uid', email: 'expired@test.com', role: 'admin' },
+    { id: 'expired-id', email: 'expired@test.com', role: 'admin' },
     process.env.JWT_SECRET,
     { expiresIn: '-1h' }, // Token expirado hace 1 hora
   ),

@@ -18,12 +18,12 @@ class MessageController {
     try {
       const { limit: rawLimit = 20, startAfter = null } = req.query;
       const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       logger.info('[CONVERSATIONS API] Obteniendo conversaciones', {
         limit,
         startAfter,
-        userId: req.user.uid,
+        userId: req.user.id,
         role: req.user.role,
       });
 
@@ -150,13 +150,13 @@ class MessageController {
         order,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
-        user: req.user ? req.user.uid : null,
+        user: req.user ? req.user.id : null,
       });
 
       // ✅ VALIDACIÓN: Al menos un filtro debe estar presente
       if (!conversationId && !userId && !customerPhone) {
         logger.warn('[MESSAGES API] Sin filtros especificados, devolviendo conversaciones', {
-          user: req.user ? req.user.uid : null,
+          user: req.user ? req.user.id : null,
         });
 
         // Fallback al comportamiento anterior (conversaciones)
@@ -273,7 +273,7 @@ class MessageController {
             userId: userId || null,
             customerPhone: customerPhone || null,
           },
-          user: req.user ? req.user.uid : null,
+          user: req.user ? req.user.id : null,
         });
       }
 
@@ -295,7 +295,7 @@ class MessageController {
         error: typeof error.message === 'string' ? error.message : '(no message)',
         code: typeof error.code === 'string' ? error.code : '(no code)',
         stack: typeof error.stack === 'string' ? error.stack : '(no stack)',
-        user: req.user ? req.user.uid : null,
+        user: req.user ? req.user.id : null,
       });
 
       // ✅ RESPUESTA DE ERROR PERO SIEMPRE CON FORMATO CORRECTO
@@ -320,7 +320,7 @@ class MessageController {
         phone,
         limit,
         startAfter,
-        userId: req.user.uid,
+        userId: req.user.id,
       });
 
       // Obtener el número de WhatsApp de la empresa
@@ -386,7 +386,7 @@ class MessageController {
   static async sendMessage (req, res, next) {
     try {
       const { to, content } = req.body;
-      const userId = req.user.uid;
+      const userId = req.user.id;
 
       // Adaptar al nuevo contrato de TwilioService/MessageService si es necesario
       const result = await TwilioService.sendWhatsAppMessage(to, content, {
@@ -514,7 +514,7 @@ class MessageController {
   static async getStats (req, res, next) {
     try {
       const { startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const start = startDate ? new Date(startDate) : null;
       const end = endDate ? new Date(endDate) : null;
@@ -652,7 +652,7 @@ class MessageController {
         });
       }
 
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
       const messages = await Message.search(searchTerm, userId);
 
       res.json({

@@ -16,11 +16,15 @@ class AuthController {
         return res.status(401).json({ error: 'Credenciales inválidas o usuario inactivo' });
       }
 
-      await user.updateLastLogin();
+      // Eliminado updateLastLogin: no forma parte del contrato centralizado
 
       const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
         process.env.JWT_SECRET,
         { expiresIn }
       );
@@ -133,7 +137,7 @@ class AuthController {
         email,
         name,
         role,
-        status: 'active'
+        status: 'active',
       });
       
       logger.info('Usuario creado', { newUserId: newUser.id, createdBy: req.user.id });

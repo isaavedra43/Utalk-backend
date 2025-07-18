@@ -6,12 +6,9 @@ class User {
     this.id = data.id; // Anteriormente uid
     this.email = data.email;
     this.name = data.name; // Anteriormente displayName
-    this.photoURL = data.photoURL;
     this.role = data.role || 'viewer';
-    this.status = data.status || 'active'; // Anteriormente isActive
+    this.status = data.status || 'active';
     this.createdAt = data.createdAt || Timestamp.now();
-    this.updatedAt = data.updatedAt || Timestamp.now();
-    this.lastLoginAt = data.lastLoginAt;
     this.performance = data.performance || null;
   }
 
@@ -25,7 +22,6 @@ class User {
     const cleanData = prepareForFirestore({
       ...user,
       createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
     });
 
     await firestore.collection('users').doc(user.id).set(cleanData);
@@ -91,26 +87,18 @@ class User {
   async update (updates) {
     const validUpdates = prepareForFirestore({
       ...updates,
-      updatedAt: FieldValue.serverTimestamp(),
     });
 
     await firestore.collection('users').doc(this.id).update(validUpdates);
 
     // Actualizar propiedades locales
     Object.assign(this, updates);
-    this.updatedAt = Timestamp.now();
   }
 
-  /**
-   * Actualizar último login
-   */
+  // Método eliminado: updateLastLogin ya no es necesario bajo el contrato centralizado
   async updateLastLogin () {
-    const now = FieldValue.serverTimestamp();
-    await firestore.collection('users').doc(this.id).update({
-      lastLoginAt: now,
-      updatedAt: now,
-    });
-    this.lastLoginAt = Timestamp.now();
+    // Deprecado intencionalmente
+    return Promise.resolve();
   }
 
   /**

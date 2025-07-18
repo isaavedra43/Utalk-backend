@@ -78,7 +78,7 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
     res.send(fileBuffer);
 
     logger.info('Archivo multimedia servido', {
-      userId: req.user.uid,
+      userId: req.user.id,
       file: relativePath,
       size: mediaInfo.size,
       contentType,

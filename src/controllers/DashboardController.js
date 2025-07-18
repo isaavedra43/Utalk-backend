@@ -14,7 +14,7 @@ class DashboardController {
   static async getMetrics (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       // Calcular fechas según el período
       const { start, end } = this.getPeriodDates(period, startDate, endDate);
@@ -55,7 +55,7 @@ class DashboardController {
       };
 
       logger.info('Métricas del dashboard obtenidas', {
-        userId: req.user.uid,
+        userId: req.user.id,
         period,
         metricsCount: Object.keys(metrics).length,
       });
@@ -73,7 +73,7 @@ class DashboardController {
   static async getMessageStats (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const { start, end } = this.getPeriodDates(period, startDate, endDate);
       const stats = await this.getMessageMetrics(userId, start, end);
@@ -94,7 +94,7 @@ class DashboardController {
   static async getContactStats (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const { start, end } = this.getPeriodDates(period, startDate, endDate);
       const stats = await this.getContactMetrics(userId, start, end);
@@ -115,7 +115,7 @@ class DashboardController {
   static async getCampaignStats (req, res, next) {
     try {
       const { period = '7d', startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const { start, end } = this.getPeriodDates(period, startDate, endDate);
       const stats = await this.getCampaignMetrics(userId, start, end);
@@ -136,7 +136,7 @@ class DashboardController {
   static async getRecentActivity (req, res, next) {
     try {
       const { limit = 20 } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const activities = await this.getRecentActivity(userId, parseInt(limit));
 
@@ -156,7 +156,7 @@ class DashboardController {
   static async exportReport (req, res, next) {
     try {
       const { format = 'json', period = '30d', startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const { start, end } = this.getPeriodDates(period, startDate, endDate);
 
@@ -248,14 +248,14 @@ class DashboardController {
       const userMetrics = await Promise.all(
         users.map(async (user) => {
           const [messageStats, contactStats, campaignStats] = await Promise.all([
-            this.getMessageMetrics(user.uid, start, end),
-            this.getContactMetrics(user.uid, start, end),
-            this.getCampaignMetrics(user.uid, start, end),
+            this.getMessageMetrics(user.id, start, end),
+            this.getContactMetrics(user.id, start, end),
+            this.getCampaignMetrics(user.id, start, end),
           ]);
 
           return {
             user: {
-              uid: user.uid,
+              uid: user.id,
               displayName: user.displayName,
               email: user.email,
               role: user.role,

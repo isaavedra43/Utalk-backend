@@ -24,7 +24,7 @@ class ContactController {
         tags,
       } = req.query;
 
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       const contacts = await Contact.list({
         limit: parseInt(limit),
@@ -34,7 +34,7 @@ class ContactController {
       });
 
       logger.info('Contactos listados', {
-        userId: req.user.uid,
+        userId: req.user.id,
         count: contacts.length,
         filters: { search, tags },
       });
@@ -60,7 +60,7 @@ class ContactController {
     try {
       const contactData = {
         ...req.body,
-        userId: req.user.uid,
+        userId: req.user.id,
       };
 
       // Verificar que no exista un contacto con el mismo teléfono
@@ -77,7 +77,7 @@ class ContactController {
       logger.info('Contacto creado', {
         contactId: contact.id,
         phone: contact.phone,
-        createdBy: req.user.uid,
+        createdBy: req.user.id,
       });
 
       res.status(201).json({
@@ -106,7 +106,7 @@ class ContactController {
       }
 
       // Verificar permisos (solo admin o propietario)
-      if (req.user.role !== 'admin' && contact.userId !== req.user.uid) {
+      if (req.user.role !== 'admin' && contact.userId !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para ver este contacto',
@@ -139,7 +139,7 @@ class ContactController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && contact.userId !== req.user.uid) {
+      if (req.user.role !== 'admin' && contact.userId !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para modificar este contacto',
@@ -161,7 +161,7 @@ class ContactController {
 
       logger.info('Contacto actualizado', {
         contactId: contact.id,
-        updatedBy: req.user.uid,
+        updatedBy: req.user.id,
         fields: Object.keys(updates),
       });
 
@@ -191,7 +191,7 @@ class ContactController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && contact.userId !== req.user.uid) {
+      if (req.user.role !== 'admin' && contact.userId !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para eliminar este contacto',
@@ -202,7 +202,7 @@ class ContactController {
 
       logger.info('Contacto eliminado', {
         contactId: contact.id,
-        deletedBy: req.user.uid,
+        deletedBy: req.user.id,
       });
 
       res.json({
@@ -228,7 +228,7 @@ class ContactController {
         });
       }
 
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
       const contacts = await Contact.search(searchTerm, userId);
 
       res.json({
@@ -246,7 +246,7 @@ class ContactController {
    */
   static async getTags (req, res, next) {
     try {
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
       const contacts = await Contact.list({ userId });
 
       const allTags = contacts.reduce((tags, contact) => {
@@ -331,7 +331,7 @@ class ContactController {
    */
   static async exportCSV (req, res, next) {
     try {
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
       const contacts = await Contact.exportToCSV(userId);
 
       const fields = ['id', 'name', 'phone', 'email', 'tags', 'totalMessages', 'createdAt', 'lastContactAt'];
@@ -344,7 +344,7 @@ class ContactController {
       res.send(csv);
 
       logger.info('Contactos exportados', {
-        userId: req.user.uid,
+        userId: req.user.id,
         count: contacts.length,
       });
     } catch (error) {
@@ -418,7 +418,7 @@ class ContactController {
               phone,
               email: email || null,
               tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-              userId: req.user.uid,
+              userId: req.user.id,
             });
 
             results.imported++;
@@ -434,7 +434,7 @@ class ContactController {
         fs.unlinkSync(req.file.path);
 
         logger.info('Contactos importados', {
-          userId: req.user.uid,
+          userId: req.user.id,
           imported: results.imported,
           errors: results.errors.length,
           duplicates: results.duplicates,

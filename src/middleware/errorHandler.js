@@ -17,7 +17,7 @@ const errorHandler = (err, req, res, _next) => {
     method: req.method,
     ip: req.ip,
     userAgent: req.get('User-Agent'),
-    user: req.user && req.user.uid ? req.user.uid : null,
+    user: req.user && req.user.id ? req.user.id : null,
   });
 
   // Errores de validación de Joi

@@ -17,7 +17,7 @@ class CampaignController {
         search,
       } = req.query;
 
-      const createdBy = req.user.role === 'admin' ? null : req.user.uid;
+      const createdBy = req.user.role === 'admin' ? null : req.user.id;
 
       let campaigns;
       if (search) {
@@ -31,7 +31,7 @@ class CampaignController {
       }
 
       logger.info('Campañas listadas', {
-        userId: req.user.uid,
+        userId: req.user.id,
         count: campaigns.length,
         filters: { status, search },
       });
@@ -57,7 +57,7 @@ class CampaignController {
     try {
       const campaignData = {
         ...req.body,
-        createdBy: req.user.uid, // Se mantiene internamente
+        createdBy: req.user.id, // Se mantiene internamente
       };
 
       const campaign = await Campaign.create(campaignData);
@@ -65,7 +65,7 @@ class CampaignController {
       logger.info('Campaña creada', {
         campaignId: campaign.id,
         name: campaign.name,
-        createdBy: req.user.uid,
+        createdBy: req.user.id,
       });
 
       res.status(201).json({
@@ -94,7 +94,7 @@ class CampaignController {
       }
 
       // Verificar permisos (solo admin o creador)
-      if (req.user.role !== 'admin' && campaign.internalProperties.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.internalProperties.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para ver esta campaña',
@@ -127,7 +127,7 @@ class CampaignController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para modificar esta campaña',
@@ -164,7 +164,7 @@ class CampaignController {
 
       logger.info('Campaña actualizada', {
         campaignId: campaign.id,
-        updatedBy: req.user.uid,
+        updatedBy: req.user.id,
         fields: Object.keys(updates),
       });
 
@@ -205,7 +205,7 @@ class CampaignController {
 
       logger.info('Campaña eliminada', {
         campaignId: campaign.id,
-        deletedBy: req.user.uid,
+        deletedBy: req.user.id,
       });
 
       res.json({
@@ -232,7 +232,7 @@ class CampaignController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para enviar esta campaña',
@@ -260,7 +260,7 @@ class CampaignController {
       const results = await TwilioService.sendBulkMessages(
         validContacts,
         campaign.message,
-        req.user.uid,
+        req.user.id,
       );
 
       // Actualizar métricas de la campaña
@@ -282,7 +282,7 @@ class CampaignController {
         campaignId: campaign.id,
         sentCount,
         failedCount,
-        sentBy: req.user.uid,
+        sentBy: req.user.id,
       });
 
       res.json({
@@ -316,7 +316,7 @@ class CampaignController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
         });
@@ -333,7 +333,7 @@ class CampaignController {
 
       logger.info('Campaña pausada', {
         campaignId: campaign.id,
-        pausedBy: req.user.uid,
+        pausedBy: req.user.id,
       });
 
       res.json({
@@ -361,7 +361,7 @@ class CampaignController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
         });
@@ -378,7 +378,7 @@ class CampaignController {
 
       logger.info('Campaña reanudada', {
         campaignId: campaign.id,
-        resumedBy: req.user.uid,
+        resumedBy: req.user.id,
       });
 
       res.json({
@@ -407,7 +407,7 @@ class CampaignController {
       }
 
       // Verificar permisos
-      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
         });

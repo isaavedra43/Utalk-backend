@@ -143,7 +143,7 @@ class AdvancedSecurity {
     if (req.user?.role === 'admin' && req.get('X-Admin-Override') === process.env.ADMIN_OVERRIDE_KEY) {
       logger.info('Rate limit omitido por admin override', {
         ip: req.ip,
-        user: req.user.uid,
+        user: req.user.id,
         endpoint: req.originalUrl,
       });
       return true;
@@ -157,8 +157,8 @@ class AdvancedSecurity {
    */
   generateRateLimitKey (req) {
     // Usar usuario si está autenticado, sino IP
-    if (req.user?.uid) {
-      return `user:${req.user.uid}`;
+    if (req.user?.id) {
+      return `user:${req.user.id}`;
     }
 
     return `ip:${req.ip}`;
@@ -175,7 +175,7 @@ class AdvancedSecurity {
 
     logger.warn('Rate limit alcanzado', {
       ip: req.ip,
-      user: req.user?.uid,
+      user: req.user?.id,
       endpoint: req.originalUrl,
       endpointType,
       key,
@@ -220,7 +220,7 @@ class AdvancedSecurity {
       onLimitReached: (req, res, options) => {
         logger.info('Desaceleración aplicada', {
           ip: req.ip,
-          user: req.user?.uid,
+          user: req.user?.id,
           delay: options.delay,
           endpoint: req.originalUrl,
         });
@@ -393,8 +393,8 @@ class AdvancedSecurity {
       /\.\.\\/g,
       /%2e%2e%2f/gi,
       /%2e%2e%5c/gi,
-      /\.\.\%2f/gi,
-      /\.\.\%5c/gi,
+      /\.{2}%2f/gi,
+      /\.{2}%5c/gi,
     ];
 
     return pathPatterns.some(pattern => pattern.test(req.url));
@@ -587,7 +587,7 @@ class AdvancedSecurity {
 
         // Agregar información del usuario a la request
         req.user = {
-          uid: decoded.uid,
+          id: decoded.uid,
           email: decoded.email,
           role: decoded.role,
           isActive: userData.isActive,

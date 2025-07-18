@@ -55,7 +55,7 @@ class KnowledgeController {
         search,
       } = req.query;
 
-      const createdBy = req.user.role === 'admin' ? null : req.user.uid;
+      const createdBy = req.user.role === 'admin' ? null : req.user.id;
 
       let documents;
       if (search) {
@@ -76,7 +76,7 @@ class KnowledgeController {
       }
 
       logger.info('Documentos de conocimiento listados', {
-        userId: req.user.uid,
+        userId: req.user.id,
         count: documents.length,
         filters: { category, type, isPublic, search },
       });
@@ -102,8 +102,8 @@ class KnowledgeController {
     try {
       const documentData = {
         ...req.body,
-        createdBy: req.user.uid,
-        lastModifiedBy: req.user.uid,
+        createdBy: req.user.id,
+        lastModifiedBy: req.user.id,
       };
 
       // Manejar tags como array
@@ -117,7 +117,7 @@ class KnowledgeController {
         documentId: document.id,
         title: document.title,
         category: document.category,
-        createdBy: req.user.uid,
+        createdBy: req.user.id,
       });
 
       res.status(201).json({
@@ -146,7 +146,7 @@ class KnowledgeController {
       }
 
       // Verificar permisos de lectura
-      if (!document.isPublic && req.user.role !== 'admin' && document.createdBy !== req.user.uid) {
+      if (!document.isPublic && req.user.role !== 'admin' && document.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para ver este documento',
@@ -179,7 +179,7 @@ class KnowledgeController {
       const { id } = req.params;
       const updates = {
         ...req.body,
-        lastModifiedBy: req.user.uid,
+        lastModifiedBy: req.user.id,
       };
 
       const document = await Knowledge.getById(id);
@@ -191,7 +191,7 @@ class KnowledgeController {
       }
 
       // Verificar permisos (solo admin o creador)
-      if (req.user.role !== 'admin' && document.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && document.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para modificar este documento',
@@ -207,7 +207,7 @@ class KnowledgeController {
 
       logger.info('Documento actualizado', {
         documentId: document.id,
-        updatedBy: req.user.uid,
+        updatedBy: req.user.id,
         fields: Object.keys(updates),
       });
 
@@ -237,7 +237,7 @@ class KnowledgeController {
       }
 
       // Verificar permisos (solo admin o creador)
-      if (req.user.role !== 'admin' && document.createdBy !== req.user.uid) {
+      if (req.user.role !== 'admin' && document.createdBy !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para eliminar este documento',
@@ -248,7 +248,7 @@ class KnowledgeController {
 
       logger.info('Documento eliminado', {
         documentId: document.id,
-        deletedBy: req.user.uid,
+        deletedBy: req.user.id,
       });
 
       res.json({
@@ -333,7 +333,7 @@ class KnowledgeController {
 
       logger.info('Documento publicado', {
         documentId: document.id,
-        publishedBy: req.user.uid,
+        publishedBy: req.user.id,
       });
 
       res.json({
@@ -372,7 +372,7 @@ class KnowledgeController {
 
       logger.info('Documento despublicado', {
         documentId: document.id,
-        unpublishedBy: req.user.uid,
+        unpublishedBy: req.user.id,
       });
 
       res.json({
@@ -464,14 +464,14 @@ class KnowledgeController {
           fileUrl: `/uploads/${req.file.filename}`,
           fileSize: req.file.size,
           mimeType: req.file.mimetype,
-          uploadedBy: req.user.uid,
+          uploadedBy: req.user.id,
           uploadedAt: new Date(),
         };
 
         logger.info('Archivo subido para conocimiento', {
           fileName: fileInfo.fileName,
           fileSize: fileInfo.fileSize,
-          uploadedBy: req.user.uid,
+          uploadedBy: req.user.id,
         });
 
         res.json({
