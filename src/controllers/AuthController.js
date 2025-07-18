@@ -26,7 +26,7 @@ class AuthController {
           role: user.role,
         },
         process.env.JWT_SECRET,
-        { expiresIn }
+        { expiresIn },
       );
 
       logger.info('Login exitoso', { userId: user.id });
@@ -44,12 +44,12 @@ class AuthController {
    */
   static async logout (req, res, next) {
     try {
-      const { uid } = req.user;
+      const { id } = req.user;
 
       // Revocar tokens de Firebase (opcional)
-      // await auth.revokeRefreshTokens(uid);
+      // await auth.revokeRefreshTokens(id);
 
-      logger.info('Logout exitoso', { uid });
+      logger.info('Logout exitoso', { id });
 
       res.json({
         message: 'Logout exitoso',
@@ -98,11 +98,10 @@ class AuthController {
       const { name } = req.body; // Solo 'name' es actualizable por el usuario
       const user = await User.getById(id);
       if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-      
+
       await user.update({ name });
-      
       logger.info('Perfil actualizado', { userId: id });
-      
+
       res.json({
         message: 'Perfil actualizado exitosamente',
         user: user.toJSON(),
@@ -116,7 +115,7 @@ class AuthController {
   static async createUser (req, res, next) {
     try {
       const { email, name, role = 'viewer' } = req.body;
-      
+
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
         return res.status(403).json({
@@ -139,7 +138,6 @@ class AuthController {
         role,
         status: 'active',
       });
-      
       logger.info('Usuario creado', { newUserId: newUser.id, createdBy: req.user.id });
 
       res.status(201).json({

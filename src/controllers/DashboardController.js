@@ -31,7 +31,7 @@ class DashboardController {
         this.getContactMetrics(userId, start, end),
         this.getCampaignMetrics(userId, start, end),
         this.getUserActivityMetrics(userId, start, end),
-        this.getRecentActivity(userId, 10),
+        this.getRecentActivityData(userId, 10),
       ]);
 
       const metrics = {
@@ -138,7 +138,7 @@ class DashboardController {
       const { limit = 20 } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-      const activities = await this.getRecentActivity(userId, parseInt(limit));
+      const activities = await DashboardController.getRecentActivityData(userId, parseInt(limit));
 
       res.json({
         activities,
@@ -447,7 +447,7 @@ class DashboardController {
   /**
    * Obtener actividad reciente
    */
-  static async getRecentActivity (userId, limit) {
+  static async getRecentActivityData (userId, limit) {
     const activities = [];
 
     // Mensajes recientes

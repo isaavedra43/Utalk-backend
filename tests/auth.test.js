@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/index');
+const jwt = require('jsonwebtoken');
 
 describe('Auth Endpoints', () => {
   describe('POST /api/auth/login', () => {
@@ -55,6 +56,28 @@ describe('Auth Endpoints', () => {
       expect(expectedStructure).toHaveProperty('token');
       expect(expectedStructure).toHaveProperty('user');
       expect(expectedStructure).toHaveProperty('message');
+    });
+
+    it('debería devolver token válido para credenciales correctas', async () => {
+      const response = await request(app)
+        .post('/auth/login')
+        .send({
+          email: 'admin@test.com',
+          password: 'password123',
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('token');
+      expect(response.body).toHaveProperty('user');
+      expect(response.body).toHaveProperty('expiresIn');
+
+      // Verificar que el token es válido
+      const decoded = jwt.verify(response.body.token, process.env.JWT_SECRET);
+      expect(decoded).toHaveProperty('id');
+      expect(decoded).toHaveProperty('email');
+      expect(decoded).toHaveProperty('role');
+      expect(decoded.email).toBe('admin@test.com');
+      expect(decoded.role).toBe('admin');
     });
   });
 

@@ -54,7 +54,7 @@ class ConversationController {
 
       logger.info('[CONVERSATIONS API] Iniciando listado de conversaciones', {
         requestId,
-        userId: req.user?.uid || 'anonymous',
+        userId: req.user?.id || 'anonymous',
         userRole: req.user?.role || 'unknown',
         parameters: {
           page: pageNum,
@@ -74,7 +74,7 @@ class ConversationController {
       });
 
       // PASO 2: CONSTRUCCIÓN DE OPCIONES DE CONSULTA
-      const userId = req.user?.uid;
+      const userId = req.user?.id;
       const userRole = req.user?.role;
 
       // Validar que el usuario esté autenticado
@@ -548,7 +548,7 @@ class ConversationController {
       logger.error('[CONVERSATIONS API] Error crítico en listado de conversaciones', {
         requestId,
         error: errorDetails,
-        user: req.user?.uid,
+        user: req.user?.id,
         role: req.user?.role,
         parameters: req.query,
         executionTime: Date.now() - startTime,
@@ -600,7 +600,7 @@ class ConversationController {
       logger.info('[CONVERSATION DETAIL] Obteniendo conversación por ID', {
         requestId,
         conversationId: id,
-        userId: req.user?.uid,
+        userId: req.user?.id,
         userRole: req.user?.role,
       });
 
@@ -608,7 +608,7 @@ class ConversationController {
         logger.warn('[CONVERSATION DETAIL] ID de conversación inválido', {
           requestId,
           invalidId: id,
-          userId: req.user?.uid,
+          userId: req.user?.id,
         });
         return res.status(400).json({
           error: 'ID de conversación inválido',
@@ -622,7 +622,7 @@ class ConversationController {
         logger.warn('[CONVERSATION DETAIL] Conversación no encontrada', {
           requestId,
           conversationId: id,
-          userId: req.user?.uid,
+          userId: req.user?.id,
         });
         return res.status(404).json({
           error: 'Conversación no encontrada',
@@ -633,11 +633,11 @@ class ConversationController {
       // Verificar permisos
       if (req.user.role !== 'admin' &&
           conversation.assignedTo &&
-          conversation.assignedTo !== req.user.uid) {
+          conversation.assignedTo !== req.user.id) {
         logger.warn('[CONVERSATION DETAIL] Acceso denegado por permisos', {
           requestId,
           conversationId: id,
-          userId: req.user?.uid,
+          userId: req.user?.id,
           userRole: req.user?.role,
           assignedTo: conversation.assignedTo,
         });
@@ -659,7 +659,7 @@ class ConversationController {
       logger.info('[CONVERSATION DETAIL] Conversación obtenida exitosamente', {
         requestId,
         conversationId: id,
-        userId: req.user.uid,
+        userId: req.user.id,
         role: req.user.role,
         executionTime: Date.now() - startTime,
       });
@@ -711,7 +711,7 @@ class ConversationController {
       logger.info('[CONVERSATION MESSAGES] Obteniendo mensajes de conversación', {
         requestId,
         conversationId: id,
-        userId: req.user?.uid,
+        userId: req.user?.id,
         parameters: { limit, startAfter, orderBy, order },
       });
 
@@ -731,7 +731,7 @@ class ConversationController {
       // Verificar permisos
       if (req.user.role !== 'admin' &&
           conversation.assignedTo &&
-          conversation.assignedTo !== req.user.uid) {
+          conversation.assignedTo !== req.user.id) {
         return res.status(403).json({
           error: 'Sin permisos',
         });
@@ -748,7 +748,7 @@ class ConversationController {
       logger.info('[CONVERSATION MESSAGES] Mensajes obtenidos exitosamente', {
         requestId,
         conversationId: id,
-        userId: req.user.uid,
+        userId: req.user.id,
         messageCount: messages.length,
         executionTime: Date.now() - startTime,
       });
@@ -771,7 +771,7 @@ class ConversationController {
       logger.error('[CONVERSATION MESSAGES] Error obteniendo mensajes', {
         requestId,
         conversationId: req.params.id,
-        userId: req.user?.uid,
+        userId: req.user?.id,
         error: error.message,
         executionTime: Date.now() - startTime,
       });
@@ -789,7 +789,7 @@ class ConversationController {
 
     try {
       const { id } = req.params;
-      const userId = req.user.uid;
+      const userId = req.user.id;
 
       logger.info('[CONVERSATION READ] Marcando conversación como leída', {
         requestId,
@@ -863,7 +863,7 @@ class ConversationController {
     try {
       const { id } = req.params;
       const { assignedTo } = req.body;
-      const assignedBy = req.user.uid;
+      const assignedBy = req.user.id;
 
       logger.info('[CONVERSATION ASSIGN] Asignando conversación', {
         requestId,
@@ -938,7 +938,7 @@ class ConversationController {
     try {
       const { id } = req.params;
       const { status } = req.body;
-      const userId = req.user.uid;
+      const userId = req.user.id;
 
       logger.info('[CONVERSATION STATUS] Cambiando estado de conversación', {
         requestId,
@@ -1022,7 +1022,7 @@ class ConversationController {
 
     try {
       const { id } = req.params;
-      const userId = req.user.uid;
+      const userId = req.user.id;
 
       logger.info('[CONVERSATION ARCHIVE] Archivando conversación', {
         requestId,
@@ -1093,11 +1093,11 @@ class ConversationController {
         status,
       } = req.query;
 
-      const userId = req.user.role === 'admin' ? null : req.user.uid;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
       logger.info('[CONVERSATION STATS] Obteniendo estadísticas', {
         requestId,
-        userId: req.user.uid,
+        userId: req.user.id,
         userRole: req.user.role,
         parameters: { period, assignedTo, status },
       });
@@ -1138,7 +1138,7 @@ class ConversationController {
 
       logger.info('[CONVERSATION STATS] Estadísticas obtenidas exitosamente', {
         requestId,
-        userId: req.user.uid,
+        userId: req.user.id,
         role: req.user.role,
         period,
         totalConversations: conversations.length,

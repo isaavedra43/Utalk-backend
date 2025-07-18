@@ -203,21 +203,17 @@ class TeamController {
         });
       }
 
-      // Campos que no se pueden actualizar directamente
-      const forbiddenFields = ['id', 'email', 'createdAt'];
-      forbiddenFields.forEach(field => delete updates[field]);
+      const updates = {
+        name,
+        role,
+        status,
+      };
 
-      // Actualizar claims de Firebase si se cambia el rol
-      if (role && role !== user.role) {
-        await auth.setCustomUserClaims(user.id, { role: role });
-      }
-
-      await user.update({ name, role, status });
-
-      logger.info('Miembro actualizado', {
-        userId: user.id,
+      await user.update(updates);
+      logger.info('Usuario actualizado', {
+        userId: id,
         updatedBy: req.user.id,
-        fields: Object.keys(updates),
+        updates,
       });
 
       res.json({

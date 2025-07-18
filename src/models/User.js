@@ -144,15 +144,9 @@ class User {
     return {
       id: this.id,
       name: this.name,
+      email: this.email,
       role: this.role,
       status: this.status,
-      performance: this.performance,
-      
-      // Se mantienen para uso interno/compatibilidad si es necesario, pero no en el contrato principal
-      // email: this.email,
-      // photoURL: this.photoURL,
-      // createdAt: this.createdAt,
-      // lastLoginAt: this.lastLoginAt,
     };
   }
 }

@@ -647,7 +647,7 @@ class MediaService {
           // Verificar firma de archivo si está habilitado
           if (checkSignatures) {
             const buffer = await fs.readFile(file.fullPath);
-            const isValidSignature = this.validateFileSignature(buffer, file.category);
+            const isValidSignature = this.validateFileSignatureByBuffer(buffer, file.category);
 
             if (!isValidSignature) {
               results.invalidSignatures.push({
@@ -685,7 +685,7 @@ class MediaService {
   /**
    * Validar firma de archivo
    */
-  validateFileSignature (buffer, expectedCategory) {
+  validateFileSignatureByBuffer (buffer, expectedCategory) {
     if (!buffer || buffer.length < 4) return false;
 
     // Firmas comunes de archivos

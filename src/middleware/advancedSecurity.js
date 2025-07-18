@@ -554,7 +554,7 @@ class AdvancedSecurity {
         }
 
         // Verificar usuario activo en Firestore
-        const userDoc = await firestore.collection('users').doc(decoded.uid).get();
+        const userDoc = await firestore.collection('users').doc(decoded.id).get();
 
         if (!userDoc.exists) {
           return res.status(401).json({
@@ -587,7 +587,7 @@ class AdvancedSecurity {
 
         // Agregar información del usuario a la request
         req.user = {
-          id: decoded.uid,
+          id: decoded.id,
           email: decoded.email,
           role: decoded.role,
           isActive: userData.isActive,
@@ -619,7 +619,7 @@ class AdvancedSecurity {
    */
   async validateTokenClaims (decoded, _req) {
     // Verificar estructura básica
-    if (!decoded.uid || !decoded.email || !decoded.role) {
+    if (!decoded.id || !decoded.email || !decoded.role) {
       return { valid: false, reason: 'Token incompleto' };
     }
 

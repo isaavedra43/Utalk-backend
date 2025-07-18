@@ -1,43 +1,17 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
-const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
-const { logger } = require('../utils/logger');
 
 class Message {
   constructor (data) {
-    if (!data.conversationId) {
-      throw new Error('conversationId es obligatorio para crear un mensaje');
-    }
-    if (!isValidConversationId(data.conversationId)) {
-      throw new Error(`conversationId inválido: ${data.conversationId}.`);
-    }
-    if (!data.sender || !data.sender.id) {
-      throw new Error('El campo sender con id es obligatorio');
-    }
-    if (!data.content && !data.media) {
-      throw new Error('El mensaje debe tener contenido (content) o media.');
-    }
-
-    this.id = data.id || uuidv4();
+    this.id = data.id;
     this.conversationId = data.conversationId;
-    this.sender = {
-      id: data.sender.id,
-      name: data.sender.name || 'Usuario desconocido',
-    };
-    this.content = data.content || '';
-    this.timestamp = data.timestamp || Timestamp.now();
-    this.media = data.media || null;
-    this.status = data.status || 'pending';
-    
-    // Campos internos para lógica del backend
-    this.internalProperties = {
-      from: data.from,
-      to: data.to,
-      direction: data.direction,
-      userId: data.userId,
-      twilioSid: data.twilioSid,
-    };
+    this.sender = data.sender;
+    this.content = data.content;
+    this.timestamp = data.timestamp;
+    this.media = data.media;
+    this.status = data.status || 'sent';
   }
 
   /**

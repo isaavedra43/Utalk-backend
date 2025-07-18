@@ -1,22 +1,12 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
-const { v4: uuidv4 } = require('uuid');
 const { prepareForFirestore } = require('../utils/firestore');
 
 class Campaign {
   constructor (data) {
-    this.id = data.id || uuidv4();
+    this.id = data.id;
     this.name = data.name;
     this.status = data.status || 'draft';
     this.createdAt = data.createdAt || Timestamp.now();
-    this.messagesSent = data.messagesSent || 0;
-
-    // Propiedades internas no expuestas en la API
-    this.internalProperties = {
-        message: data.message,
-        contacts: data.contacts || [],
-        createdBy: data.createdBy,
-        scheduledAt: data.scheduledAt,
-    };
   }
 
   /**

@@ -1,33 +1,18 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
-const { prepareForFirestore } = require('../utils/firestore');
 const logger = require('../utils/logger');
-const { isValidConversationId, extractParticipants } = require('../utils/conversation');
+const { prepareForFirestore } = require('../utils/firestore');
+const { isValidConversationId } = require('../utils/conversation');
 
 class Conversation {
   constructor (data) {
-    if (!data.id) {
-      throw new Error('id (conversationId) es obligatorio para crear una conversación');
-    }
-    if (!isValidConversationId(data.id)) {
-      throw new Error(`conversationId inválido: ${data.id}`);
-    }
-
     this.id = data.id;
-    this.contact = data.contact || {}; // Debe contener al menos id y name
-    this.lastMessage = data.lastMessage || null;
+    this.contact = data.contact;
+    this.lastMessage = data.lastMessage;
     this.unreadCount = data.unreadCount || 0;
     this.status = data.status || 'open';
-    this.assignedTo = data.assignedTo || null; // Debe contener id y name
-    
-    // Propiedades internas
-    this.internalProperties = {
-        participants: data.participants,
-        lastMessageAt: data.lastMessageAt,
-        messageCount: data.messageCount,
-        customerPhone: data.customerPhone,
-        createdAt: data.createdAt || Timestamp.now(),
-        updatedAt: data.updatedAt || Timestamp.now(),
-    };
+    this.assignedTo = data.assignedTo;
+    this.createdAt = data.createdAt || Timestamp.now();
+    this.updatedAt = data.updatedAt || Timestamp.now();
   }
 
   /**
@@ -190,55 +175,36 @@ class Conversation {
    * Útil para corregir inconsistencias
    */
   async recalculateMessageCount () {
-    try {
-      // Contar mensajes reales en la subcolección
-      const messagesSnapshot = await firestore
-        .collection('conversations')
-        .doc(this.id)
-        .collection('messages')
-        .get();
+    // Contar mensajes reales en la subcolección
+    const messagesSnapshot = await firestore
+      .collection('conversations')
+      .doc(this.id)
+      .collection('messages')
+      .get();
 
-      const actualCount = messagesSnapshot.size;
+    const actualCount = messagesSnapshot.size;
 
-      // Actualizar solo si hay diferencia
-      if (this.messageCount !== actualCount) {
-        await this.update({
-          messageCount: actualCount,
-        });
+    // Actualizar solo si hay diferencia
+    if (this.messageCount !== actualCount) {
+      await this.update({
+        messageCount: actualCount,
+      });
 
-        // logger.info('MessageCount recalculado', { // Assuming logger is available
-        //   conversationId: this.id,
-        //   oldCount: this.messageCount,
-        //   newCount: actualCount,
-        // });
-
-        this.messageCount = actualCount;
-      }
-
-      return actualCount;
-    } catch (error) {
-      // logger.error('Error recalculando messageCount', { // Assuming logger is available
-      //   conversationId: this.id,
-      //   error: error.message,
-      // });
-      throw error;
+      this.messageCount = actualCount;
     }
+
+    return actualCount;
   }
 
   /**
    * Marcar mensajes como leídos
    */
-  async markAsRead (userId = null) {
-    const updates = {
+  static async markAsRead (_userId) {
+    const docRef = firestore.collection('conversations').doc(this.id);
+    await docRef.update({
       unreadCount: 0,
-      metadata: {
-        ...this.metadata,
-        lastReadBy: userId,
-        lastReadAt: FieldValue.serverTimestamp(),
-      },
-    };
-
-    await this.update(updates);
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   }
 
   /**
