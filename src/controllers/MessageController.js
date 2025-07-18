@@ -64,7 +64,7 @@ class MessageController {
         conversations.map(async (message) => {
           const phoneKey = message.direction === 'inbound' ? message.from : message.to;
           const contact = await Contact.getByPhone(phoneKey);
-          
+
           const conversationObject = new Conversation({
             id: message.conversationId,
             contact: {
@@ -74,7 +74,7 @@ class MessageController {
             lastMessage: message.toJSON(),
             unreadCount: 1, // Simulado, se debe calcular
             status: 'open', // Simulado
-            assignedTo: null // Simulado
+            assignedTo: null,
           });
 
           return conversationObject.toJSON();
@@ -340,16 +340,16 @@ class MessageController {
 
       // Construir el objeto de conversación
       const conversationObject = new Conversation({
-          id: messages.length > 0 ? messages[0].conversationId : null,
-          contact: {
-              id: contact ? contact.id : phone,
-              name: contact ? contact.name : phone,
-          },
-          lastMessage: mappedMessages.length > 0 ? mappedMessages[0] : null,
-          unreadCount: 0, // Simulado
-          status: 'open', // Simulado
-          assignedTo: null, // Simulado
-          messages: mappedMessages,
+        id: messages.length > 0 ? messages[0].conversationId : null,
+        contact: {
+          id: contact ? contact.id : phone,
+          name: contact ? contact.name : phone,
+        },
+        lastMessage: mappedMessages.length > 0 ? mappedMessages[0] : null,
+        unreadCount: 0,
+        status: 'open',
+        assignedTo: null,
+        messages: mappedMessages,
       });
 
       // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED
@@ -391,7 +391,7 @@ class MessageController {
       // Adaptar al nuevo contrato de TwilioService/MessageService si es necesario
       const result = await TwilioService.sendWhatsAppMessage(to, content, {
         id: userId,
-        name: req.user.displayName || 'Agente'
+        name: req.user.displayName || 'Agente',
       });
 
       logger.info('Mensaje enviado por usuario', {

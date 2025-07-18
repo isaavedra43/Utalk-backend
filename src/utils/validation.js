@@ -179,7 +179,8 @@ const validateFile = (options = {}) => {
       }
 
       // Validar nombre de archivo contra caracteres peligrosos
-      if (/[<>:"/\\|?*\x00-\x1f]/.test(fileName)) {
+      // Validar contra caracteres de control utilizando propiedades Unicode (Cc)
+      if (/[<>:"/\\|?*\p{Cc}]/u.test(fileName)) {
         return res.status(400).json({
           error: 'Nombre de archivo inválido',
           message: 'El nombre del archivo contiene caracteres no permitidos',
