@@ -360,36 +360,51 @@ class Knowledge {
   }
 
   /**
-   * Convertir a objeto plano para respuestas JSON
+   * Convertir a objeto plano para respuestas JSON con timestamps ISO
    */
   toJSON () {
+    // ✅ Función helper para convertir timestamps
+    const toISOString = (timestamp) => {
+      if (!timestamp) return '';
+      if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate().toISOString();
+      }
+      if (timestamp instanceof Date) {
+        return timestamp.toISOString();
+      }
+      if (typeof timestamp === 'string') {
+        return timestamp;
+      }
+      return '';
+    };
+
     return {
       id: this.id,
-      title: this.title,
-      content: this.content,
-      category: this.category,
-      tags: this.tags,
-      isPublic: this.isPublic,
-      isPinned: this.isPinned,
-      type: this.type,
-      fileUrl: this.fileUrl,
-      fileName: this.fileName,
-      fileSize: this.fileSize,
-      mimeType: this.mimeType,
-      createdBy: this.createdBy,
-      lastModifiedBy: this.lastModifiedBy,
-      views: this.views,
-      helpful: this.helpful,
-      notHelpful: this.notHelpful,
-      rating: this.rating,
-      ratingCount: this.ratingCount,
-      relatedArticles: this.relatedArticles,
-      attachments: this.attachments,
+      title: this.title || '',
+      content: this.content || '',
+      category: this.category || '',
+      tags: this.tags || [],
+      isPublic: Boolean(this.isPublic),
+      isPinned: Boolean(this.isPinned),
+      type: this.type || 'article',
+      fileUrl: this.fileUrl || '',
+      fileName: this.fileName || '',
+      fileSize: this.fileSize || 0,
+      mimeType: this.mimeType || '',
+      createdBy: this.createdBy || '',
+      lastModifiedBy: this.lastModifiedBy || '',
+      views: this.views || 0,
+      helpful: this.helpful || 0,
+      notHelpful: this.notHelpful || 0,
+      rating: this.rating || 0,
+      ratingCount: this.ratingCount || 0,
+      relatedArticles: this.relatedArticles || [],
+      attachments: this.attachments || [],
       stats: this.getStats(),
-      isActive: this.isActive,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-      publishedAt: this.publishedAt,
+      isActive: Boolean(this.isActive),
+      createdAt: toISOString(this.createdAt),
+      updatedAt: toISOString(this.updatedAt),
+      publishedAt: toISOString(this.publishedAt),
     };
   }
 }

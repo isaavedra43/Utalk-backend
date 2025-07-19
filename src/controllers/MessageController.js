@@ -5,16 +5,14 @@ const logger = require('../utils/logger');
 const {
   createMessagesPaginatedResponse,
   validatePaginationParams,
-  createEmptyPaginatedResponse,
 } = require('../utils/pagination');
-const Conversation = require('../models/Conversation'); // Added import for Conversation
 
 class MessageController {
   /**
    * Obtener conversaciones (últimos mensajes por contacto)
    * ✅ ACTUALIZADO: Usa estructura canónica para respuesta
    */
-  static async getConversations (req, res, _next) {
+  static async getConversations (req, res, next) {
     try {
       // ✅ DEBUG: Logs para rastrear el flujo
       console.log('🔍 DEBUG - getConversations iniciado:', {
@@ -22,9 +20,9 @@ class MessageController {
         user: {
           uid: req.user.id,
           role: req.user.role,
-          email: req.user.email
+          email: req.user.email,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       const { limit = 20 } = req.query;
@@ -33,7 +31,7 @@ class MessageController {
       console.log('🔍 DEBUG - Parámetros de consulta:', {
         limit: parseInt(limit),
         userId: userId || 'ADMIN (todos)',
-        requestingUserRole: req.user.role
+        requestingUserRole: req.user.role,
       });
 
       // Para simplificar, obtenemos mensajes recientes y agrupamos por teléfono
@@ -42,28 +40,30 @@ class MessageController {
 
       console.log('🔍 DEBUG - Mensajes recientes obtenidos:', {
         totalMessages: recentMessages.length,
-        firstMessage: recentMessages[0] ? {
-          id: recentMessages[0].id,
-          from: recentMessages[0].from,
-          to: recentMessages[0].to,
-          direction: recentMessages[0].direction,
-          content: recentMessages[0].content?.substring(0, 50),
-          timestamp: recentMessages[0].timestamp,
-          conversationId: recentMessages[0].conversationId
-        } : 'NINGUNO'
+        firstMessage: recentMessages[0]
+          ? {
+            id: recentMessages[0].id,
+            from: recentMessages[0].from,
+            to: recentMessages[0].to,
+            direction: recentMessages[0].direction,
+            content: recentMessages[0].content?.substring(0, 50),
+            timestamp: recentMessages[0].timestamp,
+            conversationId: recentMessages[0].conversationId,
+          }
+          : 'NINGUNO',
       });
 
-      if (recentMessages.length === 0) {
+      if (!recentMessages || recentMessages.length === 0) {
         console.log('⚠️ DEBUG - No se encontraron mensajes para el usuario:', {
           userId: userId || 'ADMIN',
-          role: req.user.role
+          role: req.user.role,
         });
-        
+
         return res.json({
           conversations: [],
           total: 0,
           page: 1,
-          limit: parseInt(limit)
+          limit: parseInt(limit),
         });
       }
 
@@ -86,8 +86,8 @@ class MessageController {
           from: msg.from,
           to: msg.to,
           direction: msg.direction,
-          content: msg.content?.substring(0, 30)
-        }))
+          content: msg.content?.substring(0, 30),
+        })),
       });
 
       const conversations = Array.from(conversationsMap.values())
@@ -96,7 +96,7 @@ class MessageController {
 
       console.log('🔍 DEBUG - Conversaciones ordenadas y limitadas:', {
         count: conversations.length,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       });
 
       // Obtener información de contactos
@@ -115,13 +115,13 @@ class MessageController {
               id: phoneKey,
               name: contact?.name || phoneKey,
               avatar: contact?.avatar || null,
-              channel: 'whatsapp'
+              channel: 'whatsapp',
             },
             lastMessage: message.toJSON(), // Usar estructura canónica del mensaje
             status: 'open', // Por defecto
             assignedTo: null, // Se puede extender después
             createdAt: message.timestamp,
-            updatedAt: message.timestamp
+            updatedAt: message.timestamp,
           };
 
           return conversationData;
@@ -130,69 +130,52 @@ class MessageController {
 
       console.log('🔍 DEBUG - Respuesta final preparada:', {
         conversationsCount: conversationsWithContacts.length,
-        structureExample: conversationsWithContacts[0] ? {
-          id: conversationsWithContacts[0].id,
-          hasContact: !!conversationsWithContacts[0].contact,
-          hasLastMessage: !!conversationsWithContacts[0].lastMessage,
-          contactName: conversationsWithContacts[0].contact?.name,
-          lastMessageFields: conversationsWithContacts[0].lastMessage ? Object.keys(conversationsWithContacts[0].lastMessage) : 'NONE'
-        } : 'EMPTY'
+        structureExample: conversationsWithContacts[0]
+          ? {
+            id: conversationsWithContacts[0].id,
+            hasContact: !!conversationsWithContacts[0].contact,
+            hasLastMessage: !!conversationsWithContacts[0].lastMessage,
+            contactName: conversationsWithContacts[0].contact?.name,
+            lastMessageFields: conversationsWithContacts[0].lastMessage
+              ? Object.keys(conversationsWithContacts[0].lastMessage)
+              : 'NONE',
+          }
+          : 'EMPTY',
       });
 
       // ✅ ESTRUCTURA CANÓNICA EXACTA según especificación del frontend
       const response = {
-        conversations: conversationsWithContacts,  // Array de conversaciones
-        total: conversationsWithContacts.length,   // Número total
-        page: 1,                                  // Página actual  
-        limit: parseInt(limit)                    // Límite por página
+        conversations: conversationsWithContacts, // Array de conversaciones
+        total: conversationsWithContacts.length, // Número total
+        page: 1, // Página actual
+        limit: parseInt(limit), // Límite por página
       };
 
-      // ✅ LOG FINAL para verificar estructura
-      console.log('RESPONSE_FINAL:', JSON.stringify({
+      console.log('📤 RESPUESTA FINAL:', JSON.stringify({
         conversationsCount: response.conversations.length,
-        hasConversations: response.conversations.length > 0,
         structure: Object.keys(response),
-        sampleConversation: response.conversations[0] ? Object.keys(response.conversations[0]) : 'NONE'
+        hasConversations: response.conversations.length > 0,
       }));
 
-      console.log('✅ DEBUG - Enviando respuesta a frontend');
       res.json(response);
     } catch (error) {
-      console.error('❌ DEBUG - Error en getConversations:', {
-        error: error.message,
-        stack: error.stack,
-        user: req.user,
-        query: req.query
-      });
-      logger.error('Error al obtener conversaciones:', error);
+      logger.error('Error en getConversations:', error);
       next(error);
     }
   }
 
   /**
-   * Obtener mensajes con filtros flexibles por conversationId y userId
-   * ✅ ACTUALIZADO: Usa paginación cursor-based eficiente
-   *
-   * SOPORTA LOS SIGUIENTES FILTROS:
-   * - conversationId: Filtrar por ID de conversación específica
-   * - userId: Filtrar por usuario que envió el mensaje
-   * - customerPhone: Filtrar por teléfono del cliente (alternativo a userId)
-   *
-   * MAPPING DE CAMPOS:
-   * - content (Firestore) → text (Frontend)
-   * - Se mantiene content para retrocompatibilidad
-   *
-   * RESPUESTA SIEMPRE ES UN ARRAY (nunca null/undefined)
-   * ✅ INCLUYE: nextStartAfter, hasNextPage para paginación eficiente
+   * ✅ REFACTORIZADO: Buscar mensajes con filtros flexibles
+   * Maneja filtros múltiples: conversationId, userId, customerPhone, etc.
    */
-  static async getMessages (req, res, _next) {
+  static async getMessages (req, res, next) {
     try {
       const {
         conversationId,
         userId,
         customerPhone,
         limit: rawLimit = 50,
-        startAfter = null,
+        startAfter,
         orderBy = 'timestamp',
         order = 'desc',
       } = req.query;
@@ -221,252 +204,227 @@ class MessageController {
         });
 
         // Fallback al comportamiento anterior (conversaciones)
-        return MessageController.getConversations(req, res, _next);
+        return MessageController.getConversations(req, res, next);
       }
 
       let messages = [];
 
-      // ✅ FILTRO POR CONVERSATIONID (prioridad alta)
+      // ✅ RUTA 1: Filtro por conversationId (más común)
       if (conversationId) {
-        logger.info('[MESSAGES API] Filtrando por conversationId', { conversationId });
-
         try {
           messages = await Message.getByConversation(conversationId, {
             limit,
-            startAfter, // ✅ CURSOR-BASED PAGINATION
+            startAfter,
             orderBy,
             order,
           });
 
-          logger.info('[MESSAGES API] Resultados por conversationId', {
+          logger.info('[MESSAGES API] Mensajes obtenidos por conversationId', {
             conversationId,
-            count: messages.length,
-            limit,
-            hasResults: messages.length > 0,
+            messageCount: messages.length,
+            user: req.user.id,
           });
         } catch (error) {
-          logger.error('[MESSAGES API] Error filtrando por conversationId', {
+          logger.error('[MESSAGES API] Error obteniendo mensajes por conversationId', {
             conversationId,
-            error: typeof error.message === 'string' ? error.message : '(no message)',
-            code: typeof error.code === 'string' ? error.code : '(no code)',
+            error: error.message,
+            user: req.user.id,
           });
-
-          // Si hay error, devolver respuesta vacía pero no fallar
-          return res.status(500).json(createEmptyPaginatedResponse(
-            'Error al obtener mensajes por conversación', limit));
+          messages = [];
         }
       } else if (userId) {
-        // ✅ FILTRO POR USERID
-        logger.info('[MESSAGES API] Filtrando por userId', { userId });
-
+        // ✅ RUTA 2: Filtro por userId
         try {
           messages = await Message.getByUserId(userId, {
             limit,
-            startAfter, // ✅ CURSOR-BASED PAGINATION
+            startAfter,
             orderBy,
             order,
           });
 
-          logger.info('[MESSAGES API] Resultados por userId', {
+          logger.info('[MESSAGES API] Mensajes obtenidos por userId', {
             userId,
-            count: messages.length,
-            limit,
+            messageCount: messages.length,
+            requestingUser: req.user.id,
           });
         } catch (error) {
-          logger.error('[MESSAGES API] Error filtrando por userId', {
+          logger.error('[MESSAGES API] Error obteniendo mensajes por userId', {
             userId,
-            error: typeof error.message === 'string' ? error.message : '(no message)',
-            code: typeof error.code === 'string' ? error.code : '(no code)',
+            error: error.message,
+            requestingUser: req.user.id,
           });
-
-          return res.status(500).json(createEmptyPaginatedResponse(
-            'Error al obtener mensajes por usuario', limit));
+          messages = [];
         }
       } else if (customerPhone) {
-        // ✅ FILTRO POR CUSTOMERPHONE
-        logger.info('[MESSAGES API] Filtrando por customerPhone', { customerPhone });
-
+        // ✅ RUTA 3: Filtro por customerPhone
         try {
-          const companyPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '');
-          messages = await Message.getByPhones(customerPhone, companyPhone, {
+          messages = await Message.getByCustomerPhone(customerPhone, {
             limit,
-            startAfter, // ✅ CURSOR-BASED PAGINATION
+            startAfter,
+            orderBy,
+            order,
           });
 
-          logger.info('[MESSAGES API] Resultados por customerPhone', {
+          logger.info('[MESSAGES API] Mensajes obtenidos por customerPhone', {
             customerPhone,
-            count: messages.length,
-            limit,
+            messageCount: messages.length,
+            user: req.user.id,
           });
         } catch (error) {
-          logger.error('[MESSAGES API] Error filtrando por customerPhone', {
+          logger.error('[MESSAGES API] Error obteniendo mensajes por customerPhone', {
             customerPhone,
-            error: typeof error.message === 'string' ? error.message : '(no message)',
-            code: typeof error.code === 'string' ? error.code : '(no code)',
+            error: error.message,
+            user: req.user.id,
           });
-
-          return res.status(500).json(createEmptyPaginatedResponse(
-            'Error al obtener mensajes por teléfono', limit));
+          messages = [];
         }
       }
 
-      // ✅ CONVERTIR MENSAJES A JSON CON NORMALIZACIÓN AUTOMÁTICA
-      // Nota: El método toJSON() ya incluye el mapping content → text
-      const mappedMessages = messages.map(message => message.toJSON());
-
-      // ✅ LOG DE RESULTADOS
-      logger.info('[MESSAGES API] Respuesta preparada', {
-        totalMessages: mappedMessages.length,
-        hasMessages: mappedMessages.length > 0,
-        hasNextPage: mappedMessages.length === limit,
-        filters: {
-          conversationId: conversationId || null,
-          userId: userId || null,
-          customerPhone: customerPhone || null,
-        },
-      });
-
-      // ✅ ADVERTENCIA SI NO HAY MENSAJES
-      if (mappedMessages.length === 0) {
-        logger.warn('[MESSAGES API] No se encontraron mensajes', {
-          filters: {
-            conversationId: conversationId || null,
-            userId: userId || null,
-            customerPhone: customerPhone || null,
-          },
-          user: req.user ? req.user.id : null,
-        });
-      }
-
-      // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED ESTANDARIZADA
+      // ✅ PREPARAR RESPUESTA: Usar utilidad centralizada
       const response = createMessagesPaginatedResponse(
-        mappedMessages,
+        messages,
         limit,
         startAfter,
         {
-          conversationId: conversationId || null,
-          userId: userId || null,
-          customerPhone: customerPhone || null,
+          conversationId,
+          userId,
+          customerPhone,
+          orderBy,
+          order,
         },
       );
 
+      // ✅ LOG FINAL: Respuesta generada
+      logger.info('[MESSAGES API] Respuesta generada exitosamente', {
+        messageCount: response.messages.length,
+        hasMessages: response.messages.length > 0,
+        user: req.user.id,
+      });
+
       res.json(response);
     } catch (error) {
-      logger.error('[MESSAGES API] Error crítico', {
-        error: typeof error.message === 'string' ? error.message : '(no message)',
-        code: typeof error.code === 'string' ? error.code : '(no code)',
-        stack: typeof error.stack === 'string' ? error.stack : '(no stack)',
+      logger.error('[MESSAGES API] Error inesperado', {
+        error: error.message,
+        stack: error.stack,
         user: req.user ? req.user.id : null,
       });
-
-      // ✅ RESPUESTA DE ERROR PERO SIEMPRE CON FORMATO CORRECTO
-      res.status(500).json(createEmptyPaginatedResponse(
-        'Error interno del servidor al obtener mensajes', 50));
+      next(error);
     }
   }
 
   /**
-   * Obtener conversación por teléfono
-   * ✅ ACTUALIZADO: Usa paginación cursor-based eficiente
+   * Obtener mensajes de una conversación por teléfono
    */
-  static async getConversationByPhone (req, res, _next) {
+  static async getConversationByPhone (req, res, next) {
     try {
       const { phone } = req.params;
-      const { limit: rawLimit = 50, startAfter = null } = req.query;
+      const { limit = 50, page = 1 } = req.query;
 
-      // ✅ VALIDACIÓN DE PARÁMETROS DE PAGINACIÓN
-      const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
-
-      logger.info('[CONVERSATION API] Obteniendo conversación por teléfono', {
-        phone,
-        limit,
-        startAfter,
-        userId: req.user.id,
-      });
-
-      // Obtener el número de WhatsApp de la empresa
-      const companyPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '');
-
-      const messages = await Message.getByPhones(phone, companyPhone, {
-        limit,
-        startAfter, // ✅ CURSOR-BASED PAGINATION
-      });
-
-      // Obtener información del contacto
       const contact = await Contact.getByPhone(phone);
+      if (!contact) {
+        return res.status(404).json({ error: 'Contacto no encontrado' });
+      }
 
-      // ✅ CONVERTIR MENSAJES A JSON CON NORMALIZACIÓN AUTOMÁTICA
-      // Nota: El método toJSON() ya incluye el mapping content → text
-      const mappedMessages = messages.map(msg => msg.toJSON());
-
-      // Construir el objeto de conversación
-      const conversationObject = new Conversation({
-        id: messages.length > 0 ? messages[0].conversationId : null,
-        contact: {
-          id: contact ? contact.id : phone,
-          name: contact ? contact.name : phone,
-        },
-        lastMessage: mappedMessages.length > 0 ? mappedMessages[0] : null,
-        unreadCount: 0,
-        status: 'open',
-        assignedTo: null,
-        messages: mappedMessages,
+      // Obtener mensajes
+      const messages = await Message.getByContact(contact.id, {
+        limit: parseInt(limit),
+        page: parseInt(page),
       });
 
-      // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED
-      const response = {
-        conversation: conversationObject.toJSON(),
-        pagination: {
-          limit,
-          startAfter,
-          nextStartAfter: mappedMessages.length === limit
-            ? mappedMessages[mappedMessages.length - 1].id
-            : null,
-          hasNextPage: mappedMessages.length === limit,
-          messageCount: mappedMessages.length,
-        },
-      };
-
-      logger.info('[CONVERSATION API] Respuesta enviada', {
-        phone,
-        messageCount: mappedMessages.length,
-        hasNextPage: response.pagination.hasNextPage,
-        contactFound: !!contact,
+      const response = createMessagesPaginatedResponse(messages, parseInt(limit), null, {
+        contact: contact.toJSON(),
       });
 
       res.json(response);
     } catch (error) {
-      logger.error('Error al obtener conversación:', error);
-      res.status(500).json(createEmptyPaginatedResponse('Error al obtener conversación', 50));
+      logger.error('Error obteniendo conversación por teléfono:', error);
+      next(error);
     }
   }
 
   /**
-   * Enviar mensaje de WhatsApp
+   * 📨 ENVIAR MENSAJE - ALINEADO 100% CON FRONTEND
+   * Acepta { conversationId, to, content, type, attachments }
    */
   static async sendMessage (req, res, next) {
     try {
-      const { to, content } = req.body;
+      const { conversationId, to, content, type = 'text', attachments = [] } = req.body;
       const userId = req.user.id;
 
-      // Adaptar al nuevo contrato de TwilioService/MessageService si es necesario
-      const result = await TwilioService.sendWhatsAppMessage(to, content, {
-        id: userId,
-        name: req.user.displayName || 'Agente',
-      });
+      // ✅ VALIDACIÓN: Al menos conversationId o 'to' debe estar presente
+      if (!conversationId && !to) {
+        return res.status(400).json({
+          error: 'Datos insuficientes',
+          message: 'Debes proporcionar conversationId o número de teléfono (to)',
+        });
+      }
 
-      logger.info('Mensaje enviado por usuario', {
+      let targetPhone = to;
+
+      // ✅ Si solo tenemos conversationId, obtener el número de teléfono destino
+      if (conversationId && !to) {
+        // El conversationId tiene formato: conv_phone1_phone2
+        // Extraer el número que NO es nuestro número de Twilio
+        const parts = conversationId.replace('conv_', '').split('_');
+        const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '').replace('+', '') || '';
+
+        // Encontrar cuál número NO es el de Twilio
+        targetPhone = parts.find(part => part !== twilioNumber);
+
+        if (!targetPhone) {
+          return res.status(400).json({
+            error: 'Conversación inválida',
+            message: 'No se pudo determinar el número destino desde conversationId',
+          });
+        }
+
+        // Agregar el + al número
+        targetPhone = '+' + targetPhone;
+      }
+
+      // ✅ ENVIAR mensaje usando TwilioService
+      let result;
+      if (attachments && attachments.length > 0) {
+        // Enviar mensaje con media
+        const mediaUrl = attachments[0].url; // Por ahora solo el primer attachment
+        const caption = content || '';
+        result = await TwilioService.sendMediaMessage(targetPhone, mediaUrl, caption, userId);
+      } else {
+        // Enviar mensaje de texto
+        result = await TwilioService.sendWhatsAppMessage(targetPhone, content, userId);
+      }
+
+      // ✅ OBTENER el mensaje guardado para devolver estructura canónica
+      const savedMessage = await Message.getById(result.messageId);
+      if (!savedMessage) {
+        throw new Error('Mensaje enviado pero no se pudo obtener desde la base de datos');
+      }
+
+      // ✅ EMITIR evento de websocket con estructura canónica
+      const socketManager = req.app.get('socketManager');
+      if (socketManager && savedMessage.conversationId) {
+        socketManager.emitNewMessage(savedMessage.conversationId, savedMessage);
+      }
+
+      logger.info('Mensaje enviado exitosamente via API', {
         userId,
-        to,
+        to: targetPhone,
+        conversationId: savedMessage.conversationId,
         messageId: result.messageId,
+        type,
+        hasAttachments: attachments.length > 0,
       });
 
+      // ✅ ESTRUCTURA CANÓNICA DE RESPUESTA
       res.status(201).json({
-        message: 'Mensaje enviado exitosamente',
-        ...result,
+        message: savedMessage.toJSON(), // Usar estructura canónica del modelo
       });
     } catch (error) {
-      logger.error('Error al enviar mensaje:', error);
+      logger.error('Error enviando mensaje via API', {
+        userId: req.user?.id,
+        error: error.message,
+        stack: error.stack,
+      });
       next(error);
     }
   }
@@ -504,43 +462,6 @@ class MessageController {
 
       logger.info('Webhook - Datos críticos verificados correctamente');
 
-      // ✅ VALIDACIÓN OPCIONAL: Firma Twilio (recomendado pero no crítico)
-      try {
-        const signature = req.headers['x-twilio-signature'];
-        if (signature && process.env.TWILIO_AUTH_TOKEN) {
-          logger.info('Validando firma Twilio...');
-          
-          // ✅ CONSTRUCCIÓN CORRECTA DE URL para validación de firma
-          let webhookUrl = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
-          
-          // ✅ RAILWAY FIX: Usar la URL exacta que Twilio conoce
-          if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-            webhookUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}${req.originalUrl}`;
-          }
-          
-          // ✅ LOG URL PARA DEBUGGING
-          console.log('🔗 URL de webhook para validación:', {
-            constructed: webhookUrl,
-            protocol: req.protocol,
-            host: req.headers.host,
-            originalUrl: req.originalUrl,
-            railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN || 'no_configurado'
-          });
-          
-          const isValid = TwilioService.validateWebhook(signature, webhookUrl, req.body);
-
-          if (!isValid) {
-            logger.warn('Firma Twilio inválida, pero procesando por seguridad');
-          } else {
-            logger.info('Firma Twilio válida');
-          }
-        } else {
-          logger.info('Validación de firma omitida (desarrollo o sin configurar)');
-        }
-      } catch (signatureError) {
-        logger.warn('Error validando firma', { error: signatureError.message });
-      }
-
       // ✅ PROCESAMIENTO PRINCIPAL: Enviar a TwilioService
       logger.info('Enviando a TwilioService para procesamiento...');
       const message = await TwilioService.processIncomingMessage(req.body);
@@ -549,39 +470,28 @@ class MessageController {
         messageId: message.id,
         from: message.from,
         to: message.to,
-        hasContent: !!message.content,
-        hasMedia: message.metadata?.mediaUrls?.length > 0,
-        twilioSid: req.body.MessageSid,
-        processedAt: new Date().toISOString(),
+        direction: message.direction,
       });
 
-      // ✅ RESPUESTA EXITOSA: 200 OK siempre
-      logger.info('Respondiendo 200 OK a Twilio');
+      // ✅ RESPUESTA FINAL: SIEMPRE 200 OK (requerimiento Twilio)
       res.status(200).json({
-        status: 'success',
+        status: 'received',
+        message: 'Webhook procesado exitosamente',
         messageId: message.id,
-        processedAt: new Date().toISOString(),
       });
     } catch (error) {
-      // ✅ MANEJO DE ERRORES: Log pero NUNCA fallar
-      logger.error('Error procesando webhook', {
+      // ✅ SAFETY NET: Nunca fallar el webhook
+      logger.error('Webhook - Error durante procesamiento', {
         error: error.message,
-        stack: error.stack?.split('\n')[0], // Solo primera línea del stack
+        stack: error.stack,
         body: req.body,
-        headers: {
-          'content-type': req.headers['content-type'],
-          'user-agent': req.headers['user-agent'],
-          'x-twilio-signature': !!req.headers['x-twilio-signature'],
-        },
-        timestamp: new Date().toISOString(),
       });
 
-      // ✅ RESPUESTA 200 INCLUSO EN ERROR (Twilio spec)
-      logger.info('Error manejado, respondiendo 200 OK a Twilio');
+      // ✅ SIEMPRE RESPONDER 200 OK para evitar reenvíos de Twilio
       res.status(200).json({
-        status: 'error_handled',
-        message: 'Webhook recibido pero con errores',
-        timestamp: new Date().toISOString(),
+        status: 'received',
+        message: 'Webhook recibido con errores (procesamiento fallido)',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
       });
     }
   }
@@ -591,57 +501,47 @@ class MessageController {
    */
   static async getStats (req, res, next) {
     try {
-      const { startDate, endDate } = req.query;
-      const userId = req.user.role === 'admin' ? null : req.user.id;
+      const { period = '7d', userId = null } = req.query;
 
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
+      // Permitir que admins vean stats de todos, otros solo las suyas
+      const targetUserId = req.user.role === 'admin' ? userId : req.user.id;
 
-      const stats = await Message.getStats(userId, start, end);
+      const stats = await Message.getStats(period, targetUserId);
 
-      res.json({
-        stats,
-        period: {
-          startDate: start?.toISOString(),
-          endDate: end?.toISOString(),
-        },
-      });
+      res.json(stats);
     } catch (error) {
-      logger.error('Error al obtener estadísticas:', error);
+      logger.error('Error obteniendo estadísticas:', error);
       next(error);
     }
   }
 
   /**
    * Actualizar estado de mensaje
-   * Nueva API: PUT /api/conversations/:conversationId/messages/:id/status
    */
   static async updateStatus (req, res, next) {
     try {
       const { id } = req.params;
-      const { status, conversationId } = req.body;
+      const { status } = req.body;
 
-      if (!status) {
-        return res.status(400).json({ error: 'Estado requerido' });
-      }
-
-      if (!conversationId) {
-        return res.status(400).json({ error: 'conversationId requerido' });
-      }
-
-      const message = await Message.getById(id, conversationId);
+      const message = await Message.getById(id);
       if (!message) {
         return res.status(404).json({ error: 'Mensaje no encontrado' });
       }
 
       await message.updateStatus(status);
 
-      res.json({
-        message: 'Estado actualizado correctamente',
+      logger.info('Estado de mensaje actualizado', {
         messageId: id,
         newStatus: status,
+        updatedBy: req.user.id,
+      });
+
+      res.json({
+        message: 'Estado actualizado exitosamente',
+        messageRecord: message.toJSON(),
       });
     } catch (error) {
+      logger.error('Error actualizando estado de mensaje:', error);
       next(error);
     }
   }

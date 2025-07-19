@@ -5,38 +5,135 @@ const jwt = require('jsonwebtoken');
 
 class AuthController {
   /**
-   * Login con Firebase
+   * 🔒 LOGIN EXCLUSIVO VÍA FIREBASE AUTH
+   * ALINEADO 100% CON FRONTEND - Solo acepta idToken de Firebase
    */
   static async login (req, res, next) {
     try {
-      const { email } = req.body;
-      const user = await User.getByEmail(email);
+      const { idToken } = req.body;
 
-      if (!user || user.status !== 'active') {
-        return res.status(401).json({ error: 'Credenciales inválidas o usuario inactivo' });
+      // ✅ VALIDACIÓN: Solo aceptar idToken
+      if (!idToken) {
+        return res.status(400).json({
+          error: 'Token de Firebase requerido',
+          message: 'Debes proporcionar un idToken válido de Firebase Auth',
+        });
       }
 
-      // Eliminado updateLastLogin: no forma parte del contrato centralizado
+      // ✅ VALIDAR idToken con Firebase Admin SDK
+      let decodedToken;
+      try {
+        decodedToken = await auth.verifyIdToken(idToken);
+      } catch (firebaseError) {
+        logger.warn('Token de Firebase inválido', {
+          error: firebaseError.message,
+          ip: req.ip,
+        });
 
+        return res.status(401).json({
+          error: 'Token inválido',
+          message: 'El token de Firebase proporcionado no es válido',
+        });
+      }
+
+      // ✅ OBTENER información del usuario desde Firebase
+      const { uid, email, name, email_verified: emailVerified } = decodedToken;
+
+      if (!email) {
+        return res.status(400).json({
+          error: 'Email requerido',
+          message: 'El usuario debe tener un email válido en Firebase',
+        });
+      }
+
+      // ✅ SINCRONIZAR usuario en Firestore (crear si no existe)
+      let user = await User.getById(uid);
+
+      if (!user) {
+        // Crear usuario en Firestore sincronizado con Firebase
+        try {
+          user = await User.create({
+            id: uid,
+            email,
+            name: name || email.split('@')[0], // Usar email como fallback
+            role: 'viewer', // Rol por defecto
+            status: 'active',
+            emailVerified,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          logger.info('Usuario creado automáticamente desde Firebase', {
+            userId: uid,
+            email,
+          });
+        } catch (createError) {
+          logger.error('Error creando usuario desde Firebase', {
+            userId: uid,
+            email,
+            error: createError.message,
+          });
+
+          return res.status(500).json({
+            error: 'Error creando usuario',
+            message: 'No se pudo crear el usuario en el sistema',
+          });
+        }
+      } else {
+        // Actualizar información si ha cambiado en Firebase
+        const updates = {};
+        if (user.email !== email) updates.email = email;
+        if (user.name !== name && name) updates.name = name;
+        if (user.emailVerified !== emailVerified) updates.emailVerified = emailVerified;
+
+        if (Object.keys(updates).length > 0) {
+          updates.updatedAt = new Date();
+          await user.update(updates);
+          logger.info('Usuario actualizado desde Firebase', { userId: uid, updates });
+        }
+      }
+
+      // ✅ VERIFICAR que el usuario esté activo
+      if (user.status !== 'active') {
+        return res.status(401).json({
+          error: 'Usuario inactivo',
+          message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
+        });
+      }
+
+      // ✅ GENERAR JWT PROPIO para la API
       const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
       const token = jwt.sign(
         {
-          id: user.id,
+          id: user.id, // uid de Firebase
           email: user.email,
           role: user.role,
+          uid: user.id, // Compatibilidad
         },
         process.env.JWT_SECRET,
         { expiresIn },
       );
 
-      logger.info('Login exitoso', { userId: user.id });
-
-      res.json({
-        token,
-        user: user.toJSON(),
-        expiresIn,
+      logger.info('Login exitoso via Firebase', {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        ip: req.ip,
       });
-    } catch (error) { next(error); }
+
+      // ✅ ESTRUCTURA CANÓNICA EXACTA según especificación
+      res.json({
+        user: user.toJSON(),
+        token,
+      });
+    } catch (error) {
+      logger.error('Error en login Firebase', {
+        error: error.message,
+        stack: error.stack,
+        ip: req.ip,
+      });
+      next(error);
+    }
   }
 
   /**

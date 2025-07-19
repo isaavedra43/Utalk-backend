@@ -466,7 +466,7 @@ class SocketManager {
    * Emitir nuevo mensaje a conversación
    * ✅ CORREGIDO: Usa estructura canónica
    */
-  emitNewMessage(conversationId, messageData) {
+  emitNewMessage (conversationId, messageData) {
     if (!isValidConversationId(conversationId)) {
       logger.error('conversationId inválido para emitir mensaje', { conversationId });
       return;
@@ -478,8 +478,8 @@ class SocketManager {
     const eventData = {
       type: 'new-message',
       conversationId,
-      message: canonicalMessage,  // ✅ Usar estructura canónica
-      timestamp: Date.now()
+      message: canonicalMessage, // ✅ Usar estructura canónica
+      timestamp: Date.now(),
     };
 
     // Emitir a todos los usuarios en la conversación
@@ -493,13 +493,13 @@ class SocketManager {
       messageId: canonicalMessage.id,
       direction: canonicalMessage.direction,
       hasCanonicalStructure: !!(canonicalMessage.sender && canonicalMessage.type && canonicalMessage.timestamp),
-      usersInConversation: this.conversationUsers.get(conversationId)?.size || 0
+      usersInConversation: this.conversationUsers.get(conversationId)?.size || 0,
     });
 
     logger.info('Nuevo mensaje emitido via Socket.IO', {
       conversationId,
       messageId: canonicalMessage.id,
-      direction: canonicalMessage.direction
+      direction: canonicalMessage.direction,
     });
   }
 
@@ -579,6 +579,31 @@ class SocketManager {
       assignedTo,
       assignedBy,
     });
+  }
+
+  /**
+   * Emitir actualización de conversación
+   */
+  emitConversationUpdate (io, conversationId, updateData = {}) {
+    try {
+      logger.info('Emitiendo actualización de conversación', { conversationId });
+
+      const updatePayload = {
+        conversationId,
+        timestamp: new Date().toISOString(),
+        ...updateData,
+      };
+
+      // ✅ Usar estructura canónica
+      io.emit('conversation:update', updatePayload);
+
+      logger.info('Actualización de conversación emitida exitosamente', {
+        conversationId,
+        hasData: Object.keys(updateData).length > 0,
+      });
+    } catch (error) {
+      logger.error('Error emitiendo actualización de conversación:', error);
+    }
   }
 
   /**

@@ -756,7 +756,7 @@ class ConversationController {
       // ✅ APLICAR toJSON() EXPLÍCITAMENTE para asegurar estructura canónica
       const formattedMessages = messages.map(message => {
         const jsonMessage = message.toJSON ? message.toJSON() : message;
-        
+
         // ✅ LOG PRIMERA MENSAJE para verificar estructura
         if (messages.indexOf(message) === 0) {
           console.log('🔍 PRIMER MENSAJE FORMATEADO:', JSON.stringify({
@@ -770,13 +770,13 @@ class ConversationController {
               sender: !!jsonMessage.sender,
               direction: !!jsonMessage.direction,
               isRead: typeof jsonMessage.isRead === 'boolean',
-              isDelivered: typeof jsonMessage.isDelivered === 'boolean'
+              isDelivered: typeof jsonMessage.isDelivered === 'boolean',
             },
             senderType: jsonMessage.sender?.type,
-            attachmentsCount: jsonMessage.attachments?.length || 0
+            attachmentsCount: jsonMessage.attachments?.length || 0,
           }));
         }
-        
+
         return jsonMessage;
       });
 
@@ -801,7 +801,7 @@ class ConversationController {
         firstMessageStructure: response.messages?.[0] ? Object.keys(response.messages[0]) : 'NONE',
         total: response.total,
         limit: response.limit,
-        page: response.page
+        page: response.page,
       }));
 
       res.json(response);

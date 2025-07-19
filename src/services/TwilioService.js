@@ -439,11 +439,11 @@ class TwilioService {
       // ✅ LOG DETALLADO para debugging
       console.log('🔐 TwilioService.validateWebhook - Iniciando validación:', {
         hasSignature: !!signature,
-        url: url,
+        url,
         authTokenConfigured: !!twilioConfig.authToken,
         environment: process.env.NODE_ENV,
         paramCount: Object.keys(params).length,
-        sampleParams: Object.keys(params).slice(0, 5)
+        sampleParams: Object.keys(params).slice(0, 5),
       });
 
       if (!twilioConfig.authToken) {
@@ -475,8 +475,8 @@ class TwilioService {
         originalParamCount: Object.keys(params).length,
         formattedParamCount: Object.keys(formattedParams).length,
         sampleFormatted: Object.fromEntries(
-          Object.entries(formattedParams).slice(0, 3)
-        )
+          Object.entries(formattedParams).slice(0, 3),
+        ),
       });
 
       // ✅ VALIDACIÓN TWILIO con firma
@@ -506,7 +506,7 @@ class TwilioService {
         error: error.message,
         stack: error.stack?.split('\n')[0],
         url,
-        hasSignature: !!signature
+        hasSignature: !!signature,
       });
       
       logger.error('Error validando firma de webhook Twilio', {

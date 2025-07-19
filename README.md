@@ -1,8 +1,58 @@
-# ✅ UTalk Backend - API Alineada con Frontend
+# ✅ UTalk Backend - API 100% Alineada con Frontend
+
+## 🎯 **ALINEAMIENTO COMPLETO FRONTEND-BACKEND**
+
+Este backend ha sido **completamente alineado** con las especificaciones exactas del frontend. Implementa autenticación exclusiva vía Firebase Auth y estructura canónica de datos sin margen de error.
+
+### 🔒 **CAMBIOS DE ALINEAMIENTO IMPLEMENTADOS:**
+
+- ✅ **Login exclusivo vía Firebase Auth**: Solo acepta `{ idToken }` de Firebase
+- ✅ **Estructura canónica exacta**: Respuestas sin `data`, `result`, ni `pagination` anidada  
+- ✅ **Campos sin null/undefined**: Valores por defecto en todas las respuestas
+- ✅ **Timestamps ISO strings**: Todos los timestamps en formato ISO 8601
+- ✅ **WebSockets alineados**: Eventos `message:new` con estructura consistente
+- ✅ **Endpoints específicos**: GET `/conversations/:id/messages` y POST `/messages/send`
 
 ## 🎯 **ESTRUCTURA CANÓNICA DE DATOS**
 
 Este backend está **100% alineado** con las expectativas del frontend React + TypeScript. Todas las respuestas siguen estructuras **exactas** y **consistentes**.
+
+---
+
+## 🔐 **LOGIN EXCLUSIVO VÍA FIREBASE AUTH**
+
+### **POST** `/api/auth/login`
+
+**IMPORTANTE:** Este endpoint SOLO acepta idToken de Firebase Auth. No hay login manual.
+
+**Request Body:**
+```json
+{
+  "idToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." 
+}
+```
+
+**Response (ESTRUCTURA EXACTA):**
+```json
+{
+  "user": {
+    "id": "firebase_uid_123",
+    "email": "usuario@example.com", 
+    "name": "Usuario Test",
+    "role": "viewer"
+  },
+  "token": "jwt_token_backend_para_api"
+}
+```
+
+**Flujo de Autenticación:**
+1. Frontend autentica con Firebase Auth
+2. Frontend obtiene `idToken` de Firebase  
+3. Frontend envía `idToken` al backend
+4. Backend valida con Firebase Admin SDK
+5. Backend crea/sincroniza usuario en Firestore
+6. Backend genera JWT propio para la API
+7. Frontend usa JWT del backend para todas las requests
 
 ---
 
@@ -112,6 +162,63 @@ Este backend está **100% alineado** con las expectativas del frontend React + T
   "limit": 20
 }
 ```
+
+---
+
+## 📤 **ENVÍO DE MENSAJES ALINEADO**
+
+### **POST** `/api/messages/send`
+
+**ESTRUCTURA ALINEADA CON FRONTEND:**
+
+**Request Body:**
+```json
+{
+  "conversationId": "conv_1234567890_0987654321",  // Opcional si se envía 'to'
+  "to": "+1234567890",                             // Opcional si se envía 'conversationId'  
+  "content": "Mensaje desde backend alineado",
+  "type": "text",                                  // "text", "image", "audio", etc.
+  "attachments": [],                               // Array de attachments opcionales
+  "metadata": {}                                   // Metadata opcional
+}
+```
+
+**Response (ESTRUCTURA CANÓNICA):**
+```json
+{
+  "message": {
+    "id": "msg_12345",
+    "conversationId": "conv_1234567890_0987654321",
+    "content": "Mensaje desde backend alineado",
+    "type": "text",
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "sender": {
+      "id": "agent_123",
+      "name": "Usuario Test", 
+      "type": "agent"
+    },
+    "direction": "outbound",
+    "attachments": [],
+    "isRead": false,
+    "isDelivered": true,
+    "metadata": {
+      "twilioSid": "SM_123",
+      "userId": "agent_123",
+      "from": "+0987654321",
+      "to": "+1234567890", 
+      "status": "sent"
+    }
+  }
+}
+```
+
+**Comportamiento:**
+- Si solo se envía `conversationId`, extrae el número destino
+- Si solo se envía `to`, crea/obtiene la conversación automáticamente
+- Envía via Twilio WhatsApp API
+- Guarda en Firestore con estructura canónica
+- Emite evento WebSocket `message:new` inmediatamente
+- Devuelve mensaje con estructura exacta del modelo
 
 ---
 

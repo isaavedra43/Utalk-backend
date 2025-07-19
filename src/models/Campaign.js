@@ -270,15 +270,25 @@ class Campaign {
   }
 
   /**
-   * Convertir a objeto plano para respuestas JSON
+   * Convertir a objeto plano para respuestas JSON con timestamps ISO
    */
   toJSON () {
+    // ✅ Convertir timestamps a formato ISO string
+    let createdAtISO = '';
+    if (this.createdAt && typeof this.createdAt.toDate === 'function') {
+      createdAtISO = this.createdAt.toDate().toISOString();
+    } else if (this.createdAt instanceof Date) {
+      createdAtISO = this.createdAt.toISOString();
+    } else if (typeof this.createdAt === 'string') {
+      createdAtISO = this.createdAt;
+    }
+
     return {
       id: this.id,
-      name: this.name,
-      status: this.status,
-      createdAt: this.createdAt,
-      messagesSent: this.messagesSent,
+      name: this.name || '',
+      status: this.status || 'draft',
+      createdAt: createdAtISO,
+      messagesSent: this.messagesSent || 0,
     };
   }
 }

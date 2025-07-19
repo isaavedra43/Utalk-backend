@@ -235,17 +235,36 @@ class Contact {
   }
 
   /**
-   * Convertir a objeto plano para respuestas JSON
+   * Convertir a objeto plano para respuestas JSON con timestamps ISO
    */
   toJSON () {
+    // ✅ Convertir timestamps a formato ISO string
+    let createdAtISO = '';
+    if (this.createdAt && typeof this.createdAt.toDate === 'function') {
+      createdAtISO = this.createdAt.toDate().toISOString();
+    } else if (this.createdAt instanceof Date) {
+      createdAtISO = this.createdAt.toISOString();
+    } else if (typeof this.createdAt === 'string') {
+      createdAtISO = this.createdAt;
+    }
+
+    let updatedAtISO = '';
+    if (this.updatedAt && typeof this.updatedAt.toDate === 'function') {
+      updatedAtISO = this.updatedAt.toDate().toISOString();
+    } else if (this.updatedAt instanceof Date) {
+      updatedAtISO = this.updatedAt.toISOString();
+    } else if (typeof this.updatedAt === 'string') {
+      updatedAtISO = this.updatedAt;
+    }
+
     return {
       id: this.id,
       name: this.name,
       phone: this.phone,
-      email: this.email,
-      tags: this.tags,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
+      email: this.email || '', // No null
+      tags: this.tags || [], // No null
+      createdAt: createdAtISO,
+      updatedAt: updatedAtISO,
     };
   }
 }

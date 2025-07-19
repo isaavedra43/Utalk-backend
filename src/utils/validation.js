@@ -313,15 +313,13 @@ const commonSchemas = {
 
 // Esquemas específicos para cada entidad con validaciones mejoradas
 const schemas = {
-  // Autenticación con rate limiting considerado
+  // Autenticación EXCLUSIVA con Firebase Auth idToken
   auth: {
     login: Joi.object({
-      email: commonSchemas.email,
-      password: Joi.string().min(6).max(128).required(),
-      captcha: Joi.string().when('$requireCaptcha', {
-        is: true,
-        then: Joi.required(),
-        otherwise: Joi.optional(),
+      idToken: Joi.string().min(1).max(4096).required().messages({
+        'string.empty': 'El token de Firebase es requerido',
+        'any.required': 'Debes proporcionar un idToken válido de Firebase Auth',
+        'string.max': 'El token de Firebase es demasiado largo',
       }),
     }),
 
@@ -381,22 +379,20 @@ const schemas = {
     }),
   },
 
-  // Mensajes con validación de contenido
+  // Mensajes con validación alineada al frontend
   message: {
     send: Joi.object({
-      conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).required(),
-      sender: Joi.object({
-        id: commonSchemas.id,
-        name: commonSchemas.safeText(100).required(),
-      }).required(),
+      conversationId: Joi.string().min(1).optional(), // Opcional si se proporciona 'to'
+      to: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).optional(), // Número de teléfono internacional
       content: Joi.string().min(1).max(4096).required(),
-      timestamp: Joi.string().isoDate().required(),
-      media: Joi.object({
+      type: Joi.string().valid('text', 'image', 'audio', 'video', 'document').optional().default('text'),
+      attachments: Joi.array().items(Joi.object({
         url: commonSchemas.url.required(),
-        type: Joi.string().valid('image', 'document', 'audio', 'video').required(),
-      }).optional().allow(null),
-      status: Joi.string().valid('sent', 'pending', 'failed').optional(),
-    }),
+        type: Joi.string().required(),
+        name: Joi.string().optional(),
+      })).optional().default([]),
+      metadata: Joi.object().optional().default({}),
+    }).or('conversationId', 'to'), // Al menos uno de los dos debe estar presente
 
     create: Joi.object({
       conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).required(),
