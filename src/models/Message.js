@@ -5,38 +5,143 @@ const { isValidConversationId } = require('../utils/conversation');
 
 class Message {
   constructor (data) {
-    this.id = data.id;
+    // ✅ CRÍTICO: Generar ID automáticamente si no se proporciona
+    this.id = data.id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // ✅ ASEGURAR conversationId válido (crítico para Firestore path)
     this.conversationId = data.conversationId;
-    this.sender = data.sender;
-    this.content = data.content;
-    this.timestamp = data.timestamp;
-    this.media = data.media;
+    if (!this.conversationId) {
+      throw new Error('conversationId es requerido para crear un mensaje');
+    }
+
+    // ✅ MAPEO DE CAMPOS para compatibilidad con alineación anterior
+    this.from = data.from;
+    this.to = data.to;
+    this.content = data.content || '';
+    this.type = data.type || 'text';
+    this.direction = data.direction;
     this.status = data.status || 'sent';
+    this.userId = data.userId || null;
+    
+    // ✅ TIMESTAMPS: Mantener estructura original + nueva
+    this.timestamp = data.timestamp || new Date();
+    this.createdAt = data.createdAt || this.timestamp;
+    this.updatedAt = data.updatedAt || this.timestamp;
+
+    // ✅ MEDIA: Mantener nombres de campos originales
+    this.mediaUrls = data.mediaUrls || [];
+    this.media = data.media || null; // Campo legacy
+
+    // ✅ TWILIO: Campos específicos
+    this.twilioSid = data.twilioSid || null;
+    
+    // ✅ METADATA: Toda la información adicional
+    this.metadata = data.metadata || {};
+
+    // ✅ LOG para debugging (solo si hay problemas)
+    if (!this.conversationId || !this.id) {
+      console.error('❌ Error en constructor Message:', {
+        id: this.id,
+        conversationId: this.conversationId,
+        inputData: data
+      });
+      throw new Error('Campos críticos faltantes en Message constructor');
+    }
   }
 
   /**
    * Crear un nuevo mensaje en la subcolección correspondiente
+   * ✅ CORREGIDO: Logs detallados y validación completa antes de Firestore
    */
   static async create (messageData) {
-    const message = new Message(messageData);
+    try {
+      // ✅ LOG INICIAL para debugging
+      console.log('🔄 Message.create - Iniciando con datos:', {
+        id: messageData.id,
+        conversationId: messageData.conversationId,
+        from: messageData.from,
+        to: messageData.to,
+        hasContent: !!messageData.content,
+        type: messageData.type,
+        direction: messageData.direction,
+        twilioSid: messageData.twilioSid
+      });
 
-    // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
-    const cleanData = prepareForFirestore({
-      ...message,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      timestamp: FieldValue.serverTimestamp(),
-    });
+      const message = new Message(messageData);
 
-    // Guardar en subcolección: /conversations/{conversationId}/messages/{messageId}
-    await firestore
-      .collection('conversations')
-      .doc(message.conversationId)
-      .collection('messages')
-      .doc(message.id)
-      .set(cleanData);
+      // ✅ VALIDAR ANTES DE GUARDAR
+      if (!message.id || message.id.trim() === '') {
+        throw new Error('Message ID no puede estar vacío');
+      }
+      
+      if (!message.conversationId || message.conversationId.trim() === '') {
+        throw new Error('conversationId no puede estar vacío');
+      }
 
-    return message;
+      // ✅ PREPARAR DATOS PARA FIRESTORE (estructura interna)
+      const firestoreData = {
+        // Campos originales para Firestore (NO cambiar)
+        from: message.from,
+        to: message.to,
+        content: message.content,
+        type: message.type,
+        direction: message.direction,
+        status: message.status,
+        userId: message.userId,
+        mediaUrls: message.mediaUrls,
+        twilioSid: message.twilioSid,
+        metadata: message.metadata,
+        
+        // Timestamps de Firestore
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp()
+      };
+
+      // ✅ LIMPIAR datos undefined/null para Firestore
+      const cleanData = prepareForFirestore(firestoreData);
+
+      // ✅ LOG ANTES DE GUARDAR
+      console.log('💾 Message.create - Guardando en Firestore:', {
+        messageId: message.id,
+        conversationId: message.conversationId,
+        firestorePath: `conversations/${message.conversationId}/messages/${message.id}`,
+        cleanDataKeys: Object.keys(cleanData),
+        hasCleanData: Object.keys(cleanData).length > 0
+      });
+
+      // ✅ GUARDAR EN FIRESTORE con path completo
+      const docRef = firestore
+        .collection('conversations')
+        .doc(message.conversationId)
+        .collection('messages')
+        .doc(message.id);
+
+      await docRef.set(cleanData);
+
+      console.log('✅ Message.create - Guardado exitoso:', {
+        messageId: message.id,
+        conversationId: message.conversationId,
+        docPath: docRef.path
+      });
+
+      return message;
+      
+    } catch (error) {
+      console.error('❌ Message.create - Error guardando:', {
+        error: error.message,
+        stack: error.stack?.split('\n')[0],
+        messageData: {
+          id: messageData.id,
+          conversationId: messageData.conversationId,
+          from: messageData.from,
+          to: messageData.to
+        }
+      });
+      
+      // Re-lanzar error para que el caller lo maneje
+      throw new Error(`Error guardando mensaje: ${error.message}`);
+    }
   }
 
   /**

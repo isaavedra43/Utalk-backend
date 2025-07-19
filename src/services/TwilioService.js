@@ -432,20 +432,36 @@ class TwilioService {
 
   /**
    * Validar webhook de Twilio con manejo robusto de errores
+   * ✅ CORREGIDO: Logs detallados para debugging de firma
    */
   static validateWebhook (signature, url, params) {
     try {
+      // ✅ LOG DETALLADO para debugging
+      console.log('🔐 TwilioService.validateWebhook - Iniciando validación:', {
+        hasSignature: !!signature,
+        url: url,
+        authTokenConfigured: !!twilioConfig.authToken,
+        environment: process.env.NODE_ENV,
+        paramCount: Object.keys(params).length,
+        sampleParams: Object.keys(params).slice(0, 5)
+      });
+
       if (!twilioConfig.authToken) {
+        console.log('⚠️ TWILIO_AUTH_TOKEN no configurado - saltando validación');
         logger.warn('TWILIO_AUTH_TOKEN no configurado - validación de firma deshabilitada');
         return true; // En desarrollo, permitir sin validación
       }
 
       if (!signature) {
+        console.log('⚠️ X-Twilio-Signature ausente - saltando validación en desarrollo');
         logger.warn('Cabecera X-Twilio-Signature ausente en la solicitud');
         return process.env.NODE_ENV !== 'production'; // Solo permitir en desarrollo
       }
 
       const twilio = require('twilio');
+
+      // ✅ LOG URL COMPLETA para verificar exactitud
+      console.log('🔗 URL completa para validación:', url);
 
       // Convertir params a el formato esperado por Twilio
       const formattedParams = {};
@@ -454,6 +470,16 @@ class TwilioService {
         formattedParams[key] = String(params[key] || '');
       });
 
+      // ✅ LOG PARÁMETROS FORMATEADOS
+      console.log('📋 Parámetros formateados para Twilio:', {
+        originalParamCount: Object.keys(params).length,
+        formattedParamCount: Object.keys(formattedParams).length,
+        sampleFormatted: Object.fromEntries(
+          Object.entries(formattedParams).slice(0, 3)
+        )
+      });
+
+      // ✅ VALIDACIÓN TWILIO con firma
       const isValid = twilio.validateRequest(
         twilioConfig.authToken,
         signature,
@@ -462,6 +488,7 @@ class TwilioService {
       );
 
       if (!isValid) {
+        console.log('❌ Validación de firma Twilio FALLÓ');
         logger.error('Validación de firma Twilio falló', {
           url,
           signaturePresent: !!signature,
@@ -469,11 +496,19 @@ class TwilioService {
           environment: process.env.NODE_ENV,
         });
       } else {
+        console.log('✅ Validación de firma Twilio EXITOSA');
         logger.info('Validación de firma Twilio exitosa');
       }
 
       return isValid;
     } catch (error) {
+      console.error('❌ Error validando firma de webhook Twilio:', {
+        error: error.message,
+        stack: error.stack?.split('\n')[0],
+        url,
+        hasSignature: !!signature
+      });
+      
       logger.error('Error validando firma de webhook Twilio', {
         error: error.message,
         stack: error.stack,
@@ -481,8 +516,10 @@ class TwilioService {
         signaturePresent: !!signature,
       });
 
-      // En caso de error, fallar seguro en producción
-      return process.env.NODE_ENV !== 'production';
+      // En caso de error, permitir en desarrollo, rechazar en producción
+      const allowOnError = process.env.NODE_ENV !== 'production';
+      console.log(allowOnError ? '⚠️ Permitiendo por error en desarrollo' : '❌ Rechazando por error en producción');
+      return allowOnError;
     }
   }
 

@@ -509,8 +509,25 @@ class MessageController {
         const signature = req.headers['x-twilio-signature'];
         if (signature && process.env.TWILIO_AUTH_TOKEN) {
           logger.info('Validando firma Twilio...');
-          const url = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
-          const isValid = TwilioService.validateWebhook(signature, url, req.body);
+          
+          // ✅ CONSTRUCCIÓN CORRECTA DE URL para validación de firma
+          let webhookUrl = `${req.protocol}://${req.headers.host}${req.originalUrl}`;
+          
+          // ✅ RAILWAY FIX: Usar la URL exacta que Twilio conoce
+          if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+            webhookUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}${req.originalUrl}`;
+          }
+          
+          // ✅ LOG URL PARA DEBUGGING
+          console.log('🔗 URL de webhook para validación:', {
+            constructed: webhookUrl,
+            protocol: req.protocol,
+            host: req.headers.host,
+            originalUrl: req.originalUrl,
+            railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN || 'no_configurado'
+          });
+          
+          const isValid = TwilioService.validateWebhook(signature, webhookUrl, req.body);
 
           if (!isValid) {
             logger.warn('Firma Twilio inválida, pero procesando por seguridad');
