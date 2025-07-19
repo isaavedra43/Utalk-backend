@@ -131,34 +131,120 @@ components:
 
     Message:
       type: object
+      required:
+        - id
+        - conversationId
+        - content
+        - type
+        - timestamp
+        - sender
+        - direction
+        - isRead
+        - isDelivered
       properties:
         id:
           type: string
-        contactId:
+          description: ID único del mensaje
+          example: "msg_12345"
+        conversationId:
           type: string
+          description: ID único de la conversación
+          example: "conv_1234567890_0987654321"
         content:
           type: string
-        direction:
-          type: string
-          enum: [inbound, outbound]
-        status:
-          type: string
-          enum: [pending, sent, delivered, read, failed]
+          description: Texto del mensaje
+          example: "Hola, necesito ayuda con mi pedido"
         type:
           type: string
-          enum: [text, image, document, audio, video]
-        metadata:
-          type: object
-        userId:
-          type: string
+          enum: [text, image, file, audio, video, document]
+          description: Tipo de mensaje
+          example: "text"
         timestamp:
           type: string
           format: date-time
-        readAt:
+          description: Timestamp en formato ISO 8601
+          example: "2024-01-15T10:30:00.000Z"
+        sender:
+          type: object
+          required:
+            - id
+            - name
+            - type
+          properties:
+            id:
+              type: string
+              description: ID del remitente (puede ser teléfono para clientes)
+              example: "+1234567890"
+            name:
+              type: string
+              description: Nombre del remitente
+              example: "Juan Pérez"
+            type:
+              type: string
+              enum: [contact, agent, bot]
+              description: Tipo de remitente
+              example: "contact"
+            avatar:
+              type: string
+              nullable: true
+              description: URL del avatar del remitente
+              example: null
+        direction:
           type: string
-          format: date-time
+          enum: [inbound, outbound]
+          description: Dirección del mensaje
+          example: "inbound"
+        attachments:
+          type: array
+          description: Archivos adjuntos
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: "media_001"
+              name:
+                type: string
+                example: "foto.jpg"
+              url:
+                type: string
+                example: "https://example.com/media/foto.jpg"
+              type:
+                type: string
+                example: "image/jpeg"
+              size:
+                type: number
+                nullable: true
+                example: 12345
         isRead:
           type: boolean
+          description: Si el mensaje ha sido leído
+          example: true
+        isDelivered:
+          type: boolean
+          description: Si el mensaje ha sido entregado
+          example: true
+        metadata:
+          type: object
+          description: Información adicional opcional
+          properties:
+            twilioSid:
+              type: string
+              nullable: true
+              example: "SM1234567890abcdef"
+            userId:
+              type: string
+              nullable: true
+              example: "user_12345"
+            from:
+              type: string
+              example: "+1234567890"
+            to:
+              type: string
+              example: "+0987654321"
+            status:
+              type: string
+              example: "delivered"
 
     Campaign:
       type: object
@@ -279,6 +365,126 @@ components:
           type: boolean
         hasPrev:
           type: boolean
+
+    Conversation:
+      type: object
+      required:
+        - id
+        - contact
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: ID único de la conversación
+          example: "conv_001_002"
+        contact:
+          type: object
+          required:
+            - id
+            - name
+            - channel
+          properties:
+            id:
+              type: string
+              description: ID del contacto
+              example: "+1234567890"
+            name:
+              type: string
+              description: Nombre del contacto
+              example: "Cliente X"
+            avatar:
+              type: string
+              nullable: true
+              description: URL del avatar del contacto
+              example: null
+            channel:
+              type: string
+              description: Canal de comunicación
+              example: "whatsapp"
+        lastMessage:
+          $ref: '#/components/schemas/Message'
+          nullable: true
+          description: Último mensaje de la conversación
+        status:
+          type: string
+          enum: [open, closed, pending, archived]
+          description: Estado de la conversación
+          example: "open"
+        assignedTo:
+          type: object
+          nullable: true
+          description: Agente asignado a la conversación
+          properties:
+            id:
+              type: string
+              example: "user_123"
+            name:
+              type: string
+              example: "Agente 1"
+        createdAt:
+          type: string
+          format: date-time
+          description: Fecha de creación en formato ISO 8601
+          example: "2024-01-15T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Fecha de última actualización en formato ISO 8601
+          example: "2024-01-15T11:00:00.000Z"
+
+    MessageListResponse:
+      type: object
+      required:
+        - messages
+        - total
+        - page
+        - limit
+      properties:
+        messages:
+          type: array
+          description: Array de mensajes (NUNCA "data", "result", etc.)
+          items:
+            $ref: '#/components/schemas/Message'
+        total:
+          type: integer
+          description: Número total de mensajes en esta respuesta
+          example: 25
+        page:
+          type: integer
+          description: Página actual
+          example: 1
+        limit:
+          type: integer
+          description: Límite por página
+          example: 50
+
+    ConversationListResponse:
+      type: object
+      required:
+        - conversations
+        - total
+        - page
+        - limit
+      properties:
+        conversations:
+          type: array
+          description: Array de conversaciones
+          items:
+            $ref: '#/components/schemas/Conversation'
+        total:
+          type: integer
+          description: Número total de conversaciones
+          example: 10
+        page:
+          type: integer
+          description: Página actual
+          example: 1
+        limit:
+          type: integer
+          description: Límite por página
+          example: 50
 
 security:
   - BearerAuth: []

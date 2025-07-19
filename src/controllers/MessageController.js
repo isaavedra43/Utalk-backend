@@ -12,23 +12,60 @@ const Conversation = require('../models/Conversation'); // Added import for Conv
 class MessageController {
   /**
    * Obtener conversaciones (últimos mensajes por contacto)
-   * ✅ ACTUALIZADO: Usa paginación cursor-based eficiente
+   * ✅ ACTUALIZADO: Usa estructura canónica para respuesta
    */
   static async getConversations (req, res, _next) {
     try {
-      const { limit: rawLimit = 20, startAfter = null } = req.query;
-      const { limit } = validatePaginationParams({ limit: rawLimit, startAfter });
-      const userId = req.user.role === 'admin' ? null : req.user.id;
-
-      logger.info('[CONVERSATIONS API] Obteniendo conversaciones', {
-        limit,
-        startAfter,
-        userId: req.user.id,
-        role: req.user.role,
+      // ✅ DEBUG: Logs para rastrear el flujo
+      console.log('🔍 DEBUG - getConversations iniciado:', {
+        query: req.query,
+        user: {
+          uid: req.user.id,
+          role: req.user.role,
+          email: req.user.email
+        },
+        timestamp: new Date().toISOString()
       });
 
-      // Para obtener conversaciones, necesitamos más mensajes iniciales para agrupar
-      const recentMessages = await Message.getRecentMessages(userId, limit * 3);
+      const { limit = 20 } = req.query;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
+
+      console.log('🔍 DEBUG - Parámetros de consulta:', {
+        limit: parseInt(limit),
+        userId: userId || 'ADMIN (todos)',
+        requestingUserRole: req.user.role
+      });
+
+      // Para simplificar, obtenemos mensajes recientes y agrupamos por teléfono
+      console.log('🔍 DEBUG - Ejecutando Message.getRecentMessages...');
+      const recentMessages = await Message.getRecentMessages(userId, parseInt(limit) * 5);
+
+      console.log('🔍 DEBUG - Mensajes recientes obtenidos:', {
+        totalMessages: recentMessages.length,
+        firstMessage: recentMessages[0] ? {
+          id: recentMessages[0].id,
+          from: recentMessages[0].from,
+          to: recentMessages[0].to,
+          direction: recentMessages[0].direction,
+          content: recentMessages[0].content?.substring(0, 50),
+          timestamp: recentMessages[0].timestamp,
+          conversationId: recentMessages[0].conversationId
+        } : 'NINGUNO'
+      });
+
+      if (recentMessages.length === 0) {
+        console.log('⚠️ DEBUG - No se encontraron mensajes para el usuario:', {
+          userId: userId || 'ADMIN',
+          role: req.user.role
+        });
+        
+        return res.json({
+          conversations: [],
+          total: 0,
+          page: 1,
+          limit: parseInt(limit)
+        });
+      }
 
       // Agrupar por número de teléfono y obtener el último mensaje de cada conversación
       const conversationsMap = new Map();
@@ -42,69 +79,93 @@ class MessageController {
         }
       }
 
-      let conversations = Array.from(conversationsMap.values())
-        .sort((a, b) => b.timestamp - a.timestamp);
+      console.log('🔍 DEBUG - Conversaciones agrupadas:', {
+        totalConversations: conversationsMap.size,
+        phoneNumbers: Array.from(conversationsMap.keys()),
+        lastMessages: Array.from(conversationsMap.values()).map(msg => ({
+          from: msg.from,
+          to: msg.to,
+          direction: msg.direction,
+          content: msg.content?.substring(0, 30)
+        }))
+      });
 
-      // Aplicar paginación cursor-based si hay startAfter
-      if (startAfter) {
-        const startIndex = conversations.findIndex(conv => {
-          const phoneKey = conv.direction === 'inbound' ? conv.from : conv.to;
-          return phoneKey === startAfter;
-        });
-        if (startIndex >= 0) {
-          conversations = conversations.slice(startIndex + 1);
-        }
-      }
+      const conversations = Array.from(conversationsMap.values())
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, parseInt(limit));
 
-      // Limitar resultados
-      conversations = conversations.slice(0, limit);
+      console.log('🔍 DEBUG - Conversaciones ordenadas y limitadas:', {
+        count: conversations.length,
+        limit: parseInt(limit)
+      });
 
-      // Obtener información de contactos y construir el objeto de conversación
+      // Obtener información de contactos
+      console.log('🔍 DEBUG - Obteniendo información de contactos...');
       const conversationsWithContacts = await Promise.all(
         conversations.map(async (message) => {
           const phoneKey = message.direction === 'inbound' ? message.from : message.to;
           const contact = await Contact.getByPhone(phoneKey);
 
-          const conversationObject = new Conversation({
-            id: message.conversationId,
-            contact: {
-              id: contact ? contact.id : phoneKey,
-              name: contact ? contact.name : phoneKey,
-            },
-            lastMessage: message.toJSON(),
-            unreadCount: 1, // Simulado, se debe calcular
-            status: 'open', // Simulado
-            assignedTo: null,
-          });
+          console.log('🔍 DEBUG - Contacto obtenido para', phoneKey, ':', contact ? 'ENCONTRADO' : 'NO_ENCONTRADO');
 
-          return conversationObject.toJSON();
+          // ✅ ESTRUCTURA CANÓNICA: Crear conversación según especificación
+          const conversationData = {
+            id: message.conversationId || `conv_${phoneKey.replace(/\D/g, '')}_${Date.now()}`,
+            contact: {
+              id: phoneKey,
+              name: contact?.name || phoneKey,
+              avatar: contact?.avatar || null,
+              channel: 'whatsapp'
+            },
+            lastMessage: message.toJSON(), // Usar estructura canónica del mensaje
+            status: 'open', // Por defecto
+            assignedTo: null, // Se puede extender después
+            createdAt: message.timestamp,
+            updatedAt: message.timestamp
+          };
+
+          return conversationData;
         }),
       );
 
-      // ✅ RESPUESTA CON PAGINACIÓN CURSOR-BASED
-      const response = {
-        conversations: conversationsWithContacts,
-        pagination: {
-          limit,
-          startAfter,
-          nextStartAfter: conversationsWithContacts.length === limit
-            ? conversationsWithContacts[conversationsWithContacts.length - 1].phone
-            : null,
-          hasNextPage: conversationsWithContacts.length === limit,
-          conversationCount: conversationsWithContacts.length,
-        },
-      };
-
-      logger.info('[CONVERSATIONS API] Respuesta enviada', {
-        conversationCount: conversationsWithContacts.length,
-        hasNextPage: response.pagination.hasNextPage,
-        nextStartAfter: response.pagination.nextStartAfter,
+      console.log('🔍 DEBUG - Respuesta final preparada:', {
+        conversationsCount: conversationsWithContacts.length,
+        structureExample: conversationsWithContacts[0] ? {
+          id: conversationsWithContacts[0].id,
+          hasContact: !!conversationsWithContacts[0].contact,
+          hasLastMessage: !!conversationsWithContacts[0].lastMessage,
+          contactName: conversationsWithContacts[0].contact?.name,
+          lastMessageFields: conversationsWithContacts[0].lastMessage ? Object.keys(conversationsWithContacts[0].lastMessage) : 'NONE'
+        } : 'EMPTY'
       });
 
+      // ✅ ESTRUCTURA CANÓNICA EXACTA según especificación del frontend
+      const response = {
+        conversations: conversationsWithContacts,  // Array de conversaciones
+        total: conversationsWithContacts.length,   // Número total
+        page: 1,                                  // Página actual  
+        limit: parseInt(limit)                    // Límite por página
+      };
+
+      // ✅ LOG FINAL para verificar estructura
+      console.log('RESPONSE_FINAL:', JSON.stringify({
+        conversationsCount: response.conversations.length,
+        hasConversations: response.conversations.length > 0,
+        structure: Object.keys(response),
+        sampleConversation: response.conversations[0] ? Object.keys(response.conversations[0]) : 'NONE'
+      }));
+
+      console.log('✅ DEBUG - Enviando respuesta a frontend');
       res.json(response);
     } catch (error) {
+      console.error('❌ DEBUG - Error en getConversations:', {
+        error: error.message,
+        stack: error.stack,
+        user: req.user,
+        query: req.query
+      });
       logger.error('Error al obtener conversaciones:', error);
-      res.status(500).json(createEmptyPaginatedResponse('Error al obtener conversaciones', 20));
+      next(error);
     }
   }
 

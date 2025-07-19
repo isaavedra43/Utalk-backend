@@ -456,9 +456,11 @@ class Message {
   }
 
   /**
-   * Convertir a JSON con validación y normalización de campos obligatorios
+   * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
+   * ESTRUCTURA CANÓNICA según especificación del frontend
    */
   toJSON () {
+    // ✅ Normalizar timestamp a ISO string
     let normalizedTimestamp;
     if (this.timestamp && typeof this.timestamp.toDate === 'function') {
       normalizedTimestamp = this.timestamp.toDate().toISOString();
@@ -470,15 +472,96 @@ class Message {
       normalizedTimestamp = new Date().toISOString();
     }
 
-    return {
-      id: this.id,
-      conversationId: this.conversationId,
-      sender: this.sender,
-      content: this.content,
-      timestamp: normalizedTimestamp,
-      media: this.media,
-      status: this.status,
+    // ✅ Determinar tipo de sender basado en direction
+    let senderType = 'contact'; // Por defecto es contacto (cliente)
+    if (this.direction === 'outbound' && this.userId) {
+      senderType = 'agent'; // Es un agente si envió el mensaje
+    } else if (this.direction === 'outbound' && !this.userId) {
+      senderType = 'bot'; // Es bot si es saliente pero sin userId
+    }
+
+    // ✅ Construir objeto sender según especificación
+    const sender = {
+      id: this.direction === 'inbound' ? this.from : (this.userId || this.from),
+      name: this.direction === 'inbound' ? this.from : (this.userId || 'Sistema'),
+      type: senderType,
+      avatar: null // Siempre null por ahora, se puede extender después
     };
+
+    // ✅ Mapear mediaUrls a attachments con estructura completa
+    const attachments = (this.mediaUrls || []).map((url, index) => ({
+      id: `media_${this.id}_${index}`,
+      name: this.extractFilenameFromUrl(url) || `archivo_${index + 1}`,
+      url: url,
+      type: this.guessContentTypeFromUrl(url) || 'application/octet-stream',
+      size: null // No tenemos el tamaño, se puede extender después
+    }));
+
+    // ✅ Determinar estados booleanos desde status
+    const isDelivered = ['delivered', 'read'].includes(this.status);
+    const isRead = this.status === 'read';
+
+    // ✅ ESTRUCTURA CANÓNICA EXACTA
+    return {
+      id: this.id,                          // string único, requerido
+      conversationId: this.conversationId,  // string único, requerido  
+      content: this.content || '',          // string, requerido
+      type: this.type || 'text',           // string, requerido
+      timestamp: normalizedTimestamp,       // string ISO, requerido
+      sender: sender,                       // objeto, requerido
+      direction: this.direction,            // string ('inbound' | 'outbound'), requerido
+      attachments: attachments,             // array, opcional
+      isRead: isRead,                       // boolean, requerido
+      isDelivered: isDelivered,            // boolean, requerido
+      metadata: {                           // objeto, opcional
+        twilioSid: this.twilioSid || null,
+        userId: this.userId || null,
+        from: this.from,
+        to: this.to,
+        status: this.status
+      }
+    };
+  }
+
+  /**
+   * ✅ HELPER: Extraer nombre de archivo de URL
+   */
+  extractFilenameFromUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const filename = pathname.split('/').pop();
+      return filename && filename.includes('.') ? filename : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * ✅ HELPER: Adivinar tipo de contenido desde URL
+   */
+  guessContentTypeFromUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    
+    const extension = url.split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg', 
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'pdf': 'application/pdf',
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'mp4': 'video/mp4',
+      'webm': 'video/webm',
+      'txt': 'text/plain',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    };
+    
+    return mimeTypes[extension] || null;
   }
 
   /**

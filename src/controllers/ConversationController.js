@@ -753,10 +753,37 @@ class ConversationController {
         executionTime: Date.now() - startTime,
       });
 
+      // ✅ APLICAR toJSON() EXPLÍCITAMENTE para asegurar estructura canónica
+      const formattedMessages = messages.map(message => {
+        const jsonMessage = message.toJSON ? message.toJSON() : message;
+        
+        // ✅ LOG PRIMERA MENSAJE para verificar estructura
+        if (messages.indexOf(message) === 0) {
+          console.log('🔍 PRIMER MENSAJE FORMATEADO:', JSON.stringify({
+            id: jsonMessage.id,
+            hasAllFields: {
+              id: !!jsonMessage.id,
+              conversationId: !!jsonMessage.conversationId,
+              content: !!jsonMessage.content,
+              type: !!jsonMessage.type,
+              timestamp: !!jsonMessage.timestamp,
+              sender: !!jsonMessage.sender,
+              direction: !!jsonMessage.direction,
+              isRead: typeof jsonMessage.isRead === 'boolean',
+              isDelivered: typeof jsonMessage.isDelivered === 'boolean'
+            },
+            senderType: jsonMessage.sender?.type,
+            attachmentsCount: jsonMessage.attachments?.length || 0
+          }));
+        }
+        
+        return jsonMessage;
+      });
+
       // ✅ CENTRALIZADO: Usar formato estandarizado de respuesta
       const { createMessagesPaginatedResponse } = require('../utils/pagination');
       const response = createMessagesPaginatedResponse(
-        messages, // Ya vienen con toJSON() aplicado desde Message.getByConversation
+        formattedMessages,
         limit,
         startAfter,
         {
@@ -765,6 +792,17 @@ class ConversationController {
           executionTime: Date.now() - startTime,
         },
       );
+
+      // ✅ LOG ESTRUCTURA FINAL antes de enviar
+      console.log('📤 ENVIANDO RESPUESTA FINAL:', JSON.stringify({
+        responseStructure: Object.keys(response),
+        messagesCount: response.messages?.length || 0,
+        hasMessages: (response.messages?.length || 0) > 0,
+        firstMessageStructure: response.messages?.[0] ? Object.keys(response.messages[0]) : 'NONE',
+        total: response.total,
+        limit: response.limit,
+        page: response.page
+      }));
 
       res.json(response);
     } catch (error) {

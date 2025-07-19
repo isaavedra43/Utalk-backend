@@ -319,16 +319,56 @@ class Conversation {
   }
 
   /**
-   * Serializar para JSON
+   * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
+   * ESTRUCTURA CANÓNICA según especificación del frontend
    */
   toJSON () {
+    // ✅ Normalizar timestamps a ISO strings
+    let normalizedCreatedAt = null;
+    let normalizedUpdatedAt = null;
+
+    if (this.createdAt && typeof this.createdAt.toDate === 'function') {
+      normalizedCreatedAt = this.createdAt.toDate().toISOString();
+    } else if (this.createdAt instanceof Date) {
+      normalizedCreatedAt = this.createdAt.toISOString();
+    } else if (typeof this.createdAt === 'string') {
+      normalizedCreatedAt = this.createdAt;
+    }
+
+    if (this.updatedAt && typeof this.updatedAt.toDate === 'function') {
+      normalizedUpdatedAt = this.updatedAt.toDate().toISOString();
+    } else if (this.updatedAt instanceof Date) {
+      normalizedUpdatedAt = this.updatedAt.toISOString();
+    } else if (typeof this.updatedAt === 'string') {
+      normalizedUpdatedAt = this.updatedAt;
+    }
+
+    // ✅ Construir objeto contact según especificación
+    const contact = {
+      id: this.customerPhone || this.contact?.id || 'unknown',
+      name: this.contact?.name || this.customerPhone || 'Cliente',
+      avatar: this.contact?.avatar || null,
+      channel: 'whatsapp' // Por defecto WhatsApp, se puede extender
+    };
+
+    // ✅ Construir objeto assignedTo si existe
+    let assignedTo = null;
+    if (this.assignedTo) {
+      assignedTo = {
+        id: this.assignedTo,
+        name: this.assignedToName || this.assignedTo // Si no tenemos el nombre, usar el ID
+      };
+    }
+
+    // ✅ ESTRUCTURA CANÓNICA EXACTA
     return {
-      id: this.id,
-      contact: this.contact,
-      lastMessage: this.lastMessage,
-      unreadCount: this.unreadCount,
-      status: this.status,
-      assignedTo: this.assignedTo,
+      id: this.id,                                    // string único
+      contact: contact,                               // objeto del contacto
+      lastMessage: this.lastMessage || null,         // mensaje como objeto o null
+      status: this.status || 'open',                 // string ('open', 'closed', 'pending', etc)
+      assignedTo: assignedTo,                        // objeto del agente asignado o null
+      createdAt: normalizedCreatedAt || new Date().toISOString(), // string ISO
+      updatedAt: normalizedUpdatedAt || new Date().toISOString()  // string ISO
     };
   }
 

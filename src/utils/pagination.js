@@ -39,28 +39,34 @@ function createPaginatedResponse (items, limit, startAfter = null, calculateTota
 
 /**
  * Crear respuesta de paginación para mensajes con campos específicos
+ * ✅ CORREGIDO: Estructura canónica según especificación del frontend
  * @param {Array} messages - Array de mensajes
  * @param {number} limit - Límite solicitado
  * @param {string|null} startAfter - Cursor de inicio
- * @param {Object} filters - Filtros aplicados (para logging)
+ * @param {Object} metadata - Metadata adicional (para debugging)
  * @returns {Object} Respuesta con formato específico para mensajes
  */
-function createMessagesPaginatedResponse (messages, limit, startAfter = null, filters = {}) {
+function createMessagesPaginatedResponse (messages, limit, startAfter = null, metadata = {}) {
   const hasMessages = messages.length > 0;
   const hasNextPage = messages.length === limit;
-  const nextStartAfter = hasMessages ? messages[messages.length - 1].id : null;
 
-  return {
-    messages, // Mantenemos el nombre 'messages' para compatibilidad con frontend
-    pagination: {
-      limit,
-      startAfter,
-      nextStartAfter: hasNextPage ? nextStartAfter : null,
-      hasNextPage,
-      messageCount: messages.length,
-    },
-    filters, // Para debugging y logs
+  // ✅ ESTRUCTURA CANÓNICA EXACTA según especificación del frontend
+  const response = {
+    messages: messages,           // Array de mensajes (NUNCA "data", "result", etc.)
+    total: messages.length,       // Número total de mensajes en esta respuesta (int)
+    page: 1,                     // Página actual (por simplicidad, siempre 1 con cursor pagination)
+    limit: limit                 // Límite por página (int)
   };
+
+  // ✅ LOG FINAL para verificar estructura
+  console.log('RESPONSE_FINAL:', JSON.stringify({
+    messagesCount: response.messages.length,
+    hasMessages: response.messages.length > 0,
+    structure: Object.keys(response),
+    sampleMessage: response.messages[0] ? Object.keys(response.messages[0]) : 'NONE'
+  }));
+
+  return response;
 }
 
 /**
@@ -114,21 +120,18 @@ function validatePaginationParams (params) {
 
 /**
  * Crear respuesta de error con formato de paginación vacía
+ * ✅ CORREGIDO: Estructura canónica según especificación del frontend
  * @param {string} error - Mensaje de error
  * @param {number} limit - Límite que se había solicitado
  * @returns {Object} Respuesta de error con paginación vacía
  */
 function createEmptyPaginatedResponse (error, limit = 50) {
   return {
-    items: [], // Array vacío siempre
-    pagination: {
-      limit,
-      startAfter: null,
-      nextStartAfter: null,
-      hasNextPage: false,
-      itemCount: 0,
-    },
-    error,
+    messages: [],             // Array vacío siempre (NUNCA "data", "result", etc.)
+    total: 0,                // Número total de mensajes (int)
+    page: 1,                 // Página actual (int)
+    limit: limit,            // Límite por página (int)
+    error: error             // Campo adicional para debugging (opcional)
   };
 }
 

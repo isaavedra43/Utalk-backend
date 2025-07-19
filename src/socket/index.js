@@ -464,18 +464,22 @@ class SocketManager {
 
   /**
    * Emitir nuevo mensaje a conversación
+   * ✅ CORREGIDO: Usa estructura canónica
    */
-  emitNewMessage (conversationId, messageData) {
+  emitNewMessage(conversationId, messageData) {
     if (!isValidConversationId(conversationId)) {
       logger.error('conversationId inválido para emitir mensaje', { conversationId });
       return;
     }
 
+    // ✅ ASEGURAR estructura canónica del mensaje
+    const canonicalMessage = messageData.toJSON ? messageData.toJSON() : messageData;
+
     const eventData = {
       type: 'new-message',
       conversationId,
-      message: messageData,
-      timestamp: Date.now(),
+      message: canonicalMessage,  // ✅ Usar estructura canónica
+      timestamp: Date.now()
     };
 
     // Emitir a todos los usuarios en la conversación
@@ -484,10 +488,18 @@ class SocketManager {
     // También emitir a admins si no están en la conversación
     this.io.to('role-admin').emit('message-notification', eventData);
 
+    console.log('📨 NUEVO MENSAJE EMITIDO:', {
+      conversationId,
+      messageId: canonicalMessage.id,
+      direction: canonicalMessage.direction,
+      hasCanonicalStructure: !!(canonicalMessage.sender && canonicalMessage.type && canonicalMessage.timestamp),
+      usersInConversation: this.conversationUsers.get(conversationId)?.size || 0
+    });
+
     logger.info('Nuevo mensaje emitido via Socket.IO', {
       conversationId,
-      messageId: messageData.id,
-      direction: messageData.direction,
+      messageId: canonicalMessage.id,
+      direction: canonicalMessage.direction
     });
   }
 
