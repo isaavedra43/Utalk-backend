@@ -12,7 +12,7 @@ const router = express.Router();
  */
 router.get('/',
   requireReadAccess,
-  ConversationController.list,
+  ConversationController.listConversations,
 );
 
 /**
@@ -22,7 +22,7 @@ router.get('/',
  */
 router.get('/stats',
   requireReadAccess,
-  ConversationController.getStats,
+  ConversationController.getConversationStats,
 );
 
 /**
@@ -32,7 +32,7 @@ router.get('/stats',
  */
 router.get('/:id',
   requireReadAccess,
-  ConversationController.getById,
+  ConversationController.getConversation,
 );
 
 /**
@@ -42,17 +42,29 @@ router.get('/:id',
  */
 router.get('/:id/messages',
   requireReadAccess,
-  ConversationController.getMessages,
+  ConversationController.getConversationMessages,
 );
 
 /**
- * @route PUT /api/conversations/:id/read
- * @desc Marcar conversación como leída
+ * @route POST /api/conversations
+ * @desc Crear nueva conversación
  * @access Private (Admin, Agent only)
  */
-router.put('/:id/read',
+router.post('/',
   requireWriteAccess,
-  ConversationController.markAsRead,
+  validate(schemas.conversation.create),
+  ConversationController.createConversation,
+);
+
+/**
+ * @route PUT /api/conversations/:id
+ * @desc Actualizar conversación
+ * @access Private (Admin, Agent only)
+ */
+router.put('/:id',
+  requireWriteAccess,
+  validate(schemas.conversation.update),
+  ConversationController.updateConversation,
 );
 
 /**
@@ -63,7 +75,7 @@ router.put('/:id/read',
 router.put('/:id/assign',
   requireWriteAccess,
   validate(schemas.conversation.assign),
-  ConversationController.assign,
+  ConversationController.assignConversation,
 );
 
 /**
@@ -74,17 +86,17 @@ router.put('/:id/assign',
 router.put('/:id/status',
   requireWriteAccess,
   validate(schemas.conversation.changeStatus),
-  ConversationController.changeStatus,
+  ConversationController.changeConversationStatus,
 );
 
 /**
- * @route DELETE /api/conversations/:id
- * @desc Archivar conversación
- * @access Private (Admin, Agent only)
+ * @route GET /api/conversations/search
+ * @desc Buscar conversaciones
+ * @access Private (Admin, Agent, Viewer)
  */
-router.delete('/:id',
-  requireWriteAccess,
-  ConversationController.archive,
+router.get('/search',
+  requireReadAccess,
+  ConversationController.searchConversations,
 );
 
 module.exports = router;
