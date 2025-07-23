@@ -233,4 +233,4 @@ module.exports = {
   sanitizePhoneForSearch,
   validateMultiplePhones,
   PHONE_REGEX,
-}; 
+};

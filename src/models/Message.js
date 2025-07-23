@@ -59,19 +59,19 @@ class Message {
    * Crear mensaje en Firestore
    */
   static async create (messageData) {
-      const message = new Message(messageData);
+    const message = new Message(messageData);
 
     // Preparar datos para Firestore
     const cleanData = prepareForFirestore({
       ...message,
-        updatedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     // Crear en subcolección de la conversación
     const docRef = await firestore
-        .collection('conversations')
-        .doc(message.conversationId)
-        .collection('messages')
+      .collection('conversations')
+      .doc(message.conversationId)
+      .collection('messages')
       .add(cleanData);
 
     message.id = docRef.id;
@@ -179,7 +179,7 @@ class Message {
             requestedConversationId: conversationId,
           });
         }
-    } catch (error) {
+      } catch (error) {
         logger.error('Error parseando cursor', { cursor, error: error.message });
       }
     }
@@ -252,11 +252,11 @@ class Message {
     }
 
     const doc = await firestore
-          .collection('conversations')
+      .collection('conversations')
       .doc(conversationId)
-          .collection('messages')
-          .doc(messageId)
-          .get();
+      .collection('messages')
+      .doc(messageId)
+      .get();
 
     if (!doc.exists) {
       return null;
@@ -275,9 +275,9 @@ class Message {
     });
 
     await firestore
-        .collection('conversations')
+      .collection('conversations')
       .doc(this.conversationId)
-        .collection('messages')
+      .collection('messages')
       .doc(this.id)
       .update(cleanData);
 
