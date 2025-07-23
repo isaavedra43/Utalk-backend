@@ -2,6 +2,13 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
+const { validateAndNormalizePhone } = require('../utils/phoneValidation');
+const { 
+  validatePaginationParams, 
+  applyPaginationToQuery, 
+  processPaginationResults,
+  logPaginationDetails 
+} = require('../utils/pagination');
 
 class Message {
   constructor (data) {
@@ -14,9 +21,28 @@ class Message {
       throw new Error('conversationId es requerido para crear un mensaje');
     }
 
+    // ✅ VALIDACIÓN: Teléfonos de origen y destino
+    if (data.from) {
+      const fromValidation = validateAndNormalizePhone(data.from);
+      if (!fromValidation.isValid) {
+        throw new Error(`Teléfono de origen inválido: ${fromValidation.error}`);
+      }
+      this.from = fromValidation.normalized;
+    } else {
+      this.from = data.from;
+    }
+
+    if (data.to) {
+      const toValidation = validateAndNormalizePhone(data.to);
+      if (!toValidation.isValid) {
+        throw new Error(`Teléfono de destino inválido: ${toValidation.error}`);
+      }
+      this.to = toValidation.normalized;
+    } else {
+      this.to = data.to;
+    }
+
     // ✅ MAPEO DE CAMPOS para compatibilidad con alineación anterior
-    this.from = data.from;
-    this.to = data.to;
     this.content = data.content || '';
 
     this.type = data.type || 'text';
@@ -178,82 +204,93 @@ class Message {
 
   /**
    * Obtener mensajes por conversationId con paginación cursor-based
-   * ✅ REFACTORIZADO: Usa Firestore queries nativas para mejor rendimiento
+   * ✅ OPTIMIZADO: Usa paginación basada en cursor para mejor performance
+   * Basado en: https://firebase.google.com/docs/firestore/query-data/query-cursors
    */
   static async getByConversation (conversationId, options = {}) {
+    const startTime = Date.now();
+    
     try {
-      const {
-        limit = 50,
-        startAfter = null,
-        orderBy = 'timestamp',
-        order = 'desc',
-      } = options;
-
-      logger.info('[Message.getByConversation] Iniciando query', {
-        conversationId,
-        limit,
-        startAfter,
-        orderBy,
-        order,
-      });
-
       // ✅ VALIDACIÓN: conversationId válido
       if (!isValidConversationId(conversationId)) {
         throw new Error(`conversationId inválido: ${conversationId}`);
       }
 
-      // SOLUCIÓN PARA TIMESTAMP VS CREATEDAT
-      // Primero intentar con el campo solicitado, luego fallback
+      // ✅ VALIDAR Y SANITIZAR PARÁMETROS DE PAGINACIÓN
+      const paginationParams = validatePaginationParams(options, {
+        limit: 50,
+        maxLimit: 100,
+        defaultOrderBy: 'timestamp',
+        defaultOrder: 'desc'
+      });
+
+      logger.info('[Message.getByConversation] Iniciando query con paginación', {
+        conversationId,
+        paginationParams,
+        requestId: options.requestId || null,
+      });
+
+      // ✅ CONSTRUIR QUERY BASE
       let query = firestore
         .collection('conversations')
         .doc(conversationId)
-        .collection('messages')
-        .orderBy(orderBy, order);
+        .collection('messages');
 
-      if (startAfter) {
-        // Obtener el documento de referencia para paginación
-        const startAfterDoc = await firestore
-          .collection('conversations')
-          .doc(conversationId)
-          .collection('messages')
-          .doc(startAfter)
-          .get();
+      // ✅ APLICAR PAGINACIÓN
+      query = applyPaginationToQuery(query, paginationParams);
 
-        if (startAfterDoc.exists) {
-          query = query.startAfter(startAfterDoc);
-        }
-      }
-
-      query = query.limit(limit);
-
+      // ✅ EJECUTAR QUERY
       const snapshot = await query.get();
 
       if (snapshot.empty) {
         logger.info('[Message.getByConversation] No se encontraron mensajes', {
           conversationId,
-          limit,
+          paginationParams,
         });
-        return [];
+        
+        return {
+          messages: [],
+          pagination: {
+            limit: paginationParams.limit,
+            hasMore: false,
+            nextCursor: null,
+            total: 0,
+            showing: 0
+          }
+        };
       }
 
-      const messages = snapshot.docs.map(doc => new Message({
+      // ✅ PROCESAR RESULTADOS
+      const rawMessages = snapshot.docs.map(doc => new Message({
         id: doc.id,
         conversationId,
         ...doc.data(),
       }));
 
-      logger.info('[Message.getByConversation] Mensajes obtenidos exitosamente', {
-        conversationId,
-        messageCount: messages.length,
-        limit,
+      const processedResults = processPaginationResults(rawMessages, paginationParams);
+
+      // ✅ LOG DETALLADO DE PAGINACIÓN
+      const executionTime = Date.now() - startTime;
+      logPaginationDetails(paginationParams, processedResults, {
+        requestId: options.requestId,
+        endpoint: 'messages',
+        filters: { conversationId },
+        executionTime
       });
 
-      return messages;
+      return {
+        messages: processedResults.items,
+        pagination: processedResults.pagination
+      };
+
     } catch (error) {
+      const executionTime = Date.now() - startTime;
       logger.error('[Message.getByConversation] Error', {
         conversationId,
         error: error.message,
         options,
+        executionTime,
+        requestId: options.requestId || null,
       });
       throw error;
     }
@@ -261,25 +298,20 @@ class Message {
 
   /**
    * Obtener mensajes recientes para generar lista de conversaciones
+   * ✅ CORREGIDO: Eliminado filtro por userId que causaba problemas
    * ✅ OPTIMIZADO: Usa índices compuestos de Firestore
    */
-  static async getRecentMessages (userId = null, limit = 100) {
+  static async getRecentMessages (limit = 100) {
     try {
       logger.info('[Message.getRecentMessages] Iniciando', {
-        userId: userId || 'ADMIN (todos)',
         limit,
+        note: 'Filtro por userId eliminado - usar ConversationController para filtrar por assignedTo',
       });
 
-      // Query base: obtener mensajes recientes
-      let query = firestore.collectionGroup('messages')
-        .orderBy('timestamp', 'desc');
-
-      // ✅ FILTRO POR USUARIO: Solo si no es admin
-      if (userId) {
-        query = query.where('userId', '==', userId);
-      }
-
-      query = query.limit(limit);
+      // Query base: obtener mensajes recientes SIN filtro por userId
+      const query = firestore.collectionGroup('messages')
+        .orderBy('timestamp', 'desc')
+        .limit(limit);
 
       const snapshot = await query.get();
 
@@ -300,13 +332,12 @@ class Message {
 
       logger.info('[Message.getRecentMessages] Mensajes obtenidos', {
         messageCount: messages.length,
-        userId: userId || 'ADMIN',
+        note: 'Filtrado por assignedTo debe hacerse en ConversationController',
       });
 
       return messages;
     } catch (error) {
       logger.error('[Message.getRecentMessages] Error', {
-        userId,
         limit,
         error: error.message,
       });

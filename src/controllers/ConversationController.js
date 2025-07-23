@@ -6,6 +6,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const logger = require('../utils/logger');
 const { isValidConversationId } = require('../utils/conversation');
+const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 
 /**
  * CONTROLADOR DE CONVERSACIONES - VERSIÓN ROBUSTA Y DEFINITIVA
@@ -41,6 +42,28 @@ class ConversationController {
         sortOrder = 'desc',
         search,
       } = req.query;
+
+      // ✅ VALIDACIÓN: Teléfono del cliente si se proporciona
+      let normalizedCustomerPhone = null;
+      if (customerPhone) {
+        const phoneValidation = validateAndNormalizePhone(customerPhone);
+        if (!phoneValidation.isValid) {
+          logger.warn('[CONVERSATIONS API] Teléfono de cliente inválido', {
+            requestId,
+            customerPhone,
+            error: phoneValidation.error,
+          });
+          return res.status(400).json({
+            error: 'Parámetro inválido',
+            message: `Teléfono de cliente inválido: ${phoneValidation.error}`,
+            conversations: [],
+            pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false, showing: 0 },
+            filters: { assignedTo: null, status: null, customerPhone: null, search: null, sortBy: 'lastMessageAt', sortOrder: 'desc' },
+            meta: { executionTime: Date.now() - startTime, timestamp: new Date().toISOString(), requestId, errorOccurred: true },
+          });
+        }
+        normalizedCustomerPhone = phoneValidation.normalized;
+      }
 
       // Validar y sanitizar parámetros numéricos
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -143,22 +166,14 @@ class ConversationController {
         }
       }
 
-      if (customerPhone) {
-        const sanitizedPhone = customerPhone.replace(/[^\d+]/g, '');
-        if (sanitizedPhone.length >= 10) {
-          queryOptions.customerPhone = sanitizedPhone;
-          hasFiltersApplied = true;
-          logger.info('[CONVERSATIONS API] Aplicando filtro por teléfono del cliente', {
-            requestId,
-            customerPhone: sanitizedPhone,
-            originalPhone: customerPhone,
-          });
-        } else {
-          logger.warn('[CONVERSATIONS API] Número de teléfono inválido ignorado', {
-            requestId,
-            invalidPhone: customerPhone,
-          });
-        }
+      if (normalizedCustomerPhone) {
+        queryOptions.customerPhone = normalizedCustomerPhone;
+        hasFiltersApplied = true;
+        logger.info('[CONVERSATIONS API] Aplicando filtro por teléfono del cliente normalizado', {
+          requestId,
+          customerPhone: normalizedCustomerPhone,
+          originalPhone: customerPhone,
+        });
       }
 
       // Log si NO hay filtros aplicados
@@ -737,19 +752,23 @@ class ConversationController {
         });
       }
 
-      // ✅ CENTRALIZADO: Usar modelo Message con opciones estándar
-      const messages = await Message.getByConversation(id, {
+      // ✅ CENTRALIZADO: Usar modelo Message con paginación optimizada
+      const result = await Message.getByConversation(id, {
         limit,
         startAfter,
         orderBy,
         order,
+        requestId,
       });
+
+      const { messages, pagination } = result;
 
       logger.info('[CONVERSATION MESSAGES] Mensajes obtenidos exitosamente', {
         requestId,
         conversationId: id,
         userId: req.user.id,
         messageCount: messages.length,
+        pagination,
         executionTime: Date.now() - startTime,
       });
 
@@ -780,28 +799,27 @@ class ConversationController {
         return jsonMessage;
       });
 
-      // ✅ CENTRALIZADO: Usar formato estandarizado de respuesta
-      const { createMessagesPaginatedResponse } = require('../utils/pagination');
-      const response = createMessagesPaginatedResponse(
+      // ✅ CENTRALIZADO: Usar formato estandarizado de respuesta con paginación
+      const { generatePaginationResponse } = require('../utils/pagination');
+      const response = generatePaginationResponse(
         formattedMessages,
-        limit,
-        startAfter,
+        pagination,
         {
-          conversationId: id,
           requestId,
+          filters: { conversationId: id },
           executionTime: Date.now() - startTime,
-        },
+          errorOccurred: false
+        }
       );
 
       // ✅ LOG ESTRUCTURA FINAL antes de enviar
       console.log('📤 ENVIANDO RESPUESTA FINAL:', JSON.stringify({
         responseStructure: Object.keys(response),
-        messagesCount: response.messages?.length || 0,
-        hasMessages: (response.messages?.length || 0) > 0,
-        firstMessageStructure: response.messages?.[0] ? Object.keys(response.messages[0]) : 'NONE',
-        total: response.total,
-        limit: response.limit,
-        page: response.page,
+        messagesCount: response.items?.length || 0,
+        hasMessages: (response.items?.length || 0) > 0,
+        firstMessageStructure: response.items?.[0] ? Object.keys(response.items[0]) : 'NONE',
+        pagination: response.pagination,
+        filters: response.filters,
       }));
 
       res.json(response);

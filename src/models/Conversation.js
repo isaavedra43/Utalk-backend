@@ -2,17 +2,80 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
+const { validateAndNormalizePhone, extractPhoneInfo } = require('../utils/phoneValidation');
 
 class Conversation {
   constructor (data) {
+    // ✅ VALIDACIÓN: ID requerido
+    if (!data.id) {
+      throw new Error('Conversation ID es requerido');
+    }
     this.id = data.id;
-    this.contact = data.contact;
-    this.lastMessage = data.lastMessage;
+
+    // ✅ VALIDACIÓN: Teléfonos de participantes
+    this.participants = this.validateAndNormalizeParticipants(data.participants || []);
+    
+    // ✅ VALIDACIÓN: Teléfono del cliente
+    if (data.customerPhone) {
+      const customerValidation = validateAndNormalizePhone(data.customerPhone);
+      if (!customerValidation.isValid) {
+        throw new Error(`Teléfono del cliente inválido: ${customerValidation.error}`);
+      }
+      this.customerPhone = customerValidation.normalized;
+    }
+
+    // ✅ VALIDACIÓN: Teléfono del agente
+    if (data.agentPhone) {
+      const agentValidation = validateAndNormalizePhone(data.agentPhone);
+      if (!agentValidation.isValid) {
+        throw new Error(`Teléfono del agente inválido: ${agentValidation.error}`);
+      }
+      this.agentPhone = agentValidation.normalized;
+    }
+
+    // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
+    this.contact = data.contact || null;
+    this.lastMessage = data.lastMessage || null;
+    this.lastMessageId = data.lastMessageId || null;
+    this.lastMessageAt = data.lastMessageAt || null;
     this.unreadCount = data.unreadCount || 0;
+    this.messageCount = data.messageCount || 0;
     this.status = data.status || 'open';
-    this.assignedTo = data.assignedTo;
+    this.assignedTo = data.assignedTo || null;
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
+  }
+
+  /**
+   * ✅ NUEVO: Validar y normalizar participantes
+   * @param {Array} participants - Array de números de teléfono
+   * @returns {Array} - Array de números normalizados
+   */
+  validateAndNormalizeParticipants (participants) {
+    if (!Array.isArray(participants)) {
+      logger.warn('Participants debe ser un array', { participants });
+      return [];
+    }
+
+    const normalizedParticipants = [];
+    const errors = [];
+
+    participants.forEach((phone, index) => {
+      const validation = validateAndNormalizePhone(phone, { logErrors: false });
+      
+      if (validation.isValid) {
+        normalizedParticipants.push(validation.normalized);
+      } else {
+        errors.push(`Participante ${index + 1}: ${validation.error}`);
+        logger.warn('Participante inválido', { phone, error: validation.error });
+      }
+    });
+
+    if (errors.length > 0) {
+      logger.warn('Errores en validación de participantes', { errors });
+    }
+
+    return normalizedParticipants;
   }
 
   /**
@@ -356,9 +419,48 @@ class Conversation {
     if (this.assignedTo) {
       assignedTo = {
         id: this.assignedTo,
-        name: this.assignedToName || this.assignedTo // Si no tenemos el nombre, usar el ID
+        name: this.assignedToName || this.assignedTo, // Si no tenemos el nombre, usar el ID
       };
     }
+
+    // ✅ VALIDACIÓN: Asegurar que participants siempre sea un array
+    const participants = Array.isArray(this.participants) ? this.participants : [];
+
+    // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
+    const result = {
+      id: this.id,
+      participants, // ✅ NUEVO: Campo participants requerido
+      customerPhone: this.customerPhone || null,
+      agentPhone: this.agentPhone || null,
+      contact,
+      assignedTo,
+      status: this.status || 'open',
+      unreadCount: this.unreadCount || 0,
+      messageCount: this.messageCount || 0,
+      lastMessage: this.lastMessage || null,
+      lastMessageId: this.lastMessageId || null,
+      lastMessageAt: this.lastMessageAt ? 
+        (typeof this.lastMessageAt.toDate === 'function' ? 
+          this.lastMessageAt.toDate().toISOString() : 
+          this.lastMessageAt.toISOString()) : null,
+      createdAt: normalizedCreatedAt,
+      updatedAt: normalizedUpdatedAt,
+    };
+
+    // ✅ VALIDACIÓN: Log si faltan campos críticos
+    const missingFields = [];
+    if (!result.id) missingFields.push('id');
+    if (!Array.isArray(result.participants)) missingFields.push('participants');
+    if (!result.status) missingFields.push('status');
+
+    if (missingFields.length > 0) {
+      logger.warn('Campos críticos faltantes en Conversation.toJSON()', {
+        conversationId: this.id,
+        missingFields,
+      });
+    }
+
+    return result;
 
     // ✅ ESTRUCTURA CANÓNICA EXACTA
     return {

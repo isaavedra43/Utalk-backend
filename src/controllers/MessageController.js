@@ -36,7 +36,7 @@ class MessageController {
 
       // Para simplificar, obtenemos mensajes recientes y agrupamos por teléfono
       console.log('🔍 DEBUG - Ejecutando Message.getRecentMessages...');
-      const recentMessages = await Message.getRecentMessages(userId, parseInt(limit) * 5);
+      const recentMessages = await Message.getRecentMessages(parseInt(limit) * 5);
 
       console.log('🔍 DEBUG - Mensajes recientes obtenidos:', {
         totalMessages: recentMessages.length,
@@ -199,12 +199,22 @@ class MessageController {
 
       // ✅ VALIDACIÓN: Al menos un filtro debe estar presente
       if (!conversationId && !userId && !customerPhone) {
-        logger.warn('[MESSAGES API] Sin filtros especificados, devolviendo conversaciones', {
+        logger.warn('[MESSAGES API] Sin filtros especificados, devolviendo error', {
           user: req.user ? req.user.id : null,
         });
 
-        // Fallback al comportamiento anterior (conversaciones)
-        return MessageController.getConversations(req, res, next);
+        // ❌ ELIMINADO: Fallback problemático que redirigía a conversaciones
+        // ✅ CORREGIDO: Devolver error claro indicando que se requieren filtros
+        return res.status(400).json({
+          error: 'Filtros requeridos',
+          message: 'Debes especificar al menos un filtro: conversationId, userId, o customerPhone',
+          availableFilters: {
+            conversationId: 'ID de conversación específica',
+            userId: 'ID de usuario que creó los mensajes',
+            customerPhone: 'Número de teléfono del cliente',
+          },
+          example: '/api/messages?conversationId=conv_123_456',
+        });
       }
 
       let messages = [];

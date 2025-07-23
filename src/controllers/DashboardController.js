@@ -451,7 +451,7 @@ class DashboardController {
     const activities = [];
 
     // Mensajes recientes
-    const recentMessages = await Message.getRecentMessages(userId, Math.floor(limit / 2));
+    const recentMessages = await Message.getRecentMessages(Math.floor(limit / 2));
     activities.push(...recentMessages.map(msg => ({
       type: 'message',
       action: msg.direction === 'inbound' ? 'received' : 'sent',

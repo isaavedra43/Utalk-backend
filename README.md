@@ -60,7 +60,17 @@ Este backend está **100% alineado** con las expectativas del frontend React + T
 
 ### **GET** `/api/conversations/:id/messages`
 
-**Descripción:** Obtiene mensajes de una conversación específica.
+**Descripción:** Obtiene mensajes de una conversación específica con paginación basada en cursor.
+
+**Parámetros de Query:**
+```javascript
+{
+  limit: 50,           // Número de mensajes por página (máx: 100)
+  cursor: "string",    // Cursor para paginación (opcional)
+  orderBy: "timestamp", // Campo de ordenamiento
+  order: "desc"        // Orden: "asc" o "desc"
+}
+```
 
 **Estructura de Respuesta (EXACTA):**
 ```json
@@ -363,4 +373,176 @@ curl -H "Authorization: Bearer <token>" \
 - **Swagger/OpenAPI:** `/docs/swagger.yaml`
 - **Esquemas de validación:** `/src/utils/validation.js`
 - **Modelos de datos:** `/src/models/`
-- **Guía de integración:** `/docs/integration-checklist.md` 
+- **Guía de integración:** `/docs/integration-checklist.md`
+
+---
+
+## 🔥 **ÍNDICES REQUERIDOS EN FIRESTORE**
+
+### **Índices Críticos (Requeridos para Producción):**
+
+#### **Colección `conversations`:**
+```javascript
+// Filtro por agente asignado
+conversations.assignedTo_lastMessageAt
+
+// Filtro por estado
+conversations.status_lastMessageAt
+
+// Filtro por teléfono del cliente
+conversations.customerPhone_lastMessageAt
+
+// Filtro compuesto
+conversations.assignedTo_status_lastMessageAt
+```
+
+#### **Colección `messages` (Collection Group):**
+```javascript
+// Ordenamiento por timestamp
+messages.timestamp
+
+// Filtro por dirección
+messages.direction_timestamp
+
+// Filtro por tipo
+messages.type_timestamp
+
+// Filtro por usuario
+messages.userId_timestamp
+```
+
+### **Comandos para Crear Índices:**
+
+```bash
+# Verificar índices existentes
+firebase firestore:indexes:list --project=utalk-backend
+
+# Crear índices específicos
+firebase firestore:indexes:create --project=utalk-backend --collection=conversations --fields=assignedTo,lastMessageAt
+
+# Ver documentación completa
+cat docs/FIRESTORE_INDEXES.md
+```
+
+---
+
+## ⚡ **OPTIMIZACIÓN DE PERFORMANCE**
+
+### **Paginación Basada en Cursor:**
+
+El sistema implementa paginación eficiente usando cursores de Firestore:
+
+```javascript
+// Primera página
+GET /api/conversations/conv_123/messages?limit=50
+
+// Página siguiente (usando cursor)
+GET /api/conversations/conv_123/messages?limit=50&cursor=eyJ0aW1lc3RhbXAiOiIyMDI0LTAxLTE1VDEwOjMwOjAwLjAwMFoiLCJpZCI6Im1zZ18xMjM0NSJ9
+```
+
+### **Métricas de Performance Esperadas:**
+
+- **Query de conversaciones**: < 200ms
+- **Query de mensajes**: < 100ms
+- **Paginación**: < 50ms por página
+- **Búsqueda**: < 300ms
+
+### **Logs de Debugging:**
+
+El sistema incluye logs detallados para monitoreo:
+
+```javascript
+// Log de paginación
+[CONVERSATIONS API PAGINATION] Detalles de paginación {
+  pagination: { limit: 50, orderBy: 'timestamp', order: 'desc' },
+  results: { total: 25, hasMore: false, showing: 25 },
+  performance: { executionTime: 45, itemsPerSecond: 556 }
+}
+
+// Log de filtros aplicados
+[CONVERSATIONS API FILTERS] Filtros aplicados {
+  activeFilters: { assignedTo: 'user123', status: 'open' },
+  totalFilters: 3,
+  activeFiltersCount: 2
+}
+```
+
+### **Monitoreo de Índices:**
+
+```javascript
+// Verificar uso de índices
+[CONVERSATIONS API INDEX] Uso de índice {
+  collection: 'conversations',
+  filters: { assignedTo: 'user123', status: 'open' },
+  indexUsed: 'assignedTo_status_lastMessageAt',
+  performance: { executionTime: 150, indexEfficiency: 'excellent' }
+}
+```
+
+---
+
+## 📊 **MONITOREO Y DEBUGGING**
+
+### **Logs Automáticos:**
+
+- ✅ **Conteo de resultados** por query
+- ✅ **Filtros aplicados** con razones
+- ✅ **Performance de endpoints** con métricas
+- ✅ **Uso de índices** con eficiencia
+- ✅ **Errores de validación** detallados
+
+### **Métricas de Performance:**
+
+```javascript
+// Ejemplo de log de performance
+[CONVERSATIONS API PERFORMANCE] Métricas de endpoint {
+  metrics: {
+    executionTime: 245,
+    queriesExecuted: 2,
+    documentsRead: 50
+  },
+  performance: {
+    queriesPerSecond: 8,
+    documentsPerSecond: 204
+  }
+}
+```
+
+### **Alertas Recomendadas:**
+
+1. **Query sin índice**: > 1000ms
+2. **Query con índice**: > 500ms
+3. **Documentos leídos**: > 1000 por query
+4. **Índices faltantes**: Cualquier error de índice
+
+---
+
+## 🚨 **TROUBLESHOOTING**
+
+### **Error: "The query requires an index"**
+
+**Solución:**
+1. Verificar que el índice existe en Firebase Console
+2. Esperar a que el índice se construya (puede tomar minutos)
+3. Usar fallback temporal mientras se construye el índice
+
+### **Performance Lenta**
+
+**Solución:**
+1. Verificar que se están usando los índices correctos
+2. Optimizar queries para usar menos filtros
+3. Implementar paginación cursor-based
+4. Usar `limit()` en todas las queries
+
+### **Logs de Debugging:**
+
+```bash
+# Ver logs detallados
+npm run dev
+
+# Monitorear queries específicas
+grep "QUERY MONITOR" logs/app.log
+
+# Verificar performance
+grep "PERFORMANCE" logs/app.log
+``` 

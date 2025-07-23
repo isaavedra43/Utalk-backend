@@ -1,144 +1,255 @@
 /**
- * Utilidades para paginación cursor-based eficiente con Firestore
- *
- * Esta implementación evita el uso de offset/page que es ineficiente en Firestore
- * y utiliza cursor-based pagination con startAfter para mejor performance.
+ * UTILIDAD DE PAGINACIÓN BASADA EN CURSOR - UTalk Backend
+ * 
+ * Implementa paginación eficiente usando cursores de Firestore
+ * Basado en: https://firebase.google.com/docs/firestore/query-data/query-cursors
+ * y https://marckohler.medium.com/easy-pagination-with-firebase-sdk-7bcabb38bc93
  */
+
+const logger = require('./logger');
 
 /**
- * Crear respuesta de paginación estandarizada
- * @param {Array} items - Array de elementos a paginar
- * @param {number} limit - Límite solicitado
- * @param {string|null} startAfter - Cursor de inicio (ID del último elemento de la página anterior)
- * @param {boolean} calculateTotal - Si calcular total (costoso, usar solo cuando sea necesario)
- * @returns {Object} Respuesta con paginación
+ * Opciones de paginación por defecto
  */
-function createPaginatedResponse (items, limit, startAfter = null, calculateTotal = false) {
-  const hasItems = items.length > 0;
-  const hasNextPage = items.length === limit; // Si devolvió exactamente el límite, probablemente hay más
-  const nextStartAfter = hasItems ? items[items.length - 1].id : null;
+const DEFAULT_PAGINATION = {
+  limit: 20,
+  maxLimit: 100,
+  defaultOrderBy: 'timestamp',
+  defaultOrder: 'desc'
+};
 
-  const response = {
+/**
+ * Validar y sanitizar parámetros de paginación
+ * @param {Object} params - Parámetros de paginación
+ * @param {Object} options - Opciones de configuración
+ * @returns {Object} - Parámetros sanitizados
+ */
+function validatePaginationParams(params = {}, options = {}) {
+  const {
+    limit = DEFAULT_PAGINATION.limit,
+    maxLimit = DEFAULT_PAGINATION.maxLimit,
+    defaultOrderBy = DEFAULT_PAGINATION.defaultOrderBy,
+    defaultOrder = DEFAULT_PAGINATION.defaultOrder
+  } = options;
+
+  // Validar y sanitizar limit
+  let sanitizedLimit = Math.max(1, parseInt(params.limit, 10) || limit);
+  sanitizedLimit = Math.min(maxLimit, sanitizedLimit);
+
+  // Validar orderBy
+  const validOrderFields = ['timestamp', 'createdAt', 'updatedAt', 'lastMessageAt', 'messageCount'];
+  const sanitizedOrderBy = validOrderFields.includes(params.orderBy) ? params.orderBy : defaultOrderBy;
+
+  // Validar order
+  const validOrders = ['asc', 'desc'];
+  const sanitizedOrder = validOrders.includes(params.order) ? params.order : defaultOrder;
+
+  // Validar cursor
+  const cursor = params.cursor || null;
+  const startAfter = params.startAfter || null;
+
+  return {
+    limit: sanitizedLimit,
+    orderBy: sanitizedOrderBy,
+    order: sanitizedOrder,
+    cursor,
+    startAfter,
+    page: parseInt(params.page, 10) || 1
+  };
+}
+
+/**
+ * Construir query de Firestore con paginación
+ * @param {Object} query - Query base de Firestore
+ * @param {Object} paginationParams - Parámetros de paginación
+ * @returns {Object} - Query con paginación aplicada
+ */
+function applyPaginationToQuery(query, paginationParams) {
+  const { limit, orderBy, order, cursor, startAfter } = paginationParams;
+
+  // Aplicar ordenamiento
+  let paginatedQuery = query.orderBy(orderBy, order);
+
+  // Aplicar cursor si existe
+  if (cursor) {
+    try {
+      // Intentar parsear cursor como objeto
+      const cursorData = typeof cursor === 'string' ? JSON.parse(cursor) : cursor;
+      paginatedQuery = paginatedQuery.startAfter(cursorData);
+    } catch (error) {
+      logger.warn('Cursor inválido, ignorando', { cursor, error: error.message });
+    }
+  } else if (startAfter) {
+    // Usar startAfter como fallback
+    paginatedQuery = paginatedQuery.startAfter(startAfter);
+  }
+
+  // Aplicar límite
+  paginatedQuery = paginatedQuery.limit(limit + 1); // +1 para detectar si hay más páginas
+
+  return paginatedQuery;
+}
+
+/**
+ * Procesar resultados de paginación
+ * @param {Array} results - Resultados de la query
+ * @param {Object} paginationParams - Parámetros de paginación
+ * @returns {Object} - Resultados procesados con información de paginación
+ */
+function processPaginationResults(results, paginationParams) {
+  const { limit } = paginationParams;
+  
+  // Verificar si hay más resultados
+  const hasMore = results.length > limit;
+  
+  // Remover el elemento extra si existe
+  const items = hasMore ? results.slice(0, limit) : results;
+  
+  // Generar cursor para la siguiente página
+  let nextCursor = null;
+  if (hasMore && items.length > 0) {
+    const lastItem = items[items.length - 1];
+    try {
+      nextCursor = JSON.stringify({
+        [paginationParams.orderBy]: lastItem[paginationParams.orderBy],
+        id: lastItem.id
+      });
+    } catch (error) {
+      logger.warn('Error generando cursor', { error: error.message });
+    }
+  }
+
+  return {
     items,
     pagination: {
       limit,
-      startAfter,
-      nextStartAfter: hasNextPage ? nextStartAfter : null,
-      hasNextPage,
-      itemCount: items.length,
-    },
+      hasMore,
+      nextCursor,
+      total: items.length,
+      showing: items.length
+    }
   };
-
-  // Solo incluir total si se solicita explícitamente (operación costosa)
-  if (calculateTotal) {
-    response.pagination.total = '⚠️ Cálculo costoso - usar solo si es necesario';
-  }
-
-  return response;
 }
 
 /**
- * Crear respuesta de paginación para mensajes con campos específicos
- * ✅ CORREGIDO: Estructura canónica según especificación del frontend
- * @param {Array} messages - Array de mensajes
- * @param {number} limit - Límite solicitado
- * @param {string|null} startAfter - Cursor de inicio
- * @param {Object} metadata - Metadata adicional (para debugging)
- * @returns {Object} Respuesta con formato específico para mensajes
+ * Generar respuesta de paginación estándar
+ * @param {Array} items - Elementos de la página actual
+ * @param {Object} pagination - Información de paginación
+ * @param {Object} options - Opciones adicionales
+ * @returns {Object} - Respuesta estándar
  */
-function createMessagesPaginatedResponse (messages, limit, startAfter = null, metadata = {}) {
-  const hasMessages = messages.length > 0;
-  const hasNextPage = messages.length === limit;
-
-  // ✅ ESTRUCTURA CANÓNICA EXACTA según especificación del frontend
-  const response = {
-    messages: messages,           // Array de mensajes (NUNCA "data", "result", etc.)
-    total: messages.length,       // Número total de mensajes en esta respuesta (int)
-    page: 1,                     // Página actual (por simplicidad, siempre 1 con cursor pagination)
-    limit: limit                 // Límite por página (int)
-  };
-
-  // ✅ LOG FINAL para verificar estructura
-  console.log('RESPONSE_FINAL:', JSON.stringify({
-    messagesCount: response.messages.length,
-    hasMessages: response.messages.length > 0,
-    structure: Object.keys(response),
-    sampleMessage: response.messages[0] ? Object.keys(response.messages[0]) : 'NONE'
-  }));
-
-  return response;
-}
-
-/**
- * Crear respuesta de paginación para conversaciones
- * @param {Array} conversations - Array de conversaciones
- * @param {number} limit - Límite solicitado
- * @param {string|null} startAfter - Cursor de inicio
- * @returns {Object} Respuesta con formato específico para conversaciones
- */
-function createConversationsPaginatedResponse (conversations, limit, startAfter = null) {
-  const hasConversations = conversations.length > 0;
-  const hasNextPage = conversations.length === limit;
-  const nextStartAfter = hasConversations ? conversations[conversations.length - 1].phone : null;
+function generatePaginationResponse(items, pagination, options = {}) {
+  const {
+    requestId = null,
+    filters = {},
+    executionTime = 0,
+    errorOccurred = false
+  } = options;
 
   return {
-    conversations, // Mantenemos el nombre para compatibilidad
+    items,
     pagination: {
-      limit,
-      startAfter,
-      nextStartAfter: hasNextPage ? nextStartAfter : null,
-      hasNextPage,
-      conversationCount: conversations.length,
+      limit: pagination.limit,
+      hasMore: pagination.hasMore,
+      nextCursor: pagination.nextCursor,
+      total: pagination.total,
+      showing: pagination.showing
     },
+    filters,
+    meta: {
+      executionTime,
+      timestamp: new Date().toISOString(),
+      requestId,
+      errorOccurred
+    }
   };
 }
 
 /**
- * Validar parámetros de paginación
- * @param {Object} params - Parámetros de la query
- * @returns {Object} Parámetros validados y normalizados
+ * Log detallado de paginación para debugging
+ * @param {Object} params - Parámetros de paginación
+ * @param {Object} results - Resultados procesados
+ * @param {Object} options - Opciones de logging
  */
-function validatePaginationParams (params) {
-  let { limit = 50, startAfter = null } = params;
+function logPaginationDetails(params, results, options = {}) {
+  const {
+    requestId = null,
+    endpoint = 'unknown',
+    filters = {},
+    executionTime = 0
+  } = options;
 
-  // Validar limit
-  limit = parseInt(limit);
-  if (isNaN(limit) || limit < 1) {
-    limit = 50; // Default seguro
-  }
-  if (limit > 100) {
-    limit = 100; // Máximo para evitar sobrecarga
-  }
-
-  // Validar startAfter (debe ser string válido o null)
-  if (startAfter === '' || startAfter === 'null' || startAfter === 'undefined') {
-    startAfter = null;
-  }
-
-  return { limit, startAfter };
+  logger.info(`[${endpoint.toUpperCase()} API] Paginación completada`, {
+    requestId,
+    pagination: {
+      limit: params.limit,
+      orderBy: params.orderBy,
+      order: params.order,
+      hasCursor: !!params.cursor,
+      hasStartAfter: !!params.startAfter
+    },
+    results: {
+      total: results.pagination.total,
+      hasMore: results.pagination.hasMore,
+      showing: results.pagination.showing,
+      nextCursor: !!results.pagination.nextCursor
+    },
+    filters,
+    performance: {
+      executionTime,
+      itemsPerSecond: executionTime > 0 ? Math.round(results.pagination.total / (executionTime / 1000)) : 0
+    }
+  });
 }
 
 /**
- * Crear respuesta de error con formato de paginación vacía
- * ✅ CORREGIDO: Estructura canónica según especificación del frontend
- * @param {string} error - Mensaje de error
- * @param {number} limit - Límite que se había solicitado
- * @returns {Object} Respuesta de error con paginación vacía
+ * Validar y procesar cursor de entrada
+ * @param {string|Object} cursor - Cursor de entrada
+ * @returns {Object|null} - Cursor procesado o null
  */
-function createEmptyPaginatedResponse (error, limit = 50) {
-  return {
-    messages: [],             // Array vacío siempre (NUNCA "data", "result", etc.)
-    total: 0,                // Número total de mensajes (int)
-    page: 1,                 // Página actual (int)
-    limit: limit,            // Límite por página (int)
-    error: error             // Campo adicional para debugging (opcional)
-  };
+function processInputCursor(cursor) {
+  if (!cursor) return null;
+
+  try {
+    if (typeof cursor === 'string') {
+      return JSON.parse(cursor);
+    }
+    return cursor;
+  } catch (error) {
+    logger.warn('Cursor inválido recibido', { cursor, error: error.message });
+    return null;
+  }
+}
+
+/**
+ * Crear cursor para un documento específico
+ * @param {Object} document - Documento de Firestore
+ * @param {string} orderBy - Campo de ordenamiento
+ * @returns {string} - Cursor serializado
+ */
+function createCursor(document, orderBy) {
+  if (!document || !document[orderBy]) {
+    return null;
+  }
+
+  try {
+    return JSON.stringify({
+      [orderBy]: document[orderBy],
+      id: document.id
+    });
+  } catch (error) {
+    logger.warn('Error creando cursor', { document, orderBy, error: error.message });
+    return null;
+  }
 }
 
 module.exports = {
-  createPaginatedResponse,
-  createMessagesPaginatedResponse,
-  createConversationsPaginatedResponse,
   validatePaginationParams,
-  createEmptyPaginatedResponse,
+  applyPaginationToQuery,
+  processPaginationResults,
+  generatePaginationResponse,
+  logPaginationDetails,
+  processInputCursor,
+  createCursor,
+  DEFAULT_PAGINATION
 };

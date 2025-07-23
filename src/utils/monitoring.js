@@ -641,6 +641,329 @@ class MonitoringService {
   }
 }
 
+/**
+ * UTILIDAD DE MONITOREO Y DEBUGGING - UTalk Backend
+ * 
+ * Proporciona logs detallados para debugging y monitoreo de performance
+ * Incluye métricas de queries, paginación y errores
+ */
+
+/**
+ * Clase para monitoreo de queries de Firestore
+ */
+class QueryMonitor {
+  constructor(requestId = null) {
+    this.requestId = requestId || `monitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.startTime = Date.now();
+    this.queryCount = 0;
+    this.totalDocumentsRead = 0;
+    this.errors = [];
+  }
+
+  /**
+   * Iniciar monitoreo de query
+   * @param {string} collection - Nombre de la colección
+   * @param {Object} filters - Filtros aplicados
+   * @param {Object} options - Opciones adicionales
+   */
+  startQuery(collection, filters = {}, options = {}) {
+    this.queryCount++;
+    const queryStartTime = Date.now();
+    
+    logger.info('[QUERY MONITOR] Iniciando query', {
+      requestId: this.requestId,
+      queryId: `${this.requestId}_query_${this.queryCount}`,
+      collection,
+      filters,
+      options,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      queryId: `${this.requestId}_query_${this.queryCount}`,
+      startTime: queryStartTime,
+      collection,
+      filters,
+      options
+    };
+  }
+
+  /**
+   * Finalizar monitoreo de query
+   * @param {Object} queryInfo - Información de la query
+   * @param {Object} results - Resultados obtenidos
+   * @param {Error} error - Error si ocurrió
+   */
+  endQuery(queryInfo, results = null, error = null) {
+    const executionTime = Date.now() - queryInfo.startTime;
+    const documentsRead = results?.length || 0;
+    
+    this.totalDocumentsRead += documentsRead;
+
+    if (error) {
+      this.errors.push({
+        queryId: queryInfo.queryId,
+        error: error.message,
+        executionTime
+      });
+
+      logger.error('[QUERY MONITOR] Query falló', {
+        requestId: this.requestId,
+        queryId: queryInfo.queryId,
+        collection: queryInfo.collection,
+        filters: queryInfo.filters,
+        error: error.message,
+        executionTime,
+        stack: error.stack
+      });
+    } else {
+      logger.info('[QUERY MONITOR] Query completada exitosamente', {
+        requestId: this.requestId,
+        queryId: queryInfo.queryId,
+        collection: queryInfo.collection,
+        filters: queryInfo.filters,
+        results: {
+          count: documentsRead,
+          hasMore: results?.pagination?.hasMore || false,
+          nextCursor: !!results?.pagination?.nextCursor
+        },
+        performance: {
+          executionTime,
+          documentsPerSecond: executionTime > 0 ? Math.round(documentsRead / (executionTime / 1000)) : 0
+        }
+      });
+    }
+  }
+
+  /**
+   * Generar reporte final de monitoreo
+   * @returns {Object} Reporte completo
+   */
+  generateReport() {
+    const totalExecutionTime = Date.now() - this.startTime;
+    
+    const report = {
+      requestId: this.requestId,
+      summary: {
+        totalQueries: this.queryCount,
+        totalDocumentsRead: this.totalDocumentsRead,
+        totalExecutionTime,
+        averageQueryTime: this.queryCount > 0 ? totalExecutionTime / this.queryCount : 0,
+        errorCount: this.errors.length,
+        successRate: this.queryCount > 0 ? ((this.queryCount - this.errors.length) / this.queryCount) * 100 : 0
+      },
+      errors: this.errors,
+      performance: {
+        queriesPerSecond: totalExecutionTime > 0 ? Math.round(this.queryCount / (totalExecutionTime / 1000)) : 0,
+        documentsPerSecond: totalExecutionTime > 0 ? Math.round(this.totalDocumentsRead / (totalExecutionTime / 1000)) : 0
+      }
+    };
+
+    logger.info('[QUERY MONITOR] Reporte final', report);
+    return report;
+  }
+}
+
+/**
+ * Decorador para monitorear funciones de query
+ * @param {Function} fn - Función a monitorear
+ * @param {string} collection - Nombre de la colección
+ * @returns {Function} Función decorada
+ */
+function monitorQuery(fn, collection) {
+  return async function(...args) {
+    const monitor = new QueryMonitor();
+    const filters = args[0] || {};
+    
+    const queryInfo = monitor.startQuery(collection, filters);
+    
+    try {
+      const results = await fn.apply(this, args);
+      monitor.endQuery(queryInfo, results);
+      return results;
+    } catch (error) {
+      monitor.endQuery(queryInfo, null, error);
+      throw error;
+    } finally {
+      monitor.generateReport();
+    }
+  };
+}
+
+/**
+ * Log detallado de paginación
+ * @param {Object} params - Parámetros de paginación
+ * @param {Object} results - Resultados
+ * @param {Object} options - Opciones adicionales
+ */
+function logPaginationDetails(params, results, options = {}) {
+  const {
+    requestId = null,
+    endpoint = 'unknown',
+    filters = {},
+    executionTime = 0
+  } = options;
+
+  logger.info(`[${endpoint.toUpperCase()} PAGINATION] Detalles de paginación`, {
+    requestId,
+    pagination: {
+      limit: params.limit,
+      orderBy: params.orderBy,
+      order: params.order,
+      hasCursor: !!params.cursor,
+      hasStartAfter: !!params.startAfter
+    },
+    results: {
+      total: results.pagination?.total || 0,
+      hasMore: results.pagination?.hasMore || false,
+      showing: results.pagination?.showing || 0,
+      nextCursor: !!results.pagination?.nextCursor
+    },
+    filters,
+    performance: {
+      executionTime,
+      itemsPerSecond: executionTime > 0 ? Math.round((results.pagination?.total || 0) / (executionTime / 1000)) : 0
+    }
+  });
+}
+
+/**
+ * Log de conteo de resultados
+ * @param {string} operation - Operación realizada
+ * @param {number} count - Número de elementos
+ * @param {Object} filters - Filtros aplicados
+ * @param {Object} options - Opciones adicionales
+ */
+function logResultCount(operation, count, filters = {}, options = {}) {
+  const {
+    requestId = null,
+    endpoint = 'unknown',
+    executionTime = 0,
+    reason = null
+  } = options;
+
+  logger.info(`[${endpoint.toUpperCase()} COUNT] Conteo de resultados`, {
+    requestId,
+    operation,
+    count,
+    filters,
+    reason,
+    performance: {
+      executionTime,
+      itemsPerSecond: executionTime > 0 ? Math.round(count / (executionTime / 1000)) : 0
+    }
+  });
+}
+
+/**
+ * Log de filtros aplicados
+ * @param {Object} filters - Filtros aplicados
+ * @param {Object} options - Opciones adicionales
+ */
+function logAppliedFilters(filters, options = {}) {
+  const {
+    requestId = null,
+    endpoint = 'unknown',
+    reason = null
+  } = options;
+
+  const activeFilters = Object.entries(filters)
+    .filter(([key, value]) => value !== null && value !== undefined && value !== '')
+    .reduce((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
+
+  logger.info(`[${endpoint.toUpperCase()} FILTERS] Filtros aplicados`, {
+    requestId,
+    activeFilters,
+    totalFilters: Object.keys(filters).length,
+    activeFiltersCount: Object.keys(activeFilters).length,
+    reason,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Log de errores de validación
+ * @param {Array} errors - Errores de validación
+ * @param {Object} options - Opciones adicionales
+ */
+function logValidationErrors(errors, options = {}) {
+  const {
+    requestId = null,
+    endpoint = 'unknown',
+    data = null
+  } = options;
+
+  logger.warn(`[${endpoint.toUpperCase()} VALIDATION] Errores de validación`, {
+    requestId,
+    errors,
+    errorCount: errors.length,
+    data,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Log de performance de endpoint
+ * @param {string} endpoint - Nombre del endpoint
+ * @param {Object} metrics - Métricas de performance
+ * @param {Object} options - Opciones adicionales
+ */
+function logEndpointPerformance(endpoint, metrics, options = {}) {
+  const {
+    requestId = null,
+    userId = null,
+    userRole = null
+  } = options;
+
+  logger.info(`[${endpoint.toUpperCase()} PERFORMANCE] Métricas de endpoint`, {
+    requestId,
+    userId,
+    userRole,
+    metrics: {
+      executionTime: metrics.executionTime,
+      queriesExecuted: metrics.queriesExecuted || 0,
+      documentsRead: metrics.documentsRead || 0,
+      memoryUsage: metrics.memoryUsage || null,
+      cpuUsage: metrics.cpuUsage || null
+    },
+    performance: {
+      queriesPerSecond: metrics.executionTime > 0 ? Math.round((metrics.queriesExecuted || 0) / (metrics.executionTime / 1000)) : 0,
+      documentsPerSecond: metrics.executionTime > 0 ? Math.round((metrics.documentsRead || 0) / (metrics.executionTime / 1000)) : 0
+    },
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Log de índices utilizados
+ * @param {string} collection - Colección consultada
+ * @param {Object} filters - Filtros aplicados
+ * @param {string} indexUsed - Índice utilizado
+ * @param {Object} options - Opciones adicionales
+ */
+function logIndexUsage(collection, filters, indexUsed, options = {}) {
+  const {
+    requestId = null,
+    endpoint = 'unknown',
+    executionTime = 0
+  } = options;
+
+  logger.info(`[${endpoint.toUpperCase()} INDEX] Uso de índice`, {
+    requestId,
+    collection,
+    filters,
+    indexUsed,
+    performance: {
+      executionTime,
+      indexEfficiency: executionTime < 200 ? 'excellent' : executionTime < 500 ? 'good' : 'poor'
+    },
+    timestamp: new Date().toISOString()
+  });
+}
+
 // Crear instancia única
 const monitoring = new MonitoringService();
 
@@ -661,4 +984,12 @@ module.exports = {
   getAlerts: () => monitoring.getActiveAlerts(),
   getPerformance: () => monitoring.getPerformanceStats(),
   setThresholds: (thresholds) => monitoring.setThresholds(thresholds),
+  QueryMonitor,
+  monitorQuery,
+  logPaginationDetails,
+  logResultCount,
+  logAppliedFilters,
+  logValidationErrors,
+  logEndpointPerformance,
+  logIndexUsage
 };
