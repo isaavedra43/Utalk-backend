@@ -29,6 +29,7 @@ class TwilioService {
 
       // Guardar mensaje en Firestore
       const messageData = {
+        id: message.sid, // ✅ ASIGNAR ID usando twilioSid
         conversationId, // CRÍTICO: Siempre asignar
         from: fromPhone,
         to: toPhone,
@@ -70,6 +71,7 @@ class TwilioService {
         const conversationId = generateConversationId(fromPhone, toPhone);
 
         await Message.create({
+          id: `failed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ✅ ID para mensaje fallido
           conversationId, // CRÍTICO: Siempre asignar
           from: fromPhone,
           to: toPhone,
@@ -103,9 +105,18 @@ class TwilioService {
       // Determinar tipo de media
       const type = this.getMediaType(mediaUrl);
 
+      // Normalizar números de teléfono
+      const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
+      const toPhone = normalizePhoneNumber(to);
+
+      // Generar conversationId consistente
+      const conversationId = generateConversationId(fromPhone, toPhone);
+
       const messageData = {
-        from: twilioConfig.whatsappNumber.replace('whatsapp:', ''),
-        to,
+        id: message.sid, // ✅ ASIGNAR ID usando twilioSid
+        conversationId, // CRÍTICO: Siempre asignar
+        from: fromPhone,
+        to: toPhone,
         content: caption,
         type,
         direction: 'outbound',
@@ -295,6 +306,7 @@ class TwilioService {
 
       // ✅ CREAR MENSAJE con datos completos y manejo de errores
       const messageData = {
+        id: MessageSid, // ✅ ASIGNAR ID INMEDIATAMENTE usando twilioSid
         conversationId, // CRÍTICO: SIEMPRE asignar conversationId
         from: fromPhone,
         to: toPhone,
@@ -317,6 +329,17 @@ class TwilioService {
           },
         },
       };
+
+      // ✅ LOG DE DATOS DEL MENSAJE ANTES DE GUARDAR
+      logger.info('Preparando mensaje para guardar', {
+        messageId: messageData.id,
+        conversationId: messageData.conversationId,
+        from: messageData.from,
+        to: messageData.to,
+        type: messageData.type,
+        hasContent: !!messageData.content,
+        mediaCount: messageData.mediaUrls.length,
+      });
 
       // ✅ GUARDAR EN FIREBASE con manejo robusto
       let message;

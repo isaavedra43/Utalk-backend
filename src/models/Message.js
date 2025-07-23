@@ -59,6 +59,23 @@ class Message {
    * Crear mensaje en Firestore
    */
   static async create (messageData) {
+    // ✅ GENERAR ID ÚNICO si no existe
+    if (!messageData.id && !messageData.messageId) {
+      // Usar twilioSid si está disponible, sino generar UUID
+      messageData.id = messageData.twilioSid || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      logger.info('ID de mensaje generado automáticamente', {
+        generatedId: messageData.id,
+        hasTwilioSid: !!messageData.twilioSid,
+        conversationId: messageData.conversationId,
+      });
+    }
+
+    // ✅ VALIDACIÓN: Asegurar que tenemos un ID
+    if (!messageData.id) {
+      throw new Error('No se pudo generar un ID para el mensaje');
+    }
+
     const message = new Message(messageData);
 
     // Preparar datos para Firestore
@@ -68,13 +85,20 @@ class Message {
     });
 
     // Crear en subcolección de la conversación
-    const docRef = await firestore
+    await firestore
       .collection('conversations')
       .doc(message.conversationId)
       .collection('messages')
-      .add(cleanData);
+      .doc(message.id) // ✅ USAR ID GENERADO como document ID
+      .set(cleanData);
 
-    message.id = docRef.id;
+    // ✅ LOG DE ÉXITO
+    logger.info('Mensaje guardado exitosamente en Firebase', {
+      messageId: message.id,
+      conversationId: message.conversationId,
+      direction: message.direction,
+      type: message.type,
+    });
 
     // Actualizar conversación
     const Conversation = require('./Conversation');
