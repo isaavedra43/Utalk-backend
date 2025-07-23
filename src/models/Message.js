@@ -3,573 +3,476 @@ const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
-const { 
-  validatePaginationParams, 
-  applyPaginationToQuery, 
-  processPaginationResults,
-  logPaginationDetails 
-} = require('../utils/pagination');
+const { createCursor, parseCursor } = require('../utils/pagination');
 
 class Message {
   constructor (data) {
-    // ✅ CRÍTICO: Generar ID automáticamente si no se proporciona
-    this.id = data.id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // ✅ VALIDACIÓN: ID requerido
+    if (!data.id) {
+      throw new Error('Message ID es requerido');
+    }
+    this.id = data.id;
 
-    // ✅ ASEGURAR conversationId válido (crítico para Firestore path)
+    // ✅ VALIDACIÓN: ConversationId requerido
+    if (!data.conversationId || !isValidConversationId(data.conversationId)) {
+      throw new Error(`conversationId inválido: ${data.conversationId}`);
+    }
     this.conversationId = data.conversationId;
-    if (!this.conversationId) {
-      throw new Error('conversationId es requerido para crear un mensaje');
-    }
 
-    // ✅ VALIDACIÓN: Teléfonos de origen y destino
-    if (data.from) {
-      const fromValidation = validateAndNormalizePhone(data.from);
-      if (!fromValidation.isValid) {
-        throw new Error(`Teléfono de origen inválido: ${fromValidation.error}`);
+    // ✅ VALIDACIÓN: Contenido requerido
+    if (!data.content && !data.mediaUrl) {
+      throw new Error('Message debe tener content o mediaUrl');
+    }
+    this.content = data.content || null;
+    this.mediaUrl = data.mediaUrl || null;
+
+    // ✅ VALIDACIÓN: Teléfono del remitente
+    if (data.senderPhone) {
+      const senderValidation = validateAndNormalizePhone(data.senderPhone);
+      if (!senderValidation.isValid) {
+        throw new Error(`Teléfono del remitente inválido: ${senderValidation.error}`);
       }
-      this.from = fromValidation.normalized;
-    } else {
-      this.from = data.from;
+      this.senderPhone = senderValidation.normalized;
     }
 
-    if (data.to) {
-      const toValidation = validateAndNormalizePhone(data.to);
-      if (!toValidation.isValid) {
-        throw new Error(`Teléfono de destino inválido: ${toValidation.error}`);
+    // ✅ VALIDACIÓN: Teléfono del destinatario
+    if (data.recipientPhone) {
+      const recipientValidation = validateAndNormalizePhone(data.recipientPhone);
+      if (!recipientValidation.isValid) {
+        throw new Error(`Teléfono del destinatario inválido: ${recipientValidation.error}`);
       }
-      this.to = toValidation.normalized;
-    } else {
-      this.to = data.to;
+      this.recipientPhone = recipientValidation.normalized;
     }
 
-    // ✅ MAPEO DE CAMPOS para compatibilidad con alineación anterior
-    this.content = data.content || '';
-
+    // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
+    this.sender = data.sender || 'customer';
+    this.direction = data.direction || 'inbound';
     this.type = data.type || 'text';
-    this.direction = data.direction;
     this.status = data.status || 'sent';
-    this.userId = data.userId || null;
-
-    // ✅ TIMESTAMPS: Mantener estructura original + nueva
-    this.timestamp = data.timestamp || new Date();
-    this.createdAt = data.createdAt || this.timestamp;
-    this.updatedAt = data.updatedAt || this.timestamp;
-
-    // ✅ MEDIA: Mantener nombres de campos originales
-    this.mediaUrls = data.mediaUrls || [];
-    this.media = data.media || null; // Campo legacy
-
-    // ✅ TWILIO: Campos específicos
-    this.twilioSid = data.twilioSid || null;
-
-    // ✅ METADATA: Toda la información adicional
+    this.timestamp = data.timestamp || Timestamp.now();
     this.metadata = data.metadata || {};
-
-    // ✅ LOG para debugging (solo si hay problemas)
-    if (!this.conversationId || !this.id) {
-      console.error('❌ Error en constructor Message:', {
-        id: this.id,
-        conversationId: this.conversationId,
-      });
-      throw new Error('Campos críticos faltantes en Message constructor');
-    }
+    this.createdAt = data.createdAt || Timestamp.now();
+    this.updatedAt = data.updatedAt || Timestamp.now();
   }
 
   /**
-   * Crear un nuevo mensaje en la subcolección correspondiente
-   * ✅ CORREGIDO: Logs detallados y validación completa antes de Firestore
+   * Crear mensaje en Firestore
    */
   static async create (messageData) {
-    try {
-      // ✅ LOG INICIAL para debugging
-      console.log('🔄 Message.create - Iniciando con datos:', {
-        id: messageData.id,
-        conversationId: messageData.conversationId,
-        from: messageData.from,
-        to: messageData.to,
-        type: messageData.type,
-        direction: messageData.direction,
-        twilioSid: messageData.twilioSid,
-      });
-
       const message = new Message(messageData);
 
-      // ✅ VALIDAR ANTES DE GUARDAR
-      if (!message.id || message.id.trim() === '') {
-        throw new Error('Message ID no puede estar vacío');
-      }
-
-      if (!message.conversationId || message.conversationId.trim() === '') {
-        throw new Error('conversationId no puede estar vacío');
-      }
-
-      // ✅ PREPARAR DATOS PARA FIRESTORE (estructura interna)
-      const firestoreData = {
-        // Campos originales para Firestore (NO cambiar)
-        from: message.from,
-        to: message.to,
-        content: message.content,
-        type: message.type,
-        direction: message.direction,
-        status: message.status,
-        userId: message.userId,
-        mediaUrls: message.mediaUrls,
-        twilioSid: message.twilioSid,
-        metadata: message.metadata,
-
-        // Timestamps de Firestore
-        createdAt: FieldValue.serverTimestamp(),
+    // Preparar datos para Firestore
+    const cleanData = prepareForFirestore({
+      ...message,
         updatedAt: FieldValue.serverTimestamp(),
-        timestamp: FieldValue.serverTimestamp(),
-      };
+    });
 
-      // ✅ LIMPIAR datos undefined/null para Firestore
-      const cleanData = prepareForFirestore(firestoreData);
-
-      console.log('💾 Message.create - Guardando en Firestore:', {
-        messageId: message.id,
-        conversationId: message.conversationId,
-        firestorePath: `conversations/${message.conversationId}/messages/${message.id}`,
-        cleanDataKeys: Object.keys(cleanData),
-        hasCleanData: Object.keys(cleanData).length > 0,
-      });
-
-      // ✅ GUARDAR EN FIRESTORE con path completo
-      const docRef = firestore
+    // Crear en subcolección de la conversación
+    const docRef = await firestore
         .collection('conversations')
         .doc(message.conversationId)
         .collection('messages')
-        .doc(message.id);
+      .add(cleanData);
 
-      await docRef.set(cleanData);
+    message.id = docRef.id;
 
-      console.log('✅ Message.create - Guardado exitosamente:', {
-        messageId: message.id,
-        conversationId: message.conversationId,
-      });
-
-      logger.info('Mensaje creado exitosamente', {
-        messageId: message.id,
-        conversationId: message.conversationId,
-        direction: message.direction,
-        type: message.type,
-      });
-
-      return message;
-    } catch (error) {
-      console.error('❌ Message.create - Error:', {
-        error: error.message,
-        messageData: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-        },
-      });
-
-      logger.error('Error creando mensaje', {
-        error: error.message,
-        messageData,
-      });
-
-      throw error;
+    // Actualizar conversación
+    const Conversation = require('./Conversation');
+    const conversation = await Conversation.getById(message.conversationId);
+    if (conversation) {
+      await conversation.updateLastMessage(message);
     }
+
+    return message;
+  }
+
+  /**
+   * ✅ OPTIMIZADO: Obtener mensajes por conversación con paginación basada en cursor
+   * @param {string} conversationId - ID de la conversación
+   * @param {Object} options - Opciones de paginación y filtros
+   * @returns {Object} - Resultado con mensajes y metadata de paginación
+   */
+  static async getByConversation (conversationId, options = {}) {
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
+
+    const {
+      limit = 20,
+      cursor = null,
+      direction = null,
+      status = null,
+      type = null,
+      startDate = null,
+      endDate = null,
+      orderBy = 'timestamp',
+      order = 'desc',
+    } = options;
+
+    // ✅ VALIDACIÓN: Límites de paginación
+    const validatedLimit = Math.min(Math.max(limit, 1), 100);
+    const validatedOrder = ['asc', 'desc'].includes(order) ? order : 'desc';
+
+    // ✅ MONITOREO: Log de parámetros de consulta
+    logger.info('Consultando mensajes por conversación', {
+      conversationId,
+      limit: validatedLimit,
+      cursor: cursor ? 'presente' : 'ausente',
+      filters: {
+        direction,
+        status,
+        type,
+        startDate: startDate ? 'presente' : 'ausente',
+        endDate: endDate ? 'presente' : 'ausente',
+      },
+      orderBy,
+      order: validatedOrder,
+    });
+
+    let query = firestore
+      .collection('conversations')
+      .doc(conversationId)
+      .collection('messages');
+
+    // ✅ APLICAR FILTROS
+    const appliedFilters = [];
+
+    if (direction) {
+      query = query.where('direction', '==', direction);
+      appliedFilters.push(`direction: ${direction}`);
+    }
+
+    if (status) {
+      query = query.where('status', '==', status);
+      appliedFilters.push(`status: ${status}`);
+    }
+
+    if (type) {
+      query = query.where('type', '==', type);
+      appliedFilters.push(`type: ${type}`);
+    }
+
+    if (startDate) {
+      const startTimestamp = startDate instanceof Date ? Timestamp.fromDate(startDate) : startDate;
+      query = query.where('timestamp', '>=', startTimestamp);
+      appliedFilters.push(`startDate: ${startDate}`);
+    }
+
+    if (endDate) {
+      const endTimestamp = endDate instanceof Date ? Timestamp.fromDate(endDate) : endDate;
+      query = query.where('timestamp', '<=', endTimestamp);
+      appliedFilters.push(`endDate: ${endDate}`);
+    }
+
+    // ✅ ORDENAMIENTO
+    query = query.orderBy(orderBy, validatedOrder);
+
+    // ✅ PAGINACIÓN BASADA EN CURSOR
+    if (cursor) {
+      try {
+        const cursorData = parseCursor(cursor);
+        if (cursorData.conversationId === conversationId) {
+          query = query.startAfter(cursorData.documentSnapshot);
+        } else {
+          logger.warn('Cursor de conversación diferente', {
+            cursorConversationId: cursorData.conversationId,
+            requestedConversationId: conversationId,
+          });
+        }
+    } catch (error) {
+        logger.error('Error parseando cursor', { cursor, error: error.message });
+      }
+    }
+
+    // ✅ APLICAR LÍMITE
+    query = query.limit(validatedLimit + 1); // +1 para determinar si hay más páginas
+
+    // ✅ EJECUTAR CONSULTA
+    const startTime = Date.now();
+    const snapshot = await query.get();
+    const queryTime = Date.now() - startTime;
+
+    // ✅ PROCESAR RESULTADOS
+    const messages = [];
+    let hasMore = false;
+
+    snapshot.docs.forEach((doc, index) => {
+      if (index < validatedLimit) {
+        messages.push(new Message({ id: doc.id, ...doc.data() }));
+      } else {
+        hasMore = true;
+      }
+    });
+
+    // ✅ GENERAR CURSOR PARA SIGUIENTE PÁGINA
+    let nextCursor = null;
+    if (hasMore && messages.length > 0) {
+      const lastDoc = snapshot.docs[validatedLimit - 1];
+      nextCursor = createCursor({
+        conversationId,
+        documentSnapshot: lastDoc,
+        timestamp: lastDoc.data().timestamp,
+      });
+    }
+
+    // ✅ MONITOREO: Log de resultados
+    logger.info('Consulta de mensajes completada', {
+      conversationId,
+      totalResults: messages.length,
+      hasMore,
+      queryTime: `${queryTime}ms`,
+      appliedFilters: appliedFilters.length > 0 ? appliedFilters : ['ninguno'],
+      nextCursor: nextCursor ? 'presente' : 'ausente',
+    });
+
+    return {
+      messages,
+      pagination: {
+        hasMore,
+        nextCursor,
+        totalResults: messages.length,
+        limit: validatedLimit,
+        orderBy,
+        order: validatedOrder,
+      },
+      metadata: {
+        conversationId,
+        appliedFilters,
+        queryTime: `${queryTime}ms`,
+      },
+    };
   }
 
   /**
    * Obtener mensaje por ID
    */
-  static async getById (messageId) {
-    try {
-      // Buscar en todas las conversaciones (esto es costoso, mejor tener conversationId)
-      const conversationsSnapshot = await firestore.collection('conversations').get();
+  static async getById (conversationId, messageId) {
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
 
-      for (const conversationDoc of conversationsSnapshot.docs) {
-        const messageDoc = await firestore
+    const doc = await firestore
           .collection('conversations')
-          .doc(conversationDoc.id)
+      .doc(conversationId)
           .collection('messages')
           .doc(messageId)
           .get();
 
-        if (messageDoc.exists) {
-          return new Message({ id: messageDoc.id, ...messageDoc.data() });
-        }
-      }
-
+    if (!doc.exists) {
       return null;
-    } catch (error) {
-      logger.error('Error obteniendo mensaje por ID:', error);
-      throw error;
     }
+
+    return new Message({ id: doc.id, ...doc.data() });
   }
 
   /**
-   * Obtener mensajes por conversationId con paginación cursor-based
-   * ✅ OPTIMIZADO: Usa paginación basada en cursor para mejor performance
-   * Basado en: https://firebase.google.com/docs/firestore/query-data/query-cursors
+   * Actualizar mensaje
    */
-  static async getByConversation (conversationId, options = {}) {
-    const startTime = Date.now();
-    
-    try {
-      // ✅ VALIDACIÓN: conversationId válido
-      if (!isValidConversationId(conversationId)) {
-        throw new Error(`conversationId inválido: ${conversationId}`);
-      }
+  async update (updates) {
+    const cleanData = prepareForFirestore({
+      ...updates,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
-      // ✅ VALIDAR Y SANITIZAR PARÁMETROS DE PAGINACIÓN
-      const paginationParams = validatePaginationParams(options, {
-        limit: 50,
-        maxLimit: 100,
-        defaultOrderBy: 'timestamp',
-        defaultOrder: 'desc'
-      });
-
-      logger.info('[Message.getByConversation] Iniciando query con paginación', {
-        conversationId,
-        paginationParams,
-        requestId: options.requestId || null,
-      });
-
-      // ✅ CONSTRUIR QUERY BASE
-      let query = firestore
+    await firestore
         .collection('conversations')
-        .doc(conversationId)
-        .collection('messages');
-
-      // ✅ APLICAR PAGINACIÓN
-      query = applyPaginationToQuery(query, paginationParams);
-
-      // ✅ EJECUTAR QUERY
-      const snapshot = await query.get();
-
-      if (snapshot.empty) {
-        logger.info('[Message.getByConversation] No se encontraron mensajes', {
-          conversationId,
-          paginationParams,
-        });
-        
-        return {
-          messages: [],
-          pagination: {
-            limit: paginationParams.limit,
-            hasMore: false,
-            nextCursor: null,
-            total: 0,
-            showing: 0
-          }
-        };
-      }
-
-      // ✅ PROCESAR RESULTADOS
-      const rawMessages = snapshot.docs.map(doc => new Message({
-        id: doc.id,
-        conversationId,
-        ...doc.data(),
-      }));
-
-      const processedResults = processPaginationResults(rawMessages, paginationParams);
-
-      // ✅ LOG DETALLADO DE PAGINACIÓN
-      const executionTime = Date.now() - startTime;
-      logPaginationDetails(paginationParams, processedResults, {
-        requestId: options.requestId,
-        endpoint: 'messages',
-        filters: { conversationId },
-        executionTime
-      });
-
-      return {
-        messages: processedResults.items,
-        pagination: processedResults.pagination
-      };
-
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      logger.error('[Message.getByConversation] Error', {
-        conversationId,
-        error: error.message,
-        options,
-        executionTime,
-        requestId: options.requestId || null,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener mensajes recientes para generar lista de conversaciones
-   * ✅ CORREGIDO: Eliminado filtro por userId que causaba problemas
-   * ✅ OPTIMIZADO: Usa índices compuestos de Firestore
-   */
-  static async getRecentMessages (limit = 100) {
-    try {
-      logger.info('[Message.getRecentMessages] Iniciando', {
-        limit,
-        note: 'Filtro por userId eliminado - usar ConversationController para filtrar por assignedTo',
-      });
-
-      // Query base: obtener mensajes recientes SIN filtro por userId
-      const query = firestore.collectionGroup('messages')
-        .orderBy('timestamp', 'desc')
-        .limit(limit);
-
-      const snapshot = await query.get();
-
-      if (snapshot.empty) {
-        logger.info('[Message.getRecentMessages] No se encontraron mensajes');
-        return [];
-      }
-
-      // ✅ MAPEAR RESULTADOS: Incluir conversationId desde el path
-      const messages = snapshot.docs.map(doc => {
-        const conversationId = doc.ref.parent.parent.id;
-        return new Message({
-          id: doc.id,
-          conversationId,
-          ...doc.data(),
-        });
-      });
-
-      logger.info('[Message.getRecentMessages] Mensajes obtenidos', {
-        messageCount: messages.length,
-        note: 'Filtrado por assignedTo debe hacerse en ConversationController',
-      });
-
-      return messages;
-    } catch (error) {
-      logger.error('[Message.getRecentMessages] Error', {
-        limit,
-        error: error.message,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener mensaje por Twilio SID
-   */
-  static async getByTwilioSid (twilioSid) {
-    try {
-      const snapshot = await firestore.collectionGroup('messages')
-        .where('twilioSid', '==', twilioSid)
-        .limit(1)
-        .get();
-
-      if (snapshot.empty) {
-        return null;
-      }
-
-      const doc = snapshot.docs[0];
-      const conversationId = doc.ref.parent.parent.id;
-      return new Message({
-        id: doc.id,
-        conversationId,
-        ...doc.data(),
-      });
-    } catch (error) {
-      logger.error('Error obteniendo mensaje por Twilio SID:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Actualizar estado del mensaje
-   */
-  async updateStatus (newStatus) {
-    try {
-      const docRef = firestore
-        .collection('conversations')
-        .doc(this.conversationId)
+      .doc(this.conversationId)
         .collection('messages')
-        .doc(this.id);
+      .doc(this.id)
+      .update(cleanData);
 
-      await docRef.update({
-        status: newStatus,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    // Actualizar instancia local
+    Object.assign(this, updates);
+    this.updatedAt = Timestamp.now();
+  }
 
-      this.status = newStatus;
-      this.updatedAt = new Date();
+  /**
+   * Eliminar mensaje
+   */
+  async delete () {
+    await firestore
+      .collection('conversations')
+      .doc(this.conversationId)
+      .collection('messages')
+      .doc(this.id)
+      .delete();
 
-      logger.info('Estado de mensaje actualizado', {
-        messageId: this.id,
-        newStatus,
-      });
-    } catch (error) {
-      logger.error('Error actualizando estado de mensaje:', error);
-      throw error;
+    // Actualizar conversación
+    const Conversation = require('./Conversation');
+    const conversation = await Conversation.getById(this.conversationId);
+    if (conversation) {
+      await conversation.decrementMessageCount(this);
     }
   }
 
   /**
-   * ✅ CORREGIDO: Método toJSON con estructura canónica
+   * Marcar como leído
+   */
+  async markAsRead () {
+    await this.update({
+      status: 'read',
+    });
+
+    this.status = 'read';
+  }
+
+  /**
+   * Obtener estadísticas de mensajes
+   */
+  static async getStats (conversationId, options = {}) {
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
+
+    const { startDate = null, endDate = null } = options;
+
+    let query = firestore
+      .collection('conversations')
+      .doc(conversationId)
+      .collection('messages');
+
+    if (startDate) {
+      const startTimestamp = startDate instanceof Date ? Timestamp.fromDate(startDate) : startDate;
+      query = query.where('timestamp', '>=', startTimestamp);
+    }
+
+    if (endDate) {
+      const endTimestamp = endDate instanceof Date ? Timestamp.fromDate(endDate) : endDate;
+      query = query.where('timestamp', '<=', endTimestamp);
+    }
+
+    const snapshot = await query.get();
+
+    const messages = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id,
+    }));
+
+    // Calcular estadísticas
+    const stats = {
+      totalMessages: messages.length,
+      inboundMessages: messages.filter(m => m.direction === 'inbound').length,
+      outboundMessages: messages.filter(m => m.direction === 'outbound').length,
+      readMessages: messages.filter(m => m.status === 'read').length,
+      unreadMessages: messages.filter(m => m.status !== 'read').length,
+      textMessages: messages.filter(m => m.type === 'text').length,
+      mediaMessages: messages.filter(m => m.type !== 'text').length,
+      firstMessageAt: messages.length > 0 ? messages[0].timestamp : null,
+      lastMessageAt: messages.length > 0 ? messages[messages.length - 1].timestamp : null,
+      averageResponseTime: this.calculateAverageResponseTime(messages),
+    };
+
+    return stats;
+  }
+
+  /**
+   * Calcular tiempo promedio de respuesta
+   */
+  static calculateAverageResponseTime (messages) {
+    const sortedMessages = messages.sort((a, b) => a.timestamp - b.timestamp);
+    const responseTimes = [];
+
+    for (let i = 1; i < sortedMessages.length; i++) {
+      const current = sortedMessages[i];
+      const previous = sortedMessages[i - 1];
+
+      // Solo calcular si es respuesta del agente a cliente
+      if (previous.direction === 'inbound' && current.direction === 'outbound') {
+        responseTimes.push(current.timestamp - previous.timestamp);
+      }
+    }
+
+    if (responseTimes.length === 0) return null;
+
+    const average = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
+    return Math.round(average / 1000); // Retornar en segundos
+  }
+
+  /**
+   * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
    */
   toJSON () {
-    // ✅ Normalizar timestamp a ISO string
-    let normalizedTimestamp;
+    // ✅ Normalizar timestamps a ISO strings
+    let normalizedTimestamp = null;
+    let normalizedCreatedAt = null;
+    let normalizedUpdatedAt = null;
+
     if (this.timestamp && typeof this.timestamp.toDate === 'function') {
       normalizedTimestamp = this.timestamp.toDate().toISOString();
     } else if (this.timestamp instanceof Date) {
       normalizedTimestamp = this.timestamp.toISOString();
     } else if (typeof this.timestamp === 'string') {
       normalizedTimestamp = this.timestamp;
-    } else {
-      normalizedTimestamp = new Date().toISOString();
     }
 
-    // ✅ Determinar tipo de sender basado en direction
-    let senderType = 'contact'; // Por defecto es contacto (cliente)
-    if (this.direction === 'outbound' && this.userId) {
-      senderType = 'agent'; // Es un agente si envió el mensaje
-    } else if (this.direction === 'outbound' && !this.userId) {
-      senderType = 'bot'; // Es bot si es saliente pero sin userId
+    if (this.createdAt && typeof this.createdAt.toDate === 'function') {
+      normalizedCreatedAt = this.createdAt.toDate().toISOString();
+    } else if (this.createdAt instanceof Date) {
+      normalizedCreatedAt = this.createdAt.toISOString();
+    } else if (typeof this.createdAt === 'string') {
+      normalizedCreatedAt = this.createdAt;
     }
 
-    // ✅ Construir objeto sender según especificación (sin campos null)
-    const sender = {
-      id: this.direction === 'inbound' ? this.from : (this.userId || this.from),
-      name: this.direction === 'inbound' ? this.from : (this.userId || 'Sistema'),
-      type: senderType,
-      // avatar omitido en lugar de null
-    };
-
-    // ✅ Mapear mediaUrls a attachments con estructura completa
-    const attachments = (this.mediaUrls || []).map((url, index) => ({
-      id: `media_${this.id}_${index}`,
-      name: this.extractFilenameFromUrl(url) || `archivo_${index + 1}`,
-      url,
-      type: this.guessContentTypeFromUrl(url) || 'application/octet-stream',
-      size: null, // No tenemos el tamaño, se puede extender después
-    }));
-
-    // ✅ Determinar estados booleanos desde status
-    const isDelivered = ['delivered', 'read'].includes(this.status);
-    const isRead = this.status === 'read';
-
-    // ✅ ESTRUCTURA CANÓNICA EXACTA
-    return {
-      id: this.id, // string único, requerido
-      conversationId: this.conversationId, // string único, requerido
-      content: this.content || '', // string, requerido
-      type: this.type || 'text', // string, requerido
-      timestamp: normalizedTimestamp, // string ISO, requerido
-      sender, // objeto, requerido
-      direction: this.direction, // string ('inbound' | 'outbound'), requerido
-      attachments, // array, opcional
-      isRead, // boolean, requerido
-      isDelivered, // boolean, requerido
-      metadata: { // objeto, opcional
-        twilioSid: this.twilioSid || null,
-        userId: this.userId || null,
-        from: this.from,
-        to: this.to,
-        status: this.status,
-      },
-    };
-  }
-
-  /**
-   * ✅ HELPER: Extraer nombre de archivo de URL
-   */
-  extractFilenameFromUrl (url) {
-    if (!url || typeof url !== 'string') return null;
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      const filename = pathname.split('/').pop();
-      return filename && filename.includes('.') ? filename : null;
-    } catch (error) {
-      return null;
+    if (this.updatedAt && typeof this.updatedAt.toDate === 'function') {
+      normalizedUpdatedAt = this.updatedAt.toDate().toISOString();
+    } else if (this.updatedAt instanceof Date) {
+      normalizedUpdatedAt = this.updatedAt.toISOString();
+    } else if (typeof this.updatedAt === 'string') {
+      normalizedUpdatedAt = this.updatedAt;
     }
-  }
 
-  /**
-   * ✅ HELPER: Adivinar tipo de contenido desde URL
-   */
-  guessContentTypeFromUrl (url) {
-    if (!url || typeof url !== 'string') return null;
-
-    const mimeTypes = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      pdf: 'application/pdf',
-      mp3: 'audio/mpeg',
-      wav: 'audio/wav',
-      mp4: 'video/mp4',
-      webm: 'video/webm',
-      txt: 'text/plain',
-      doc: 'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
+    const result = {
+      id: this.id,
+      conversationId: this.conversationId,
+      content: this.content,
+      mediaUrl: this.mediaUrl,
+      sender: this.sender,
+      senderPhone: this.senderPhone || null,
+      recipientPhone: this.recipientPhone || null,
+      direction: this.direction,
+      type: this.type,
+      status: this.status,
+      timestamp: normalizedTimestamp,
+      metadata: this.metadata || {},
+      createdAt: normalizedCreatedAt,
+      updatedAt: normalizedUpdatedAt,
     };
 
-    const extension = url.split('.').pop().toLowerCase();
-    return mimeTypes[extension] || null;
-  }
+    // ✅ VALIDACIÓN: Log si faltan campos críticos
+    const missingFields = [];
+    if (!result.id) missingFields.push('id');
+    if (!result.conversationId) missingFields.push('conversationId');
+    if (!result.content && !result.mediaUrl) missingFields.push('content/mediaUrl');
+    if (!result.sender) missingFields.push('sender');
+    if (!result.direction) missingFields.push('direction');
+    if (!result.type) missingFields.push('type');
+    if (!result.status) missingFields.push('status');
 
-  /**
-   * Obtener estadísticas de mensajes
-   */
-  static async getStats (period = '7d', userId = null) {
-    try {
-      const now = new Date();
-      let startDate;
-
-      switch (period) {
-      case '24h':
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
-      case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      }
-
-      let query = firestore.collectionGroup('messages')
-        .where('timestamp', '>=', Timestamp.fromDate(startDate));
-
-      if (userId) {
-        query = query.where('userId', '==', userId);
-      }
-
-      const snapshot = await query.get();
-
-      const stats = {
-        total: snapshot.size,
-        sent: 0,
-        received: 0,
-        byType: {},
-        byStatus: {},
-        period,
-        startDate: startDate.toISOString(),
-        endDate: now.toISOString(),
-      };
-
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-
-        if (data.direction === 'outbound') {
-          stats.sent++;
-        } else {
-          stats.received++;
-        }
-
-        stats.byType[data.type] = (stats.byType[data.type] || 0) + 1;
-        stats.byStatus[data.status] = (stats.byStatus[data.status] || 0) + 1;
+    if (missingFields.length > 0) {
+      logger.warn('Campos críticos faltantes en Message.toJSON()', {
+        messageId: this.id,
+        conversationId: this.conversationId,
+        missingFields,
       });
-
-      return stats;
-    } catch (error) {
-      logger.error('Error obteniendo estadísticas de mensajes:', error);
-      throw error;
     }
+
+    return result;
+  }
+
+  /**
+   * Buscar mensajes
+   */
+  static async search (conversationId, searchTerm, options = {}) {
+    if (!isValidConversationId(conversationId)) {
+      throw new Error(`conversationId inválido: ${conversationId}`);
+    }
+
+    const messages = await this.getByConversation(conversationId, { ...options, limit: 1000 });
+    return messages.messages.filter(message =>
+      message.content?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
   }
 }
 

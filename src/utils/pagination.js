@@ -1,255 +1,274 @@
 /**
  * UTILIDAD DE PAGINACIÓN BASADA EN CURSOR - UTalk Backend
- * 
+ *
  * Implementa paginación eficiente usando cursores de Firestore
  * Basado en: https://firebase.google.com/docs/firestore/query-data/query-cursors
- * y https://marckohler.medium.com/easy-pagination-with-firebase-sdk-7bcabb38bc93
  */
 
 const logger = require('./logger');
 
 /**
- * Opciones de paginación por defecto
+ * Crear cursor para paginación
+ * @param {Object} params - Parámetros del cursor
+ * @returns {string} - Cursor codificado en base64
  */
-const DEFAULT_PAGINATION = {
-  limit: 20,
-  maxLimit: 100,
-  defaultOrderBy: 'timestamp',
-  defaultOrder: 'desc'
-};
+function createCursor (params) {
+  try {
+    const cursorData = {
+      conversationId: params.conversationId,
+      documentSnapshot: params.documentSnapshot,
+      timestamp: params.timestamp,
+      createdAt: new Date().toISOString(),
+    };
+
+    const cursorString = JSON.stringify(cursorData);
+    return Buffer.from(cursorString).toString('base64');
+  } catch (error) {
+    logger.error('Error creando cursor', { error: error.message, params });
+    return null;
+  }
+}
 
 /**
- * Validar y sanitizar parámetros de paginación
- * @param {Object} params - Parámetros de paginación
- * @param {Object} options - Opciones de configuración
- * @returns {Object} - Parámetros sanitizados
+ * Parsear cursor para paginación
+ * @param {string} cursor - Cursor codificado en base64
+ * @returns {Object|null} - Datos del cursor o null si inválido
  */
-function validatePaginationParams(params = {}, options = {}) {
+function parseCursor (cursor) {
+  try {
+    if (!cursor || typeof cursor !== 'string') {
+      return null;
+    }
+
+    const cursorString = Buffer.from(cursor, 'base64').toString();
+    const cursorData = JSON.parse(cursorString);
+
+    // Validar estructura del cursor
+    if (!cursorData.conversationId || !cursorData.documentSnapshot) {
+      logger.warn('Cursor inválido - faltan campos requeridos', { cursor });
+      return null;
+    }
+
+    return cursorData;
+  } catch (error) {
+    logger.error('Error parseando cursor', { error: error.message, cursor });
+    return null;
+  }
+}
+
+/**
+ * Validar parámetros de paginación
+ * @param {Object} options - Opciones de paginación
+ * @param {Object} defaults - Valores por defecto
+ * @returns {Object} - Parámetros validados
+ */
+function validatePaginationParams (options, defaults = {}) {
   const {
-    limit = DEFAULT_PAGINATION.limit,
-    maxLimit = DEFAULT_PAGINATION.maxLimit,
-    defaultOrderBy = DEFAULT_PAGINATION.defaultOrderBy,
-    defaultOrder = DEFAULT_PAGINATION.defaultOrder
-  } = options;
+    limit = 20,
+    maxLimit = 100,
+    defaultOrderBy = 'timestamp',
+    defaultOrder = 'desc',
+  } = defaults;
 
-  // Validar y sanitizar limit
-  let sanitizedLimit = Math.max(1, parseInt(params.limit, 10) || limit);
-  sanitizedLimit = Math.min(maxLimit, sanitizedLimit);
+  // Validar límite
+  let validatedLimit = parseInt(limit) || 20;
+  validatedLimit = Math.min(Math.max(validatedLimit, 1), maxLimit);
 
-  // Validar orderBy
-  const validOrderFields = ['timestamp', 'createdAt', 'updatedAt', 'lastMessageAt', 'messageCount'];
-  const sanitizedOrderBy = validOrderFields.includes(params.orderBy) ? params.orderBy : defaultOrderBy;
-
-  // Validar order
-  const validOrders = ['asc', 'desc'];
-  const sanitizedOrder = validOrders.includes(params.order) ? params.order : defaultOrder;
-
-  // Validar cursor
-  const cursor = params.cursor || null;
-  const startAfter = params.startAfter || null;
+  // Validar ordenamiento
+  const validatedOrder = ['asc', 'desc'].includes(options.order) ? options.order : defaultOrder;
+  const validatedOrderBy = options.orderBy || defaultOrderBy;
 
   return {
-    limit: sanitizedLimit,
-    orderBy: sanitizedOrderBy,
-    order: sanitizedOrder,
-    cursor,
-    startAfter,
-    page: parseInt(params.page, 10) || 1
+    limit: validatedLimit,
+    order: validatedOrder,
+    orderBy: validatedOrderBy,
+    cursor: options.cursor || null,
   };
 }
 
 /**
- * Construir query de Firestore con paginación
- * @param {Object} query - Query base de Firestore
+ * Aplicar paginación a query de Firestore
+ * @param {Object} query - Query de Firestore
  * @param {Object} paginationParams - Parámetros de paginación
  * @returns {Object} - Query con paginación aplicada
  */
-function applyPaginationToQuery(query, paginationParams) {
-  const { limit, orderBy, order, cursor, startAfter } = paginationParams;
+function applyPaginationToQuery (query, paginationParams) {
+  const { limit, order, orderBy, cursor } = paginationParams;
 
   // Aplicar ordenamiento
-  let paginatedQuery = query.orderBy(orderBy, order);
+  query = query.orderBy(orderBy, order);
 
   // Aplicar cursor si existe
   if (cursor) {
-    try {
-      // Intentar parsear cursor como objeto
-      const cursorData = typeof cursor === 'string' ? JSON.parse(cursor) : cursor;
-      paginatedQuery = paginatedQuery.startAfter(cursorData);
-    } catch (error) {
-      logger.warn('Cursor inválido, ignorando', { cursor, error: error.message });
+    const cursorData = parseCursor(cursor);
+    if (cursorData && cursorData.documentSnapshot) {
+      query = query.startAfter(cursorData.documentSnapshot);
     }
-  } else if (startAfter) {
-    // Usar startAfter como fallback
-    paginatedQuery = paginatedQuery.startAfter(startAfter);
   }
 
-  // Aplicar límite
-  paginatedQuery = paginatedQuery.limit(limit + 1); // +1 para detectar si hay más páginas
+  // Aplicar límite (+1 para determinar si hay más páginas)
+  query = query.limit(limit + 1);
 
-  return paginatedQuery;
+  return query;
 }
 
 /**
  * Procesar resultados de paginación
- * @param {Array} results - Resultados de la query
+ * @param {Array} items - Items de la consulta
  * @param {Object} paginationParams - Parámetros de paginación
- * @returns {Object} - Resultados procesados con información de paginación
+ * @returns {Object} - Resultados procesados con metadata
  */
-function processPaginationResults(results, paginationParams) {
+function processPaginationResults (items, paginationParams) {
   const { limit } = paginationParams;
-  
-  // Verificar si hay más resultados
-  const hasMore = results.length > limit;
-  
-  // Remover el elemento extra si existe
-  const items = hasMore ? results.slice(0, limit) : results;
-  
-  // Generar cursor para la siguiente página
+
+  // Determinar si hay más páginas
+  const hasMore = items.length > limit;
+  const processedItems = hasMore ? items.slice(0, limit) : items;
+
+  // Generar cursor para siguiente página
   let nextCursor = null;
-  if (hasMore && items.length > 0) {
-    const lastItem = items[items.length - 1];
-    try {
-      nextCursor = JSON.stringify({
-        [paginationParams.orderBy]: lastItem[paginationParams.orderBy],
-        id: lastItem.id
-      });
-    } catch (error) {
-      logger.warn('Error generando cursor', { error: error.message });
-    }
+  if (hasMore && processedItems.length > 0) {
+    const lastItem = processedItems[processedItems.length - 1];
+    nextCursor = createCursor({
+      conversationId: lastItem.conversationId,
+      documentSnapshot: lastItem._docRef || null,
+      timestamp: lastItem.timestamp,
+    });
   }
 
   return {
-    items,
+    items: processedItems,
     pagination: {
-      limit,
       hasMore,
       nextCursor,
-      total: items.length,
-      showing: items.length
-    }
-  };
-}
-
-/**
- * Generar respuesta de paginación estándar
- * @param {Array} items - Elementos de la página actual
- * @param {Object} pagination - Información de paginación
- * @param {Object} options - Opciones adicionales
- * @returns {Object} - Respuesta estándar
- */
-function generatePaginationResponse(items, pagination, options = {}) {
-  const {
-    requestId = null,
-    filters = {},
-    executionTime = 0,
-    errorOccurred = false
-  } = options;
-
-  return {
-    items,
-    pagination: {
-      limit: pagination.limit,
-      hasMore: pagination.hasMore,
-      nextCursor: pagination.nextCursor,
-      total: pagination.total,
-      showing: pagination.showing
+      total: processedItems.length,
+      limit,
+      showing: processedItems.length,
     },
-    filters,
-    meta: {
-      executionTime,
-      timestamp: new Date().toISOString(),
-      requestId,
-      errorOccurred
-    }
   };
 }
 
 /**
  * Log detallado de paginación para debugging
- * @param {Object} params - Parámetros de paginación
+ * @param {Object} paginationParams - Parámetros de paginación
  * @param {Object} results - Resultados procesados
- * @param {Object} options - Opciones de logging
+ * @param {Object} metadata - Metadata adicional
  */
-function logPaginationDetails(params, results, options = {}) {
-  const {
-    requestId = null,
-    endpoint = 'unknown',
-    filters = {},
-    executionTime = 0
-  } = options;
+function logPaginationDetails (paginationParams, results, metadata = {}) {
+  const { limit, order, orderBy, cursor } = paginationParams;
+  const { hasMore, nextCursor, total, showing } = results.pagination;
 
-  logger.info(`[${endpoint.toUpperCase()} API] Paginación completada`, {
-    requestId,
-    pagination: {
-      limit: params.limit,
-      orderBy: params.orderBy,
-      order: params.order,
-      hasCursor: !!params.cursor,
-      hasStartAfter: !!params.startAfter
+  logger.info('Paginación completada', {
+    params: {
+      limit,
+      order,
+      orderBy,
+      hasCursor: !!cursor,
     },
     results: {
-      total: results.pagination.total,
-      hasMore: results.pagination.hasMore,
-      showing: results.pagination.showing,
-      nextCursor: !!results.pagination.nextCursor
+      total,
+      showing,
+      hasMore,
+      hasNextCursor: !!nextCursor,
     },
-    filters,
-    performance: {
-      executionTime,
-      itemsPerSecond: executionTime > 0 ? Math.round(results.pagination.total / (executionTime / 1000)) : 0
-    }
+    metadata: {
+      requestId: metadata.requestId,
+      endpoint: metadata.endpoint,
+      filters: metadata.filters,
+      executionTime: metadata.executionTime,
+    },
   });
 }
 
 /**
- * Validar y procesar cursor de entrada
- * @param {string|Object} cursor - Cursor de entrada
- * @returns {Object|null} - Cursor procesado o null
+ * Crear metadata de paginación para respuestas API
+ * @param {Object} paginationParams - Parámetros de paginación
+ * @param {Object} results - Resultados procesados
+ * @returns {Object} - Metadata de paginación
  */
-function processInputCursor(cursor) {
-  if (!cursor) return null;
+function createPaginationMetadata (paginationParams, results) {
+  const { limit, order, orderBy } = paginationParams;
+  const { hasMore, nextCursor, total, showing } = results.pagination;
 
-  try {
-    if (typeof cursor === 'string') {
-      return JSON.parse(cursor);
-    }
-    return cursor;
-  } catch (error) {
-    logger.warn('Cursor inválido recibido', { cursor, error: error.message });
-    return null;
-  }
+  return {
+    pagination: {
+      hasMore,
+      nextCursor,
+      totalResults: total,
+      limit,
+      orderBy,
+      order,
+      showing,
+    },
+    metadata: {
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+    },
+  };
 }
 
 /**
- * Crear cursor para un documento específico
- * @param {Object} document - Documento de Firestore
- * @param {string} orderBy - Campo de ordenamiento
- * @returns {string} - Cursor serializado
+ * Validar cursor para una conversación específica
+ * @param {string} cursor - Cursor a validar
+ * @param {string} conversationId - ID de la conversación
+ * @returns {boolean} - true si el cursor es válido para la conversación
  */
-function createCursor(document, orderBy) {
-  if (!document || !document[orderBy]) {
-    return null;
+function validateCursorForConversation (cursor, conversationId) {
+  if (!cursor || !conversationId) {
+    return false;
   }
 
+  const cursorData = parseCursor(cursor);
+  if (!cursorData) {
+    return false;
+  }
+
+  return cursorData.conversationId === conversationId;
+}
+
+/**
+ * Crear cursor simple para testing
+ * @param {string} conversationId - ID de la conversación
+ * @param {Object} documentSnapshot - DocumentSnapshot de Firestore
+ * @returns {string} - Cursor simple
+ */
+function createSimpleCursor (conversationId, documentSnapshot) {
+  return createCursor({
+    conversationId,
+    documentSnapshot,
+    timestamp: documentSnapshot.data().timestamp || new Date(),
+  });
+}
+
+/**
+ * Obtener información del cursor sin parsearlo completamente
+ * @param {string} cursor - Cursor codificado
+ * @returns {Object|null} - Información básica del cursor
+ */
+function getCursorInfo (cursor) {
   try {
-    return JSON.stringify({
-      [orderBy]: document[orderBy],
-      id: document.id
-    });
+    const cursorString = Buffer.from(cursor, 'base64').toString();
+    const cursorData = JSON.parse(cursorString);
+
+    return {
+      conversationId: cursorData.conversationId,
+      createdAt: cursorData.createdAt,
+      hasDocumentSnapshot: !!cursorData.documentSnapshot,
+    };
   } catch (error) {
-    logger.warn('Error creando cursor', { document, orderBy, error: error.message });
     return null;
   }
 }
 
 module.exports = {
+  createCursor,
+  parseCursor,
   validatePaginationParams,
   applyPaginationToQuery,
   processPaginationResults,
-  generatePaginationResponse,
   logPaginationDetails,
-  processInputCursor,
-  createCursor,
-  DEFAULT_PAGINATION
+  createPaginationMetadata,
+  validateCursorForConversation,
+  createSimpleCursor,
+  getCursorInfo,
 };

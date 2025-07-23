@@ -2,7 +2,8 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
-const { validateAndNormalizePhone, extractPhoneInfo } = require('../utils/phoneValidation');
+const { validateAndNormalizePhone } = require('../utils/phoneValidation');
+const { ensureConversationAssignment } = require('../utils/agentAssignment');
 
 class Conversation {
   constructor (data) {
@@ -14,7 +15,7 @@ class Conversation {
 
     // ✅ VALIDACIÓN: Teléfonos de participantes
     this.participants = this.validateAndNormalizeParticipants(data.participants || []);
-    
+
     // ✅ VALIDACIÓN: Teléfono del cliente
     if (data.customerPhone) {
       const customerValidation = validateAndNormalizePhone(data.customerPhone);
@@ -62,7 +63,7 @@ class Conversation {
 
     participants.forEach((phone, index) => {
       const validation = validateAndNormalizePhone(phone, { logErrors: false });
-      
+
       if (validation.isValid) {
         normalizedParticipants.push(validation.normalized);
       } else {
@@ -92,10 +93,13 @@ class Conversation {
   }
 
   /**
-   * Crear o actualizar una conversación
+   * ✅ CORREGIDO: Crear o actualizar una conversación con asignación automática
    */
   static async createOrUpdate (conversationData) {
-    const conversation = new Conversation(conversationData);
+    // ✅ GARANTIZAR ASIGNACIÓN DE AGENTE ANTES DE CREAR
+    const conversationWithAssignment = await ensureConversationAssignment(conversationData);
+
+    const conversation = new Conversation(conversationWithAssignment);
 
     // Preparar datos para Firestore
     const cleanData = prepareForFirestore({
@@ -105,6 +109,12 @@ class Conversation {
 
     // Usar merge para crear o actualizar
     await firestore.collection('conversations').doc(conversation.id).set(cleanData, { merge: true });
+
+    logger.info('Conversación creada/actualizada con agente asignado', {
+      conversationId: conversation.id,
+      assignedTo: conversation.assignedTo,
+      customerPhone: conversation.customerPhone,
+    });
 
     return conversation;
   }
@@ -164,6 +174,11 @@ class Conversation {
     query = query.limit(limit);
 
     const snapshot = await query.get();
+
+    if (snapshot.empty) {
+      return [];
+    }
+
     return snapshot.docs.map(doc => new Conversation({ id: doc.id, ...doc.data() }));
   }
 
@@ -171,161 +186,140 @@ class Conversation {
    * Actualizar conversación
    */
   async update (updates) {
-    const validUpdates = prepareForFirestore({
+    const cleanData = prepareForFirestore({
       ...updates,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    await firestore.collection('conversations').doc(this.id).update(validUpdates);
+    await firestore.collection('conversations').doc(this.id).update(cleanData);
 
-    // Actualizar propiedades locales
+    // Actualizar instancia local
     Object.assign(this, updates);
     this.updatedAt = Timestamp.now();
   }
 
   /**
-   * Actualizar cuando llega un nuevo mensaje
+   * Actualizar último mensaje
    */
   async updateLastMessage (message) {
-    const updates = {
-      lastMessage: message.content || '[Multimedia]',
-      lastMessageAt: message.timestamp || FieldValue.serverTimestamp(),
-      lastMessageId: message.id,
-      messageCount: FieldValue.increment(1),
+    const lastMessageData = {
+      id: message.id,
+      content: message.content,
+      timestamp: message.timestamp,
+      sender: message.sender,
+      type: message.type,
     };
 
-    // Incrementar unreadCount solo para mensajes entrantes
-    if (message.direction === 'inbound') {
-      updates.unreadCount = FieldValue.increment(1);
-    }
+    await this.update({
+      lastMessage: lastMessageData,
+      lastMessageId: message.id,
+      lastMessageAt: message.timestamp,
+      messageCount: FieldValue.increment(1),
+    });
 
-    await this.update(updates);
+    this.lastMessage = lastMessageData;
+    this.lastMessageId = message.id;
+    this.lastMessageAt = message.timestamp;
+    this.messageCount = (this.messageCount || 0) + 1;
   }
 
   /**
-   * ✅ NUEVO: Decrementar messageCount cuando se elimina un mensaje
-   * @param {Object} deletedMessage - Mensaje que se eliminó
-   * @param {Object} newLastMessage - Nuevo último mensaje (opcional)
+   * Decrementar contador de mensajes al eliminar
    */
   async decrementMessageCount (deletedMessage, newLastMessage = null) {
     const updates = {
       messageCount: FieldValue.increment(-1),
     };
 
-    // Si se eliminó el último mensaje, actualizar lastMessage
     if (newLastMessage) {
-      updates.lastMessage = newLastMessage.content || '[Multimedia]';
-      updates.lastMessageAt = newLastMessage.timestamp;
+      updates.lastMessage = {
+        id: newLastMessage.id,
+        content: newLastMessage.content,
+        timestamp: newLastMessage.timestamp,
+        sender: newLastMessage.sender,
+        type: newLastMessage.type,
+      };
       updates.lastMessageId = newLastMessage.id;
-    } else if (deletedMessage.id === this.lastMessageId) {
-      // Si se eliminó el último mensaje y no se proporcionó reemplazo,
-      // se necesitará recalcular manualmente
-      updates.lastMessage = '[Mensaje eliminado]';
-      updates.lastMessageAt = FieldValue.serverTimestamp();
+      updates.lastMessageAt = newLastMessage.timestamp;
+    } else {
+      updates.lastMessage = null;
       updates.lastMessageId = null;
-    }
-
-    // Decrementar unreadCount si el mensaje eliminado era inbound y no leído
-    if (deletedMessage.direction === 'inbound' && deletedMessage.status !== 'read') {
-      updates.unreadCount = FieldValue.increment(-1);
+      updates.lastMessageAt = null;
     }
 
     await this.update(updates);
   }
 
   /**
-   * ✅ NUEVO: Recalcular messageCount basándose en el número real de mensajes
-   * Útil para corregir inconsistencias
+   * Recalcular contador de mensajes
    */
   async recalculateMessageCount () {
-    // Contar mensajes reales en la subcolección
     const messagesSnapshot = await firestore
       .collection('conversations')
       .doc(this.id)
       .collection('messages')
       .get();
 
-    const actualCount = messagesSnapshot.size;
+    const messageCount = messagesSnapshot.size;
 
-    // Actualizar solo si hay diferencia
-    if (this.messageCount !== actualCount) {
-      await this.update({
-        messageCount: actualCount,
-      });
-
-      this.messageCount = actualCount;
-    }
-
-    return actualCount;
-  }
-
-  /**
-   * Marcar mensajes como leídos
-   */
-  static async markAsRead (_userId) {
-    const docRef = firestore.collection('conversations').doc(this.id);
-    await docRef.update({
-      unreadCount: 0,
-      updatedAt: FieldValue.serverTimestamp(),
+    await this.update({
+      messageCount,
     });
+
+    this.messageCount = messageCount;
   }
 
   /**
-   * Asignar conversación a agente
+   * Marcar como leída
+   */
+  static async markAsRead () {
+    // Implementación futura
+    logger.info('Marcando conversación como leída');
+  }
+
+  /**
+   * Asignar a usuario
    */
   async assignTo (userId) {
-    const updates = {
+    await this.update({
       assignedTo: userId,
-      status: 'assigned',
-      metadata: {
-        ...this.metadata,
-        assignedAt: FieldValue.serverTimestamp(),
-        assignedBy: userId,
-      },
-    };
+    });
 
-    await this.update(updates);
+    this.assignedTo = userId;
   }
 
   /**
-   * Cambiar estado de conversación
+   * Cambiar estado
    */
-  async changeStatus (newStatus, userId = null) {
-    const validStatuses = ['open', 'closed', 'assigned', 'pending', 'archived'];
-
+  async changeStatus (newStatus) {
+    const validStatuses = ['open', 'closed', 'pending', 'archived'];
     if (!validStatuses.includes(newStatus)) {
-      throw new Error(`Estado inválido: ${newStatus}. Válidos: ${validStatuses.join(', ')}`);
+      throw new Error(`Estado inválido: ${newStatus}`);
     }
 
-    const updates = {
+    await this.update({
       status: newStatus,
-      metadata: {
-        ...this.metadata,
-        statusChangedBy: userId,
-        statusChangedAt: FieldValue.serverTimestamp(),
-        previousStatus: this.status,
-      },
-    };
+    });
 
-    await this.update(updates);
+    this.status = newStatus;
   }
 
   /**
-   * ✅ REFACTORIZADO: Obtener estadísticas de la conversación
-   * Usa modelo Message centralizado en lugar de queries directos
+   * Obtener estadísticas de la conversación
    */
   async getStats () {
     try {
-      // ✅ CENTRALIZADO: Usar modelo Message para obtener estadísticas
-      const Message = require('./Message');
+      const messagesSnapshot = await firestore
+        .collection('conversations')
+        .doc(this.id)
+        .collection('messages')
+        .orderBy('timestamp', 'asc')
+        .get();
 
-      // Para esta conversación específica, necesitamos filtrar por conversationId
-      // Esto es más eficiente que hacer query directo
-      const messages = await Message.getByConversation(this.id, {
-        limit: 1000, // Límite alto para obtener todas las estadísticas
-        orderBy: 'timestamp',
-        order: 'asc',
-      });
+      const messages = messagesSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+      }));
 
       // ✅ CENTRALIZADO: Usar la misma lógica de cálculo que Message.getStats()
       const stats = {
@@ -411,7 +405,7 @@ class Conversation {
       id: this.customerPhone || this.contact?.id || 'unknown',
       name: this.contact?.name || this.customerPhone || 'Cliente',
       avatar: this.contact?.avatar || null,
-      channel: 'whatsapp' // Por defecto WhatsApp, se puede extender
+      channel: 'whatsapp', // Por defecto WhatsApp, se puede extender
     };
 
     // ✅ Construir objeto assignedTo si existe
@@ -439,10 +433,11 @@ class Conversation {
       messageCount: this.messageCount || 0,
       lastMessage: this.lastMessage || null,
       lastMessageId: this.lastMessageId || null,
-      lastMessageAt: this.lastMessageAt ? 
-        (typeof this.lastMessageAt.toDate === 'function' ? 
-          this.lastMessageAt.toDate().toISOString() : 
-          this.lastMessageAt.toISOString()) : null,
+      lastMessageAt: this.lastMessageAt
+        ? (typeof this.lastMessageAt.toDate === 'function'
+          ? this.lastMessageAt.toDate().toISOString()
+          : this.lastMessageAt.toISOString())
+        : null,
       createdAt: normalizedCreatedAt,
       updatedAt: normalizedUpdatedAt,
     };
@@ -461,52 +456,25 @@ class Conversation {
     }
 
     return result;
-
-    // ✅ ESTRUCTURA CANÓNICA EXACTA
-    return {
-      id: this.id,                                    // string único
-      contact: contact,                               // objeto del contacto
-      lastMessage: this.lastMessage || null,         // mensaje como objeto o null
-      status: this.status || 'open',                 // string ('open', 'closed', 'pending', etc)
-      assignedTo: assignedTo,                        // objeto del agente asignado o null
-      createdAt: normalizedCreatedAt || new Date().toISOString(), // string ISO
-      updatedAt: normalizedUpdatedAt || new Date().toISOString()  // string ISO
-    };
   }
 
   /**
-   * Eliminar conversación (archivar)
+   * Archivar conversación
    */
   async archive () {
     await this.changeStatus('archived');
   }
 
   /**
-   * Buscar conversaciones por contenido
+   * Buscar conversaciones
    */
   static async search (searchTerm, options = {}) {
-    const { limit = 20, assignedTo = null } = options;
-
-    // Por simplicidad, buscar por números de teléfono o contenido de último mensaje
-    let query = firestore.collection('conversations');
-
-    if (assignedTo) {
-      query = query.where('assignedTo', '==', assignedTo);
-    }
-
-    // Firestore no soporta búsqueda full-text nativa, implementar con array-contains
-    // o integrar con Algolia/Elasticsearch para búsqueda avanzada
-    const snapshot = await query.limit(limit * 2).get();
-
-    const conversations = snapshot.docs
-      .map(doc => new Conversation({ id: doc.id, ...doc.data() }))
-      .filter(conv =>
-        conv.customerPhone.includes(searchTerm) ||
-        conv.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-      .slice(0, limit);
-
-    return conversations;
+    // Implementación básica de búsqueda
+    const conversations = await this.list(options);
+    return conversations.filter(conv =>
+      conv.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      conv.customerPhone?.includes(searchTerm),
+    );
   }
 }
 

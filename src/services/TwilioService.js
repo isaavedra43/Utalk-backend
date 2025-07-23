@@ -508,7 +508,7 @@ class TwilioService {
         url,
         hasSignature: !!signature,
       });
-      
+
       logger.error('Error validando firma de webhook Twilio', {
         error: error.message,
         stack: error.stack,
@@ -597,7 +597,8 @@ class TwilioService {
   }
 
   /**
-   * Crear o actualizar conversación cuando llega un mensaje
+   * ✅ CORREGIDO: Crear o actualizar conversación cuando llega un mensaje
+   * SIEMPRE garantiza que el campo assignedTo esté presente
    */
   static async createOrUpdateConversation (conversationId, message, contact) {
     try {
@@ -608,7 +609,7 @@ class TwilioService {
         // Actualizar conversación existente
         await conversation.updateLastMessage(message);
       } else {
-        // Crear nueva conversación
+        // ✅ CREAR NUEVA CONVERSACIÓN CON ASIGNACIÓN AUTOMÁTICA
         const customerPhone = contact?.phone || message.from;
         const agentPhone = message.to;
 
@@ -631,9 +632,24 @@ class TwilioService {
             createdFromWebhook: true,
             twilioSid: message.twilioSid,
           },
+          // ✅ NOTA: assignedTo se asignará automáticamente en Conversation.createOrUpdate()
         };
 
+        logger.info('Creando nueva conversación desde webhook', {
+          conversationId,
+          customerPhone,
+          agentPhone,
+          messageId: message.id,
+          direction: message.direction,
+        });
+
         conversation = await Conversation.createOrUpdate(conversationData);
+
+        logger.info('Conversación creada exitosamente desde webhook', {
+          conversationId,
+          assignedTo: conversation.assignedTo,
+          customerPhone,
+        });
       }
 
       return conversation;

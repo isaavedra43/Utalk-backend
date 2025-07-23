@@ -22,7 +22,7 @@ const PHONE_REGEX = {
   WHATSAPP: /^whatsapp:\+[1-9]\d{1,14}$/,
 
   // Formato básico (solo números y +)
-  BASIC: /^\+?[1-9]\d{6,14}$/
+  BASIC: /^\+?[1-9]\d{6,14}$/,
 };
 
 /**
@@ -30,7 +30,7 @@ const PHONE_REGEX = {
  * @param {string} phone - Número de teléfono a normalizar
  * @returns {string|null} - Número normalizado o null si inválido
  */
-function normalizePhoneNumber(phone) {
+function normalizePhoneNumber (phone) {
   if (!phone || typeof phone !== 'string') {
     return null;
   }
@@ -65,7 +65,7 @@ function normalizePhoneNumber(phone) {
  * @param {string} format - Formato esperado ('E164', 'NATIONAL', 'WHATSAPP', 'BASIC')
  * @returns {boolean} - true si es válido
  */
-function validatePhoneFormat(phone, format = 'E164') {
+function validatePhoneFormat (phone, format = 'E164') {
   if (!phone || typeof phone !== 'string') {
     return false;
   }
@@ -85,11 +85,11 @@ function validatePhoneFormat(phone, format = 'E164') {
  * @param {Object} options - Opciones de validación
  * @returns {Object} - Resultado de validación
  */
-function validateAndNormalizePhone(phone, options = {}) {
+function validateAndNormalizePhone (phone, options = {}) {
   const {
     allowWhatsapp = true,
     requireE164 = false,
-    logErrors = true
+    logErrors = true,
   } = options;
 
   if (!phone) {
@@ -138,7 +138,7 @@ function validateAndNormalizePhone(phone, options = {}) {
     isValid: true,
     normalized,
     format,
-    original: phone
+    original: phone,
   };
 }
 
@@ -147,7 +147,7 @@ function validateAndNormalizePhone(phone, options = {}) {
  * @param {string} phone - Número de teléfono
  * @returns {Object} - Información del teléfono
  */
-function extractPhoneInfo(phone) {
+function extractPhoneInfo (phone) {
   const validation = validateAndNormalizePhone(phone);
 
   if (!validation.isValid) {
@@ -180,7 +180,7 @@ function extractPhoneInfo(phone) {
     nationalNumber,
     numberType,
     format: validation.format,
-    isValid: true
+    isValid: true,
   };
 }
 
@@ -189,7 +189,7 @@ function extractPhoneInfo(phone) {
  * @param {string} phone - Número de teléfono
  * @returns {string} - Número sanitizado
  */
-function sanitizePhoneForSearch(phone) {
+function sanitizePhoneForSearch (phone) {
   if (!phone) return '';
 
   // Remover todos los caracteres no numéricos excepto +
@@ -202,7 +202,7 @@ function sanitizePhoneForSearch(phone) {
  * @param {Object} options - Opciones de validación
  * @returns {Object} - Resultados de validación
  */
-function validateMultiplePhones(phones, options = {}) {
+function validateMultiplePhones (phones, options = {}) {
   if (!Array.isArray(phones)) {
     return { valid: [], invalid: [], errors: ['Array de teléfonos requerido'] };
   }
@@ -232,5 +232,5 @@ module.exports = {
   extractPhoneInfo,
   sanitizePhoneForSearch,
   validateMultiplePhones,
-  PHONE_REGEX
+  PHONE_REGEX,
 }; 
