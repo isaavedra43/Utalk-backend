@@ -13,9 +13,22 @@ function generateConversationId (phone1, phone2) {
     throw new Error('Se requieren ambos números de teléfono para generar conversationId');
   }
 
-  // Normalizar números (solo dígitos)
-  const normalized1 = phone1.replace(/\D/g, '');
-  const normalized2 = phone2.replace(/\D/g, '');
+  // ✅ NORMALIZAR NÚMEROS usando la función de phoneValidation
+  const { validateAndNormalizePhone } = require('./phoneValidation');
+
+  const phone1Validation = validateAndNormalizePhone(phone1);
+  const phone2Validation = validateAndNormalizePhone(phone2);
+
+  if (!phone1Validation.isValid) {
+    throw new Error(`Primer número inválido: ${phone1Validation.error}`);
+  }
+
+  if (!phone2Validation.isValid) {
+    throw new Error(`Segundo número inválido: ${phone2Validation.error}`);
+  }
+
+  const normalized1 = phone1Validation.normalized.replace(/[^\d]/g, '');
+  const normalized2 = phone2Validation.normalized.replace(/[^\d]/g, '');
 
   // Validar que los números tengan formato válido
   if (normalized1.length < 10 || normalized2.length < 10) {

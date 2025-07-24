@@ -26,9 +26,14 @@ class Message {
     this.content = data.content || null;
     this.mediaUrl = data.mediaUrl || null;
 
+    // ✅ MAPEAR CAMPOS DE COMPATIBILIDAD
+    // from/to -> senderPhone/recipientPhone
+    this.senderPhone = data.senderPhone || data.from || null;
+    this.recipientPhone = data.recipientPhone || data.to || null;
+
     // ✅ VALIDACIÓN: Teléfono del remitente
-    if (data.senderPhone) {
-      const senderValidation = validateAndNormalizePhone(data.senderPhone);
+    if (this.senderPhone) {
+      const senderValidation = validateAndNormalizePhone(this.senderPhone);
       if (!senderValidation.isValid) {
         throw new Error(`Teléfono del remitente inválido: ${senderValidation.error}`);
       }
@@ -36,8 +41,8 @@ class Message {
     }
 
     // ✅ VALIDACIÓN: Teléfono del destinatario
-    if (data.recipientPhone) {
-      const recipientValidation = validateAndNormalizePhone(data.recipientPhone);
+    if (this.recipientPhone) {
+      const recipientValidation = validateAndNormalizePhone(this.recipientPhone);
       if (!recipientValidation.isValid) {
         throw new Error(`Teléfono del destinatario inválido: ${recipientValidation.error}`);
       }
@@ -455,6 +460,9 @@ class Message {
       sender: this.sender,
       senderPhone: this.senderPhone || null,
       recipientPhone: this.recipientPhone || null,
+      // ✅ CAMPOS DE COMPATIBILIDAD
+      from: this.senderPhone || null, // Para compatibilidad
+      to: this.recipientPhone || null, // Para compatibilidad
       direction: this.direction,
       type: this.type,
       status: this.status,

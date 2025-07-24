@@ -99,24 +99,85 @@ class Conversation {
     // ✅ GARANTIZAR ASIGNACIÓN DE AGENTE ANTES DE CREAR
     const conversationWithAssignment = await ensureConversationAssignment(conversationData);
 
-    const conversation = new Conversation(conversationWithAssignment);
+    // ✅ NORMALIZAR PARTICIPANTS ANTES DE VALIDAR
+    let normalizedParticipants = [];
+    if (conversationWithAssignment.participants && Array.isArray(conversationWithAssignment.participants)) {
+      normalizedParticipants = conversationWithAssignment.participants.map(phone => {
+        const normalized = validateAndNormalizePhone(phone);
+        if (!normalized.isValid) {
+          logger.error('Participante inválido en conversación', {
+            phone,
+            error: normalized.error,
+            conversationData: conversationWithAssignment,
+          });
+          throw new Error(`Participante inválido: ${normalized.error}`);
+        }
+        return normalized.normalized;
+      });
+    }
 
-    // Preparar datos para Firestore
-    const cleanData = prepareForFirestore({
-      ...conversation,
-      updatedAt: FieldValue.serverTimestamp(),
+    // ✅ VALIDAR QUE HAY AL MENOS 2 PARTICIPANTES ÚNICOS
+    const uniqueParticipants = [...new Set(normalizedParticipants)];
+    if (uniqueParticipants.length < 2) {
+      logger.error('Conversación requiere al menos 2 participantes únicos', {
+        participants: normalizedParticipants,
+        uniqueParticipants,
+        conversationData: conversationWithAssignment,
+      });
+      throw new Error('Se requieren al menos 2 participantes únicos');
+    }
+
+    // ✅ ACTUALIZAR CONVERSATION DATA CON PARTICIPANTS NORMALIZADOS
+    const finalConversationData = {
+      ...conversationWithAssignment,
+      participants: uniqueParticipants,
+      // ✅ AGREGAR CAMPOS DE COMPATIBILIDAD
+      assignedAgent: conversationWithAssignment.assignedTo, // Para frontend
+      customerPhone: uniqueParticipants[0], // Primer participante como cliente
+      agentPhone: uniqueParticipants[1], // Segundo participante como agente
+    };
+
+    // ✅ LOG DETALLADO ANTES DE GUARDAR
+    logger.info('Guardando conversación en Firestore', {
+      conversationId: finalConversationData.id,
+      participants: finalConversationData.participants,
+      assignedTo: finalConversationData.assignedTo,
+      assignedAgent: finalConversationData.assignedAgent,
+      customerPhone: finalConversationData.customerPhone,
+      agentPhone: finalConversationData.agentPhone,
     });
 
-    // Usar merge para crear o actualizar
-    await firestore.collection('conversations').doc(conversation.id).set(cleanData, { merge: true });
+    try {
+      const conversation = new Conversation(finalConversationData);
 
-    logger.info('Conversación creada/actualizada con agente asignado', {
-      conversationId: conversation.id,
-      assignedTo: conversation.assignedTo,
-      customerPhone: conversation.customerPhone,
-    });
+      // Preparar datos para Firestore
+      const cleanData = prepareForFirestore({
+        ...conversation,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
 
-    return conversation;
+      // ✅ USAR .set() PARA CONTROLAR ID
+      await firestore
+        .collection('conversations')
+        .doc(conversation.id)
+        .set(cleanData, { merge: true });
+
+      // ✅ LOG DE ÉXITO
+      logger.info('Conversación guardada exitosamente', {
+        conversationId: conversation.id,
+        participants: conversation.participants,
+        assignedTo: conversation.assignedTo,
+        assignedAgent: conversation.assignedAgent,
+      });
+
+      return conversation;
+    } catch (error) {
+      logger.error('Error guardando conversación', {
+        error: error.message,
+        conversationData: finalConversationData,
+      });
+      throw error;
+    }
   }
 
   /**
@@ -428,6 +489,7 @@ class Conversation {
       agentPhone: this.agentPhone || null,
       contact,
       assignedTo,
+      assignedAgent: this.assignedTo, // ✅ CAMPOS DE COMPATIBILIDAD
       status: this.status || 'open',
       unreadCount: this.unreadCount || 0,
       messageCount: this.messageCount || 0,

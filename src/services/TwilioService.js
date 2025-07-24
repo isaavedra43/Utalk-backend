@@ -202,6 +202,25 @@ class TwilioService {
       const fromPhone = normalizePhoneNumber(From);
       const toPhone = normalizePhoneNumber(To);
 
+      // ✅ VALIDACIÓN: Verificar que los números se normalizaron correctamente
+      if (!fromPhone) {
+        logger.error('No se pudo normalizar número del remitente', { original: From });
+        throw new Error('Número del remitente inválido');
+      }
+
+      if (!toPhone) {
+        logger.error('No se pudo normalizar número del destinatario', { original: To });
+        throw new Error('Número del destinatario inválido');
+      }
+
+      // ✅ LOG DE NÚMEROS NORMALIZADOS
+      logger.info('Números normalizados', {
+        originalFrom: From,
+        normalizedFrom: fromPhone,
+        originalTo: To,
+        normalizedTo: toPhone,
+      });
+
       // ✅ GENERAR conversationId CONSISTENTE (CRÍTICO)
       const conversationId = generateConversationId(fromPhone, toPhone);
 

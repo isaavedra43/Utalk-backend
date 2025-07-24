@@ -35,8 +35,11 @@ function normalizePhoneNumber (phone) {
     return null;
   }
 
+  // ✅ REMOVER PREFIJO WHATSAPP SI EXISTE
+  let normalized = phone.replace(/^whatsapp:/, '');
+
   // Remover espacios, guiones, paréntesis y otros caracteres
-  let normalized = phone.replace(/[\s\-()\.]/g, '');
+  normalized = normalized.replace(/[\s\-()]/g, '');
 
   // Asegurar que comience con +
   if (!normalized.startsWith('+')) {
