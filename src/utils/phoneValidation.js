@@ -41,16 +41,24 @@ function normalizePhoneNumber (phone) {
   // Remover espacios, guiones, paréntesis y otros caracteres
   normalized = normalized.replace(/[\s\-()]/g, '');
 
+  // ✅ VALIDACIÓN ESTRICTA: Rechazar números muy cortos antes de procesar
+  const digitsOnly = normalized.replace(/\D/g, '');
+  if (digitsOnly.length < 7) {
+    return null; // Rechazar números con menos de 7 dígitos
+  }
+
   // Asegurar que comience con +
   if (!normalized.startsWith('+')) {
-    // Si no tiene código de país, asumir +1 (EEUU)
+    // Si no tiene código de país, asumir +1 (EEUU) solo para números de 10 dígitos
     if (normalized.length === 10) {
       normalized = '+1' + normalized;
     } else if (normalized.length === 11 && normalized.startsWith('1')) {
       normalized = '+' + normalized;
-    } else {
-      // Intentar agregar + si parece ser un número válido
+    } else if (normalized.length >= 7) {
+      // Solo agregar + si tiene al menos 7 dígitos
       normalized = '+' + normalized;
+    } else {
+      return null; // Rechazar números muy cortos
     }
   }
 

@@ -31,8 +31,8 @@ class TwilioService {
       const messageData = {
         id: message.sid, // ✅ ASIGNAR ID usando twilioSid
         conversationId, // CRÍTICO: Siempre asignar
-        from: fromPhone,
-        to: toPhone,
+        senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
+        recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
         content,
         type: 'text',
         direction: 'outbound',
@@ -73,8 +73,8 @@ class TwilioService {
         await Message.create({
           id: `failed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ✅ ID para mensaje fallido
           conversationId, // CRÍTICO: Siempre asignar
-          from: fromPhone,
-          to: toPhone,
+          senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
+          recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
           content,
           type: 'text',
           direction: 'outbound',
@@ -115,8 +115,8 @@ class TwilioService {
       const messageData = {
         id: message.sid, // ✅ ASIGNAR ID usando twilioSid
         conversationId, // CRÍTICO: Siempre asignar
-        from: fromPhone,
-        to: toPhone,
+        senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
+        recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
         content: caption,
         type,
         direction: 'outbound',
@@ -327,8 +327,8 @@ class TwilioService {
       const messageData = {
         id: MessageSid, // ✅ ASIGNAR ID INMEDIATAMENTE usando twilioSid
         conversationId, // CRÍTICO: SIEMPRE asignar conversationId
-        from: fromPhone,
-        to: toPhone,
+        senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
+        recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
         content: Body || '',
         type: messageType,
         direction: 'inbound',
@@ -353,8 +353,8 @@ class TwilioService {
       logger.info('Preparando mensaje para guardar', {
         messageId: messageData.id,
         conversationId: messageData.conversationId,
-        from: messageData.from,
-        to: messageData.to,
+        senderPhone: messageData.senderPhone,
+        recipientPhone: messageData.recipientPhone,
         type: messageData.type,
         hasContent: !!messageData.content,
         mediaCount: messageData.mediaUrls.length,
@@ -395,8 +395,8 @@ class TwilioService {
           error: firebaseError.message,
           stack: firebaseError.stack.split('\n')[0],
           messageData: {
-            from: fromPhone,
-            to: toPhone,
+            senderPhone: fromPhone,
+            recipientPhone: toPhone,
             twilioSid: MessageSid,
             type: messageType,
           },
@@ -407,7 +407,8 @@ class TwilioService {
       // ✅ LOG FINAL DE ÉXITO
       logger.info('Mensaje entrante procesado exitosamente', {
         messageId: message.id,
-        from: fromPhone,
+        senderPhone: fromPhone,
+        recipientPhone: toPhone,
         contactId: contact.id,
       });
 
@@ -652,8 +653,8 @@ class TwilioService {
         await conversation.updateLastMessage(message);
       } else {
         // ✅ CREAR NUEVA CONVERSACIÓN CON ASIGNACIÓN AUTOMÁTICA
-        const customerPhone = contact?.phone || message.from;
-        const agentPhone = message.to;
+        const customerPhone = contact?.phone || message.senderPhone;
+        const agentPhone = message.recipientPhone;
 
         const conversationData = {
           id: conversationId,

@@ -420,6 +420,7 @@ class Message {
   /**
    * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
+   * SOLO usa senderPhone/recipientPhone - NO from/to
    */
   toJSON () {
     // ✅ Normalizar timestamps a ISO strings
@@ -451,6 +452,55 @@ class Message {
       normalizedUpdatedAt = this.updatedAt;
     }
 
+    // ✅ VALIDACIÓN: Verificar que los teléfonos estén presentes y normalizados
+    if (!this.senderPhone) {
+      logger.error('Mensaje sin senderPhone en serialización', {
+        messageId: this.id,
+        conversationId: this.conversationId,
+        direction: this.direction,
+        sender: this.sender,
+      });
+    }
+
+    if (!this.recipientPhone) {
+      logger.error('Mensaje sin recipientPhone en serialización', {
+        messageId: this.id,
+        conversationId: this.conversationId,
+        direction: this.direction,
+        sender: this.sender,
+      });
+    }
+
+    // ✅ VALIDACIÓN: Re-normalizar teléfonos antes de enviar
+    let normalizedSenderPhone = this.senderPhone;
+    let normalizedRecipientPhone = this.recipientPhone;
+
+    if (this.senderPhone) {
+      const senderValidation = validateAndNormalizePhone(this.senderPhone, { logErrors: false });
+      if (senderValidation.isValid) {
+        normalizedSenderPhone = senderValidation.normalized;
+      } else {
+        logger.error('senderPhone malformado en serialización', {
+          messageId: this.id,
+          originalPhone: this.senderPhone,
+          error: senderValidation.error,
+        });
+      }
+    }
+
+    if (this.recipientPhone) {
+      const recipientValidation = validateAndNormalizePhone(this.recipientPhone, { logErrors: false });
+      if (recipientValidation.isValid) {
+        normalizedRecipientPhone = recipientValidation.normalized;
+      } else {
+        logger.error('recipientPhone malformado en serialización', {
+          messageId: this.id,
+          originalPhone: this.recipientPhone,
+          error: recipientValidation.error,
+        });
+      }
+    }
+
     // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
     const result = {
       id: this.id,
@@ -458,11 +508,9 @@ class Message {
       content: this.content,
       mediaUrl: this.mediaUrl,
       sender: this.sender,
-      senderPhone: this.senderPhone || null,
-      recipientPhone: this.recipientPhone || null,
-      // ✅ CAMPOS DE COMPATIBILIDAD
-      from: this.senderPhone || null, // Para compatibilidad
-      to: this.recipientPhone || null, // Para compatibilidad
+      senderPhone: normalizedSenderPhone,
+      recipientPhone: normalizedRecipientPhone,
+      // ✅ ELIMINADOS: from y to ya NO se envían al frontend
       direction: this.direction,
       type: this.type,
       status: this.status,
@@ -478,17 +526,31 @@ class Message {
     if (!result.conversationId) missingFields.push('conversationId');
     if (!result.content && !result.mediaUrl) missingFields.push('content/mediaUrl');
     if (!result.sender) missingFields.push('sender');
+    if (!result.senderPhone) missingFields.push('senderPhone');
+    if (!result.recipientPhone) missingFields.push('recipientPhone');
     if (!result.direction) missingFields.push('direction');
     if (!result.type) missingFields.push('type');
     if (!result.status) missingFields.push('status');
 
     if (missingFields.length > 0) {
-      logger.warn('Campos críticos faltantes en Message.toJSON()', {
+      logger.error('Campos críticos faltantes en Message.toJSON()', {
         messageId: this.id,
         conversationId: this.conversationId,
         missingFields,
       });
     }
+
+    // ✅ LOGGING: Log detallado antes de enviar la respuesta
+    logger.info('Mensaje serializado para frontend', {
+      messageId: result.id,
+      conversationId: result.conversationId,
+      senderPhone: result.senderPhone,
+      recipientPhone: result.recipientPhone,
+      direction: result.direction,
+      type: result.type,
+      hasContent: !!result.content,
+      hasMedia: !!result.mediaUrl,
+    });
 
     return result;
   }
