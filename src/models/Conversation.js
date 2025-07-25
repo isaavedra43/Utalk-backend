@@ -4,7 +4,7 @@ const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { ensureConversationAssignment } = require('../utils/agentAssignment');
-const { safeISOString, autoNormalizeDates } = require('../utils/dateHelpers');
+const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Conversation {
   constructor (data) {
@@ -43,7 +43,12 @@ class Conversation {
     this.unreadCount = data.unreadCount || 0;
     this.messageCount = data.messageCount || 0;
     this.status = data.status || 'open';
-    this.assignedTo = data.assignedTo || null;
+    
+    // ✅ IMPORTANTE: assignedTo debe ser SIEMPRE un UID real
+    // NO se debe inventar valores como "agent_123" o similares
+    this.assignedTo = data.assignedTo || null; // Solo UID real o null
+    this.assignedToName = data.assignedToName || null; // Nombre del usuario asignado
+    
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
   }
@@ -96,10 +101,40 @@ class Conversation {
   /**
    * ✅ CORREGIDO: Crear o actualizar una conversación con asignación automática
    * VALIDACIONES ESTRICTAS: customerPhone, agentPhone y participants obligatorios
+   * assignedTo debe ser SIEMPRE un UID real de usuario
    */
-  static async createOrUpdate (conversationData) {
-    // ✅ GARANTIZAR ASIGNACIÓN DE AGENTE ANTES DE CREAR
-    const conversationWithAssignment = await ensureConversationAssignment(conversationData);
+  static async createOrUpdate (conversationData, currentUser = null) {
+    // ✅ VALIDACIÓN DE assignedTo: Solo permitir UIDs reales
+    let finalAssignedTo = null;
+    
+    if (conversationData.assignedTo) {
+      // Si se proporciona assignedTo, debe ser un UID válido
+      // TODO: Aquí se podría validar que el UID existe en la colección users
+      finalAssignedTo = conversationData.assignedTo;
+      logger.info('assignedTo proporcionado', { 
+        assignedTo: finalAssignedTo,
+        conversationId: conversationData.id 
+      });
+    } else if (currentUser && currentUser.uid) {
+      // Si hay usuario autenticado, usar su UID
+      finalAssignedTo = currentUser.uid;
+      logger.info('assignedTo asignado desde usuario autenticado', { 
+        assignedTo: finalAssignedTo,
+        conversationId: conversationData.id 
+      });
+    } else {
+      // ✅ IMPORTANTE: NO inventar valores, dejar null para asignación posterior
+      finalAssignedTo = null;
+      logger.warn('assignedTo no definido - se requerirá asignación manual', { 
+        conversationId: conversationData.id 
+      });
+    }
+
+    // ✅ Actualizar conversationData con assignedTo validado
+    const conversationWithAssignment = {
+      ...conversationData,
+      assignedTo: finalAssignedTo
+    };
 
     // ✅ NORMALIZAR PARTICIPANTS ANTES DE VALIDAR
     let normalizedParticipants = [];
@@ -229,6 +264,7 @@ class Conversation {
       participants: finalParticipants,
       customerPhone: validatedCustomerPhone,
       agentPhone: validatedAgentPhone,
+      assignedTo: finalAssignedTo, // UID real o null
     };
 
     // ✅ LOG DETALLADO ANTES DE GUARDAR
@@ -238,6 +274,7 @@ class Conversation {
       customerPhone: finalConversationData.customerPhone,
       agentPhone: finalConversationData.agentPhone,
       assignedTo: finalConversationData.assignedTo,
+      assignedToType: typeof finalConversationData.assignedTo,
       status: finalConversationData.status || 'open',
     });
 
@@ -263,6 +300,7 @@ class Conversation {
         customerPhone: conversation.customerPhone,
         agentPhone: conversation.agentPhone,
         assignedTo: conversation.assignedTo,
+        assignedToType: typeof conversation.assignedTo,
         messageCount: conversation.messageCount || 0,
         status: conversation.status,
       });
@@ -440,6 +478,18 @@ class Conversation {
    * Asignar a usuario
    */
   async assignTo (userId) {
+    // ✅ VALIDACIÓN: userId debe ser un UID real
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('userId debe ser un UID válido');
+    }
+
+    // TODO: Aquí se podría validar que el UID existe en la colección users
+    logger.info('Asignando conversación a usuario', {
+      conversationId: this.id,
+      userId,
+      previousAssignedTo: this.assignedTo,
+    });
+
     await this.update({
       assignedTo: userId,
     });
@@ -538,14 +588,14 @@ class Conversation {
    * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
    * assignedTo es el campo PRINCIPAL - assignedAgent solo para compatibilidad
-   * ✅ FECHAS SEGURAS: Utiliza safeISOString para evitar errores
+   * ✅ FECHAS SIEMPRE COMO STRING ISO: Utiliza safeDateToISOString
    */
   toJSON () {
     try {
-      // ✅ NORMALIZAR FECHAS DE FORMA SEGURA - NUNCA FALLARÁ
-      const normalizedCreatedAt = safeISOString(this.createdAt, 'createdAt');
-      const normalizedUpdatedAt = safeISOString(this.updatedAt, 'updatedAt');
-      const normalizedLastMessageAt = safeISOString(this.lastMessageAt, 'lastMessageAt');
+      // ✅ FECHAS COMO STRING ISO 8601 - SIEMPRE
+      const normalizedCreatedAt = safeDateToISOString(this.createdAt);
+      const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
+      const normalizedLastMessageAt = safeDateToISOString(this.lastMessageAt);
 
       // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar participants
       let validatedParticipants = [];
@@ -637,12 +687,13 @@ class Conversation {
         channel: 'whatsapp', // Por defecto WhatsApp, se puede extender
       };
 
-      // ✅ CAMPO PRINCIPAL: assignedTo siempre debe estar presente
+      // ✅ CAMPO PRINCIPAL: assignedTo debe ser UID real o null
       let assignedTo = null;
       if (this.assignedTo) {
+        // ✅ IMPORTANTE: assignedTo debe ser un UID real
         assignedTo = {
-          id: this.assignedTo,
-          name: this.assignedToName || this.assignedTo, // Si no tenemos el nombre, usar el ID
+          id: this.assignedTo, // UID real
+          name: this.assignedToName || this.assignedTo, // Nombre si existe, sino UID
         };
       } else {
         logger.warn('assignedTo faltante en conversación', {
@@ -654,20 +705,20 @@ class Conversation {
       // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
       const result = {
         id: this.id,
-        participants: validatedParticipants, // ✅ NUEVO: Campo participants requerido y validado
-        customerPhone: normalizedCustomerPhone,
-        agentPhone: normalizedAgentPhone,
+        participants: validatedParticipants, // ✅ Array de 2 únicos
+        customerPhone: normalizedCustomerPhone, // ✅ E.164
+        agentPhone: normalizedAgentPhone, // ✅ E.164
         contact,
-        assignedTo, // ✅ CAMPO PRINCIPAL
-        assignedAgent: this.assignedTo, // ✅ SOLO para compatibilidad con versiones antiguas
+        assignedTo, // ✅ CAMPO PRINCIPAL con UID real
+        assignedAgent: this.assignedTo, // ✅ SOLO para compatibilidad
         status: this.status || 'open',
         unreadCount: this.unreadCount || 0,
         messageCount: this.messageCount || 0,
         lastMessage: this.lastMessage || null,
         lastMessageId: this.lastMessageId || null,
-        lastMessageAt: normalizedLastMessageAt, // ✅ FECHA SEGURA
-        createdAt: normalizedCreatedAt, // ✅ FECHA SEGURA
-        updatedAt: normalizedUpdatedAt, // ✅ FECHA SEGURA
+        lastMessageAt: normalizedLastMessageAt, // ✅ STRING ISO o null
+        createdAt: normalizedCreatedAt, // ✅ STRING ISO o null
+        updatedAt: normalizedUpdatedAt, // ✅ STRING ISO o null
       };
 
       // ✅ VALIDACIÓN: Log si faltan campos críticos
@@ -679,7 +730,6 @@ class Conversation {
       if (result.participants.length !== 2) invalidFields.push(`participants (${result.participants.length} en lugar de 2)`);
       if (!result.customerPhone) missingFields.push('customerPhone');
       if (!result.agentPhone) missingFields.push('agentPhone');
-      if (!result.assignedTo) missingFields.push('assignedTo');
       if (!result.status) missingFields.push('status');
 
       if (missingFields.length > 0 || invalidFields.length > 0) {
@@ -704,14 +754,15 @@ class Conversation {
         participants: result.participants,
         customerPhone: result.customerPhone,
         agentPhone: result.agentPhone,
-        assignedTo: result.assignedTo?.id,
+        assignedToId: result.assignedTo?.id,
+        assignedToType: typeof this.assignedTo,
         status: result.status,
         messageCount: result.messageCount,
         hasLastMessage: !!result.lastMessage,
-        datesSerialized: {
-          createdAt: !!normalizedCreatedAt,
-          updatedAt: !!normalizedUpdatedAt,
-          lastMessageAt: !!normalizedLastMessageAt,
+        datesAsISO: {
+          createdAt: normalizedCreatedAt,
+          updatedAt: normalizedUpdatedAt,
+          lastMessageAt: normalizedLastMessageAt,
         },
       });
 
@@ -728,6 +779,7 @@ class Conversation {
           customerPhone: this.customerPhone,
           agentPhone: this.agentPhone,
           assignedTo: this.assignedTo,
+          assignedToType: typeof this.assignedTo,
           lastMessageAt: this.lastMessageAt,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,

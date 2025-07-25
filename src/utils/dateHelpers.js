@@ -7,6 +7,88 @@
 const logger = require('./logger');
 
 /**
+ * ✅ FUNCIÓN ESPECÍFICA PARA FIRESTORE - Convierte cualquier fecha a string ISO 8601
+ * Maneja específicamente objetos Firestore con _seconds y _nanoseconds
+ * @param {any} date - Valor de fecha en cualquier formato
+ * @returns {string|null} - String ISO válido o null
+ */
+function safeDateToISOString(date) {
+  if (!date) return null;
+  
+  try {
+    // ✅ CASO 1: Objeto Firestore con _seconds y _nanoseconds
+    if (typeof date === 'object' && '_seconds' in date) {
+      try {
+        const timestamp = date._seconds * 1000 + Math.floor((date._nanoseconds || 0) / 1000000);
+        const jsDate = new Date(timestamp);
+        if (!isNaN(jsDate.getTime())) {
+          return jsDate.toISOString();
+        }
+      } catch {
+        return null;
+      }
+    }
+    
+    // ✅ CASO 2: Date object de JavaScript
+    if (date instanceof Date && !isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+    
+    // ✅ CASO 3: String de fecha
+    if (typeof date === 'string') {
+      const parsed = new Date(date);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString();
+      }
+    }
+    
+    // ✅ CASO 4: Número (timestamp)
+    if (typeof date === 'number') {
+      const jsDate = new Date(date);
+      if (!isNaN(jsDate.getTime())) {
+        return jsDate.toISOString();
+      }
+    }
+    
+    // ✅ CASO 5: Firebase Timestamp con método toDate
+    if (date && typeof date.toDate === 'function') {
+      try {
+        const jsDate = date.toDate();
+        if (!isNaN(jsDate.getTime())) {
+          return jsDate.toISOString();
+        }
+      } catch {
+        return null;
+      }
+    }
+    
+    // ✅ CASO 6: Objeto con propiedades seconds/nanoseconds (serializado)
+    if (typeof date === 'object' && date.seconds !== undefined) {
+      try {
+        const timestamp = date.seconds * 1000 + (date.nanoseconds || 0) / 1000000;
+        const jsDate = new Date(timestamp);
+        if (!isNaN(jsDate.getTime())) {
+          return jsDate.toISOString();
+        }
+      } catch {
+        return null;
+      }
+    }
+    
+    return null;
+    
+  } catch (error) {
+    // ✅ SAFETY NET: Nunca fallar por un error de fecha
+    logger.warn('Error en safeDateToISOString', {
+      originalDate: date,
+      error: error.message,
+      type: typeof date,
+    });
+    return null;
+  }
+}
+
+/**
  * Normaliza cualquier tipo de fecha a string ISO o null de forma segura
  * @param {any} dateValue - Valor de fecha en cualquier formato
  * @param {string} fieldName - Nombre del campo para logging (opcional)
@@ -117,7 +199,30 @@ function safeISOString(dateValue, fieldName = 'unknown') {
       }
     }
 
-    // ✅ CASO 7: Tipo no reconocido
+    // ✅ CASO 7: Objeto Firestore con _seconds y _nanoseconds
+    if (typeof dateValue === 'object' && dateValue._seconds !== undefined) {
+      try {
+        const timestamp = dateValue._seconds * 1000 + Math.floor((dateValue._nanoseconds || 0) / 1000000);
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+          logger.warn('Objeto Firestore inválido detectado', {
+            fieldName,
+            originalValue: dateValue,
+          });
+          return null;
+        }
+        return date.toISOString();
+      } catch (error) {
+        logger.error('Error procesando objeto Firestore', {
+          fieldName,
+          error: error.message,
+          originalValue: dateValue,
+        });
+        return null;
+      }
+    }
+
+    // ✅ CASO 8: Tipo no reconocido
     logger.warn('Tipo de fecha no reconocido detectado', {
       fieldName,
       originalValue: dateValue,
@@ -154,7 +259,7 @@ function normalizeDateFields(obj, dateFields = []) {
   
   dateFields.forEach(fieldName => {
     if (normalized.hasOwnProperty(fieldName)) {
-      normalized[fieldName] = safeISOString(normalized[fieldName], fieldName);
+      normalized[fieldName] = safeDateToISOString(normalized[fieldName]);
     }
   });
 
@@ -197,7 +302,7 @@ function autoNormalizeDates(obj, additionalFields = []) {
  */
 function isValidDate(dateValue) {
   try {
-    const normalized = safeISOString(dateValue);
+    const normalized = safeDateToISOString(dateValue);
     return normalized !== null;
   } catch {
     return false;
@@ -211,7 +316,7 @@ function isValidDate(dateValue) {
  */
 function toUnixTimestamp(dateValue) {
   try {
-    const isoString = safeISOString(dateValue);
+    const isoString = safeDateToISOString(dateValue);
     if (!isoString) return null;
     
     return Math.floor(new Date(isoString).getTime() / 1000);
@@ -221,6 +326,7 @@ function toUnixTimestamp(dateValue) {
 }
 
 module.exports = {
+  safeDateToISOString, // ✅ FUNCIÓN PRINCIPAL PARA FIRESTORE
   safeISOString,
   normalizeDateFields,
   autoNormalizeDates,

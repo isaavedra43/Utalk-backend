@@ -4,7 +4,7 @@ const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { createCursor, parseCursor } = require('../utils/pagination');
-const { safeISOString, autoNormalizeDates } = require('../utils/dateHelpers');
+const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Message {
   constructor (data) {
@@ -422,14 +422,14 @@ class Message {
    * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
    * SOLO usa senderPhone/recipientPhone - NO from/to
-   * ✅ FECHAS SEGURAS: Utiliza safeISOString para evitar errores
+   * ✅ FECHAS SIEMPRE COMO STRING ISO: Utiliza safeDateToISOString
    */
   toJSON () {
     try {
-      // ✅ NORMALIZAR FECHAS DE FORMA SEGURA - NUNCA FALLARÁ
-      const normalizedTimestamp = safeISOString(this.timestamp, 'timestamp');
-      const normalizedCreatedAt = safeISOString(this.createdAt, 'createdAt');
-      const normalizedUpdatedAt = safeISOString(this.updatedAt, 'updatedAt');
+      // ✅ FECHAS COMO STRING ISO 8601 - SIEMPRE
+      const normalizedTimestamp = safeDateToISOString(this.timestamp);
+      const normalizedCreatedAt = safeDateToISOString(this.createdAt);
+      const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
       // ✅ VALIDACIÓN: Verificar que los teléfonos estén presentes y normalizados
       if (!this.senderPhone) {
@@ -487,16 +487,16 @@ class Message {
         content: this.content,
         mediaUrl: this.mediaUrl,
         sender: this.sender,
-        senderPhone: normalizedSenderPhone,
-        recipientPhone: normalizedRecipientPhone,
+        senderPhone: normalizedSenderPhone, // ✅ CAMPO PRINCIPAL
+        recipientPhone: normalizedRecipientPhone, // ✅ CAMPO PRINCIPAL
         // ✅ ELIMINADOS: from y to ya NO se envían al frontend
         direction: this.direction,
         type: this.type,
         status: this.status,
-        timestamp: normalizedTimestamp, // ✅ FECHA SEGURA
+        timestamp: normalizedTimestamp, // ✅ STRING ISO o null
         metadata: this.metadata || {},
-        createdAt: normalizedCreatedAt, // ✅ FECHA SEGURA
-        updatedAt: normalizedUpdatedAt, // ✅ FECHA SEGURA
+        createdAt: normalizedCreatedAt, // ✅ STRING ISO o null
+        updatedAt: normalizedUpdatedAt, // ✅ STRING ISO o null
       };
 
       // ✅ VALIDACIÓN: Log si faltan campos críticos
@@ -529,10 +529,10 @@ class Message {
         type: result.type,
         hasContent: !!result.content,
         hasMedia: !!result.mediaUrl,
-        datesSerialized: {
-          timestamp: !!normalizedTimestamp,
-          createdAt: !!normalizedCreatedAt,
-          updatedAt: !!normalizedUpdatedAt,
+        datesAsISO: {
+          timestamp: normalizedTimestamp,
+          createdAt: normalizedCreatedAt,
+          updatedAt: normalizedUpdatedAt,
         },
       });
 

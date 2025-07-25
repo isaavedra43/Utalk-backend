@@ -1,728 +1,531 @@
-const { client, twilioConfig } = require('../config/twilio');
-const Message = require('../models/Message');
-const Contact = require('../models/Contact');
-const Conversation = require('../models/Conversation');
-const MediaService = require('./MediaService');
+const twilio = require('twilio');
 const logger = require('../utils/logger');
-const { generateConversationId, normalizePhoneNumber } = require('../utils/conversation');
+const { validateAndNormalizePhone } = require('../utils/phoneValidation');
+const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class TwilioService {
-  /**
-   * Enviar mensaje de WhatsApp
-   */
-  static async sendWhatsAppMessage (to, content, userId = null) {
-    try {
-      logger.info('Enviando mensaje WhatsApp', { to, content: content.substring(0, 50) });
+  constructor() {
+    this.accountSid = process.env.TWILIO_ACCOUNT_SID;
+    this.authToken = process.env.TWILIO_AUTH_TOKEN;
+    this.whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
 
-      const message = await client.messages.create({
-        from: twilioConfig.whatsappNumber,
-        to: `whatsapp:${to}`,
-        body: content,
+    // ✅ VALIDACIÓN: Verificar configuración
+    if (!this.accountSid || !this.authToken || !this.whatsappNumber) {
+      logger.error('Configuración de Twilio incompleta', {
+        hasAccountSid: !!this.accountSid,
+        hasAuthToken: !!this.authToken,
+        hasWhatsappNumber: !!this.whatsappNumber,
       });
-
-      // Normalizar números de teléfono
-      const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
-      const toPhone = normalizePhoneNumber(to);
-
-      // Generar conversationId consistente
-      const conversationId = generateConversationId(fromPhone, toPhone);
-
-      // Guardar mensaje en Firestore
-      const messageData = {
-        id: message.sid, // ✅ ASIGNAR ID usando twilioSid
-        conversationId, // CRÍTICO: Siempre asignar
-        senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
-        recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
-        content,
-        type: 'text',
-        direction: 'outbound',
-        status: 'sent',
-        twilioSid: message.sid,
-        userId,
-      };
-
-      const savedMessage = await Message.create(messageData);
-
-      // Actualizar último contacto del contacto
-      const contact = await Contact.getByPhone(to);
-      if (contact) {
-        await contact.updateLastContact();
-      }
-
-      logger.info('Mensaje enviado exitosamente', {
-        twilioSid: message.sid,
-        to,
-        messageId: savedMessage.id,
-      });
-
-      return {
-        success: true,
-        messageId: savedMessage.id,
-        twilioSid: message.sid,
-        status: message.status,
-      };
-    } catch (error) {
-      logger.error('Error al enviar mensaje WhatsApp:', error);
-
-      // Guardar mensaje fallido
-      if (userId) {
-        const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
-        const toPhone = normalizePhoneNumber(to);
-        const conversationId = generateConversationId(fromPhone, toPhone);
-
-        await Message.create({
-          id: `failed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ✅ ID para mensaje fallido
-          conversationId, // CRÍTICO: Siempre asignar
-          senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
-          recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
-          content,
-          type: 'text',
-          direction: 'outbound',
-          status: 'failed',
-          userId,
-          metadata: { error: error.message },
-        });
-      }
-
-      throw error;
+      throw new Error('Configuración de Twilio incompleta');
     }
+
+    this.client = twilio(this.accountSid, this.authToken);
+    
+    logger.info('TwilioService inicializado correctamente', {
+      whatsappNumber: this.whatsappNumber,
+    });
   }
 
   /**
-   * Enviar mensaje con media (imagen, documento)
+   * ✅ CORREGIDO: Enviar mensaje de WhatsApp con estructura correcta
+   * Usa senderPhone/recipientPhone en lugar de from/to para consistencia
    */
-  static async sendMediaMessage (to, mediaUrl, caption = '', userId = null) {
+  async sendWhatsAppMessage(toPhone, message, mediaUrl = null) {
     try {
-      logger.info('Enviando mensaje con media', { to, mediaUrl, caption });
+      // ✅ VALIDACIÓN: Normalizar números de teléfono
+      const toValidation = validateAndNormalizePhone(toPhone);
+      if (!toValidation.isValid) {
+        throw new Error(`Número de destino inválido: ${toValidation.error}`);
+      }
 
-      const message = await client.messages.create({
-        from: twilioConfig.whatsappNumber,
-        to: `whatsapp:${to}`,
-        body: caption,
-        mediaUrl: [mediaUrl],
+      const fromValidation = validateAndNormalizePhone(this.whatsappNumber);
+      if (!fromValidation.isValid) {
+        throw new Error(`Número de Twilio inválido: ${fromValidation.error}`);
+      }
+
+      const normalizedToPhone = toValidation.normalized;
+      const normalizedFromPhone = fromValidation.normalized;
+
+      // ✅ CONSTRUIR MENSAJE PARA TWILIO
+      const twilioMessage = {
+        from: `whatsapp:${normalizedFromPhone}`,
+        to: `whatsapp:${normalizedToPhone}`,
+        body: message,
+      };
+
+      // ✅ AGREGAR MEDIA SI EXISTE
+      if (mediaUrl) {
+        twilioMessage.mediaUrl = [mediaUrl];
+      }
+
+      logger.info('Enviando mensaje WhatsApp via Twilio', {
+        to: normalizedToPhone,
+        from: normalizedFromPhone,
+        hasMedia: !!mediaUrl,
+        messageLength: message.length,
       });
 
-      // Determinar tipo de media
-      const type = this.getMediaType(mediaUrl);
+      // ✅ ENVIAR MENSAJE
+      const sentMessage = await this.client.messages.create(twilioMessage);
 
-      // Normalizar números de teléfono
-      const fromPhone = normalizePhoneNumber(twilioConfig.whatsappNumber);
-      const toPhone = normalizePhoneNumber(to);
-
-      // Generar conversationId consistente
-      const conversationId = generateConversationId(fromPhone, toPhone);
-
+      // ✅ ESTRUCTURA CORRECTA: Usar senderPhone/recipientPhone
       const messageData = {
-        id: message.sid, // ✅ ASIGNAR ID usando twilioSid
-        conversationId, // CRÍTICO: Siempre asignar
-        senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
-        recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
-        content: caption,
-        type,
+        id: sentMessage.sid,
+        senderPhone: normalizedFromPhone, // ✅ CAMPO CORRECTO
+        recipientPhone: normalizedToPhone, // ✅ CAMPO CORRECTO
+        content: message,
+        mediaUrl: mediaUrl,
         direction: 'outbound',
+        type: mediaUrl ? 'media' : 'text',
         status: 'sent',
-        twilioSid: message.sid,
-        mediaUrls: [mediaUrl],
-        userId,
-      };
-
-      const savedMessage = await Message.create(messageData);
-
-      // Actualizar contacto
-      const contact = await Contact.getByPhone(to);
-      if (contact) {
-        await contact.updateLastContact();
-      }
-
-      logger.info('Mensaje con media enviado', {
-        twilioSid: message.sid,
-        type,
-        messageId: savedMessage.id,
-      });
-
-      return {
-        success: true,
-        messageId: savedMessage.id,
-        twilioSid: message.sid,
-        status: message.status,
-        type,
-      };
-    } catch (error) {
-      logger.error('Error al enviar mensaje con media:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Procesar webhook de mensaje entrante
-   */
-  static async processIncomingMessage (webhookData) {
-    try {
-      const { From, To, Body, MessageSid, NumMedia } = webhookData;
-
-      // ✅ LOG CENTRALIZADO: Información del mensaje entrante
-      logger.info('Procesando mensaje entrante', {
-        from: From,
-        to: To,
-        messageSid: MessageSid,
-        hasBody: !!Body,
-        numMedia: NumMedia || 0,
-      });
-
-      // ✅ VALIDACIÓN CRÍTICA: Verificar campos requeridos
-      if (!From || !To || !MessageSid) {
-        const error = new Error('Campos requeridos faltantes en webhook');
-        logger.error('Webhook - Campos requeridos faltantes', {
-          hasFrom: !!From,
-          hasTo: !!To,
-          hasMessageSid: !!MessageSid,
-          receivedFields: Object.keys(webhookData),
-        });
-        throw error;
-      }
-
-      // Verificar que no sea un mensaje duplicado
-      let existingMessage;
-      try {
-        existingMessage = await Message.getByTwilioSid(MessageSid);
-      } catch (firebaseError) {
-        logger.error('Firebase - Error verificando duplicado', {
-          error: firebaseError.message,
-          messageSid: MessageSid,
-        });
-        // Continuar procesamiento aunque falle la verificación
-      }
-
-      if (existingMessage) {
-        logger.warn('Mensaje duplicado recibido', { twilioSid: MessageSid });
-        return existingMessage;
-      }
-
-      // ✅ NORMALIZAR NÚMEROS usando utilidad consistente
-      const fromPhone = normalizePhoneNumber(From);
-      const toPhone = normalizePhoneNumber(To);
-
-      // ✅ VALIDACIÓN: Verificar que los números se normalizaron correctamente
-      if (!fromPhone) {
-        logger.error('No se pudo normalizar número del remitente', { original: From });
-        throw new Error('Número del remitente inválido');
-      }
-
-      if (!toPhone) {
-        logger.error('No se pudo normalizar número del destinatario', { original: To });
-        throw new Error('Número del destinatario inválido');
-      }
-
-      // ✅ LOG DE NÚMEROS NORMALIZADOS
-      logger.info('Números normalizados', {
-        originalFrom: From,
-        normalizedFrom: fromPhone,
-        originalTo: To,
-        normalizedTo: toPhone,
-      });
-
-      // ✅ GENERAR conversationId CONSISTENTE (CRÍTICO)
-      const conversationId = generateConversationId(fromPhone, toPhone);
-
-      // ✅ BUSCAR O CREAR CONTACTO con manejo robusto
-      let contact;
-      try {
-        contact = await Contact.getByPhone(fromPhone);
-        if (!contact) {
-          logger.info('Nuevo contacto creado automáticamente', {
-            contactId: contact.id,
-            phone: fromPhone,
-          });
-          contact = await Contact.create({
-            name: fromPhone, // Se puede actualizar después
-            phone: fromPhone,
-            userId: null, // Se asignará cuando un agente responda
-          });
-          logger.info('Contacto creado', {
-            contactId: contact.id,
-            phone: fromPhone,
-          });
-        } else {
-          logger.info('Contacto existente encontrado', { contactId: contact.id });
-        }
-      } catch (contactError) {
-        logger.error('Error en Contacto', {
-          error: contactError.message,
-          phone: fromPhone,
-          action: 'create_or_find',
-        });
-
-        // Crear contacto básico como fallback
-        contact = {
-          id: `temp_${Date.now()}`,
-          phone: fromPhone,
-          name: fromPhone,
-        };
-        logger.warn('Contacto temporal creado como fallback');
-      }
-
-      // ✅ PROCESAR MULTIMEDIA con manejo robusto y almacenamiento permanente
-      const mediaUrls = [];
-      const processedMedia = [];
-      const numMedia = parseInt(NumMedia) || 0;
-
-      for (let i = 0; i < numMedia; i++) {
-        try {
-          const mediaUrl = webhookData[`MediaUrl${i}`];
-          const mediaContentType = webhookData[`MediaContentType${i}`];
-
-          if (mediaUrl) {
-            // Guardar URL original para compatibilidad
-            mediaUrls.push({
-              url: mediaUrl,
-              contentType: mediaContentType,
-              index: i,
-            });
-
-            // ✅ PROCESAR Y GUARDAR MULTIMEDIA PERMANENTEMENTE
-            try {
-              const processedMediaInfo = await MediaService.processWebhookMedia(
-                mediaUrl,
-                MessageSid,
-                i,
-              );
-
-              processedMedia.push(processedMediaInfo);
-            } catch (mediaProcessError) {
-              logger.error(`Error procesando media ${i}`, {
-                error: mediaProcessError.message,
-                stack: mediaProcessError.stack,
-                mediaUrl,
-                messageSid: MessageSid,
-              });
-
-              // Continuar con URL original si falla el procesamiento
-              // El mensaje se guardará con la URL de Twilio como fallback
-            }
-          }
-        } catch (mediaError) {
-          logger.error(`Error general procesando media ${i}`, {
-            error: mediaError.message,
-            messageSid: MessageSid,
-          });
-        }
-      }
-
-      // Determinar tipo de mensaje basado en contenido
-      let messageType = 'text';
-      if (numMedia > 0) {
-        const firstMedia = webhookData.MediaContentType0 || '';
-        if (firstMedia.startsWith('image/')) {
-          messageType = 'image';
-        } else if (firstMedia.startsWith('audio/')) {
-          messageType = 'audio';
-        } else if (firstMedia.startsWith('video/')) {
-          messageType = 'video';
-        } else {
-          messageType = 'document';
-        }
-      }
-
-      // ✅ CREAR MENSAJE con datos completos y manejo de errores
-      const messageData = {
-        id: MessageSid, // ✅ ASIGNAR ID INMEDIATAMENTE usando twilioSid
-        conversationId, // CRÍTICO: SIEMPRE asignar conversationId
-        senderPhone: fromPhone, // ✅ CAMPO CORRECTO: senderPhone
-        recipientPhone: toPhone, // ✅ CAMPO CORRECTO: recipientPhone
-        content: Body || '',
-        type: messageType,
-        direction: 'inbound',
-        status: 'received',
-        twilioSid: MessageSid,
-        mediaUrls: mediaUrls.map(m => m.url),
+        sender: 'agent',
+        timestamp: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
         metadata: {
-          numMedia,
-          mediaInfo: mediaUrls,
-          processedMedia, // URLs permanentes y metadata
-          profileName: webhookData.ProfileName,
-          waId: webhookData.WaId,
-          originalWebhookData: {
-            AccountSid: webhookData.AccountSid,
-            ApiVersion: webhookData.ApiVersion,
-            MessageStatus: webhookData.MessageStatus,
-          },
+          twilioSid: sentMessage.sid,
+          twilioStatus: sentMessage.status,
+          twilioErrorCode: sentMessage.errorCode,
+          twilioErrorMessage: sentMessage.errorMessage,
+          sentAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
         },
       };
 
-      // ✅ LOG DE DATOS DEL MENSAJE ANTES DE GUARDAR
-      logger.info('Preparando mensaje para guardar', {
-        messageId: messageData.id,
-        conversationId: messageData.conversationId,
+      logger.info('Mensaje WhatsApp enviado exitosamente', {
+        twilioSid: sentMessage.sid,
         senderPhone: messageData.senderPhone,
         recipientPhone: messageData.recipientPhone,
-        type: messageData.type,
-        hasContent: !!messageData.content,
-        mediaCount: messageData.mediaUrls.length,
+        status: sentMessage.status,
+        direction: messageData.direction,
       });
 
-      // ✅ GUARDAR EN FIREBASE con manejo robusto
-      let message;
-      try {
-        message = await Message.create(messageData);
+      return {
+        success: true,
+        messageData,
+        twilioResponse: sentMessage,
+      };
 
-        // ✅ CREAR O ACTUALIZAR CONVERSACIÓN (CRÍTICO)
-        try {
-          await this.createOrUpdateConversation(conversationId, message, contact);
-        } catch (conversationError) {
-          logger.error('Error actualizando conversación', {
-            conversationId,
-            messageId: message.id,
-            error: conversationError.message,
-          });
-        }
+    } catch (error) {
+      logger.error('Error enviando mensaje WhatsApp', {
+        error: error.message,
+        toPhone,
+        mediaUrl: !!mediaUrl,
+        stack: error.stack,
+      });
 
-        // ✅ EMITIR EVENTO DE TIEMPO REAL (CRÍTICO)
-        try {
-          if (global.socketManager) {
-            global.socketManager.emitNewMessage(conversationId, message.toJSON());
-          } else {
-            logger.warn('Socket.IO no disponible - mensaje guardado sin tiempo real');
-          }
-        } catch (socketError) {
-          logger.error('Error emitiendo evento Socket.IO', {
-            conversationId,
-            messageId: message.id,
-            error: socketError.message,
-          });
-        }
-      } catch (firebaseError) {
-        logger.error('Firebase - Error guardando mensaje', {
-          error: firebaseError.message,
-          stack: firebaseError.stack.split('\n')[0],
-          messageData: {
-            senderPhone: fromPhone,
-            recipientPhone: toPhone,
-            twilioSid: MessageSid,
-            type: messageType,
-          },
-        });
-        throw new Error(`Firebase save failed: ${firebaseError.message}`);
+      // ✅ ESTRUCTURA DE ERROR CONSISTENTE
+      const errorMessageData = {
+        senderPhone: this.whatsappNumber?.replace('whatsapp:', ''),
+        recipientPhone: toPhone,
+        content: message,
+        mediaUrl: mediaUrl,
+        direction: 'outbound',
+        type: 'text',
+        status: 'failed',
+        sender: 'agent',
+        timestamp: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        metadata: {
+          error: error.message,
+          failedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        },
+      };
+
+      return {
+        success: false,
+        error: error.message,
+        messageData: errorMessageData,
+      };
+    }
+  }
+
+  /**
+   * ✅ CORREGIDO: Enviar mensaje multimedia con estructura correcta
+   */
+  async sendMediaMessage(toPhone, caption, mediaUrl) {
+    try {
+      return await this.sendWhatsAppMessage(toPhone, caption, mediaUrl);
+    } catch (error) {
+      logger.error('Error enviando mensaje multimedia', {
+        error: error.message,
+        toPhone,
+        mediaUrl,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ CORREGIDO: Procesar mensaje entrante con estructura correcta
+   * Maneja webhooks de Twilio y convierte a estructura estándar
+   */
+  async processIncomingMessage(webhookData) {
+    try {
+      // ✅ EXTRAER DATOS DEL WEBHOOK
+      const {
+        MessageSid: twilioSid,
+        From: rawFromPhone,
+        To: rawToPhone,
+        Body: content,
+        MediaUrl0: mediaUrl,
+        MediaContentType0: mediaType,
+        NumMedia: numMedia,
+      } = webhookData;
+
+      // ✅ VALIDACIÓN: Campos requeridos
+      if (!twilioSid || !rawFromPhone || !rawToPhone) {
+        throw new Error('Datos de webhook incompletos');
       }
 
-      // ✅ LOG FINAL DE ÉXITO
-      logger.info('Mensaje entrante procesado exitosamente', {
-        messageId: message.id,
-        senderPhone: fromPhone,
-        recipientPhone: toPhone,
-        contactId: contact.id,
-      });
+      // ✅ NORMALIZAR NÚMEROS DE TELÉFONO
+      const fromValidation = validateAndNormalizePhone(rawFromPhone);
+      const toValidation = validateAndNormalizePhone(rawToPhone);
 
-      return message;
-    } catch (error) {
-      // ❌ ERROR FINAL: Log completo pero no lanzar excepción
-      logger.error('Twilio Service - Error procesando mensaje', {
-        error: error.message,
-        stack: error.stack.split('\n').slice(0, 3), // Primeras 3 líneas del stack
-        webhookData: {
-          from: webhookData?.From,
-          to: webhookData?.To,
-          messageSid: webhookData?.MessageSid,
+      if (!fromValidation.isValid) {
+        throw new Error(`Número remitente inválido: ${fromValidation.error}`);
+      }
+
+      if (!toValidation.isValid) {
+        throw new Error(`Número destinatario inválido: ${toValidation.error}`);
+      }
+
+      const fromPhone = fromValidation.normalized;
+      const toPhone = toValidation.normalized;
+
+      // ✅ DETERMINAR TIPO DE MENSAJE
+      const hasMedia = parseInt(numMedia) > 0;
+      const messageType = hasMedia ? 'media' : 'text';
+
+      // ✅ ESTRUCTURA CORRECTA: Usar senderPhone/recipientPhone
+      const messageData = {
+        id: twilioSid,
+        senderPhone: fromPhone, // ✅ CAMPO CORRECTO
+        recipientPhone: toPhone, // ✅ CAMPO CORRECTO
+        content: content || (hasMedia ? '[Media]' : ''),
+        mediaUrl: mediaUrl || null,
+        direction: 'inbound',
+        type: messageType,
+        status: 'received',
+        sender: 'customer',
+        timestamp: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        metadata: {
+          twilioSid,
+          mediaType: mediaType || null,
+          numMedia: parseInt(numMedia) || 0,
+          receivedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+          webhook: {
+            from: rawFromPhone,
+            to: rawToPhone,
+            processedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+          },
         },
-        timestamp: new Date().toISOString(),
+      };
+
+      logger.info('Preparando mensaje entrante para guardar', {
+        twilioSid,
+        senderPhone: messageData.senderPhone, // ✅ LOGGING CORRECTO
+        recipientPhone: messageData.recipientPhone, // ✅ LOGGING CORRECTO
+        direction: messageData.direction,
+        type: messageData.type,
+        hasMedia,
       });
 
+      // ✅ CREAR O ACTUALIZAR CONVERSACIÓN
+      await this.createOrUpdateConversation(messageData);
+
+      // ✅ GUARDAR MENSAJE
+      const Message = require('../models/Message');
+      const savedMessage = await Message.create(messageData);
+
+      logger.info('Mensaje entrante procesado exitosamente', {
+        messageId: savedMessage.id,
+        conversationId: savedMessage.conversationId,
+        senderPhone: savedMessage.senderPhone, // ✅ LOGGING CORRECTO
+        recipientPhone: savedMessage.recipientPhone, // ✅ LOGGING CORRECTO
+        direction: savedMessage.direction,
+        timestamp: savedMessage.timestamp,
+      });
+
+      // ✅ EMITIR EVENTO EN TIEMPO REAL
+      const socketService = require('../socket');
+      socketService.emitNewMessage(savedMessage);
+
+      return {
+        success: true,
+        message: savedMessage,
+        conversation: savedMessage.conversationId,
+      };
+
+    } catch (error) {
       logger.error('Error procesando mensaje entrante', {
         error: error.message,
-        stack: error.stack,
         webhookData,
-      });
-
-      // ✅ RE-LANZAR ERROR: Para que el controlador lo maneje
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener estado de un mensaje
-   */
-  static async getMessageStatus (twilioSid) {
-    try {
-      const message = await client.messages(twilioSid).fetch();
-      return {
-        sid: message.sid,
-        status: message.status,
-        dateCreated: message.dateCreated,
-        dateSent: message.dateSent,
-        dateUpdated: message.dateUpdated,
-        errorCode: message.errorCode,
-        errorMessage: message.errorMessage,
-      };
-    } catch (error) {
-      logger.error('Error al obtener estado del mensaje:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Actualizar estado de mensaje desde webhook
-   */
-  static async updateMessageStatus (twilioSid, status) {
-    try {
-      const message = await Message.getByTwilioSid(twilioSid);
-      if (message) {
-        await message.updateStatus(status);
-        logger.info('Estado de mensaje actualizado', { twilioSid, status });
-      }
-    } catch (error) {
-      logger.error('Error al actualizar estado del mensaje:', error);
-    }
-  }
-
-  /**
-   * Validar webhook de Twilio con manejo robusto de errores
-   * ✅ CORREGIDO: Logs detallados para debugging de firma
-   */
-  static validateWebhook (signature, url, params) {
-    try {
-      // ✅ LOG DETALLADO para debugging
-      console.log('🔐 TwilioService.validateWebhook - Iniciando validación:', {
-        hasSignature: !!signature,
-        url,
-        authTokenConfigured: !!twilioConfig.authToken,
-        environment: process.env.NODE_ENV,
-        paramCount: Object.keys(params).length,
-        sampleParams: Object.keys(params).slice(0, 5),
-      });
-
-      if (!twilioConfig.authToken) {
-        console.log('⚠️ TWILIO_AUTH_TOKEN no configurado - saltando validación');
-        logger.warn('TWILIO_AUTH_TOKEN no configurado - validación de firma deshabilitada');
-        return true; // En desarrollo, permitir sin validación
-      }
-
-      if (!signature) {
-        console.log('⚠️ X-Twilio-Signature ausente - saltando validación en desarrollo');
-        logger.warn('Cabecera X-Twilio-Signature ausente en la solicitud');
-        return process.env.NODE_ENV !== 'production'; // Solo permitir en desarrollo
-      }
-
-      const twilio = require('twilio');
-
-      // ✅ LOG URL COMPLETA para verificar exactitud
-      console.log('🔗 URL completa para validación:', url);
-
-      // Convertir params a el formato esperado por Twilio
-      const formattedParams = {};
-      Object.keys(params).forEach(key => {
-        // Twilio espera que todos los valores sean strings
-        formattedParams[key] = String(params[key] || '');
-      });
-
-      // ✅ LOG PARÁMETROS FORMATEADOS
-      console.log('📋 Parámetros formateados para Twilio:', {
-        originalParamCount: Object.keys(params).length,
-        formattedParamCount: Object.keys(formattedParams).length,
-        sampleFormatted: Object.fromEntries(
-          Object.entries(formattedParams).slice(0, 3),
-        ),
-      });
-
-      // ✅ VALIDACIÓN TWILIO con firma
-      const isValid = twilio.validateRequest(
-        twilioConfig.authToken,
-        signature,
-        url,
-        formattedParams,
-      );
-
-      if (!isValid) {
-        console.log('❌ Validación de firma Twilio FALLÓ');
-        logger.error('Validación de firma Twilio falló', {
-          url,
-          signaturePresent: !!signature,
-          paramKeys: Object.keys(formattedParams),
-          environment: process.env.NODE_ENV,
-        });
-      } else {
-        console.log('✅ Validación de firma Twilio EXITOSA');
-        logger.info('Validación de firma Twilio exitosa');
-      }
-
-      return isValid;
-    } catch (error) {
-      console.error('❌ Error validando firma de webhook Twilio:', {
-        error: error.message,
-        stack: error.stack?.split('\n')[0],
-        url,
-        hasSignature: !!signature,
-      });
-
-      logger.error('Error validando firma de webhook Twilio', {
-        error: error.message,
         stack: error.stack,
-        url,
-        signaturePresent: !!signature,
       });
 
-      // En caso de error, permitir en desarrollo, rechazar en producción
-      const allowOnError = process.env.NODE_ENV !== 'production';
-      console.log(allowOnError ? '⚠️ Permitiendo por error en desarrollo' : '❌ Rechazando por error en producción');
-      return allowOnError;
-    }
-  }
+      // ✅ MENSAJE DE ERROR CON ESTRUCTURA CORRECTA
+      const errorData = {
+        error: error.message,
+        webhookData,
+        processedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        senderPhone: webhookData.From ? validateAndNormalizePhone(webhookData.From).normalized : null,
+        recipientPhone: webhookData.To ? validateAndNormalizePhone(webhookData.To).normalized : null,
+      };
 
-  /**
-   * Generar firma Twilio para testing
-   */
-  static generateTestSignature (url, params) {
-    try {
-      if (!twilioConfig.authToken) {
-        throw new Error('TWILIO_AUTH_TOKEN no configurado');
+      // Guardar error en logs para debugging
+      try {
+        await this.logWebhookError(errorData);
+      } catch (logError) {
+        logger.error('Error guardando log de webhook', {
+          originalError: error.message,
+          logError: logError.message,
+        });
       }
 
-      const twilio = require('twilio');
-      return twilio.webhook.generateSignature(twilioConfig.authToken, url, params);
-    } catch (error) {
-      logger.error('Error generando firma de test', { error: error.message });
       throw error;
     }
   }
 
   /**
-   * Determinar tipo de media por URL
+   * ✅ CORREGIDO: Crear o actualizar conversación desde mensaje
+   * Usa senderPhone/recipientPhone para determinar participantes
    */
-  static getMediaType (mediaUrl) {
-    const url = mediaUrl.toLowerCase();
-    if (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif')) {
-      return 'image';
-    }
-    if (url.includes('.pdf') || url.includes('.doc') || url.includes('.docx')) {
-      return 'document';
-    }
-    if (url.includes('.mp3') || url.includes('.wav') || url.includes('.ogg')) {
-      return 'audio';
-    }
-    if (url.includes('.mp4') || url.includes('.mov') || url.includes('.avi')) {
-      return 'video';
-    }
-    return 'document'; // Por defecto
-  }
-
-  /**
-   * Enviar mensaje masivo (para campañas)
-   */
-  static async sendBulkMessages (contacts, message, userId) {
-    const results = [];
-    const delay = 1000; // 1 segundo entre mensajes para evitar rate limiting
-
-    for (const contact of contacts) {
-      try {
-        await new Promise(resolve => setTimeout(resolve, delay));
-
-        const result = await this.sendWhatsAppMessage(
-          contact.phone,
-          message,
-          userId,
-        );
-
-        results.push({
-          contactId: contact.id,
-          phone: contact.phone,
-          success: true,
-          messageId: result.messageId,
-        });
-      } catch (error) {
-        results.push({
-          contactId: contact.id,
-          phone: contact.phone,
-          success: false,
-          error: error.message,
-        });
-      }
-    }
-
-    return results;
-  }
-
-  /**
-   * ✅ CORREGIDO: Crear o actualizar conversación cuando llega un mensaje
-   * SIEMPRE garantiza que el campo assignedTo esté presente
-   */
-  static async createOrUpdateConversation (conversationId, message, contact) {
+  async createOrUpdateConversation(message) {
     try {
-      // Intentar obtener conversación existente
+      const Conversation = require('../models/Conversation');
+      const Contact = require('../models/Contact');
+
+      // ✅ DETERMINAR TELÉFONOS USANDO CAMPOS CORRECTOS
+      const customerPhone = message.senderPhone; // ✅ CAMPO CORRECTO
+      const agentPhone = message.recipientPhone; // ✅ CAMPO CORRECTO
+
+      // ✅ GENERAR ID DE CONVERSACIÓN
+      const conversationId = `conv_${customerPhone.replace('+', '')}_${agentPhone.replace('+', '')}`;
+
+      // ✅ BUSCAR CONTACTO EXISTENTE
+      let contact = null;
+      try {
+        contact = await Contact.getByPhone(customerPhone);
+        logger.info('Contacto encontrado', {
+          phone: customerPhone,
+          contactId: contact?.id,
+          contactName: contact?.name,
+        });
+      } catch (contactError) {
+        logger.warn('Error buscando contacto o contacto no encontrado', {
+          phone: customerPhone,
+          error: contactError.message,
+        });
+        
+        // ✅ CREAR CONTACTO BÁSICO SI NO EXISTE
+        contact = {
+          id: customerPhone,
+          name: customerPhone,
+          phone: customerPhone,
+          avatar: null,
+          channel: 'whatsapp',
+        };
+      }
+
+      // ✅ BUSCAR CONVERSACIÓN EXISTENTE
       let conversation = await Conversation.getById(conversationId);
 
       if (conversation) {
-        // Actualizar conversación existente
+        // ✅ ACTUALIZAR ÚLTIMA ACTIVIDAD
         await conversation.updateLastMessage(message);
+        logger.info('Conversación existente actualizada', {
+          conversationId,
+          messageId: message.id,
+        });
       } else {
-        // ✅ CREAR NUEVA CONVERSACIÓN CON ASIGNACIÓN AUTOMÁTICA
-        const customerPhone = contact?.phone || message.senderPhone;
-        const agentPhone = message.recipientPhone;
-
+        // ✅ CREAR NUEVA CONVERSACIÓN
         const conversationData = {
           id: conversationId,
           participants: [customerPhone, agentPhone],
-          lastMessage: message.content || '[Multimedia]',
-          lastMessageAt: message.timestamp,
-          lastMessageId: message.id,
-          messageCount: 1,
-          unreadCount: message.direction === 'inbound' ? 1 : 0,
           customerPhone,
           agentPhone,
+          contact,
           status: 'open',
-          priority: 'normal',
-          tags: contact?.tags || [],
-          metadata: {
-            contactId: contact?.id,
-            firstMessageId: message.id,
-            createdFromWebhook: true,
-            twilioSid: message.twilioSid,
-          },
-          // ✅ NOTA: assignedTo se asignará automáticamente en Conversation.createOrUpdate()
+          // ✅ IMPORTANTE: NO asignar automáticamente, dejar para asignación manual
+          assignedTo: null, // Se asignará manualmente por un admin
         };
 
-        logger.info('Creando nueva conversación desde webhook', {
+        logger.info('Creando nueva conversación desde mensaje entrante', {
           conversationId,
           customerPhone,
           agentPhone,
-          messageId: message.id,
-          direction: message.direction,
+          assignedTo: 'null (asignación_manual_requerida)',
         });
 
         conversation = await Conversation.createOrUpdate(conversationData);
-
-        logger.info('Conversación creada exitosamente desde webhook', {
-          conversationId,
+        
+        logger.info('Nueva conversación creada exitosamente', {
+          conversationId: conversation.id,
+          customerPhone: conversation.customerPhone,
+          agentPhone: conversation.agentPhone,
           assignedTo: conversation.assignedTo,
-          customerPhone,
         });
       }
 
       return conversation;
+
     } catch (error) {
-      logger.error('Error en createOrUpdateConversation', {
+      logger.error('Error creando/actualizando conversación', {
         error: error.message,
-        conversationId,
-        messageId: message.id,
+        messageData: {
+          senderPhone: message.senderPhone, // ✅ LOGGING CORRECTO
+          recipientPhone: message.recipientPhone, // ✅ LOGGING CORRECTO
+          id: message.id,
+        },
+        stack: error.stack,
       });
       throw error;
     }
   }
 
   /**
-   * Obtener información de la cuenta Twilio
+   * ✅ MEJORADO: Log de errores de webhook
    */
-  static async getAccountInfo () {
+  async logWebhookError(errorData) {
     try {
-      const account = await client.api.accounts(twilioConfig.accountSid).fetch();
-      return {
-        friendlyName: account.friendlyName,
-        status: account.status,
-        type: account.type,
-        dateCreated: account.dateCreated,
+      const { firestore } = require('../config/firebase');
+      
+      const logData = {
+        ...errorData,
+        loggedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        source: 'twilio_webhook',
+        environment: process.env.NODE_ENV || 'unknown',
       };
+
+      await firestore
+        .collection('webhook_errors')
+        .add(logData);
+
+      logger.info('Error de webhook guardado en Firestore', {
+        errorMessage: errorData.error,
+        twilioSid: errorData.webhookData?.MessageSid,
+        timestamp: logData.loggedAt,
+      });
+
     } catch (error) {
-      logger.error('Error al obtener información de la cuenta:', error);
+      logger.error('Error guardando log de webhook en Firestore', {
+        error: error.message,
+        originalErrorData: errorData,
+      });
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Validar configuración de Twilio
+   */
+  async validateConfiguration() {
+    try {
+      // ✅ VERIFICAR CREDENCIALES
+      const account = await this.client.api.accounts(this.accountSid).fetch();
+      
+      logger.info('Configuración de Twilio validada', {
+        accountSid: this.accountSid,
+        accountStatus: account.status,
+        friendlyName: account.friendlyName,
+      });
+
+      return {
+        valid: true,
+        account: {
+          sid: account.sid,
+          status: account.status,
+          friendlyName: account.friendlyName,
+        },
+      };
+
+    } catch (error) {
+      logger.error('Error validando configuración de Twilio', {
+        error: error.message,
+        accountSid: this.accountSid,
+      });
+
+      return {
+        valid: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Obtener estado de mensaje por SID
+   */
+  async getMessageStatus(messageSid) {
+    try {
+      const message = await this.client.messages(messageSid).fetch();
+      
+      return {
+        sid: message.sid,
+        status: message.status,
+        errorCode: message.errorCode,
+        errorMessage: message.errorMessage,
+        dateCreated: safeDateToISOString(message.dateCreated), // ✅ FECHA COMO STRING ISO
+        dateSent: safeDateToISOString(message.dateSent), // ✅ FECHA COMO STRING ISO
+        dateUpdated: safeDateToISOString(message.dateUpdated), // ✅ FECHA COMO STRING ISO
+      };
+
+    } catch (error) {
+      logger.error('Error obteniendo estado de mensaje', {
+        messageSid,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Listar mensajes recientes
+   */
+  async getRecentMessages(limit = 20) {
+    try {
+      const messages = await this.client.messages.list({
+        limit,
+        dateSentAfter: new Date(Date.now() - 24 * 60 * 60 * 1000), // Últimas 24 horas
+      });
+
+      return messages.map(msg => ({
+        sid: msg.sid,
+        from: msg.from,
+        to: msg.to,
+        body: msg.body,
+        status: msg.status,
+        direction: msg.direction,
+        dateCreated: safeDateToISOString(msg.dateCreated), // ✅ FECHA COMO STRING ISO
+        dateSent: safeDateToISOString(msg.dateSent), // ✅ FECHA COMO STRING ISO
+        dateUpdated: safeDateToISOString(msg.dateUpdated), // ✅ FECHA COMO STRING ISO
+      }));
+
+    } catch (error) {
+      logger.error('Error obteniendo mensajes recientes', {
+        error: error.message,
+        limit,
+      });
       throw error;
     }
   }
 }
 
-module.exports = TwilioService;
+// ✅ INSTANCIA SINGLETON
+let twilioServiceInstance = null;
+
+function getTwilioService() {
+  if (!twilioServiceInstance) {
+    try {
+      twilioServiceInstance = new TwilioService();
+    } catch (error) {
+      logger.error('Error inicializando TwilioService', {
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+  return twilioServiceInstance;
+}
+
+module.exports = {
+  TwilioService,
+  getTwilioService,
+};

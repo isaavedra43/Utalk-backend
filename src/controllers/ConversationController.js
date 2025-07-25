@@ -1,12 +1,13 @@
 // ConversationController.js
 // Controlador robusto para gestión de conversaciones
 // Implementa: paginación, filtros, logs exhaustivos, mapping content → text, manejo de errores
+// ✅ ACTUALIZADO: Manejo de UIDs reales y fechas como strings ISO
 
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
-const { safeISOString } = require('../utils/dateHelpers');
+const { safeDateToISOString } = require('../utils/dateHelpers');
 
 /**
  * CONTROLADOR DE CONVERSACIONES - VERSIÓN ROBUSTA Y DEFINITIVA
@@ -20,6 +21,8 @@ const { safeISOString } = require('../utils/dateHelpers');
  * - PUT /api/conversations/:id/status - Cambia estado de conversación
  * - DELETE /api/conversations/:id - Archiva conversación
  * - GET /api/conversations/stats - Obtiene estadísticas
+ * 
+ * ✅ IMPORTANTE: assignedTo debe ser SIEMPRE un UID real del sistema de autenticación
  */
 class ConversationController {
   /**
@@ -76,6 +79,7 @@ class ConversationController {
         sortOrder,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
+        currentUser: req.user ? req.user.uid : 'no_autenticado',
       });
 
       const options = {
@@ -152,6 +156,7 @@ class ConversationController {
           },
           totalValid: serializedConversations.filter(c => c.status !== 'error').length,
           totalErrors: serializedConversations.filter(c => c.status === 'error').length,
+          timestamp: safeDateToISOString(new Date()),
         },
       };
 
@@ -172,7 +177,7 @@ class ConversationController {
         error: 'Error interno del servidor',
         details: {
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
         data: [],
         pagination: {
@@ -206,6 +211,7 @@ class ConversationController {
         conversationId,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
+        currentUser: req.user ? req.user.uid : 'no_autenticado',
       });
 
       const conversation = await Conversation.getById(conversationId);
@@ -217,7 +223,7 @@ class ConversationController {
           error: 'Conversación no encontrada',
           details: {
             conversationId,
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -239,7 +245,7 @@ class ConversationController {
           details: {
             conversationId,
             message: 'Error en serialización de datos',
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -254,7 +260,7 @@ class ConversationController {
         success: true,
         data: serializedConversation,
         metadata: {
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
           conversationId,
         },
       });
@@ -274,7 +280,7 @@ class ConversationController {
         details: {
           conversationId: req.params.conversationId,
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
     }
@@ -318,7 +324,7 @@ class ConversationController {
           error: 'Conversación no encontrada',
           details: {
             conversationId,
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
           data: [],
           pagination: {
@@ -416,7 +422,7 @@ class ConversationController {
           conversationExists: true,
           totalValid: serializedMessages.filter(m => m.status !== 'error').length,
           totalErrors: serializedMessages.filter(m => m.status === 'error').length,
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       };
 
@@ -438,7 +444,7 @@ class ConversationController {
         details: {
           conversationId: req.params.conversationId,
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
         data: [],
         pagination: {
@@ -452,7 +458,7 @@ class ConversationController {
 
   /**
    * ✅ CORREGIDO: Crear nueva conversación con validación de teléfonos
-   * SIEMPRE garantiza que el campo assignedTo esté presente
+   * SIEMPRE garantiza que el campo assignedTo sea un UID real
    */
   static async createConversation (req, res) {
     try {
@@ -461,8 +467,25 @@ class ConversationController {
         customerPhone = null,
         agentPhone = null,
         contact = null,
-        assignedTo = null,
+        assignedTo = null, // ✅ DEBE ser UID real o null
       } = req.body;
+
+      // ✅ IMPORTANTE: Obtener usuario actual para UID real
+      const currentUser = req.user || null; // Obtenido del middleware de autenticación
+
+      // ✅ VALIDACIÓN: assignedTo debe ser UID válido si se proporciona
+      if (assignedTo && (typeof assignedTo !== 'string' || assignedTo.trim() === '')) {
+        return res.status(400).json({
+          success: false,
+          error: 'assignedTo debe ser un UID válido',
+          details: {
+            field: 'assignedTo',
+            expectedType: 'string (UID del usuario)',
+            receivedType: typeof assignedTo,
+            receivedValue: assignedTo,
+          },
+        });
+      }
 
       // ✅ VALIDACIÓN: Verificar que se proporcionen participantes
       if (!Array.isArray(participants) || participants.length === 0) {
@@ -554,7 +577,7 @@ class ConversationController {
         customerPhone: normalizedCustomerPhone,
         agentPhone: normalizedAgentPhone,
         contact,
-        assignedTo, // ✅ Se asignará automáticamente si es null
+        assignedTo, // ✅ UID real o null - NO se inventan valores
       };
 
       logger.info('Creando nueva conversación manualmente', {
@@ -562,12 +585,15 @@ class ConversationController {
         participantsCount: normalizedParticipants.length,
         hasCustomerPhone: !!normalizedCustomerPhone,
         hasAgentPhone: !!normalizedAgentPhone,
-        assignedTo: assignedTo || 'asignación_automática',
+        assignedTo: assignedTo || 'null',
+        assignedToType: typeof assignedTo,
+        currentUserUID: currentUser ? currentUser.uid : 'no_autenticado',
         userAgent: req.get('User-Agent'),
         ip: req.ip,
       });
 
-      const conversation = await Conversation.createOrUpdate(conversationData);
+      // ✅ IMPORTANTE: Pasar currentUser para UID real
+      const conversation = await Conversation.createOrUpdate(conversationData, currentUser);
 
       // ✅ SERIALIZACIÓN SEGURA
       let serializedConversation;
@@ -586,14 +612,15 @@ class ConversationController {
           details: {
             conversationId,
             message: 'Error en serialización de datos',
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
 
       logger.info('Conversación creada exitosamente manualmente', {
         conversationId,
-        assignedTo: serializedConversation.assignedTo?.id,
+        assignedToId: serializedConversation.assignedTo?.id,
+        assignedToType: typeof serializedConversation.assignedTo?.id,
         customerPhone: serializedConversation.customerPhone,
         participantsCount: serializedConversation.participants?.length || 0,
       });
@@ -603,7 +630,7 @@ class ConversationController {
         data: serializedConversation,
         metadata: {
           created: true,
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
           conversationId,
         },
       });
@@ -622,7 +649,7 @@ class ConversationController {
         error: 'Error interno del servidor',
         details: {
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
     }
@@ -655,9 +682,25 @@ class ConversationController {
           error: 'Conversación no encontrada',
           details: {
             conversationId,
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
+      }
+
+      // ✅ VALIDACIÓN: Si se actualiza assignedTo, debe ser UID válido
+      if (updates.assignedTo !== undefined) {
+        if (updates.assignedTo !== null && (typeof updates.assignedTo !== 'string' || updates.assignedTo.trim() === '')) {
+          return res.status(400).json({
+            success: false,
+            error: 'assignedTo debe ser un UID válido o null',
+            details: {
+              field: 'assignedTo',
+              expectedType: 'string (UID del usuario) o null',
+              receivedType: typeof updates.assignedTo,
+              receivedValue: updates.assignedTo,
+            },
+          });
+        }
       }
 
       // ✅ VALIDACIÓN: Normalizar teléfonos si se actualizan
@@ -696,6 +739,10 @@ class ConversationController {
       logger.info('Actualizando conversación', {
         conversationId,
         updates: Object.keys(updates),
+        assignedToUpdate: updates.assignedTo !== undefined ? {
+          value: updates.assignedTo,
+          type: typeof updates.assignedTo,
+        } : 'no_cambio',
         userAgent: req.get('User-Agent'),
         ip: req.ip,
       });
@@ -719,7 +766,7 @@ class ConversationController {
           details: {
             conversationId,
             message: 'Error en serialización de datos',
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -727,6 +774,7 @@ class ConversationController {
       logger.info('Conversación actualizada exitosamente', { 
         conversationId,
         updatedFields: Object.keys(updates),
+        finalAssignedTo: serializedConversation.assignedTo?.id,
       });
 
       res.json({
@@ -734,7 +782,7 @@ class ConversationController {
         data: serializedConversation,
         metadata: {
           updated: true,
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
           conversationId,
           updatedFields: Object.keys(updates),
         },
@@ -756,14 +804,14 @@ class ConversationController {
         details: {
           conversationId: req.params.conversationId,
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
     }
   }
 
   /**
-   * ✅ CORREGIDO: Asignar conversación a agente
+   * ✅ CORREGIDO: Asignar conversación a agente (UID real)
    */
   static async assignConversation (req, res) {
     try {
@@ -781,14 +829,17 @@ class ConversationController {
         });
       }
 
-      if (!assignedTo) {
+      // ✅ VALIDACIÓN: assignedTo debe ser UID válido
+      if (!assignedTo || typeof assignedTo !== 'string' || assignedTo.trim() === '') {
         return res.status(400).json({
           success: false,
-          error: 'assignedTo es requerido',
+          error: 'assignedTo es requerido y debe ser un UID válido',
           details: {
             field: 'assignedTo',
-            expectedType: 'string',
-            description: 'ID del agente al que asignar la conversación',
+            expectedType: 'string (UID del usuario)',
+            description: 'UID del agente al que asignar la conversación',
+            receivedType: typeof assignedTo,
+            receivedValue: assignedTo,
           },
         });
       }
@@ -801,7 +852,7 @@ class ConversationController {
           error: 'Conversación no encontrada',
           details: {
             conversationId,
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -809,6 +860,7 @@ class ConversationController {
       logger.info('Asignando conversación', {
         conversationId,
         assignedTo,
+        assignedToType: typeof assignedTo,
         previousAssignment: conversation.assignedTo,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
@@ -834,7 +886,7 @@ class ConversationController {
             conversationId,
             assignedTo,
             message: 'Error en serialización de datos',
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -843,6 +895,7 @@ class ConversationController {
         conversationId,
         assignedTo,
         newAssignedTo: serializedConversation.assignedTo?.id,
+        assignmentConfirmed: serializedConversation.assignedTo?.id === assignedTo,
       });
 
       res.json({
@@ -850,7 +903,7 @@ class ConversationController {
         data: serializedConversation,
         metadata: {
           assigned: true,
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
           conversationId,
           assignedTo,
         },
@@ -872,7 +925,7 @@ class ConversationController {
         details: {
           conversationId: req.params.conversationId,
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
     }
@@ -916,7 +969,7 @@ class ConversationController {
           error: 'Conversación no encontrada',
           details: {
             conversationId,
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -949,7 +1002,7 @@ class ConversationController {
             conversationId,
             newStatus: status,
             message: 'Error en serialización de datos',
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -965,7 +1018,7 @@ class ConversationController {
         data: serializedConversation,
         metadata: {
           statusChanged: true,
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
           conversationId,
           previousStatus: conversation.status,
           newStatus: status,
@@ -988,7 +1041,7 @@ class ConversationController {
         details: {
           conversationId: req.params.conversationId,
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
     }
@@ -1020,7 +1073,7 @@ class ConversationController {
           error: 'Conversación no encontrada',
           details: {
             conversationId,
-            timestamp: safeISOString(new Date()),
+            timestamp: safeDateToISOString(new Date()),
           },
         });
       }
@@ -1036,8 +1089,8 @@ class ConversationController {
       // ✅ NORMALIZAR FECHAS EN ESTADÍSTICAS
       const normalizedStats = {
         ...stats,
-        firstMessageAt: safeISOString(stats.firstMessageAt, 'firstMessageAt'),
-        lastMessageAt: safeISOString(stats.lastMessageAt, 'lastMessageAt'),
+        firstMessageAt: safeDateToISOString(stats.firstMessageAt),
+        lastMessageAt: safeDateToISOString(stats.lastMessageAt),
       };
 
       logger.info('Estadísticas obtenidas exitosamente', {
@@ -1052,8 +1105,8 @@ class ConversationController {
         data: normalizedStats,
         metadata: {
           conversationId,
-          timestamp: safeISOString(new Date()),
-          generatedAt: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
+          generatedAt: safeDateToISOString(new Date()),
         },
       });
 
@@ -1072,7 +1125,7 @@ class ConversationController {
         details: {
           conversationId: req.params.conversationId,
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
     }
@@ -1155,7 +1208,7 @@ class ConversationController {
           searchTerm,
           totalValid: serializedConversations.filter(c => c.status !== 'error').length,
           totalErrors: serializedConversations.filter(c => c.status === 'error').length,
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
       });
 
@@ -1173,7 +1226,7 @@ class ConversationController {
         error: 'Error interno del servidor',
         details: {
           message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeISOString(new Date()),
+          timestamp: safeDateToISOString(new Date()),
         },
         data: [],
         pagination: {
