@@ -1,6 +1,6 @@
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
-const TwilioService = require('../services/TwilioService');
+const { processIncomingMessage, getTwilioService } = require('../services/TwilioService'); // ✅ IMPORTACIÓN CORREGIDA
 const logger = require('../utils/logger');
 const {
   createMessagesPaginatedResponse,
@@ -398,10 +398,10 @@ class MessageController {
         // Enviar mensaje con media
         const mediaUrl = attachments[0].url; // Por ahora solo el primer attachment
         const caption = content || '';
-        result = await TwilioService.sendMediaMessage(targetPhone, mediaUrl, caption, userId);
+        result = await getTwilioService().sendMediaMessage(targetPhone, mediaUrl, caption, userId);
       } else {
         // Enviar mensaje de texto
-        result = await TwilioService.sendWhatsAppMessage(targetPhone, content, userId);
+        result = await getTwilioService().sendWhatsAppMessage(targetPhone, content, userId);
       }
 
       // ✅ OBTENER el mensaje guardado para devolver estructura canónica
@@ -440,68 +440,115 @@ class MessageController {
   }
 
   /**
+   * ✅ WEBHOOK DE TWILIO COMPLETAMENTE RECONSTRUIDO
    * Webhook de Twilio SEGURO - SIEMPRE responde 200 OK
    * ✅ ROBUSTO: Maneja errores sin fallar
    * ✅ PRODUCCIÓN: Nunca devuelve 4xx/5xx que podrían causar reenvíos
    */
   static async handleWebhookSafe (req, res) {
+    const startTime = Date.now();
+    
     try {
-      // ✅ LOG INICIAL - Solo información necesaria
-      logger.info('Webhook Twilio recibido', {
-        hasBody: !!req.body,
-        bodyKeys: req.body ? Object.keys(req.body) : [],
+      // ✅ LOG INICIAL DETALLADO
+      logger.info('🔗 Webhook Twilio recibido', {
+        messageSid: req.body.MessageSid,
+        from: req.body.From,
+        to: req.body.To,
+        hasBody: !!req.body.Body,
+        numMedia: req.body.NumMedia || 0,
         userAgent: req.get('User-Agent'),
         twilioSignature: !!req.headers['x-twilio-signature'],
+        timestamp: new Date().toISOString(),
       });
 
-      // ✅ VALIDACIÓN CRÍTICA: Verificar datos mínimos
+      // ✅ VALIDACIÓN CRÍTICA: Verificar datos mínimos de Twilio
       const requiredFields = ['From', 'To', 'MessageSid'];
       const missingFields = requiredFields.filter(field => !req.body[field]);
 
       if (missingFields.length > 0) {
-        logger.error('Webhook - Datos críticos faltantes', {
+        logger.error('❌ Webhook - Datos críticos faltantes', {
           missingFields,
+          receivedFields: Object.keys(req.body),
           bodyReceived: req.body,
         });
-        // ✅ RESPUESTA 200 SIEMPRE (Twilio spec)
+        
+        // ✅ RESPUESTA 200 SIEMPRE (Twilio spec) - incluso con errores
         return res.status(200).json({
-          status: 'received',
-          message: 'Webhook procesado (datos insuficientes)',
+          status: 'received_with_errors',
+          message: 'Webhook recibido pero datos insuficientes',
+          missingFields,
+          processTime: Date.now() - startTime,
         });
       }
 
-      logger.info('Webhook - Datos críticos verificados correctamente');
+      // ✅ PROCESAMIENTO PRINCIPAL: Usar nueva función processIncomingMessage
+      logger.info('🔄 Iniciando procesamiento del mensaje...');
+      
+      const result = await processIncomingMessage(req.body);
 
-      // ✅ PROCESAMIENTO PRINCIPAL: Enviar a TwilioService
-      logger.info('Enviando a TwilioService para procesamiento...');
-      const message = await TwilioService.processIncomingMessage(req.body);
+      // ✅ VERIFICAR RESULTADO DEL PROCESAMIENTO
+      if (result.success) {
+        logger.info('✅ Mensaje procesado exitosamente', {
+          conversationId: result.conversation?.id,
+          messageId: result.message?.id,
+          senderPhone: result.message?.senderPhone,
+          recipientPhone: result.message?.recipientPhone,
+          direction: result.message?.direction,
+          type: result.message?.type,
+          processTime: Date.now() - startTime,
+        });
 
-      logger.info('Mensaje procesado exitosamente', {
-        messageId: message.id,
-        from: message.from,
-        to: message.to,
-        direction: message.direction,
-      });
+        // ✅ RESPUESTA EXITOSA: SIEMPRE 200 OK
+        return res.status(200).json({
+          status: 'success',
+          message: 'Webhook procesado exitosamente',
+          data: {
+            conversationId: result.conversation?.id,
+            messageId: result.message?.id,
+            direction: result.message?.direction,
+            type: result.message?.type,
+          },
+          processTime: Date.now() - startTime,
+          timestamp: result.timestamp,
+        });
+      } else {
+        // ✅ ERROR EN PROCESAMIENTO PERO RESPONDER 200 OK
+        logger.warn('⚠️ Webhook procesado con errores', {
+          error: result.error,
+          webhookData: req.body,
+          processTime: Date.now() - startTime,
+        });
 
-      // ✅ RESPUESTA FINAL: SIEMPRE 200 OK (requerimiento Twilio)
-      res.status(200).json({
-        status: 'received',
-        message: 'Webhook procesado exitosamente',
-        messageId: message.id,
-      });
+        return res.status(200).json({
+          status: 'processed_with_errors',
+          message: 'Webhook recibido pero procesamiento falló',
+          error: result.error,
+          processTime: Date.now() - startTime,
+          timestamp: result.timestamp,
+        });
+      }
+
     } catch (error) {
-      // ✅ SAFETY NET: Nunca fallar el webhook
-      logger.error('Webhook - Error durante procesamiento', {
+      // ✅ SAFETY NET CRÍTICO: Nunca fallar el webhook
+      logger.error('❌ Error crítico en webhook (respondiendo 200 OK)', {
         error: error.message,
         stack: error.stack,
-        body: req.body,
+        webhookData: {
+          MessageSid: req.body.MessageSid,
+          From: req.body.From,
+          To: req.body.To,
+          Body: req.body.Body ? 'presente' : 'ausente',
+        },
+        processTime: Date.now() - startTime,
       });
 
-      // ✅ SIEMPRE RESPONDER 200 OK para evitar reenvíos de Twilio
+      // ✅ SIEMPRE RESPONDER 200 OK para evitar reenvíos infinitos de Twilio
       res.status(200).json({
-        status: 'received',
-        message: 'Webhook recibido con errores (procesamiento fallido)',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
+        status: 'error_handled',
+        message: 'Webhook recibido con error crítico (no reintento)',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del servidor',
+        processTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
       });
     }
   }

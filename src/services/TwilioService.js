@@ -2,6 +2,7 @@ const twilio = require('twilio');
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { safeDateToISOString } = require('../utils/dateHelpers');
+const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 
 class TwilioService {
   constructor() {
@@ -27,8 +28,422 @@ class TwilioService {
   }
 
   /**
-   * ✅ CORREGIDO: Enviar mensaje de WhatsApp con estructura correcta
-   * Usa senderPhone/recipientPhone en lugar de from/to para consistencia
+   * ✅ FUNCIÓN PRINCIPAL: Procesar mensaje entrante desde webhook Twilio
+   * Esta es la función que faltaba y causaba el error
+   * @param {Object} webhookData - Datos del webhook de Twilio
+   * @returns {Object} - Resultado del procesamiento
+   */
+  async processIncomingMessage(webhookData) {
+    try {
+      logger.info('🔄 INICIANDO procesamiento de mensaje entrante', {
+        messageSid: webhookData.MessageSid,
+        from: webhookData.From,
+        to: webhookData.To,
+        hasBody: !!webhookData.Body,
+        timestamp: safeDateToISOString(new Date()),
+      });
+
+      // ✅ PASO 1: Extraer y validar datos del webhook
+      const {
+        MessageSid: twilioSid,
+        From: rawFromPhone,
+        To: rawToPhone,
+        Body: content,
+        MediaUrl0: mediaUrl,
+        MediaContentType0: mediaType,
+        NumMedia: numMedia,
+        ProfileName: profileName,
+        WaId: waId,
+      } = webhookData;
+
+      // ✅ VALIDACIÓN: Campos obligatorios
+      if (!twilioSid) {
+        throw new Error('MessageSid es requerido del webhook');
+      }
+
+      if (!rawFromPhone) {
+        throw new Error('From es requerido del webhook');
+      }
+
+      if (!rawToPhone) {
+        throw new Error('To es requerido del webhook');
+      }
+
+      // ✅ PASO 2: Normalizar números de teléfono
+      const fromValidation = validateAndNormalizePhone(rawFromPhone);
+      const toValidation = validateAndNormalizePhone(rawToPhone);
+
+      if (!fromValidation.isValid) {
+        throw new Error(`Número remitente inválido: ${fromValidation.error}`);
+      }
+
+      if (!toValidation.isValid) {
+        throw new Error(`Número destinatario inválido: ${toValidation.error}`);
+      }
+
+      const fromPhone = fromValidation.normalized;
+      const toPhone = toValidation.normalized;
+
+      // ✅ PASO 3: Determinar quién es cliente y quién es agente
+      const businessPhone = this.whatsappNumber.replace('whatsapp:', '');
+      const normalizedBusinessPhone = validateAndNormalizePhone(businessPhone).normalized;
+
+      let customerPhone, agentPhone;
+      
+      if (fromPhone === normalizedBusinessPhone) {
+        // Mensaje saliente del negocio al cliente
+        customerPhone = toPhone;
+        agentPhone = fromPhone;
+      } else {
+        // Mensaje entrante del cliente al negocio
+        customerPhone = fromPhone;
+        agentPhone = toPhone;
+      }
+
+      logger.info('📱 Teléfonos identificados', {
+        customerPhone,
+        agentPhone,
+        businessPhone: normalizedBusinessPhone,
+        direction: fromPhone === normalizedBusinessPhone ? 'outbound' : 'inbound',
+      });
+
+      // ✅ PASO 4: Crear estructura del mensaje
+      const hasMedia = parseInt(numMedia || 0) > 0;
+      const messageType = hasMedia ? 'media' : 'text';
+      const direction = fromPhone === normalizedBusinessPhone ? 'outbound' : 'inbound';
+      const sender = direction === 'inbound' ? 'customer' : 'agent';
+
+      const messageData = {
+        id: twilioSid,
+        senderPhone: fromPhone, // ✅ CAMPO CORRECTO
+        recipientPhone: toPhone, // ✅ CAMPO CORRECTO
+        content: content || (hasMedia ? '[Media]' : ''),
+        mediaUrl: mediaUrl || null,
+        direction,
+        type: messageType,
+        status: 'received',
+        sender,
+        timestamp: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        metadata: {
+          twilioSid,
+          mediaType: mediaType || null,
+          numMedia: parseInt(numMedia || 0),
+          profileName: profileName || null,
+          waId: waId || null,
+          receivedAt: safeDateToISOString(new Date()),
+          webhook: {
+            from: rawFromPhone,
+            to: rawToPhone,
+            processedAt: safeDateToISOString(new Date()),
+          },
+        },
+        createdAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        updatedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+      };
+
+      logger.info('📨 Estructura del mensaje preparada', {
+        messageId: messageData.id,
+        senderPhone: messageData.senderPhone,
+        recipientPhone: messageData.recipientPhone,
+        direction: messageData.direction,
+        type: messageData.type,
+        hasContent: !!messageData.content,
+        hasMedia: !!messageData.mediaUrl,
+      });
+
+      // ✅ PASO 5: Crear o actualizar conversación
+      const conversation = await this.createOrUpdateConversation(customerPhone, agentPhone, messageData);
+
+      // ✅ PASO 6: Guardar mensaje en Firestore
+      const savedMessage = await this.saveMessageToFirestore(conversation.id, messageData);
+
+      // ✅ PASO 7: Actualizar conversación con último mensaje
+      await this.updateConversationLastMessage(conversation.id, savedMessage);
+
+      // ✅ PASO 8: Emitir evento en tiempo real (Socket.IO)
+      await this.emitRealTimeEvent(conversation.id, savedMessage);
+
+      logger.info('✅ Mensaje procesado exitosamente', {
+        conversationId: conversation.id,
+        messageId: savedMessage.id,
+        customerPhone,
+        agentPhone,
+        direction: savedMessage.direction,
+        timestamp: savedMessage.timestamp,
+      });
+
+      return {
+        success: true,
+        conversation: conversation,
+        message: savedMessage,
+        webhookProcessed: true,
+        timestamp: safeDateToISOString(new Date()),
+      };
+
+    } catch (error) {
+      logger.error('❌ Error procesando mensaje entrante', {
+        error: error.message,
+        stack: error.stack,
+        webhookData: {
+          MessageSid: webhookData.MessageSid,
+          From: webhookData.From,
+          To: webhookData.To,
+          Body: webhookData.Body ? 'presente' : 'ausente',
+        },
+        timestamp: safeDateToISOString(new Date()),
+      });
+
+      // ✅ Guardar error para debugging pero NO fallar el webhook
+      await this.logWebhookError({
+        error: error.message,
+        webhookData,
+        processedAt: safeDateToISOString(new Date()),
+      });
+
+      // ✅ Retornar error pero permitir que el webhook continue
+      return {
+        success: false,
+        error: error.message,
+        webhookProcessed: false,
+        timestamp: safeDateToISOString(new Date()),
+      };
+    }
+  }
+
+  /**
+   * ✅ CREAR O ACTUALIZAR CONVERSACIÓN EN FIRESTORE
+   */
+  async createOrUpdateConversation(customerPhone, agentPhone, messageData) {
+    try {
+      // ✅ Generar ID de conversación consistente
+      const conversationId = `conv_${customerPhone.replace('+', '')}_${agentPhone.replace('+', '')}`;
+
+      logger.info('🔍 Buscando conversación existente', { conversationId });
+
+      // ✅ Buscar conversación existente
+      const conversationRef = firestore.collection('conversations').doc(conversationId);
+      const conversationDoc = await conversationRef.get();
+
+      if (conversationDoc.exists) {
+        logger.info('📋 Conversación existente encontrada', { conversationId });
+        
+        // ✅ Actualizar contadores
+        await conversationRef.update({
+          messageCount: FieldValue.increment(1),
+          unreadCount: messageData.direction === 'inbound' ? FieldValue.increment(1) : FieldValue.increment(0),
+          updatedAt: Timestamp.now(),
+        });
+
+        return {
+          id: conversationId,
+          exists: true,
+          ...conversationDoc.data(),
+        };
+      }
+
+      // ✅ Crear nueva conversación
+      logger.info('🆕 Creando nueva conversación', { conversationId, customerPhone, agentPhone });
+
+      // ✅ Buscar UID del agente por teléfono (si existe)
+      let assignedTo = null;
+      try {
+        const usersQuery = await firestore.collection('users')
+          .where('phone', '==', agentPhone)
+          .limit(1)
+          .get();
+        
+        if (!usersQuery.empty) {
+          const userData = usersQuery.docs[0].data();
+          assignedTo = {
+            id: userData.uid || usersQuery.docs[0].id, // ✅ UID REAL
+            name: userData.name || userData.displayName || agentPhone,
+          };
+          logger.info('👤 Agente encontrado por teléfono', { 
+            agentPhone, 
+            assignedToId: assignedTo.id,
+            assignedToName: assignedTo.name,
+          });
+        } else {
+          logger.warn('⚠️ No se encontró agente con ese teléfono, asignación manual requerida', { agentPhone });
+        }
+      } catch (userError) {
+        logger.warn('⚠️ Error buscando usuario agente', { 
+          agentPhone, 
+          error: userError.message 
+        });
+      }
+
+      // ✅ Estructura de contacto
+      const contact = {
+        id: customerPhone,
+        name: customerPhone, // Se puede actualizar después
+        avatar: null,
+        channel: 'whatsapp',
+      };
+
+      // ✅ Estructura completa de la conversación según especificación
+      const conversationData = {
+        id: conversationId,
+        participants: [customerPhone, agentPhone], // ✅ Array de teléfonos únicos
+        customerPhone, // ✅ Campo obligatorio
+        agentPhone, // ✅ Campo obligatorio
+        assignedTo, // ✅ UID real o null
+        status: 'open',
+        contact,
+        messageCount: 1,
+        unreadCount: messageData.direction === 'inbound' ? 1 : 0,
+        lastMessage: null, // Se actualizará después
+        lastMessageId: null, // Se actualizará después
+        lastMessageAt: null, // Se actualizará después
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+
+      // ✅ Guardar en Firestore
+      await conversationRef.set(conversationData);
+
+      logger.info('✅ Nueva conversación creada exitosamente', {
+        conversationId,
+        customerPhone,
+        agentPhone,
+        assignedToId: assignedTo?.id || 'null',
+        messageCount: conversationData.messageCount,
+      });
+
+      return {
+        id: conversationId,
+        exists: false,
+        ...conversationData,
+      };
+
+    } catch (error) {
+      logger.error('❌ Error creando/actualizando conversación', {
+        error: error.message,
+        stack: error.stack,
+        customerPhone,
+        agentPhone,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ GUARDAR MENSAJE EN FIRESTORE COMO SUBCOLECCIÓN
+   */
+  async saveMessageToFirestore(conversationId, messageData) {
+    try {
+      logger.info('💾 Guardando mensaje en Firestore', {
+        conversationId,
+        messageId: messageData.id,
+      });
+
+      // ✅ Referencia a la subcolección de mensajes
+      const messageRef = firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(messageData.id);
+
+      // ✅ Agregar conversationId al mensaje
+      const messageToSave = {
+        ...messageData,
+        conversationId,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+
+      // ✅ Guardar en Firestore
+      await messageRef.set(messageToSave);
+
+      logger.info('✅ Mensaje guardado exitosamente', {
+        conversationId,
+        messageId: messageData.id,
+        direction: messageData.direction,
+        type: messageData.type,
+      });
+
+      return messageToSave;
+
+    } catch (error) {
+      logger.error('❌ Error guardando mensaje en Firestore', {
+        error: error.message,
+        stack: error.stack,
+        conversationId,
+        messageId: messageData.id,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ ACTUALIZAR CONVERSACIÓN CON ÚLTIMO MENSAJE
+   */
+  async updateConversationLastMessage(conversationId, savedMessage) {
+    try {
+      const conversationRef = firestore.collection('conversations').doc(conversationId);
+
+      const lastMessageData = {
+        id: savedMessage.id,
+        content: savedMessage.content,
+        timestamp: savedMessage.timestamp,
+        sender: savedMessage.sender,
+        type: savedMessage.type,
+      };
+
+      await conversationRef.update({
+        lastMessage: lastMessageData,
+        lastMessageId: savedMessage.id,
+        lastMessageAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+
+      logger.info('✅ Conversación actualizada con último mensaje', {
+        conversationId,
+        lastMessageId: savedMessage.id,
+      });
+
+    } catch (error) {
+      logger.error('❌ Error actualizando último mensaje de conversación', {
+        error: error.message,
+        conversationId,
+        messageId: savedMessage.id,
+      });
+      // ✅ No lanzar error, es una operación secundaria
+    }
+  }
+
+  /**
+   * ✅ EMITIR EVENTO EN TIEMPO REAL (SOCKET.IO)
+   */
+  async emitRealTimeEvent(conversationId, savedMessage) {
+    try {
+      // ✅ Importar dinámicamente para evitar dependencias circulares
+      const socketService = require('../socket');
+      
+      if (socketService && typeof socketService.emitNewMessage === 'function') {
+        socketService.emitNewMessage(savedMessage);
+        
+        logger.info('📡 Evento Socket.IO emitido', {
+          conversationId,
+          messageId: savedMessage.id,
+          direction: savedMessage.direction,
+        });
+      } else {
+        logger.warn('⚠️ Socket.IO no disponible - mensaje guardado sin tiempo real');
+      }
+
+    } catch (socketError) {
+      logger.error('❌ Error emitiendo evento Socket.IO', {
+        error: socketError.message,
+        conversationId,
+        messageId: savedMessage.id,
+      });
+      // ✅ No lanzar error, es una operación secundaria
+    }
+  }
+
+  /**
+   * ✅ ENVIAR MENSAJE DE WHATSAPP
    */
   async sendWhatsAppMessage(toPhone, message, mediaUrl = null) {
     try {
@@ -58,7 +473,7 @@ class TwilioService {
         twilioMessage.mediaUrl = [mediaUrl];
       }
 
-      logger.info('Enviando mensaje WhatsApp via Twilio', {
+      logger.info('📤 Enviando mensaje WhatsApp via Twilio', {
         to: normalizedToPhone,
         from: normalizedFromPhone,
         hasMedia: !!mediaUrl,
@@ -87,9 +502,11 @@ class TwilioService {
           twilioErrorMessage: sentMessage.errorMessage,
           sentAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
         },
+        createdAt: safeDateToISOString(new Date()),
+        updatedAt: safeDateToISOString(new Date()),
       };
 
-      logger.info('Mensaje WhatsApp enviado exitosamente', {
+      logger.info('✅ Mensaje WhatsApp enviado exitosamente', {
         twilioSid: sentMessage.sid,
         senderPhone: messageData.senderPhone,
         recipientPhone: messageData.recipientPhone,
@@ -104,293 +521,28 @@ class TwilioService {
       };
 
     } catch (error) {
-      logger.error('Error enviando mensaje WhatsApp', {
+      logger.error('❌ Error enviando mensaje WhatsApp', {
         error: error.message,
         toPhone,
         mediaUrl: !!mediaUrl,
         stack: error.stack,
       });
 
-      // ✅ ESTRUCTURA DE ERROR CONSISTENTE
-      const errorMessageData = {
-        senderPhone: this.whatsappNumber?.replace('whatsapp:', ''),
-        recipientPhone: toPhone,
-        content: message,
-        mediaUrl: mediaUrl,
-        direction: 'outbound',
-        type: 'text',
-        status: 'failed',
-        sender: 'agent',
-        timestamp: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
-        metadata: {
-          error: error.message,
-          failedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
-        },
-      };
-
       return {
         success: false,
         error: error.message,
-        messageData: errorMessageData,
       };
     }
   }
 
   /**
-   * ✅ CORREGIDO: Enviar mensaje multimedia con estructura correcta
-   */
-  async sendMediaMessage(toPhone, caption, mediaUrl) {
-    try {
-      return await this.sendWhatsAppMessage(toPhone, caption, mediaUrl);
-    } catch (error) {
-      logger.error('Error enviando mensaje multimedia', {
-        error: error.message,
-        toPhone,
-        mediaUrl,
-        stack: error.stack,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ CORREGIDO: Procesar mensaje entrante con estructura correcta
-   * Maneja webhooks de Twilio y convierte a estructura estándar
-   */
-  async processIncomingMessage(webhookData) {
-    try {
-      // ✅ EXTRAER DATOS DEL WEBHOOK
-      const {
-        MessageSid: twilioSid,
-        From: rawFromPhone,
-        To: rawToPhone,
-        Body: content,
-        MediaUrl0: mediaUrl,
-        MediaContentType0: mediaType,
-        NumMedia: numMedia,
-      } = webhookData;
-
-      // ✅ VALIDACIÓN: Campos requeridos
-      if (!twilioSid || !rawFromPhone || !rawToPhone) {
-        throw new Error('Datos de webhook incompletos');
-      }
-
-      // ✅ NORMALIZAR NÚMEROS DE TELÉFONO
-      const fromValidation = validateAndNormalizePhone(rawFromPhone);
-      const toValidation = validateAndNormalizePhone(rawToPhone);
-
-      if (!fromValidation.isValid) {
-        throw new Error(`Número remitente inválido: ${fromValidation.error}`);
-      }
-
-      if (!toValidation.isValid) {
-        throw new Error(`Número destinatario inválido: ${toValidation.error}`);
-      }
-
-      const fromPhone = fromValidation.normalized;
-      const toPhone = toValidation.normalized;
-
-      // ✅ DETERMINAR TIPO DE MENSAJE
-      const hasMedia = parseInt(numMedia) > 0;
-      const messageType = hasMedia ? 'media' : 'text';
-
-      // ✅ ESTRUCTURA CORRECTA: Usar senderPhone/recipientPhone
-      const messageData = {
-        id: twilioSid,
-        senderPhone: fromPhone, // ✅ CAMPO CORRECTO
-        recipientPhone: toPhone, // ✅ CAMPO CORRECTO
-        content: content || (hasMedia ? '[Media]' : ''),
-        mediaUrl: mediaUrl || null,
-        direction: 'inbound',
-        type: messageType,
-        status: 'received',
-        sender: 'customer',
-        timestamp: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
-        metadata: {
-          twilioSid,
-          mediaType: mediaType || null,
-          numMedia: parseInt(numMedia) || 0,
-          receivedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
-          webhook: {
-            from: rawFromPhone,
-            to: rawToPhone,
-            processedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
-          },
-        },
-      };
-
-      logger.info('Preparando mensaje entrante para guardar', {
-        twilioSid,
-        senderPhone: messageData.senderPhone, // ✅ LOGGING CORRECTO
-        recipientPhone: messageData.recipientPhone, // ✅ LOGGING CORRECTO
-        direction: messageData.direction,
-        type: messageData.type,
-        hasMedia,
-      });
-
-      // ✅ CREAR O ACTUALIZAR CONVERSACIÓN
-      await this.createOrUpdateConversation(messageData);
-
-      // ✅ GUARDAR MENSAJE
-      const Message = require('../models/Message');
-      const savedMessage = await Message.create(messageData);
-
-      logger.info('Mensaje entrante procesado exitosamente', {
-        messageId: savedMessage.id,
-        conversationId: savedMessage.conversationId,
-        senderPhone: savedMessage.senderPhone, // ✅ LOGGING CORRECTO
-        recipientPhone: savedMessage.recipientPhone, // ✅ LOGGING CORRECTO
-        direction: savedMessage.direction,
-        timestamp: savedMessage.timestamp,
-      });
-
-      // ✅ EMITIR EVENTO EN TIEMPO REAL
-      const socketService = require('../socket');
-      socketService.emitNewMessage(savedMessage);
-
-      return {
-        success: true,
-        message: savedMessage,
-        conversation: savedMessage.conversationId,
-      };
-
-    } catch (error) {
-      logger.error('Error procesando mensaje entrante', {
-        error: error.message,
-        webhookData,
-        stack: error.stack,
-      });
-
-      // ✅ MENSAJE DE ERROR CON ESTRUCTURA CORRECTA
-      const errorData = {
-        error: error.message,
-        webhookData,
-        processedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
-        senderPhone: webhookData.From ? validateAndNormalizePhone(webhookData.From).normalized : null,
-        recipientPhone: webhookData.To ? validateAndNormalizePhone(webhookData.To).normalized : null,
-      };
-
-      // Guardar error en logs para debugging
-      try {
-        await this.logWebhookError(errorData);
-      } catch (logError) {
-        logger.error('Error guardando log de webhook', {
-          originalError: error.message,
-          logError: logError.message,
-        });
-      }
-
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ CORREGIDO: Crear o actualizar conversación desde mensaje
-   * Usa senderPhone/recipientPhone para determinar participantes
-   */
-  async createOrUpdateConversation(message) {
-    try {
-      const Conversation = require('../models/Conversation');
-      const Contact = require('../models/Contact');
-
-      // ✅ DETERMINAR TELÉFONOS USANDO CAMPOS CORRECTOS
-      const customerPhone = message.senderPhone; // ✅ CAMPO CORRECTO
-      const agentPhone = message.recipientPhone; // ✅ CAMPO CORRECTO
-
-      // ✅ GENERAR ID DE CONVERSACIÓN
-      const conversationId = `conv_${customerPhone.replace('+', '')}_${agentPhone.replace('+', '')}`;
-
-      // ✅ BUSCAR CONTACTO EXISTENTE
-      let contact = null;
-      try {
-        contact = await Contact.getByPhone(customerPhone);
-        logger.info('Contacto encontrado', {
-          phone: customerPhone,
-          contactId: contact?.id,
-          contactName: contact?.name,
-        });
-      } catch (contactError) {
-        logger.warn('Error buscando contacto o contacto no encontrado', {
-          phone: customerPhone,
-          error: contactError.message,
-        });
-        
-        // ✅ CREAR CONTACTO BÁSICO SI NO EXISTE
-        contact = {
-          id: customerPhone,
-          name: customerPhone,
-          phone: customerPhone,
-          avatar: null,
-          channel: 'whatsapp',
-        };
-      }
-
-      // ✅ BUSCAR CONVERSACIÓN EXISTENTE
-      let conversation = await Conversation.getById(conversationId);
-
-      if (conversation) {
-        // ✅ ACTUALIZAR ÚLTIMA ACTIVIDAD
-        await conversation.updateLastMessage(message);
-        logger.info('Conversación existente actualizada', {
-          conversationId,
-          messageId: message.id,
-        });
-      } else {
-        // ✅ CREAR NUEVA CONVERSACIÓN
-        const conversationData = {
-          id: conversationId,
-          participants: [customerPhone, agentPhone],
-          customerPhone,
-          agentPhone,
-          contact,
-          status: 'open',
-          // ✅ IMPORTANTE: NO asignar automáticamente, dejar para asignación manual
-          assignedTo: null, // Se asignará manualmente por un admin
-        };
-
-        logger.info('Creando nueva conversación desde mensaje entrante', {
-          conversationId,
-          customerPhone,
-          agentPhone,
-          assignedTo: 'null (asignación_manual_requerida)',
-        });
-
-        conversation = await Conversation.createOrUpdate(conversationData);
-        
-        logger.info('Nueva conversación creada exitosamente', {
-          conversationId: conversation.id,
-          customerPhone: conversation.customerPhone,
-          agentPhone: conversation.agentPhone,
-          assignedTo: conversation.assignedTo,
-        });
-      }
-
-      return conversation;
-
-    } catch (error) {
-      logger.error('Error creando/actualizando conversación', {
-        error: error.message,
-        messageData: {
-          senderPhone: message.senderPhone, // ✅ LOGGING CORRECTO
-          recipientPhone: message.recipientPhone, // ✅ LOGGING CORRECTO
-          id: message.id,
-        },
-        stack: error.stack,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ MEJORADO: Log de errores de webhook
+   * ✅ LOG DE ERRORES DE WEBHOOK
    */
   async logWebhookError(errorData) {
     try {
-      const { firestore } = require('../config/firebase');
-      
       const logData = {
         ...errorData,
-        loggedAt: safeDateToISOString(new Date()), // ✅ FECHA COMO STRING ISO
+        loggedAt: Timestamp.now(),
         source: 'twilio_webhook',
         environment: process.env.NODE_ENV || 'unknown',
       };
@@ -399,110 +551,16 @@ class TwilioService {
         .collection('webhook_errors')
         .add(logData);
 
-      logger.info('Error de webhook guardado en Firestore', {
+      logger.info('📝 Error de webhook guardado en Firestore', {
         errorMessage: errorData.error,
-        twilioSid: errorData.webhookData?.MessageSid,
-        timestamp: logData.loggedAt,
+        timestamp: errorData.processedAt,
       });
 
     } catch (error) {
-      logger.error('Error guardando log de webhook en Firestore', {
+      logger.error('❌ Error guardando log de webhook en Firestore', {
         error: error.message,
         originalErrorData: errorData,
       });
-    }
-  }
-
-  /**
-   * ✅ NUEVO: Validar configuración de Twilio
-   */
-  async validateConfiguration() {
-    try {
-      // ✅ VERIFICAR CREDENCIALES
-      const account = await this.client.api.accounts(this.accountSid).fetch();
-      
-      logger.info('Configuración de Twilio validada', {
-        accountSid: this.accountSid,
-        accountStatus: account.status,
-        friendlyName: account.friendlyName,
-      });
-
-      return {
-        valid: true,
-        account: {
-          sid: account.sid,
-          status: account.status,
-          friendlyName: account.friendlyName,
-        },
-      };
-
-    } catch (error) {
-      logger.error('Error validando configuración de Twilio', {
-        error: error.message,
-        accountSid: this.accountSid,
-      });
-
-      return {
-        valid: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * ✅ NUEVO: Obtener estado de mensaje por SID
-   */
-  async getMessageStatus(messageSid) {
-    try {
-      const message = await this.client.messages(messageSid).fetch();
-      
-      return {
-        sid: message.sid,
-        status: message.status,
-        errorCode: message.errorCode,
-        errorMessage: message.errorMessage,
-        dateCreated: safeDateToISOString(message.dateCreated), // ✅ FECHA COMO STRING ISO
-        dateSent: safeDateToISOString(message.dateSent), // ✅ FECHA COMO STRING ISO
-        dateUpdated: safeDateToISOString(message.dateUpdated), // ✅ FECHA COMO STRING ISO
-      };
-
-    } catch (error) {
-      logger.error('Error obteniendo estado de mensaje', {
-        messageSid,
-        error: error.message,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ NUEVO: Listar mensajes recientes
-   */
-  async getRecentMessages(limit = 20) {
-    try {
-      const messages = await this.client.messages.list({
-        limit,
-        dateSentAfter: new Date(Date.now() - 24 * 60 * 60 * 1000), // Últimas 24 horas
-      });
-
-      return messages.map(msg => ({
-        sid: msg.sid,
-        from: msg.from,
-        to: msg.to,
-        body: msg.body,
-        status: msg.status,
-        direction: msg.direction,
-        dateCreated: safeDateToISOString(msg.dateCreated), // ✅ FECHA COMO STRING ISO
-        dateSent: safeDateToISOString(msg.dateSent), // ✅ FECHA COMO STRING ISO
-        dateUpdated: safeDateToISOString(msg.dateUpdated), // ✅ FECHA COMO STRING ISO
-      }));
-
-    } catch (error) {
-      logger.error('Error obteniendo mensajes recientes', {
-        error: error.message,
-        limit,
-      });
-      throw error;
     }
   }
 }
@@ -510,12 +568,15 @@ class TwilioService {
 // ✅ INSTANCIA SINGLETON
 let twilioServiceInstance = null;
 
+/**
+ * ✅ FUNCIÓN PARA OBTENER INSTANCIA SINGLETON
+ */
 function getTwilioService() {
   if (!twilioServiceInstance) {
     try {
       twilioServiceInstance = new TwilioService();
     } catch (error) {
-      logger.error('Error inicializando TwilioService', {
+      logger.error('❌ Error inicializando TwilioService', {
         error: error.message,
         stack: error.stack,
       });
@@ -525,7 +586,18 @@ function getTwilioService() {
   return twilioServiceInstance;
 }
 
+/**
+ * ✅ FUNCIÓN ESTÁTICA PARA COMPATIBILIDAD
+ * Esta es la función que faltaba y causaba el error
+ */
+async function processIncomingMessage(webhookData) {
+  const service = getTwilioService();
+  return await service.processIncomingMessage(webhookData);
+}
+
+// ✅ EXPORTACIÓN COMPLETA CON TODAS LAS FUNCIONES
 module.exports = {
   TwilioService,
   getTwilioService,
+  processIncomingMessage, // ✅ FUNCIÓN PRINCIPAL QUE FALTABA
 };
