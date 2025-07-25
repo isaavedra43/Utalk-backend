@@ -345,38 +345,114 @@ class Conversation {
       sortOrder = 'desc',
     } = options;
 
+    // ✅ VALIDACIÓN: Límites de consulta
+    const validatedLimit = Math.min(Math.max(limit, 1), 100);
+    
+    logger.info('Ejecutando consulta de conversaciones en Firestore', {
+      limit: validatedLimit,
+      startAfter: startAfter ? 'presente' : 'ausente',
+      filters: {
+        assignedTo: assignedTo === null ? 'NULL_EXPLICIT' : (assignedTo || 'sin_filtro'),
+        status: status || 'sin_filtro',
+        customerPhone: customerPhone || 'sin_filtro',
+      },
+      sortBy,
+      sortOrder,
+    });
+
     let query = firestore.collection('conversations');
 
-    // Aplicar filtros
-    if (assignedTo) {
-      query = query.where('assignedTo', '==', assignedTo);
+    // ✅ APLICAR FILTROS: Manejar explícitamente el caso assignedTo = null
+    if (assignedTo !== undefined) {
+      if (assignedTo === null) {
+        // Buscar conversaciones SIN asignar
+        query = query.where('assignedTo', '==', null);
+        logger.info('Aplicando filtro para conversaciones SIN asignar');
+      } else {
+        // Buscar conversaciones asignadas a un UID específico
+        query = query.where('assignedTo', '==', assignedTo);
+        logger.info('Aplicando filtro para conversaciones asignadas a UID', { assignedTo });
+      }
+    } else {
+      logger.info('Sin filtro assignedTo - buscando TODAS las conversaciones');
     }
 
     if (status) {
       query = query.where('status', '==', status);
+      logger.info('Aplicando filtro de status', { status });
     }
 
     if (customerPhone) {
       query = query.where('customerPhone', '==', customerPhone);
+      logger.info('Aplicando filtro de customerPhone', { customerPhone });
     }
 
-    // Ordenamiento
-    query = query.orderBy(sortBy, sortOrder);
+    // ✅ ORDENAMIENTO
+    try {
+      query = query.orderBy(sortBy, sortOrder);
+    } catch (error) {
+      logger.warn('Error aplicando ordenamiento, usando por defecto', {
+        sortBy,
+        sortOrder,
+        error: error.message,
+      });
+      query = query.orderBy('lastMessageAt', 'desc');
+    }
 
-    // Paginación
+    // ✅ PAGINACIÓN
     if (startAfter) {
       query = query.startAfter(startAfter);
     }
 
-    query = query.limit(limit);
+    query = query.limit(validatedLimit);
 
+    // ✅ EJECUTAR CONSULTA
+    const startTime = Date.now();
     const snapshot = await query.get();
+    const queryTime = Date.now() - startTime;
+
+    logger.info('Consulta de conversaciones completada', {
+      totalDocuments: snapshot.size,
+      isEmpty: snapshot.empty,
+      queryTime,
+      appliedFilters: {
+        assignedTo: assignedTo === null ? 'NULL_EXPLICIT' : (assignedTo || 'sin_filtro'),
+        status: status || 'sin_filtro',
+        customerPhone: customerPhone || 'sin_filtro',
+      },
+    });
 
     if (snapshot.empty) {
+      logger.info('No se encontraron conversaciones con los filtros aplicados');
       return [];
     }
 
-    return snapshot.docs.map(doc => new Conversation({ id: doc.id, ...doc.data() }));
+    // ✅ PROCESAR RESULTADOS
+    const conversations = [];
+    const errors = [];
+
+    for (const doc of snapshot.docs) {
+      try {
+        const conversation = new Conversation({ id: doc.id, ...doc.data() });
+        conversations.push(conversation);
+      } catch (error) {
+        logger.error('Error construyendo conversación desde Firestore', {
+          documentId: doc.id,
+          error: error.message,
+          data: doc.data(),
+        });
+        errors.push({ id: doc.id, error: error.message });
+      }
+    }
+
+    logger.info('Conversaciones procesadas exitosamente', {
+      totalFound: snapshot.size,
+      validConversations: conversations.length,
+      errors: errors.length,
+      errorDetails: errors,
+    });
+
+    return conversations;
   }
 
   /**
@@ -477,7 +553,7 @@ class Conversation {
   /**
    * Asignar a usuario
    */
-  async assignTo (userId) {
+  async assignTo (userId, userName = null) {
     // ✅ VALIDACIÓN: userId debe ser un UID real
     if (!userId || typeof userId !== 'string') {
       throw new Error('userId debe ser un UID válido');
@@ -487,14 +563,26 @@ class Conversation {
     logger.info('Asignando conversación a usuario', {
       conversationId: this.id,
       userId,
+      userName: userName || 'no_especificado',
       previousAssignedTo: this.assignedTo,
     });
 
-    await this.update({
+    const updateData = {
       assignedTo: userId,
-    });
+      updatedAt: Timestamp.now(),
+    };
+
+    // Agregar nombre si se proporciona
+    if (userName) {
+      updateData.assignedToName = userName;
+    }
+
+    await this.update(updateData);
 
     this.assignedTo = userId;
+    if (userName) {
+      this.assignedToName = userName;
+    }
   }
 
   /**

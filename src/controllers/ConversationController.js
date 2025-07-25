@@ -42,6 +42,20 @@ class ConversationController {
         sortOrder = 'desc',
       } = req.query;
 
+      // ✅ CORRECCIÓN CRÍTICA: Determinar filtro assignedTo basado en usuario autenticado
+      let finalAssignedToFilter = assignedTo;
+      
+      // Si no se especifica assignedTo, usar el UID del usuario autenticado (excepto admins)
+      if (!finalAssignedToFilter && req.user) {
+        if (req.user.role === 'admin') {
+          // Admins ven todas las conversaciones (sin filtro)
+          finalAssignedToFilter = null;
+        } else {
+          // Agentes solo ven sus conversaciones asignadas
+          finalAssignedToFilter = req.user.uid;
+        }
+      }
+
       // ✅ VALIDACIÓN: Normalizar teléfono del cliente si se proporciona
       let normalizedCustomerPhone = null;
       if (customerPhone) {
@@ -71,7 +85,7 @@ class ConversationController {
         limit: parseInt(limit),
         cursor: cursor ? 'presente' : 'ausente',
         filters: {
-          assignedTo: assignedTo || 'ninguno',
+          assignedTo: finalAssignedToFilter || 'todas_para_admin',
           status: status || 'ninguno',
           customerPhone: normalizedCustomerPhone ? 'normalizado' : 'ninguno',
         },
@@ -79,63 +93,99 @@ class ConversationController {
         sortOrder,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
-        currentUser: req.user ? req.user.uid : 'no_autenticado',
+        currentUser: {
+          uid: req.user ? req.user.uid : 'no_autenticado',
+          role: req.user ? req.user.role : 'no_autenticado',
+        },
       });
 
       const options = {
         limit: parseInt(limit),
         startAfter: cursor,
-        assignedTo,
+        assignedTo: finalAssignedToFilter,
         status,
         customerPhone: normalizedCustomerPhone,
         sortBy,
         sortOrder,
       };
 
-      const conversations = await Conversation.list(options);
+      // ✅ CORRECCIÓN CRÍTICA: Obtener conversaciones de Firestore
+      let conversations = await Conversation.list(options);
+
+      // ✅ FEATURE: Si no hay conversaciones asignadas, buscar y asignar automáticamente
+      if (conversations.length === 0 && finalAssignedToFilter && req.user.role !== 'admin') {
+        logger.info('No se encontraron conversaciones asignadas, buscando sin asignar', {
+          userUID: req.user.uid,
+          userRole: req.user.role,
+        });
+
+        // Buscar conversaciones sin asignar
+        const unassignedOptions = {
+          ...options,
+          assignedTo: null, // Buscar conversaciones sin asignar
+        };
+        
+        const unassignedConversations = await Conversation.list(unassignedOptions);
+        
+        if (unassignedConversations.length > 0) {
+          logger.info('Asignando conversaciones automáticamente', {
+            userUID: req.user.uid,
+            conversationsToAssign: unassignedConversations.length,
+          });
+
+          // Asignar automáticamente al usuario actual
+          for (const conv of unassignedConversations) {
+            try {
+              await conv.assignTo(req.user.uid, req.user.name || req.user.email || 'Agent');
+              conversations.push(conv); // Agregar a la lista de resultados
+            } catch (assignError) {
+              logger.error('Error asignando conversación automáticamente', {
+                conversationId: conv.id,
+                userUID: req.user.uid,
+                error: assignError.message,
+              });
+            }
+          }
+        }
+      }
 
       // ✅ SERIALIZACIÓN SEGURA: Asegurar que todas las conversaciones tengan estructura válida
       const serializedConversations = conversations.map(conv => {
         try {
-          return conv.toJSON();
+          const serialized = conv.toJSON();
+          
+          // ✅ VALIDACIÓN CRÍTICA: Verificar campos obligatorios
+          if (!serialized.customerPhone || !serialized.agentPhone) {
+            logger.warn('Conversación con teléfonos faltantes', {
+              conversationId: conv.id,
+              hasCustomerPhone: !!serialized.customerPhone,
+              hasAgentPhone: !!serialized.agentPhone,
+            });
+            return null; // Excluir conversaciones inválidas
+          }
+
+          return serialized;
         } catch (error) {
           logger.error('Error serializando conversación en lista', {
             conversationId: conv.id,
             error: error.message,
             stack: error.stack,
           });
-          // Retornar estructura mínima válida en caso de error
-          return {
-            id: conv.id || 'error',
-            participants: [],
-            customerPhone: null,
-            agentPhone: null,
-            contact: { id: 'error', name: 'Error', avatar: null, channel: 'whatsapp' },
-            assignedTo: null,
-            assignedAgent: null,
-            status: 'error',
-            unreadCount: 0,
-            messageCount: 0,
-            lastMessage: null,
-            lastMessageId: null,
-            lastMessageAt: null,
-            createdAt: null,
-            updatedAt: null,
-          };
+          return null; // Excluir conversaciones que fallan serialización
         }
-      });
+      }).filter(conv => conv !== null); // Remover conversaciones nulas
 
       // ✅ MONITOREO: Log de resultados
       logger.info('Conversaciones listadas exitosamente', {
         totalResults: serializedConversations.length,
-        hasFilters: !!(assignedTo || status || normalizedCustomerPhone),
+        hasFilters: !!(finalAssignedToFilter || status || normalizedCustomerPhone),
         filtersApplied: {
-          assignedTo: !!assignedTo,
+          assignedTo: !!finalAssignedToFilter,
           status: !!status,
           customerPhone: !!normalizedCustomerPhone,
         },
-        validConversations: serializedConversations.filter(c => c.status !== 'error').length,
-        errorConversations: serializedConversations.filter(c => c.status === 'error').length,
+        validConversations: serializedConversations.length,
+        userRole: req.user.role,
       });
 
       // ✅ ESTRUCTURA GARANTIZADA: Respuesta siempre en el formato esperado
@@ -150,12 +200,15 @@ class ConversationController {
         },
         metadata: {
           appliedFilters: {
-            assignedTo,
+            assignedTo: finalAssignedToFilter,
             status,
             customerPhone: normalizedCustomerPhone,
           },
-          totalValid: serializedConversations.filter(c => c.status !== 'error').length,
-          totalErrors: serializedConversations.filter(c => c.status === 'error').length,
+          autoAssignment: {
+            performed: conversations.length > 0 && finalAssignedToFilter && req.user.role !== 'admin',
+            userUID: req.user.uid,
+            userRole: req.user.role,
+          },
           timestamp: safeDateToISOString(new Date()),
         },
       };
@@ -169,6 +222,7 @@ class ConversationController {
         query: req.query,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
+        userUID: req.user ? req.user.uid : 'no_autenticado',
       });
 
       // ✅ ESTRUCTURA GARANTIZADA: Error también en formato consistente

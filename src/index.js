@@ -346,8 +346,17 @@ try {
     // ✅ INICIALIZAR SOCKET.IO PARA TIEMPO REAL
     console.log('🔌 Inicializando Socket.IO...');
     const SocketManager = require('./socket');
-    global.socketManager = new SocketManager(server);
-    console.log('✅ Socket.IO inicializado - tiempo real habilitado');
+    const socketManager = new SocketManager(server);
+    
+    // ✅ HACER DISPONIBLE SOCKET MANAGER EN TODA LA APP
+    global.socketManager = socketManager;
+    app.set('socketManager', socketManager);
+    
+    console.log('✅ Socket.IO inicializado - tiempo real habilitado', {
+      corsOrigins: process.env.FRONTEND_URL || '*',
+      transports: ['websocket', 'polling'],
+      connectedUsers: 0,
+    });
 
     // ✅ MANEJO DE CIERRE GRACEFUL
     process.on('SIGTERM', () => {

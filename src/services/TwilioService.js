@@ -211,7 +211,7 @@ class TwilioService {
   }
 
   /**
-   * ✅ CREAR O ACTUALIZAR CONVERSACIÓN EN FIRESTORE
+   * ✅ CREAR O ACTUALIZAR CONVERSACIÓN EN FIRESTORE CON ASIGNACIÓN AUTOMÁTICA
    */
   async createOrUpdateConversation(customerPhone, agentPhone, messageData) {
     try {
@@ -241,45 +241,115 @@ class TwilioService {
         };
       }
 
-      // ✅ Crear nueva conversación
+      // ✅ Crear nueva conversación con asignación automática de agente
       logger.info('🆕 Creando nueva conversación', { conversationId, customerPhone, agentPhone });
 
-      // ✅ Buscar UID del agente por teléfono (si existe)
+      // ✅ BUSCAR AGENTES DISPONIBLES PARA ASIGNACIÓN AUTOMÁTICA
       let assignedTo = null;
       try {
-        const usersQuery = await firestore.collection('users')
+        // Primero, buscar agente por teléfono específico
+        const agentByPhoneQuery = await firestore.collection('users')
           .where('phone', '==', agentPhone)
+          .where('role', 'in', ['agent', 'admin'])
           .limit(1)
           .get();
         
-        if (!usersQuery.empty) {
-          const userData = usersQuery.docs[0].data();
+        if (!agentByPhoneQuery.empty) {
+          const agentData = agentByPhoneQuery.docs[0].data();
           assignedTo = {
-            id: userData.uid || usersQuery.docs[0].id, // ✅ UID REAL
-            name: userData.name || userData.displayName || agentPhone,
+            id: agentData.uid || agentByPhoneQuery.docs[0].id, // ✅ UID REAL
+            name: agentData.name || agentData.displayName || agentData.email || 'Agent',
           };
-          logger.info('👤 Agente encontrado por teléfono', { 
+          
+          logger.info('👤 Agente encontrado por teléfono específico', { 
             agentPhone, 
             assignedToId: assignedTo.id,
             assignedToName: assignedTo.name,
           });
         } else {
-          logger.warn('⚠️ No se encontró agente con ese teléfono, asignación manual requerida', { agentPhone });
+          // Si no hay agente con ese teléfono, buscar cualquier agente disponible
+          logger.info('🔍 No se encontró agente específico, buscando agentes disponibles');
+          
+          const availableAgentsQuery = await firestore.collection('users')
+            .where('role', 'in', ['agent', 'admin'])
+            .where('isActive', '==', true)
+            .limit(5)
+            .get();
+          
+          if (!availableAgentsQuery.empty) {
+            // ✅ ESTRATEGIA: Asignar al primer agente disponible
+            // TODO: Implementar estrategias más sofisticadas (round-robin, carga balanceada, etc.)
+            const firstAvailableAgent = availableAgentsQuery.docs[0].data();
+            
+            assignedTo = {
+              id: firstAvailableAgent.uid || availableAgentsQuery.docs[0].id,
+              name: firstAvailableAgent.name || firstAvailableAgent.displayName || firstAvailableAgent.email || 'Agent',
+            };
+            
+            logger.info('👤 Agente asignado automáticamente (primer disponible)', {
+              assignedToId: assignedTo.id,
+              assignedToName: assignedTo.name,
+              totalAvailableAgents: availableAgentsQuery.size,
+            });
+          } else {
+            // ✅ FALLBACK: Sin agentes disponibles, dejar sin asignar
+            logger.warn('⚠️ No se encontraron agentes disponibles - conversación sin asignar', { 
+              conversationId,
+              agentPhone,
+              customerPhone,
+            });
+            assignedTo = null;
+          }
         }
       } catch (userError) {
-        logger.warn('⚠️ Error buscando usuario agente', { 
+        logger.error('❌ Error buscando agentes para asignación', { 
           agentPhone, 
-          error: userError.message 
+          error: userError.message,
+          stack: userError.stack,
         });
+        assignedTo = null;
       }
 
-      // ✅ Estructura de contacto
-      const contact = {
-        id: customerPhone,
-        name: customerPhone, // Se puede actualizar después
-        avatar: null,
-        channel: 'whatsapp',
-      };
+      // ✅ Buscar o crear contacto para el cliente
+      let contact;
+      try {
+        const contactQuery = await firestore.collection('contacts')
+          .where('phone', '==', customerPhone)
+          .limit(1)
+          .get();
+        
+        if (!contactQuery.empty) {
+          contact = contactQuery.docs[0].data();
+        } else {
+          // Crear contacto básico
+          contact = {
+            id: customerPhone,
+            name: customerPhone, // Se puede actualizar después
+            phone: customerPhone,
+            avatar: null,
+            channel: 'whatsapp',
+            isActive: true,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          };
+          
+          await firestore.collection('contacts').doc(customerPhone).set(contact);
+          logger.info('📇 Nuevo contacto creado', { customerPhone });
+        }
+      } catch (contactError) {
+        logger.error('❌ Error gestionando contacto', {
+          customerPhone,
+          error: contactError.message,
+        });
+        
+        // Fallback: Contacto básico
+        contact = {
+          id: customerPhone,
+          name: customerPhone,
+          avatar: null,
+          channel: 'whatsapp',
+        };
+      }
 
       // ✅ Estructura completa de la conversación según especificación
       const conversationData = {
@@ -307,7 +377,9 @@ class TwilioService {
         customerPhone,
         agentPhone,
         assignedToId: assignedTo?.id || 'null',
+        assignedToName: assignedTo?.name || 'sin_asignar',
         messageCount: conversationData.messageCount,
+        contactName: contact.name,
       });
 
       return {

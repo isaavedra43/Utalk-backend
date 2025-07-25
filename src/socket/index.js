@@ -4,15 +4,42 @@ const { isValidConversationId } = require('../utils/conversation');
 
 class SocketManager {
   constructor (server) {
+    // ✅ CONFIGURACIÓN MEJORADA DE SOCKET.IO CON CORS ESPECÍFICO
+    const corsOrigins = process.env.FRONTEND_URL 
+      ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+      : ['http://localhost:3000', 'https://localhost:3000'];
+
     this.io = new Server(server, {
       cors: {
-        origin: process.env.FRONTEND_URL || '*',
+        origin: (origin, callback) => {
+          // ✅ PERMITIR CONEXIONES SIN ORIGIN (como apps móviles)
+          if (!origin) return callback(null, true);
+          
+          // ✅ VERIFICAR ORÍGENES PERMITIDOS
+          const allowedOrigins = [
+            ...corsOrigins,
+            'http://localhost:3000',
+            'https://localhost:3000',
+            'http://127.0.0.1:3000',
+            'https://127.0.0.1:3000',
+          ];
+          
+          if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+          } else {
+            logger.warn('CORS: Origen no permitido para Socket.IO', { origin, allowedOrigins });
+            callback(null, false);
+          }
+        },
         methods: ['GET', 'POST'],
         credentials: true,
+        allowedHeaders: ['Authorization', 'Content-Type'],
       },
       transports: ['websocket', 'polling'],
       pingTimeout: 60000,
       pingInterval: 25000,
+      maxHttpBufferSize: 1e6, // 1MB
+      allowEIO3: true, // Compatibilidad
     });
 
     this.connectedUsers = new Map(); // userId -> socket.id
@@ -34,71 +61,144 @@ class SocketManager {
     // ✅ NUEVO: Limpieza periódica de rate limits
     setInterval(() => this.cleanupRateLimits(), 300000); // 5 minutos
 
-    logger.info('Socket.IO server inicializado con mejoras de seguridad');
+    logger.info('Socket.IO server inicializado con configuración avanzada', {
+      corsOrigins: corsOrigins,
+      allowedTransports: ['websocket', 'polling'],
+      rateLimit: 'habilitado',
+      authentication: 'Firebase Auth',
+      environment: process.env.NODE_ENV || 'development',
+    });
   }
 
   /**
-   * ✅ MEJORADO: Middleware de autenticación más robusto
+   * ✅ CORREGIDO: Middleware de autenticación con Firebase Admin SDK
    */
   setupMiddleware () {
     this.io.use(async (socket, next) => {
       try {
-        const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
+        // ✅ MÚLTIPLES FORMAS DE OBTENER EL TOKEN
+        const token = socket.handshake.auth?.token || 
+                      socket.handshake.query?.token || 
+                      socket.handshake.headers?.authorization?.replace('Bearer ', '') ||
+                      socket.handshake.headers?.authorization;
 
         if (!token) {
           logger.warn('Socket connection rejected - No token provided', {
             socketId: socket.id,
             ip: socket.handshake.address,
+            authData: {
+              hasAuth: !!socket.handshake.auth,
+              authKeys: socket.handshake.auth ? Object.keys(socket.handshake.auth) : [],
+              hasQuery: !!socket.handshake.query,
+              queryKeys: socket.handshake.query ? Object.keys(socket.handshake.query) : [],
+              hasHeaders: !!socket.handshake.headers,
+              authHeader: socket.handshake.headers?.authorization ? 'presente' : 'ausente',
+            },
           });
           throw new Error('Token de autenticación requerido');
         }
 
-        // ✅ ROBUSTO: Verificar JWT propio con validación completa
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // ✅ CORREGIDO: Usar Firebase Admin SDK para validar token
+        const admin = require('firebase-admin');
+        let decodedToken;
+        
+        try {
+          decodedToken = await admin.auth().verifyIdToken(token);
+        } catch (firebaseError) {
+          logger.error('Firebase token verification failed', {
+            error: firebaseError.message,
+            errorCode: firebaseError.code,
+            socketId: socket.id,
+            tokenLength: token ? token.length : 0,
+            tokenStart: token ? token.substring(0, 20) + '...' : 'no_token',
+          });
+          throw new Error(`Token de Firebase inválido: ${firebaseError.message}`);
+        }
 
-        // ✅ VALIDACIÓN ADICIONAL: Verificar campos obligatorios
-        if (!decoded.uid || !decoded.email || !decoded.role) {
-          throw new Error('Token incompleto - faltan campos obligatorios');
+        // ✅ VALIDACIÓN ADICIONAL: Verificar campos obligatorios de Firebase
+        if (!decodedToken.uid || !decodedToken.email) {
+          throw new Error('Token incompleto - faltan campos obligatorios de Firebase');
+        }
+
+        // ✅ OBTENER INFORMACIÓN ADICIONAL DEL USUARIO
+        let userRole = 'agent'; // Por defecto
+        let displayName = decodedToken.email;
+
+        // ✅ BUSCAR DATOS ADICIONALES EN FIRESTORE (usuarios)
+        try {
+          const { firestore } = require('../config/firebase');
+          const userDoc = await firestore.collection('users').doc(decodedToken.uid).get();
+          
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            userRole = userData.role || 'agent';
+            displayName = userData.name || userData.displayName || decodedToken.email;
+            
+            logger.info('Datos de usuario encontrados en Firestore', {
+              uid: decodedToken.uid,
+              role: userRole,
+              name: displayName,
+            });
+          } else {
+            logger.warn('Usuario no encontrado en Firestore, usando datos de Firebase Auth', {
+              uid: decodedToken.uid,
+              email: decodedToken.email,
+            });
+          }
+        } catch (firestoreError) {
+          logger.warn('Error buscando usuario en Firestore, usando datos de Firebase Auth', {
+            uid: decodedToken.uid,
+            error: firestoreError.message,
+          });
         }
 
         // ✅ VALIDACIÓN DE ROL: Solo roles válidos
         const validRoles = ['admin', 'agent', 'viewer'];
-        if (!validRoles.includes(decoded.role)) {
-          throw new Error('Rol no autorizado');
+        if (!validRoles.includes(userRole)) {
+          logger.warn('Rol no autorizado, asignando rol por defecto', {
+            uid: decodedToken.uid,
+            invalidRole: userRole,
+            assignedRole: 'agent',
+          });
+          userRole = 'agent'; // Por defecto si el rol es inválido
         }
 
         // ✅ PREVENIR DOBLE CONEXIÓN del mismo usuario
-        const existingSocketId = this.connectedUsers.get(decoded.uid);
+        const existingSocketId = this.connectedUsers.get(decodedToken.uid);
         if (existingSocketId && this.io.sockets.sockets.has(existingSocketId)) {
           logger.info('Desconectando socket anterior del mismo usuario', {
-            userId: decoded.uid,
+            userId: decodedToken.uid,
             oldSocketId: existingSocketId,
             newSocketId: socket.id,
           });
           this.io.sockets.sockets.get(existingSocketId).disconnect(true);
         }
 
-        // Agregar información del usuario al socket
-        socket.userId = decoded.uid;
-        socket.userEmail = decoded.email;
-        socket.userRole = decoded.role;
-        socket.displayName = decoded.email;
+        // ✅ AGREGAR INFORMACIÓN DEL USUARIO AL SOCKET
+        socket.userId = decodedToken.uid;
+        socket.userEmail = decodedToken.email;
+        socket.userRole = userRole;
+        socket.displayName = displayName;
         socket.authenticatedAt = Date.now();
+        socket.firebaseUser = decodedToken; // Datos completos de Firebase
 
-        logger.info('Socket autenticado exitosamente', {
+        logger.info('Socket autenticado exitosamente con Firebase Auth', {
           userId: socket.userId,
           email: socket.userEmail,
           role: socket.userRole,
+          displayName: socket.displayName,
           socketId: socket.id,
+          firebaseProvider: decodedToken.firebase?.sign_in_provider || 'unknown',
         });
 
         next();
       } catch (error) {
         logger.error('Socket authentication failed', {
           error: error.message,
+          stack: error.stack,
           socketId: socket.id,
           ip: socket.handshake.address,
+          userAgent: socket.handshake.headers?.['user-agent'],
         });
         next(new Error('Autenticación fallida: ' + error.message));
       }
@@ -463,17 +563,73 @@ class SocketManager {
   // =============================================
 
   /**
-   * Emitir nuevo mensaje a conversación
-   * ✅ CORREGIDO: Usa estructura canónica
+   * ✅ CORREGIDO: Emitir nuevo mensaje a conversación (flexible)
+   * Puede recibir: emitNewMessage(messageObject) o emitNewMessage(conversationId, messageData)
    */
-  emitNewMessage (conversationId, messageData) {
+  emitNewMessage (conversationIdOrMessage, messageData = null) {
+    let conversationId, message;
+
+    // ✅ FLEXIBILIDAD: Manejar diferentes formas de llamar la función
+    if (typeof conversationIdOrMessage === 'object' && conversationIdOrMessage !== null) {
+      // Caso: emitNewMessage(messageObject)
+      message = conversationIdOrMessage;
+      conversationId = message.conversationId || message.id?.split('_')[1] + '_' + message.id?.split('_')[2];
+      
+      if (!conversationId && (message.senderPhone && message.recipientPhone)) {
+        // Generar conversationId desde los teléfonos
+        const customerPhone = message.direction === 'inbound' ? message.senderPhone : message.recipientPhone;
+        const agentPhone = message.direction === 'inbound' ? message.recipientPhone : message.senderPhone;
+        conversationId = `conv_${customerPhone.replace('+', '')}_${agentPhone.replace('+', '')}`;
+      }
+    } else {
+      // Caso: emitNewMessage(conversationId, messageData)
+      conversationId = conversationIdOrMessage;
+      message = messageData;
+    }
+
+    // ✅ VALIDACIÓN: Verificar que tenemos los datos necesarios
+    if (!conversationId) {
+      logger.error('No se pudo determinar conversationId para emitir mensaje', {
+        receivedParams: {
+          first: typeof conversationIdOrMessage,
+          second: typeof messageData,
+        },
+        messageData: message ? {
+          id: message.id,
+          conversationId: message.conversationId,
+          hasPhones: !!(message.senderPhone && message.recipientPhone),
+          direction: message.direction,
+        } : 'null',
+      });
+      return;
+    }
+
     if (!isValidConversationId(conversationId)) {
-      logger.error('conversationId inválido para emitir mensaje', { conversationId });
+      logger.error('conversationId inválido para emitir mensaje', { 
+        conversationId,
+        messageId: message?.id,
+      });
+      return;
+    }
+
+    if (!message) {
+      logger.error('Datos de mensaje faltantes para emitir evento', { conversationId });
       return;
     }
 
     // ✅ ASEGURAR estructura canónica del mensaje
-    const canonicalMessage = messageData.toJSON ? messageData.toJSON() : messageData;
+    const canonicalMessage = message.toJSON ? message.toJSON() : message;
+
+    // ✅ VALIDACIÓN: Verificar estructura mínima requerida
+    if (!canonicalMessage.id || !canonicalMessage.senderPhone || !canonicalMessage.recipientPhone) {
+      logger.warn('Mensaje con estructura incompleta para Socket.IO', {
+        conversationId,
+        messageId: canonicalMessage.id,
+        hasSenderPhone: !!canonicalMessage.senderPhone,
+        hasRecipientPhone: !!canonicalMessage.recipientPhone,
+        hasDirection: !!canonicalMessage.direction,
+      });
+    }
 
     const eventData = {
       type: 'new-message',
@@ -482,24 +638,44 @@ class SocketManager {
       timestamp: Date.now(),
     };
 
-    // Emitir a todos los usuarios en la conversación
-    this.io.to(`conversation-${conversationId}`).emit('new-message', eventData);
+    // ✅ EMISIÓN: A usuarios en la conversación específica
+    const conversationRoom = `conversation-${conversationId}`;
+    this.io.to(conversationRoom).emit('new-message', eventData);
 
-    // También emitir a admins si no están en la conversación
+    // ✅ EMISIÓN: Notificación a admins (incluso si no están en la conversación)
     this.io.to('role-admin').emit('message-notification', eventData);
 
-    console.log('📨 NUEVO MENSAJE EMITIDO:', {
+    // ✅ EMISIÓN: A agentes asignados (si hay assignedTo en el mensaje o conversación)
+    if (canonicalMessage.assignedTo || message.assignedTo) {
+      const assignedUserId = canonicalMessage.assignedTo || message.assignedTo;
+      const assignedSocketId = this.connectedUsers.get(assignedUserId);
+      if (assignedSocketId) {
+        this.io.to(assignedSocketId).emit('assigned-message-notification', eventData);
+      }
+    }
+
+    // ✅ MONITOREO: Log detallado
+    console.log('📨 NUEVO MENSAJE EMITIDO VIA SOCKET.IO:', {
       conversationId,
       messageId: canonicalMessage.id,
       direction: canonicalMessage.direction,
-      hasCanonicalStructure: !!(canonicalMessage.sender && canonicalMessage.type && canonicalMessage.timestamp),
+      type: canonicalMessage.type,
+      hasCanonicalStructure: !!(canonicalMessage.senderPhone && canonicalMessage.recipientPhone && canonicalMessage.timestamp),
       usersInConversation: this.conversationUsers.get(conversationId)?.size || 0,
+      emittedTo: {
+        conversationRoom: `conversation-${conversationId}`,
+        admins: 'role-admin',
+        assignedAgent: canonicalMessage.assignedTo ? 'si' : 'no',
+      },
     });
 
-    logger.info('Nuevo mensaje emitido via Socket.IO', {
+    logger.info('Nuevo mensaje emitido exitosamente via Socket.IO', {
       conversationId,
       messageId: canonicalMessage.id,
       direction: canonicalMessage.direction,
+      timestamp: canonicalMessage.timestamp,
+      senderPhone: canonicalMessage.senderPhone,
+      recipientPhone: canonicalMessage.recipientPhone,
     });
   }
 
