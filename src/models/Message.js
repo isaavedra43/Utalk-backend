@@ -4,6 +4,7 @@ const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { createCursor, parseCursor } = require('../utils/pagination');
+const { safeISOString, autoNormalizeDates } = require('../utils/dateHelpers');
 
 class Message {
   constructor (data) {
@@ -421,138 +422,156 @@ class Message {
    * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
    * SOLO usa senderPhone/recipientPhone - NO from/to
+   * ✅ FECHAS SEGURAS: Utiliza safeISOString para evitar errores
    */
   toJSON () {
-    // ✅ Normalizar timestamps a ISO strings
-    let normalizedTimestamp = null;
-    let normalizedCreatedAt = null;
-    let normalizedUpdatedAt = null;
+    try {
+      // ✅ NORMALIZAR FECHAS DE FORMA SEGURA - NUNCA FALLARÁ
+      const normalizedTimestamp = safeISOString(this.timestamp, 'timestamp');
+      const normalizedCreatedAt = safeISOString(this.createdAt, 'createdAt');
+      const normalizedUpdatedAt = safeISOString(this.updatedAt, 'updatedAt');
 
-    if (this.timestamp && typeof this.timestamp.toDate === 'function') {
-      normalizedTimestamp = this.timestamp.toDate().toISOString();
-    } else if (this.timestamp instanceof Date) {
-      normalizedTimestamp = this.timestamp.toISOString();
-    } else if (typeof this.timestamp === 'string') {
-      normalizedTimestamp = this.timestamp;
-    }
-
-    if (this.createdAt && typeof this.createdAt.toDate === 'function') {
-      normalizedCreatedAt = this.createdAt.toDate().toISOString();
-    } else if (this.createdAt instanceof Date) {
-      normalizedCreatedAt = this.createdAt.toISOString();
-    } else if (typeof this.createdAt === 'string') {
-      normalizedCreatedAt = this.createdAt;
-    }
-
-    if (this.updatedAt && typeof this.updatedAt.toDate === 'function') {
-      normalizedUpdatedAt = this.updatedAt.toDate().toISOString();
-    } else if (this.updatedAt instanceof Date) {
-      normalizedUpdatedAt = this.updatedAt.toISOString();
-    } else if (typeof this.updatedAt === 'string') {
-      normalizedUpdatedAt = this.updatedAt;
-    }
-
-    // ✅ VALIDACIÓN: Verificar que los teléfonos estén presentes y normalizados
-    if (!this.senderPhone) {
-      logger.error('Mensaje sin senderPhone en serialización', {
-        messageId: this.id,
-        conversationId: this.conversationId,
-        direction: this.direction,
-        sender: this.sender,
-      });
-    }
-
-    if (!this.recipientPhone) {
-      logger.error('Mensaje sin recipientPhone en serialización', {
-        messageId: this.id,
-        conversationId: this.conversationId,
-        direction: this.direction,
-        sender: this.sender,
-      });
-    }
-
-    // ✅ VALIDACIÓN: Re-normalizar teléfonos antes de enviar
-    let normalizedSenderPhone = this.senderPhone;
-    let normalizedRecipientPhone = this.recipientPhone;
-
-    if (this.senderPhone) {
-      const senderValidation = validateAndNormalizePhone(this.senderPhone, { logErrors: false });
-      if (senderValidation.isValid) {
-        normalizedSenderPhone = senderValidation.normalized;
-      } else {
-        logger.error('senderPhone malformado en serialización', {
+      // ✅ VALIDACIÓN: Verificar que los teléfonos estén presentes y normalizados
+      if (!this.senderPhone) {
+        logger.error('Mensaje sin senderPhone en serialización', {
           messageId: this.id,
-          originalPhone: this.senderPhone,
-          error: senderValidation.error,
+          conversationId: this.conversationId,
+          direction: this.direction,
+          sender: this.sender,
         });
       }
-    }
 
-    if (this.recipientPhone) {
-      const recipientValidation = validateAndNormalizePhone(this.recipientPhone, { logErrors: false });
-      if (recipientValidation.isValid) {
-        normalizedRecipientPhone = recipientValidation.normalized;
-      } else {
-        logger.error('recipientPhone malformado en serialización', {
+      if (!this.recipientPhone) {
+        logger.error('Mensaje sin recipientPhone en serialización', {
           messageId: this.id,
-          originalPhone: this.recipientPhone,
-          error: recipientValidation.error,
+          conversationId: this.conversationId,
+          direction: this.direction,
+          sender: this.sender,
         });
       }
-    }
 
-    // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
-    const result = {
-      id: this.id,
-      conversationId: this.conversationId,
-      content: this.content,
-      mediaUrl: this.mediaUrl,
-      sender: this.sender,
-      senderPhone: normalizedSenderPhone,
-      recipientPhone: normalizedRecipientPhone,
-      // ✅ ELIMINADOS: from y to ya NO se envían al frontend
-      direction: this.direction,
-      type: this.type,
-      status: this.status,
-      timestamp: normalizedTimestamp,
-      metadata: this.metadata || {},
-      createdAt: normalizedCreatedAt,
-      updatedAt: normalizedUpdatedAt,
-    };
+      // ✅ VALIDACIÓN: Re-normalizar teléfonos antes de enviar
+      let normalizedSenderPhone = this.senderPhone;
+      let normalizedRecipientPhone = this.recipientPhone;
 
-    // ✅ VALIDACIÓN: Log si faltan campos críticos
-    const missingFields = [];
-    if (!result.id) missingFields.push('id');
-    if (!result.conversationId) missingFields.push('conversationId');
-    if (!result.content && !result.mediaUrl) missingFields.push('content/mediaUrl');
-    if (!result.sender) missingFields.push('sender');
-    if (!result.senderPhone) missingFields.push('senderPhone');
-    if (!result.recipientPhone) missingFields.push('recipientPhone');
-    if (!result.direction) missingFields.push('direction');
-    if (!result.type) missingFields.push('type');
-    if (!result.status) missingFields.push('status');
+      if (this.senderPhone) {
+        const senderValidation = validateAndNormalizePhone(this.senderPhone, { logErrors: false });
+        if (senderValidation.isValid) {
+          normalizedSenderPhone = senderValidation.normalized;
+        } else {
+          logger.error('senderPhone malformado en serialización', {
+            messageId: this.id,
+            originalPhone: this.senderPhone,
+            error: senderValidation.error,
+          });
+        }
+      }
 
-    if (missingFields.length > 0) {
-      logger.error('Campos críticos faltantes en Message.toJSON()', {
+      if (this.recipientPhone) {
+        const recipientValidation = validateAndNormalizePhone(this.recipientPhone, { logErrors: false });
+        if (recipientValidation.isValid) {
+          normalizedRecipientPhone = recipientValidation.normalized;
+        } else {
+          logger.error('recipientPhone malformado en serialización', {
+            messageId: this.id,
+            originalPhone: this.recipientPhone,
+            error: recipientValidation.error,
+          });
+        }
+      }
+
+      // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
+      const result = {
+        id: this.id,
+        conversationId: this.conversationId,
+        content: this.content,
+        mediaUrl: this.mediaUrl,
+        sender: this.sender,
+        senderPhone: normalizedSenderPhone,
+        recipientPhone: normalizedRecipientPhone,
+        // ✅ ELIMINADOS: from y to ya NO se envían al frontend
+        direction: this.direction,
+        type: this.type,
+        status: this.status,
+        timestamp: normalizedTimestamp, // ✅ FECHA SEGURA
+        metadata: this.metadata || {},
+        createdAt: normalizedCreatedAt, // ✅ FECHA SEGURA
+        updatedAt: normalizedUpdatedAt, // ✅ FECHA SEGURA
+      };
+
+      // ✅ VALIDACIÓN: Log si faltan campos críticos
+      const missingFields = [];
+      if (!result.id) missingFields.push('id');
+      if (!result.conversationId) missingFields.push('conversationId');
+      if (!result.content && !result.mediaUrl) missingFields.push('content/mediaUrl');
+      if (!result.sender) missingFields.push('sender');
+      if (!result.senderPhone) missingFields.push('senderPhone');
+      if (!result.recipientPhone) missingFields.push('recipientPhone');
+      if (!result.direction) missingFields.push('direction');
+      if (!result.type) missingFields.push('type');
+      if (!result.status) missingFields.push('status');
+
+      if (missingFields.length > 0) {
+        logger.error('Campos críticos faltantes en Message.toJSON()', {
+          messageId: this.id,
+          conversationId: this.conversationId,
+          missingFields,
+        });
+      }
+
+      // ✅ LOGGING: Log detallado antes de enviar la respuesta
+      logger.info('Mensaje serializado para frontend', {
+        messageId: result.id,
+        conversationId: result.conversationId,
+        senderPhone: result.senderPhone,
+        recipientPhone: result.recipientPhone,
+        direction: result.direction,
+        type: result.type,
+        hasContent: !!result.content,
+        hasMedia: !!result.mediaUrl,
+        datesSerialized: {
+          timestamp: !!normalizedTimestamp,
+          createdAt: !!normalizedCreatedAt,
+          updatedAt: !!normalizedUpdatedAt,
+        },
+      });
+
+      return result;
+
+    } catch (error) {
+      // ✅ SAFETY NET: Nunca fallar la serialización
+      logger.error('Error crítico en Message.toJSON()', {
         messageId: this.id,
         conversationId: this.conversationId,
-        missingFields,
+        error: error.message,
+        stack: error.stack,
+        originalData: {
+          senderPhone: this.senderPhone,
+          recipientPhone: this.recipientPhone,
+          timestamp: this.timestamp,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt,
+        },
       });
+
+      // Retornar estructura mínima pero válida
+      return {
+        id: this.id || 'error',
+        conversationId: this.conversationId || 'error',
+        content: 'Error al serializar mensaje',
+        mediaUrl: null,
+        sender: 'system',
+        senderPhone: null,
+        recipientPhone: null,
+        direction: 'error',
+        type: 'text',
+        status: 'error',
+        timestamp: null,
+        metadata: {},
+        createdAt: null,
+        updatedAt: null,
+      };
     }
-
-    // ✅ LOGGING: Log detallado antes de enviar la respuesta
-    logger.info('Mensaje serializado para frontend', {
-      messageId: result.id,
-      conversationId: result.conversationId,
-      senderPhone: result.senderPhone,
-      recipientPhone: result.recipientPhone,
-      direction: result.direction,
-      type: result.type,
-      hasContent: !!result.content,
-      hasMedia: !!result.mediaUrl,
-    });
-
-    return result;
   }
 
   /**

@@ -4,6 +4,7 @@ const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { ensureConversationAssignment } = require('../utils/agentAssignment');
+const { safeISOString, autoNormalizeDates } = require('../utils/dateHelpers');
 
 class Conversation {
   constructor (data) {
@@ -537,196 +538,221 @@ class Conversation {
    * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
    * assignedTo es el campo PRINCIPAL - assignedAgent solo para compatibilidad
+   * ✅ FECHAS SEGURAS: Utiliza safeISOString para evitar errores
    */
   toJSON () {
-    // ✅ Normalizar timestamps a ISO strings
-    let normalizedCreatedAt = null;
-    let normalizedUpdatedAt = null;
+    try {
+      // ✅ NORMALIZAR FECHAS DE FORMA SEGURA - NUNCA FALLARÁ
+      const normalizedCreatedAt = safeISOString(this.createdAt, 'createdAt');
+      const normalizedUpdatedAt = safeISOString(this.updatedAt, 'updatedAt');
+      const normalizedLastMessageAt = safeISOString(this.lastMessageAt, 'lastMessageAt');
 
-    if (this.createdAt && typeof this.createdAt.toDate === 'function') {
-      normalizedCreatedAt = this.createdAt.toDate().toISOString();
-    } else if (this.createdAt instanceof Date) {
-      normalizedCreatedAt = this.createdAt.toISOString();
-    } else if (typeof this.createdAt === 'string') {
-      normalizedCreatedAt = this.createdAt;
-    }
+      // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar participants
+      let validatedParticipants = [];
+      if (Array.isArray(this.participants)) {
+        const normalizedParticipants = [];
+        const errors = [];
 
-    if (this.updatedAt && typeof this.updatedAt.toDate === 'function') {
-      normalizedUpdatedAt = this.updatedAt.toDate().toISOString();
-    } else if (this.updatedAt instanceof Date) {
-      normalizedUpdatedAt = this.updatedAt.toISOString();
-    } else if (typeof this.updatedAt === 'string') {
-      normalizedUpdatedAt = this.updatedAt;
-    }
+        this.participants.forEach((phone, index) => {
+          const validation = validateAndNormalizePhone(phone, { logErrors: false });
+          if (validation.isValid) {
+            normalizedParticipants.push(validation.normalized);
+          } else {
+            errors.push(`Participante ${index + 1}: ${validation.error}`);
+            logger.error('Participante inválido en serialización', {
+              conversationId: this.id,
+              participantIndex: index,
+              originalPhone: phone,
+              error: validation.error,
+            });
+          }
+        });
 
-    // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar participants
-    let validatedParticipants = [];
-    if (Array.isArray(this.participants)) {
-      const normalizedParticipants = [];
-      const errors = [];
-
-      this.participants.forEach((phone, index) => {
-        const validation = validateAndNormalizePhone(phone, { logErrors: false });
-        if (validation.isValid) {
-          normalizedParticipants.push(validation.normalized);
-        } else {
-          errors.push(`Participante ${index + 1}: ${validation.error}`);
-          logger.error('Participante inválido en serialización', {
+        // ✅ Eliminar duplicados y verificar que tengamos exactamente 2 únicos
+        validatedParticipants = [...new Set(normalizedParticipants)];
+        
+        if (validatedParticipants.length !== 2) {
+          logger.error('Participants debe tener exactamente 2 números únicos', {
             conversationId: this.id,
-            participantIndex: index,
-            originalPhone: phone,
-            error: validation.error,
+            originalParticipants: this.participants,
+            normalizedParticipants,
+            uniqueParticipants: validatedParticipants,
+            uniqueCount: validatedParticipants.length,
+            errors,
           });
         }
-      });
-
-      // ✅ Eliminar duplicados y verificar que tengamos exactamente 2 únicos
-      validatedParticipants = [...new Set(normalizedParticipants)];
-      
-      if (validatedParticipants.length !== 2) {
-        logger.error('Participants debe tener exactamente 2 números únicos', {
-          conversationId: this.id,
-          originalParticipants: this.participants,
-          normalizedParticipants,
-          uniqueParticipants: validatedParticipants,
-          uniqueCount: validatedParticipants.length,
-          errors,
-        });
-      }
-    } else {
-      logger.error('Participants no es un array en serialización', {
-        conversationId: this.id,
-        participants: this.participants,
-        type: typeof this.participants,
-      });
-    }
-
-    // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar customerPhone
-    let normalizedCustomerPhone = null;
-    if (this.customerPhone) {
-      const customerValidation = validateAndNormalizePhone(this.customerPhone, { logErrors: false });
-      if (customerValidation.isValid) {
-        normalizedCustomerPhone = customerValidation.normalized;
       } else {
-        logger.error('customerPhone malformado en serialización', {
+        logger.error('Participants no es un array en serialización', {
           conversationId: this.id,
-          originalPhone: this.customerPhone,
-          error: customerValidation.error,
+          participants: this.participants,
+          type: typeof this.participants,
         });
       }
-    } else {
-      logger.error('customerPhone faltante en serialización', {
-        conversationId: this.id,
-        participants: validatedParticipants,
-      });
-    }
 
-    // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar agentPhone
-    let normalizedAgentPhone = null;
-    if (this.agentPhone) {
-      const agentValidation = validateAndNormalizePhone(this.agentPhone, { logErrors: false });
-      if (agentValidation.isValid) {
-        normalizedAgentPhone = agentValidation.normalized;
+      // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar customerPhone
+      let normalizedCustomerPhone = null;
+      if (this.customerPhone) {
+        const customerValidation = validateAndNormalizePhone(this.customerPhone, { logErrors: false });
+        if (customerValidation.isValid) {
+          normalizedCustomerPhone = customerValidation.normalized;
+        } else {
+          logger.error('customerPhone malformado en serialización', {
+            conversationId: this.id,
+            originalPhone: this.customerPhone,
+            error: customerValidation.error,
+          });
+        }
       } else {
-        logger.error('agentPhone malformado en serialización', {
+        logger.error('customerPhone faltante en serialización', {
           conversationId: this.id,
-          originalPhone: this.agentPhone,
-          error: agentValidation.error,
+          participants: validatedParticipants,
         });
       }
-    } else {
-      logger.error('agentPhone faltante en serialización', {
-        conversationId: this.id,
-        participants: validatedParticipants,
-      });
-    }
 
-    // ✅ Construir objeto contact según especificación
-    const contact = {
-      id: normalizedCustomerPhone || this.contact?.id || 'unknown',
-      name: this.contact?.name || normalizedCustomerPhone || 'Cliente',
-      avatar: this.contact?.avatar || null,
-      channel: 'whatsapp', // Por defecto WhatsApp, se puede extender
-    };
+      // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar agentPhone
+      let normalizedAgentPhone = null;
+      if (this.agentPhone) {
+        const agentValidation = validateAndNormalizePhone(this.agentPhone, { logErrors: false });
+        if (agentValidation.isValid) {
+          normalizedAgentPhone = agentValidation.normalized;
+        } else {
+          logger.error('agentPhone malformado en serialización', {
+            conversationId: this.id,
+            originalPhone: this.agentPhone,
+            error: agentValidation.error,
+          });
+        }
+      } else {
+        logger.error('agentPhone faltante en serialización', {
+          conversationId: this.id,
+          participants: validatedParticipants,
+        });
+      }
 
-    // ✅ CAMPO PRINCIPAL: assignedTo siempre debe estar presente
-    let assignedTo = null;
-    if (this.assignedTo) {
-      assignedTo = {
-        id: this.assignedTo,
-        name: this.assignedToName || this.assignedTo, // Si no tenemos el nombre, usar el ID
+      // ✅ Construir objeto contact según especificación
+      const contact = {
+        id: normalizedCustomerPhone || this.contact?.id || 'unknown',
+        name: this.contact?.name || normalizedCustomerPhone || 'Cliente',
+        avatar: this.contact?.avatar || null,
+        channel: 'whatsapp', // Por defecto WhatsApp, se puede extender
       };
-    } else {
-      logger.warn('assignedTo faltante en conversación', {
-        conversationId: this.id,
-        status: this.status,
-      });
-    }
 
-    // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
-    const result = {
-      id: this.id,
-      participants: validatedParticipants, // ✅ NUEVO: Campo participants requerido y validado
-      customerPhone: normalizedCustomerPhone,
-      agentPhone: normalizedAgentPhone,
-      contact,
-      assignedTo, // ✅ CAMPO PRINCIPAL
-      assignedAgent: this.assignedTo, // ✅ SOLO para compatibilidad con versiones antiguas
-      status: this.status || 'open',
-      unreadCount: this.unreadCount || 0,
-      messageCount: this.messageCount || 0,
-      lastMessage: this.lastMessage || null,
-      lastMessageId: this.lastMessageId || null,
-      lastMessageAt: this.lastMessageAt
-        ? (typeof this.lastMessageAt.toDate === 'function'
-          ? this.lastMessageAt.toDate().toISOString()
-          : this.lastMessageAt.toISOString())
-        : null,
-      createdAt: normalizedCreatedAt,
-      updatedAt: normalizedUpdatedAt,
-    };
+      // ✅ CAMPO PRINCIPAL: assignedTo siempre debe estar presente
+      let assignedTo = null;
+      if (this.assignedTo) {
+        assignedTo = {
+          id: this.assignedTo,
+          name: this.assignedToName || this.assignedTo, // Si no tenemos el nombre, usar el ID
+        };
+      } else {
+        logger.warn('assignedTo faltante en conversación', {
+          conversationId: this.id,
+          status: this.status,
+        });
+      }
 
-    // ✅ VALIDACIÓN: Log si faltan campos críticos
-    const missingFields = [];
-    const invalidFields = [];
-    
-    if (!result.id) missingFields.push('id');
-    if (!Array.isArray(result.participants)) missingFields.push('participants');
-    if (result.participants.length !== 2) invalidFields.push(`participants (${result.participants.length} en lugar de 2)`);
-    if (!result.customerPhone) missingFields.push('customerPhone');
-    if (!result.agentPhone) missingFields.push('agentPhone');
-    if (!result.assignedTo) missingFields.push('assignedTo');
-    if (!result.status) missingFields.push('status');
+      // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
+      const result = {
+        id: this.id,
+        participants: validatedParticipants, // ✅ NUEVO: Campo participants requerido y validado
+        customerPhone: normalizedCustomerPhone,
+        agentPhone: normalizedAgentPhone,
+        contact,
+        assignedTo, // ✅ CAMPO PRINCIPAL
+        assignedAgent: this.assignedTo, // ✅ SOLO para compatibilidad con versiones antiguas
+        status: this.status || 'open',
+        unreadCount: this.unreadCount || 0,
+        messageCount: this.messageCount || 0,
+        lastMessage: this.lastMessage || null,
+        lastMessageId: this.lastMessageId || null,
+        lastMessageAt: normalizedLastMessageAt, // ✅ FECHA SEGURA
+        createdAt: normalizedCreatedAt, // ✅ FECHA SEGURA
+        updatedAt: normalizedUpdatedAt, // ✅ FECHA SEGURA
+      };
 
-    if (missingFields.length > 0 || invalidFields.length > 0) {
-      logger.error('Campos críticos faltantes o inválidos en Conversation.toJSON()', {
-        conversationId: this.id,
-        missingFields,
-        invalidFields,
-        currentData: {
-          participants: result.participants,
-          customerPhone: result.customerPhone,
-          agentPhone: result.agentPhone,
-          assignedTo: result.assignedTo,
-          status: result.status,
+      // ✅ VALIDACIÓN: Log si faltan campos críticos
+      const missingFields = [];
+      const invalidFields = [];
+      
+      if (!result.id) missingFields.push('id');
+      if (!Array.isArray(result.participants)) missingFields.push('participants');
+      if (result.participants.length !== 2) invalidFields.push(`participants (${result.participants.length} en lugar de 2)`);
+      if (!result.customerPhone) missingFields.push('customerPhone');
+      if (!result.agentPhone) missingFields.push('agentPhone');
+      if (!result.assignedTo) missingFields.push('assignedTo');
+      if (!result.status) missingFields.push('status');
+
+      if (missingFields.length > 0 || invalidFields.length > 0) {
+        logger.error('Campos críticos faltantes o inválidos en Conversation.toJSON()', {
+          conversationId: this.id,
+          missingFields,
+          invalidFields,
+          currentData: {
+            participants: result.participants,
+            customerPhone: result.customerPhone,
+            agentPhone: result.agentPhone,
+            assignedTo: result.assignedTo,
+            status: result.status,
+          },
+        });
+      }
+
+      // ✅ LOGGING: Log detallado antes de enviar la respuesta
+      logger.info('Conversación serializada para frontend', {
+        conversationId: result.id,
+        participantsCount: result.participants.length,
+        participants: result.participants,
+        customerPhone: result.customerPhone,
+        agentPhone: result.agentPhone,
+        assignedTo: result.assignedTo?.id,
+        status: result.status,
+        messageCount: result.messageCount,
+        hasLastMessage: !!result.lastMessage,
+        datesSerialized: {
+          createdAt: !!normalizedCreatedAt,
+          updatedAt: !!normalizedUpdatedAt,
+          lastMessageAt: !!normalizedLastMessageAt,
         },
       });
+
+      return result;
+
+    } catch (error) {
+      // ✅ SAFETY NET: Nunca fallar la serialización
+      logger.error('Error crítico en Conversation.toJSON()', {
+        conversationId: this.id,
+        error: error.message,
+        stack: error.stack,
+        originalData: {
+          participants: this.participants,
+          customerPhone: this.customerPhone,
+          agentPhone: this.agentPhone,
+          assignedTo: this.assignedTo,
+          lastMessageAt: this.lastMessageAt,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt,
+        },
+      });
+
+      // Retornar estructura mínima pero válida
+      return {
+        id: this.id || 'error',
+        participants: [],
+        customerPhone: null,
+        agentPhone: null,
+        contact: { id: 'error', name: 'Error', avatar: null, channel: 'whatsapp' },
+        assignedTo: null,
+        assignedAgent: null,
+        status: 'error',
+        unreadCount: 0,
+        messageCount: 0,
+        lastMessage: null,
+        lastMessageId: null,
+        lastMessageAt: null,
+        createdAt: null,
+        updatedAt: null,
+      };
     }
-
-    // ✅ LOGGING: Log detallado antes de enviar la respuesta
-    logger.info('Conversación serializada para frontend', {
-      conversationId: result.id,
-      participantsCount: result.participants.length,
-      participants: result.participants,
-      customerPhone: result.customerPhone,
-      agentPhone: result.agentPhone,
-      assignedTo: result.assignedTo?.id,
-      status: result.status,
-      messageCount: result.messageCount,
-      hasLastMessage: !!result.lastMessage,
-    });
-
-    return result;
   }
 
   /**
