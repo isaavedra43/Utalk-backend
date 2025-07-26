@@ -76,42 +76,40 @@ class User {
 
   /**
    * 🚨 VALIDAR contraseña del usuario (TEXTO PLANO - SOLO PRUEBAS)
+   * ACEPTA password O passwordHash en texto plano
    */
-  static async validatePassword(email, plainPassword) {
+  static async validatePassword(email, passwordInput) {
     try {
-      if (!email || !plainPassword) {
+      if (!email || !passwordInput) {
         throw new Error('Email y contraseña son requeridos');
       }
 
       logger.info('🔐 Validando contraseña para usuario (TEXTO PLANO)', { email });
 
-      // Obtener usuario con contraseña incluida
-      const usersQuery = await firestore
-        .collection('users')
-        .where('email', '==', email)
-        .where('isActive', '==', true)
-        .limit(1)
-        .get();
-
-      if (usersQuery.empty) {
+      // Obtener usuario completo
+      const userData = await this.getByEmail(email);
+      if (!userData) {
         logger.warn('❌ Usuario no encontrado para validación', { email });
         return false;
       }
 
-      const userData = usersQuery.docs[0].data();
+      // 🚨 ACEPTAR password O passwordHash en texto plano
+      let isValid = false;
       
-      if (!userData.password) {
-        logger.warn('❌ Usuario sin contraseña configurada', { email });
-        return false;
+      if (userData.password && userData.password === passwordInput) {
+        isValid = true;
+        logger.info('✅ Contraseña válida (campo password)', { email });
+      } else if (userData.passwordHash && userData.passwordHash === passwordInput) {
+        isValid = true;
+        logger.info('✅ Contraseña válida (campo passwordHash)', { email });
+      } else {
+        logger.warn('❌ Contraseña inválida (TEXTO PLANO)', { 
+          email,
+          hasPassword: !!userData.password,
+          hasPasswordHash: !!userData.passwordHash,
+          passwordMatch: false
+        });
       }
-
-      // 🚨 COMPARACIÓN DIRECTA SIN HASHING (SOLO PRUEBAS)
-      const isValid = (plainPassword === userData.password);
-
-      logger.info(isValid ? '✅ Contraseña válida (TEXTO PLANO)' : '❌ Contraseña inválida (TEXTO PLANO)', { 
-        email,
-        passwordMatch: isValid 
-      });
 
       return isValid;
     } catch (error) {
@@ -147,6 +145,7 @@ class User {
       const newUserData = {
         email: userData.email,
         password: userData.password, // 🚨 TEXTO PLANO
+        passwordHash: userData.password, // 🚨 TEXTO PLANO (ambos campos)
         name: userData.name || userData.email.split('@')[0],
         phone: userData.phone || null,
         role: userData.role || 'viewer',
@@ -251,9 +250,11 @@ class User {
       if (updates.password) {
         // const saltRounds = 12;
         // updates.password = await bcrypt.hash(updates.password, saltRounds);
-        // 🚨 NO HACER HASH - GUARDAR TEXTO PLANO
+        // 🚨 NO HACER HASH - GUARDAR TEXTO PLANO EN AMBOS CAMPOS
+        updates.passwordHash = updates.password; // Mantener ambos campos sincronizados
         logger.info('🚨 Actualizando contraseña en texto plano (SOLO PRUEBAS)', {
           email: this.email,
+          bothFields: true
         });
       }
 

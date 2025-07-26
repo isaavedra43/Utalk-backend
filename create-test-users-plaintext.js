@@ -62,6 +62,7 @@ async function createTestUsers() {
       const userDoc = {
         email: userData.email,
         password: userData.password, // 🚨 TEXTO PLANO
+        passwordHash: userData.password, // 🚨 TEXTO PLANO (ambos campos)
         name: userData.name,
         phone: userData.phone,
         role: userData.role,

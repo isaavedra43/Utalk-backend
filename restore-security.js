@@ -22,8 +22,72 @@ function restoreSecurity() {
           to: "// Comparar contraseña con bcrypt"
         },
         {
-          from: "const isValid = (plainPassword === userData.password);",
+          from: "// 🚨 ACEPTAR password O passwordHash en texto plano",
+          to: "// Comparar contraseña con bcrypt"
+        },
+        {
+          from: "let isValid = false;",
           to: "const isValid = await bcrypt.compare(plainPassword, userData.password);"
+        },
+        {
+          from: "if (userData.password && userData.password === passwordInput) {",
+          to: "// Validar contraseña hasheada"
+        },
+        {
+          from: "  isValid = true;",
+          to: "return isValid;"
+        },
+        {
+          from: "  logger.info('✅ Contraseña válida (campo password)', { email });",
+          to: "logger.info(isValid ? '✅ Contraseña válida' : '❌ Contraseña inválida', {"
+        },
+        {
+          from: "} else if (userData.passwordHash && userData.passwordHash === passwordInput) {",
+          to: "  email,"
+        },
+        {
+          from: "  isValid = true;",
+          to: "});"
+        },
+        {
+          from: "  logger.info('✅ Contraseña válida (campo passwordHash)', { email });",
+          to: ""
+        },
+        {
+          from: "} else {",
+          to: ""
+        },
+        {
+          from: "  logger.warn('❌ Contraseña inválida (TEXTO PLANO)', {",
+          to: ""
+        },
+        {
+          from: "    email,",
+          to: ""
+        },
+        {
+          from: "    hasPassword: !!userData.password,",
+          to: ""
+        },
+        {
+          from: "    hasPasswordHash: !!userData.passwordHash,",
+          to: ""
+        },
+        {
+          from: "    passwordMatch: false",
+          to: ""
+        },
+        {
+          from: "  });",
+          to: ""
+        },
+        {
+          from: "}",
+          to: ""
+        },
+        {
+          from: "return isValid;",
+          to: ""
         },
         {
           from: "logger.info('🔐 Validando contraseña para usuario (TEXTO PLANO)', { email });",
@@ -40,6 +104,10 @@ function restoreSecurity() {
         {
           from: "password: userData.password, // 🚨 TEXTO PLANO",
           to: "password: hashedPassword,"
+        },
+        {
+          from: "passwordHash: userData.password, // 🚨 TEXTO PLANO (ambos campos)",
+          to: "// passwordHash se elimina en producción"
         },
         {
           from: "// const saltRounds = 12;",
