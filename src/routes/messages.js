@@ -6,93 +6,41 @@ const MessageController = require('../controllers/MessageController');
 const router = express.Router();
 
 /**
- * @route GET /api/messages
- * @desc Listar mensajes individuales con filtros flexibles
- * @access Private (Admin, Agent, Viewer)
+ * @route   GET /api/conversations/:conversationId/messages
+ * @desc    Obtener todos los mensajes de una conversación específica (UID-FIRST)
+ * @access  Private (Admin, Agent, Viewer)
+ * @params  conversationId (UUID)
+ * @query   limit, cursor
  */
-router.get('/',
-  requireReadAccess,
-  MessageController.getMessages,
-);
+// NOTA: Esta ruta debería estar lógicamente en `conversations.js`,
+// pero por ahora la mantenemos aquí para arreglar el bug de arranque.
+// router.get('/:conversationId/messages', ...); <-- Se moverá a conversations.js
 
 /**
- * @route GET /api/messages/conversation/:phone
- * @desc Obtener mensajes de una conversación por teléfono
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/conversation/:phone',
-  requireReadAccess,
-  MessageController.getConversationByPhone,
-);
-
-/**
- * @route POST /api/messages/send
- * @desc Enviar mensaje de WhatsApp
- * @access Private (Admin, Agent only)
+ * @route   POST /api/messages/send
+ * @desc    Enviar un mensaje de WhatsApp saliente (UID-FIRST)
+ * @access  Private (Admin, Agent only)
+ * @body    { conversationId: (UUID), content: "..." }
  */
 router.post('/send',
   requireWriteAccess,
-  validate(schemas.message.send),
+  validate(schemas.message.send), // Asegurarse que este schema esté actualizado
   MessageController.sendMessage,
 );
 
-/**
- * NOTA: El webhook se movió a /src/routes/webhook.js para ser público
- * La ruta /api/messages/webhook ahora está en /api/messages/webhook (archivo dedicado)
- * Esto permite que Twilio acceda sin autenticación mientras las demás rutas están protegidas
- */
 
-/**
- * @route GET /api/messages/stats
- * @desc Obtener estadísticas de mensajes
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/stats',
-  requireReadAccess,
-  MessageController.getStats,
-);
+// --- RUTAS OBSOLETAS ELIMINADAS ---
+// Las siguientes rutas fueron eliminadas porque sus controladores
+// no existen después de la refactorización UID-FIRST o su lógica ha cambiado.
 
-/**
- * @route PUT /api/messages/:id/status
- * @desc Actualizar estado de mensaje
- * @access Private (Admin, Agent only)
- */
-router.put('/:id/status',
-  requireWriteAccess,
-  MessageController.updateStatus,
-);
+// router.get('/', MessageController.getMessages); // <- Ambiguo sin conversationId
+// router.get('/conversation/:phone', MessageController.getConversationByPhone); // <- Obsoleto
+// router.get('/stats', MessageController.getStats); // <- Lógica movida
+// router.put('/:id/status', MessageController.updateStatus); // <- Lógica movida
+// router.put('/:id/read', MessageController.markAsRead); // <- Lógica movida
+// router.put('/read-multiple', MessageController.markMultipleAsRead); // <- Lógica movida
+// router.get('/search', MessageController.search); // <- Obsoleto
 
-/**
- * @route PUT /api/messages/:id/read
- * @desc Marcar mensaje como leído
- * @access Private (Admin, Agent only)
- */
-router.put('/:id/read',
-  requireWriteAccess,
-  MessageController.markAsRead,
-);
 
-/**
- * @route PUT /api/messages/read-multiple
- * @desc Marcar múltiples mensajes como leídos
- * @access Private (Admin, Agent only)
- */
-router.put('/read-multiple',
-  requireWriteAccess,
-  validate(schemas.message.readMultiple),
-  MessageController.markMultipleAsRead,
-);
-
-/**
- * @route GET /api/messages/search
- * @desc Buscar mensajes por contenido
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/search',
-  requireReadAccess,
-  MessageController.search,
-);
-
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const messageRoutes = require('./routes/messages');
+// EXPORT PATTERN: Single router export
 module.exports = router;

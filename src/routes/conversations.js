@@ -2,6 +2,7 @@ const express = require('express');
 const { validate, schemas } = require('../utils/validation');
 const { requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const ConversationController = require('../controllers/ConversationController');
+const MessageController = require('../controllers/MessageController'); // Importar MessageController
 
 const router = express.Router();
 
@@ -26,28 +27,29 @@ router.get('/stats',
 );
 
 /**
- * @route GET /api/conversations/:id
- * @desc Obtener conversación específica
+ * @route GET /api/conversations/:conversationId
+ * @desc Obtener conversación específica por su UUID
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:id',
+router.get('/:conversationId',
   requireReadAccess,
   ConversationController.getConversation,
 );
 
 /**
- * @route GET /api/conversations/:id/messages
- * @desc Obtener mensajes de una conversación
- * @access Private (Admin, Agent, Viewer)
+ * @route   GET /api/conversations/:conversationId/messages
+ * @desc    Obtener los mensajes de una conversación (UID-FIRST)
+ * @access  Private (Admin, Agent, Viewer)
+ * @params  conversationId (UUID)
  */
-router.get('/:id/messages',
+router.get('/:conversationId/messages',
   requireReadAccess,
-  ConversationController.getConversationMessages,
+  MessageController.getMessages, // <-- CORREGIDO: Apunta al controlador correcto.
 );
 
 /**
  * @route POST /api/conversations
- * @desc Crear nueva conversación
+ * @desc Crear nueva conversación (UID-FIRST)
  * @access Private (Admin, Agent only)
  */
 router.post('/',
