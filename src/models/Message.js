@@ -1,59 +1,37 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
-const { isValidConversationId } = require('../utils/conversation');
+// const { isValidConversationId } = require('../utils/conversation'); // DEPRECATED
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { createCursor, parseCursor } = require('../utils/pagination');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Message {
   constructor (data) {
-    // ✅ VALIDACIÓN: ID requerido
-    if (!data.id) {
-      throw new Error('Message ID es requerido');
-    }
+    // ✅ ID y ConversationID (UUIDs)
+    if (!data.id) throw new Error('Message ID es requerido');
+    if (!data.conversationId) throw new Error('conversationId (UUID) es requerido');
     this.id = data.id;
-
-    // ✅ VALIDACIÓN: ConversationId requerido
-    if (!data.conversationId || !isValidConversationId(data.conversationId)) {
-      throw new Error(`conversationId inválido: ${data.conversationId}`);
-    }
     this.conversationId = data.conversationId;
 
-    // ✅ VALIDACIÓN: Contenido requerido
+    // ✅ Contenido
     if (!data.content && !data.mediaUrl) {
       throw new Error('Message debe tener content o mediaUrl');
     }
     this.content = data.content || null;
     this.mediaUrl = data.mediaUrl || null;
+    
+    // ✅ UID-FIRST: Identificadores de remitente y destinatario.
+    this.senderIdentifier = data.senderIdentifier; // Puede ser UID o teléfono.
+    this.recipientIdentifier = data.recipientIdentifier; // Puede ser UID o teléfono.
 
-    // ✅ MAPEAR CAMPOS DE COMPATIBILIDAD
-    // from/to -> senderPhone/recipientPhone
-    this.senderPhone = data.senderPhone || data.from || null;
-    this.recipientPhone = data.recipientPhone || data.to || null;
-
-    // ✅ VALIDACIÓN: Teléfono del remitente
-    if (this.senderPhone) {
-      const senderValidation = validateAndNormalizePhone(this.senderPhone);
-      if (!senderValidation.isValid) {
-        throw new Error(`Teléfono del remitente inválido: ${senderValidation.error}`);
-      }
-      this.senderPhone = senderValidation.normalized;
-    }
-
-    // ✅ VALIDACIÓN: Teléfono del destinatario
-    if (this.recipientPhone) {
-      const recipientValidation = validateAndNormalizePhone(this.recipientPhone);
-      if (!recipientValidation.isValid) {
-        throw new Error(`Teléfono del destinatario inválido: ${recipientValidation.error}`);
-      }
-      this.recipientPhone = recipientValidation.normalized;
-    }
-
+    // ✅ DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
+    // this.senderPhone = ...
+    // this.recipientPhone = ...
+    
     // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
-    this.sender = data.sender || 'customer';
     this.direction = data.direction || 'inbound';
-    this.type = data.type || 'text';
+    this.type = data.type || (this.mediaUrl ? 'media' : 'text');
     this.status = data.status || 'sent';
     this.timestamp = data.timestamp || Timestamp.now();
     this.metadata = data.metadata || {};
@@ -61,51 +39,33 @@ class Message {
     this.updatedAt = data.updatedAt || Timestamp.now();
   }
 
+  isPhone(identifier) {
+    return typeof identifier === 'string' && identifier.startsWith('+');
+  }
+
   /**
-   * Crear mensaje en Firestore
+   * Crear mensaje en Firestore (UID-FIRST)
    */
   static async create (messageData) {
-    // ✅ GENERAR ID ÚNICO si no existe
-    if (!messageData.id && !messageData.messageId) {
-      // Usar twilioSid si está disponible, sino generar UUID
-      messageData.id = messageData.twilioSid || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      logger.info('ID de mensaje generado automáticamente', {
-        generatedId: messageData.id,
-        hasTwilioSid: !!messageData.twilioSid,
-        conversationId: messageData.conversationId,
-      });
-    }
-
-    // ✅ VALIDACIÓN: Asegurar que tenemos un ID
-    if (!messageData.id) {
-      throw new Error('No se pudo generar un ID para el mensaje');
-    }
-
     const message = new Message(messageData);
 
-    // Preparar datos para Firestore
-    const cleanData = prepareForFirestore({
-      ...message,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    const cleanData = prepareForFirestore({ ...message });
 
-    // Crear en subcolección de la conversación
+    // Guardar en la subcolección de la conversación
     await firestore
       .collection('conversations')
       .doc(message.conversationId)
       .collection('messages')
-      .doc(message.id) // ✅ USAR ID GENERADO como document ID
+      .doc(message.id)
       .set(cleanData);
-
-    // ✅ LOG DE ÉXITO
-    logger.info('Mensaje guardado exitosamente en Firebase', {
+      
+    logger.info('Mensaje guardado (UID-FIRST)', {
       messageId: message.id,
       conversationId: message.conversationId,
-      direction: message.direction,
-      type: message.type,
+      sender: message.senderIdentifier,
+      recipient: message.recipientIdentifier,
     });
-
+    
     // Actualizar conversación
     const Conversation = require('./Conversation');
     const conversation = await Conversation.getById(message.conversationId);
@@ -123,9 +83,8 @@ class Message {
    * @returns {Object} - Resultado con mensajes y metadata de paginación
    */
   static async getByConversation (conversationId, options = {}) {
-    if (!isValidConversationId(conversationId)) {
-      throw new Error(`conversationId inválido: ${conversationId}`);
-    }
+    // La validación isValidConversationId se elimina porque ahora son UUIDs.
+    // ... el resto de la lógica de getByConversation permanece igual
 
     const {
       limit = 20,
@@ -277,9 +236,8 @@ class Message {
    * Obtener mensaje por ID
    */
   static async getById (conversationId, messageId) {
-    if (!isValidConversationId(conversationId)) {
-      throw new Error(`conversationId inválido: ${conversationId}`);
-    }
+    // La validación isValidConversationId se elimina porque ahora son UUIDs.
+    // ... el resto de la lógica de getById permanece igual
 
     const doc = await firestore
       .collection('conversations')
@@ -350,9 +308,8 @@ class Message {
    * Obtener estadísticas de mensajes
    */
   static async getStats (conversationId, options = {}) {
-    if (!isValidConversationId(conversationId)) {
-      throw new Error(`conversationId inválido: ${conversationId}`);
-    }
+    // La validación isValidConversationId se elimina porque ahora son UUIDs.
+    // ... el resto de la lógica de getStats permanece igual
 
     const { startDate = null, endDate = null } = options;
 
@@ -419,168 +376,44 @@ class Message {
   }
 
   /**
-   * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
-   * ESTRUCTURA CANÓNICA según especificación del frontend
-   * SOLO usa senderPhone/recipientPhone - NO from/to
-   * ✅ FECHAS SIEMPRE COMO STRING ISO: Utiliza safeDateToISOString
+   * ✅ UID-FIRST: Convertir a objeto plano para respuestas JSON
    */
   toJSON () {
-    try {
-      // ✅ FECHAS COMO STRING ISO 8601 - SIEMPRE
-      const normalizedTimestamp = safeDateToISOString(this.timestamp);
-      const normalizedCreatedAt = safeDateToISOString(this.createdAt);
-      const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
+    const normalizedTimestamp = safeDateToISOString(this.timestamp);
+    const normalizedCreatedAt = safeDateToISOString(this.createdAt);
+    const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
-      // ✅ VALIDACIÓN: Verificar que los teléfonos estén presentes y normalizados
-      if (!this.senderPhone) {
-        logger.error('Mensaje sin senderPhone en serialización', {
-          messageId: this.id,
-          conversationId: this.conversationId,
-          direction: this.direction,
-          sender: this.sender,
-        });
-      }
+    return {
+      id: this.id,
+      conversationId: this.conversationId,
+      content: this.content,
+      mediaUrl: this.mediaUrl,
+      
+      sender: {
+        identifier: this.senderIdentifier,
+        type: this.isPhone(this.senderIdentifier) ? 'customer' : 'agent',
+      },
+      recipient: {
+        identifier: this.recipientIdentifier,
+        type: this.isPhone(this.recipientIdentifier) ? 'customer' : 'agent',
+      },
 
-      if (!this.recipientPhone) {
-        logger.error('Mensaje sin recipientPhone en serialización', {
-          messageId: this.id,
-          conversationId: this.conversationId,
-          direction: this.direction,
-          sender: this.sender,
-        });
-      }
-
-      // ✅ VALIDACIÓN: Re-normalizar teléfonos antes de enviar
-      let normalizedSenderPhone = this.senderPhone;
-      let normalizedRecipientPhone = this.recipientPhone;
-
-      if (this.senderPhone) {
-        const senderValidation = validateAndNormalizePhone(this.senderPhone, { logErrors: false });
-        if (senderValidation.isValid) {
-          normalizedSenderPhone = senderValidation.normalized;
-        } else {
-          logger.error('senderPhone malformado en serialización', {
-            messageId: this.id,
-            originalPhone: this.senderPhone,
-            error: senderValidation.error,
-          });
-        }
-      }
-
-      if (this.recipientPhone) {
-        const recipientValidation = validateAndNormalizePhone(this.recipientPhone, { logErrors: false });
-        if (recipientValidation.isValid) {
-          normalizedRecipientPhone = recipientValidation.normalized;
-        } else {
-          logger.error('recipientPhone malformado en serialización', {
-            messageId: this.id,
-            originalPhone: this.recipientPhone,
-            error: recipientValidation.error,
-          });
-        }
-      }
-
-      // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
-      const result = {
-        id: this.id,
-        conversationId: this.conversationId,
-        content: this.content,
-        mediaUrl: this.mediaUrl,
-        sender: this.sender,
-        senderPhone: normalizedSenderPhone, // ✅ CAMPO PRINCIPAL
-        recipientPhone: normalizedRecipientPhone, // ✅ CAMPO PRINCIPAL
-        // ✅ ELIMINADOS: from y to ya NO se envían al frontend
-        direction: this.direction,
-        type: this.type,
-        status: this.status,
-        timestamp: normalizedTimestamp, // ✅ STRING ISO o null
-        metadata: this.metadata || {},
-        createdAt: normalizedCreatedAt, // ✅ STRING ISO o null
-        updatedAt: normalizedUpdatedAt, // ✅ STRING ISO o null
-      };
-
-      // ✅ VALIDACIÓN: Log si faltan campos críticos
-      const missingFields = [];
-      if (!result.id) missingFields.push('id');
-      if (!result.conversationId) missingFields.push('conversationId');
-      if (!result.content && !result.mediaUrl) missingFields.push('content/mediaUrl');
-      if (!result.sender) missingFields.push('sender');
-      if (!result.senderPhone) missingFields.push('senderPhone');
-      if (!result.recipientPhone) missingFields.push('recipientPhone');
-      if (!result.direction) missingFields.push('direction');
-      if (!result.type) missingFields.push('type');
-      if (!result.status) missingFields.push('status');
-
-      if (missingFields.length > 0) {
-        logger.error('Campos críticos faltantes en Message.toJSON()', {
-          messageId: this.id,
-          conversationId: this.conversationId,
-          missingFields,
-        });
-      }
-
-      // ✅ LOGGING: Log detallado antes de enviar la respuesta
-      logger.info('Mensaje serializado para frontend', {
-        messageId: result.id,
-        conversationId: result.conversationId,
-        senderPhone: result.senderPhone,
-        recipientPhone: result.recipientPhone,
-        direction: result.direction,
-        type: result.type,
-        hasContent: !!result.content,
-        hasMedia: !!result.mediaUrl,
-        datesAsISO: {
-          timestamp: normalizedTimestamp,
-          createdAt: normalizedCreatedAt,
-          updatedAt: normalizedUpdatedAt,
-        },
-      });
-
-      return result;
-
-    } catch (error) {
-      // ✅ SAFETY NET: Nunca fallar la serialización
-      logger.error('Error crítico en Message.toJSON()', {
-        messageId: this.id,
-        conversationId: this.conversationId,
-        error: error.message,
-        stack: error.stack,
-        originalData: {
-          senderPhone: this.senderPhone,
-          recipientPhone: this.recipientPhone,
-          timestamp: this.timestamp,
-          createdAt: this.createdAt,
-          updatedAt: this.updatedAt,
-        },
-      });
-
-      // Retornar estructura mínima pero válida
-      return {
-        id: this.id || 'error',
-        conversationId: this.conversationId || 'error',
-        content: 'Error al serializar mensaje',
-        mediaUrl: null,
-        sender: 'system',
-        senderPhone: null,
-        recipientPhone: null,
-        direction: 'error',
-        type: 'text',
-        status: 'error',
-        timestamp: null,
-        metadata: {},
-        createdAt: null,
-        updatedAt: null,
-      };
-    }
+      direction: this.direction,
+      type: this.type,
+      status: this.status,
+      timestamp: normalizedTimestamp,
+      metadata: this.metadata,
+      createdAt: normalizedCreatedAt,
+      updatedAt: normalizedUpdatedAt,
+    };
   }
 
   /**
    * Buscar mensajes
    */
   static async search (conversationId, searchTerm, options = {}) {
-    if (!isValidConversationId(conversationId)) {
-      throw new Error(`conversationId inválido: ${conversationId}`);
-    }
+    // La validación isValidConversationId se elimina porque ahora son UUIDs.
+    // ... el resto de la lógica de search permanece igual
 
     const messages = await this.getByConversation(conversationId, { ...options, limit: 1000 });
     return messages.messages.filter(message =>

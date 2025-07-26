@@ -1,3 +1,4 @@
+const { v4: uuidv4 } = require('uuid');
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
@@ -8,322 +9,155 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Conversation {
   constructor (data) {
-    // ✅ VALIDACIÓN: ID requerido
-    if (!data.id) {
-      throw new Error('Conversation ID es requerido');
-    }
-    this.id = data.id;
+    // ✅ ID: Usar UUIDv4 si no se proporciona uno. UID-FIRST.
+    this.id = data.id || uuidv4();
 
-    // ✅ VALIDACIÓN: Teléfonos de participantes
-    this.participants = this.validateAndNormalizeParticipants(data.participants || []);
+    // ✅ PARTICIPANTS: Array de UIDs de usuarios internos y/o teléfonos de externos.
+    this.participants = data.participants || [];
 
-    // ✅ VALIDACIÓN: Teléfono del cliente
-    if (data.customerPhone) {
-      const customerValidation = validateAndNormalizePhone(data.customerPhone);
-      if (!customerValidation.isValid) {
-        throw new Error(`Teléfono del cliente inválido: ${customerValidation.error}`);
-      }
-      this.customerPhone = customerValidation.normalized;
-    }
+    // ✅ CUSTOMER: Identificador del cliente externo.
+    this.customerPhone = this.validateCustomerPhone(data.customerPhone);
 
-    // ✅ VALIDACIÓN: Teléfono del agente
-    if (data.agentPhone) {
-      const agentValidation = validateAndNormalizePhone(data.agentPhone);
-      if (!agentValidation.isValid) {
-        throw new Error(`Teléfono del agente inválido: ${agentValidation.error}`);
-      }
-      this.agentPhone = agentValidation.normalized;
-    }
+    // ✅ DEPRECATED: agentPhone se elimina, se usa assignedTo (UID).
+    // this.agentPhone = data.agentPhone;
+
+    // ✅ CONTACT: Info del cliente.
+    this.contact = data.contact || { id: this.customerPhone, name: this.customerPhone };
 
     // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
-    this.contact = data.contact || null;
     this.lastMessage = data.lastMessage || null;
     this.lastMessageId = data.lastMessageId || null;
     this.lastMessageAt = data.lastMessageAt || null;
     this.unreadCount = data.unreadCount || 0;
     this.messageCount = data.messageCount || 0;
     this.status = data.status || 'open';
-    
-    // ✅ IMPORTANTE: assignedTo debe ser SIEMPRE un UID real
-    // NO se debe inventar valores como "agent_123" o similares
-    this.assignedTo = data.assignedTo || null; // Solo UID real o null
-    this.assignedToName = data.assignedToName || null; // Nombre del usuario asignado
-    
+
+    // ✅ ASSIGNED_TO: UID del agente asignado. La única fuente de verdad.
+    this.assignedTo = data.assignedTo || null;
+    this.assignedToName = data.assignedToName || null;
+
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
   }
 
   /**
-   * ✅ NUEVO: Validar y normalizar participantes
-   * @param {Array} participants - Array de números de teléfono
-   * @returns {Array} - Array de números normalizados
+   * ✅ Valida y normaliza el teléfono del cliente.
+   */
+  validateCustomerPhone(phone) {
+    if (!phone) {
+      // En un sistema UID-first, una conversación podría no tener un teléfono
+      // si es entre dos usuarios internos. Por ahora, lo mantenemos requerido.
+      throw new Error('customerPhone es requerido.');
+    }
+    const validation = validateAndNormalizePhone(phone);
+    if (!validation.isValid) {
+      throw new Error(`Teléfono del cliente inválido: ${validation.error}`);
+    }
+    return validation.normalized;
+  }
+
+  /**
+   * DEPRECATED: Ya no se usa.
    */
   validateAndNormalizeParticipants (participants) {
-    if (!Array.isArray(participants)) {
-      logger.warn('Participants debe ser un array', { participants });
-      return [];
-    }
-
-    const normalizedParticipants = [];
-    const errors = [];
-
-    participants.forEach((phone, index) => {
-      const validation = validateAndNormalizePhone(phone, { logErrors: false });
-
-      if (validation.isValid) {
-        normalizedParticipants.push(validation.normalized);
-      } else {
-        errors.push(`Participante ${index + 1}: ${validation.error}`);
-        logger.warn('Participante inválido', { phone, error: validation.error });
-      }
-    });
-
-    if (errors.length > 0) {
-      logger.warn('Errores en validación de participantes', { errors });
-    }
-
-    return normalizedParticipants;
+    // Esta lógica ahora se centrará en validar UIDs y teléfonos.
+    // Por ahora, aceptamos el array como viene.
+    return participants;
   }
 
   /**
-   * Identifica cuál número es del cliente y cuál del agente
+   * DEPRECATED: Se reemplaza por lógica de UIDs.
    */
   getCustomerPhone () {
-    const businessPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '') || '';
-    return this.participants.find(phone => phone !== businessPhone) || this.participants[0];
-  }
-
-  getAgentPhone () {
-    const businessPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '') || '';
-    return this.participants.find(phone => phone === businessPhone) || this.participants[1];
+    return this.customerPhone;
   }
 
   /**
-   * ✅ CORREGIDO: Crear o actualizar una conversación con asignación automática
-   * VALIDACIONES ESTRICTAS: customerPhone, agentPhone y participants obligatorios
-   * assignedTo debe ser SIEMPRE un UID real de usuario
+   * DEPRECATED: Se reemplaza por assignedTo.
    */
-  static async createOrUpdate (conversationData, currentUser = null) {
-    // ✅ VALIDACIÓN DE assignedTo: Solo permitir UIDs reales
-    let finalAssignedTo = null;
-    
-    if (conversationData.assignedTo) {
-      // Si se proporciona assignedTo, debe ser un UID válido
-      // TODO: Aquí se podría validar que el UID existe en la colección users
-      finalAssignedTo = conversationData.assignedTo;
-      logger.info('assignedTo proporcionado', { 
-        assignedTo: finalAssignedTo,
-        conversationId: conversationData.id 
-      });
-    } else if (currentUser && currentUser.uid) {
-      // Si hay usuario autenticado, usar su UID
-      finalAssignedTo = currentUser.uid;
-      logger.info('assignedTo asignado desde usuario autenticado', { 
-        assignedTo: finalAssignedTo,
-        conversationId: conversationData.id 
-      });
-    } else {
-      // ✅ IMPORTANTE: NO inventar valores, dejar null para asignación posterior
-      finalAssignedTo = null;
-      logger.warn('assignedTo no definido - se requerirá asignación manual', { 
-        conversationId: conversationData.id 
-      });
+  getAgentPhone () {
+    logger.warn('getAgentPhone() está obsoleto. Usar `assignedTo` (UID).');
+    return null;
+  }
+
+  /**
+   * ✅ REFACTORIZADO: Crear o encontrar una conversación. UID-FIRST.
+   * Busca una conversación abierta para un `customerPhone`. Si no existe, la crea.
+   */
+  static async findOrCreate(customerPhone, agentUid = null) {
+    const normalizedPhone = validateAndNormalizePhone(customerPhone);
+    if (!normalizedPhone.isValid) {
+      throw new Error(`Número de teléfono de cliente inválido: ${customerPhone}`);
     }
 
-    // ✅ Actualizar conversationData con assignedTo validado
-    const conversationWithAssignment = {
-      ...conversationData,
-      assignedTo: finalAssignedTo
+    // Buscar una conversación abierta o pendiente para este cliente.
+    const existingConversation = await this.findOpenByCustomerPhone(normalizedPhone.normalized);
+
+    if (existingConversation) {
+      logger.info(`Conversación existente encontrada para ${normalizedPhone.normalized}`, { id: existingConversation.id });
+      return existingConversation;
+    }
+
+    // Si no existe, crear una nueva.
+    logger.info(`No se encontró conversación abierta. Creando nueva para ${normalizedPhone.normalized}`);
+    const conversationId = uuidv4();
+    const conversationData = {
+      id: conversationId,
+      customerPhone: normalizedPhone.normalized,
+      participants: [normalizedPhone.normalized], // Inicialmente solo el cliente
+      status: 'open',
+      assignedTo: agentUid, // Puede ser null
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
-    // ✅ NORMALIZAR PARTICIPANTS ANTES DE VALIDAR
-    let normalizedParticipants = [];
-    if (conversationWithAssignment.participants && Array.isArray(conversationWithAssignment.participants)) {
-      const participantErrors = [];
-      
-      conversationWithAssignment.participants.forEach((phone, index) => {
-        const normalized = validateAndNormalizePhone(phone);
-        if (!normalized.isValid) {
-          participantErrors.push(`Participante ${index + 1}: ${normalized.error}`);
-          logger.error('Participante inválido en conversación', {
-            phone,
-            error: normalized.error,
-            conversationData: conversationWithAssignment,
-          });
-        } else {
-          normalizedParticipants.push(normalized.normalized);
-        }
-      });
-
-      if (participantErrors.length > 0) {
-        throw new Error(`Participantes inválidos: ${participantErrors.join(', ')}`);
-      }
+    if(agentUid) {
+      conversationData.participants.push(agentUid);
     }
 
-    // ✅ VALIDAR QUE HAY AL MENOS 2 PARTICIPANTES ÚNICOS
-    const uniqueParticipants = [...new Set(normalizedParticipants)];
-    if (uniqueParticipants.length < 2) {
-      logger.error('Conversación requiere al menos 2 participantes únicos', {
-        participants: normalizedParticipants,
-        uniqueParticipants,
-        conversationData: conversationWithAssignment,
-      });
-      throw new Error('Se requieren al menos 2 participantes únicos');
+    const conversation = new Conversation(conversationData);
+    await conversation.save();
+    return conversation;
+  }
+
+  /**
+   * ✅ NUEVO: Busca una conversación abierta o pendiente por el teléfono del cliente.
+   */
+  static async findOpenByCustomerPhone(customerPhone) {
+    const q = firestore.collection('conversations')
+      .where('customerPhone', '==', customerPhone)
+      .where('status', 'in', ['open', 'pending'])
+      .limit(1);
+
+    const snapshot = await q.get();
+
+    if (snapshot.empty) {
+      return null;
     }
 
-    // ✅ VALIDACIÓN ESTRICTA: Verificar y normalizar customerPhone
-    let validatedCustomerPhone = null;
-    if (conversationWithAssignment.customerPhone) {
-      const customerValidation = validateAndNormalizePhone(conversationWithAssignment.customerPhone);
-      if (!customerValidation.isValid) {
-        logger.error('customerPhone inválido en createOrUpdate', {
-          originalPhone: conversationWithAssignment.customerPhone,
-          error: customerValidation.error,
-          conversationId: conversationWithAssignment.id,
-        });
-        throw new Error(`customerPhone inválido: ${customerValidation.error}`);
-      }
-      validatedCustomerPhone = customerValidation.normalized;
-    } else if (uniqueParticipants.length >= 1) {
-      // ✅ Si no se proporciona customerPhone, usar el primer participante
-      validatedCustomerPhone = uniqueParticipants[0];
-      logger.info('customerPhone asignado automáticamente desde participants', {
-        conversationId: conversationWithAssignment.id,
-        assignedPhone: validatedCustomerPhone,
-      });
-    }
+    const doc = snapshot.docs[0];
+    return new Conversation({ id: doc.id, ...doc.data() });
+  }
 
-    // ✅ VALIDACIÓN ESTRICTA: Verificar y normalizar agentPhone
-    let validatedAgentPhone = null;
-    if (conversationWithAssignment.agentPhone) {
-      const agentValidation = validateAndNormalizePhone(conversationWithAssignment.agentPhone);
-      if (!agentValidation.isValid) {
-        logger.error('agentPhone inválido en createOrUpdate', {
-          originalPhone: conversationWithAssignment.agentPhone,
-          error: agentValidation.error,
-          conversationId: conversationWithAssignment.id,
-        });
-        throw new Error(`agentPhone inválido: ${agentValidation.error}`);
-      }
-      validatedAgentPhone = agentValidation.normalized;
-    } else if (uniqueParticipants.length >= 2) {
-      // ✅ Si no se proporciona agentPhone, usar el segundo participante
-      validatedAgentPhone = uniqueParticipants[1];
-      logger.info('agentPhone asignado automáticamente desde participants', {
-        conversationId: conversationWithAssignment.id,
-        assignedPhone: validatedAgentPhone,
-      });
-    } else {
-      // ✅ Usar número de Twilio como agentPhone por defecto
-      const twilioPhone = process.env.TWILIO_WHATSAPP_NUMBER?.replace('whatsapp:', '');
-      if (twilioPhone) {
-        const twilioValidation = validateAndNormalizePhone(twilioPhone);
-        if (twilioValidation.isValid) {
-          validatedAgentPhone = twilioValidation.normalized;
-          logger.info('agentPhone asignado desde configuración Twilio', {
-            conversationId: conversationWithAssignment.id,
-            assignedPhone: validatedAgentPhone,
-          });
-        }
-      }
-    }
 
-    // ✅ VALIDACIÓN FINAL: Asegurar que tenemos ambos teléfonos
-    if (!validatedCustomerPhone) {
-      logger.error('customerPhone requerido pero no pudo ser determinado', {
-        conversationData: conversationWithAssignment,
-        uniqueParticipants,
-      });
-      throw new Error('customerPhone es requerido y no pudo ser determinado automáticamente');
-    }
-
-    if (!validatedAgentPhone) {
-      logger.error('agentPhone requerido pero no pudo ser determinado', {
-        conversationData: conversationWithAssignment,
-        uniqueParticipants,
-        twilioPhone: process.env.TWILIO_WHATSAPP_NUMBER,
-      });
-      throw new Error('agentPhone es requerido y no pudo ser determinado automáticamente');
-    }
-
-    // ✅ ASEGURAR QUE PARTICIPANTS INCLUYA AMBOS TELÉFONOS
-    const finalParticipants = [...new Set([validatedCustomerPhone, validatedAgentPhone])];
-    if (finalParticipants.length !== 2) {
-      logger.error('customerPhone y agentPhone deben ser diferentes', {
-        customerPhone: validatedCustomerPhone,
-        agentPhone: validatedAgentPhone,
-        finalParticipants,
-        conversationId: conversationWithAssignment.id,
-      });
-      throw new Error('customerPhone y agentPhone deben ser números diferentes');
-    }
-
-    // ✅ ACTUALIZAR CONVERSATION DATA CON CAMPOS VALIDADOS
-    const finalConversationData = {
-      ...conversationWithAssignment,
-      participants: finalParticipants,
-      customerPhone: validatedCustomerPhone,
-      agentPhone: validatedAgentPhone,
-      assignedTo: finalAssignedTo, // UID real o null
-    };
-
-    // ✅ LOG DETALLADO ANTES DE GUARDAR
-    logger.info('Guardando conversación en Firestore con validaciones completas', {
-      conversationId: finalConversationData.id,
-      participants: finalConversationData.participants,
-      customerPhone: finalConversationData.customerPhone,
-      agentPhone: finalConversationData.agentPhone,
-      assignedTo: finalConversationData.assignedTo,
-      assignedToType: typeof finalConversationData.assignedTo,
-      status: finalConversationData.status || 'open',
+  /**
+   * Guarda o actualiza la conversación en Firestore.
+   */
+  async save() {
+    const data = prepareForFirestore({
+      ...this,
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
-    try {
-      const conversation = new Conversation(finalConversationData);
-
-      // Preparar datos para Firestore
-      const cleanData = prepareForFirestore({
-        ...conversation,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      // ✅ USAR .set() PARA CONTROLAR ID
-      await firestore
-        .collection('conversations')
-        .doc(conversation.id)
-        .set(cleanData, { merge: true });
-
-      // ✅ LOG DE ÉXITO CON DETALLES COMPLETOS
-      logger.info('Conversación guardada exitosamente con todas las validaciones', {
-        conversationId: conversation.id,
-        participants: conversation.participants,
-        customerPhone: conversation.customerPhone,
-        agentPhone: conversation.agentPhone,
-        assignedTo: conversation.assignedTo,
-        assignedToType: typeof conversation.assignedTo,
-        messageCount: conversation.messageCount || 0,
-        status: conversation.status,
-      });
-
-      return conversation;
-    } catch (error) {
-      logger.error('Error guardando conversación después de validaciones', {
-        error: error.message,
-        conversationData: finalConversationData,
-        stack: error.stack,
-      });
-      throw error;
-    }
+    await firestore.collection('conversations').doc(this.id).set(data, { merge: true });
+    logger.info('Conversación guardada.', { id: this.id });
   }
 
   /**
    * Obtener conversación por ID
    */
   static async getById (id) {
-    if (!isValidConversationId(id)) {
-      throw new Error(`conversationId inválido: ${id}`);
-    }
-
+    // Se mantiene igual, pero ahora el ID es un UUID.
     const doc = await firestore.collection('conversations').doc(id).get();
     if (!doc.exists) {
       return null;
@@ -338,7 +172,7 @@ class Conversation {
     const {
       limit = 20,
       startAfter = null,
-      assignedTo = null,
+      assignedTo = undefined, // Permitir `null` explícito.
       status = null,
       customerPhone = null,
       sortBy = 'lastMessageAt',
@@ -347,7 +181,7 @@ class Conversation {
 
     // ✅ VALIDACIÓN: Límites de consulta
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
-    
+
     logger.info('Ejecutando consulta de conversaciones en Firestore', {
       limit: validatedLimit,
       startAfter: startAfter ? 'presente' : 'ausente',
@@ -383,8 +217,13 @@ class Conversation {
     }
 
     if (customerPhone) {
-      query = query.where('customerPhone', '==', customerPhone);
-      logger.info('Aplicando filtro de customerPhone', { customerPhone });
+      const normalizedPhone = validateAndNormalizePhone(customerPhone);
+      if(normalizedPhone.isValid) {
+        query = query.where('customerPhone', '==', normalizedPhone.normalized);
+        logger.info('Aplicando filtro de customerPhone', { customerPhone: normalizedPhone.normalized });
+      } else {
+        logger.warn('customerPhone inválido para filtro, ignorando.', { customerPhone });
+      }
     }
 
     // ✅ ORDENAMIENTO
@@ -459,6 +298,14 @@ class Conversation {
    * Actualizar conversación
    */
   async update (updates) {
+    // No se actualiza el `agentPhone` porque ya no existe.
+    const disallowedUpdates = ['id', 'agentPhone', 'createdAt'];
+    for (const key of disallowedUpdates) {
+      if (updates[key]) {
+        delete updates[key];
+      }
+    }
+
     const cleanData = prepareForFirestore({
       ...updates,
       updatedAt: FieldValue.serverTimestamp(),
@@ -488,6 +335,7 @@ class Conversation {
       lastMessageId: message.id,
       lastMessageAt: message.timestamp,
       messageCount: FieldValue.increment(1),
+      status: 'open', // Re-abrir la conversación si estaba cerrada.
     });
 
     this.lastMessage = lastMessageData;
@@ -680,179 +528,67 @@ class Conversation {
    */
   toJSON () {
     try {
-      // ✅ FECHAS COMO STRING ISO 8601 - SIEMPRE
+      // ✅ FECHAS SIEMPRE COMO STRING ISO
       const normalizedCreatedAt = safeDateToISOString(this.createdAt);
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
       const normalizedLastMessageAt = safeDateToISOString(this.lastMessageAt);
 
-      // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar participants
-      let validatedParticipants = [];
-      if (Array.isArray(this.participants)) {
-        const normalizedParticipants = [];
-        const errors = [];
+      // ✅ PARTICIPANTS: Puede contener UIDs y/o teléfonos.
+      const validatedParticipants = this.participants || [];
 
-        this.participants.forEach((phone, index) => {
-          const validation = validateAndNormalizePhone(phone, { logErrors: false });
-          if (validation.isValid) {
-            normalizedParticipants.push(validation.normalized);
-          } else {
-            errors.push(`Participante ${index + 1}: ${validation.error}`);
-            logger.error('Participante inválido en serialización', {
-              conversationId: this.id,
-              participantIndex: index,
-              originalPhone: phone,
-              error: validation.error,
-            });
-          }
-        });
+      // ✅ CUSTOMER PHONE:
+      const normalizedCustomerPhone = this.customerPhone;
 
-        // ✅ Eliminar duplicados y verificar que tengamos exactamente 2 únicos
-        validatedParticipants = [...new Set(normalizedParticipants)];
-        
-        if (validatedParticipants.length !== 2) {
-          logger.error('Participants debe tener exactamente 2 números únicos', {
-            conversationId: this.id,
-            originalParticipants: this.participants,
-            normalizedParticipants,
-            uniqueParticipants: validatedParticipants,
-            uniqueCount: validatedParticipants.length,
-            errors,
-          });
-        }
-      } else {
-        logger.error('Participants no es un array en serialización', {
-          conversationId: this.id,
-          participants: this.participants,
-          type: typeof this.participants,
-        });
-      }
-
-      // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar customerPhone
-      let normalizedCustomerPhone = null;
-      if (this.customerPhone) {
-        const customerValidation = validateAndNormalizePhone(this.customerPhone, { logErrors: false });
-        if (customerValidation.isValid) {
-          normalizedCustomerPhone = customerValidation.normalized;
-        } else {
-          logger.error('customerPhone malformado en serialización', {
-            conversationId: this.id,
-            originalPhone: this.customerPhone,
-            error: customerValidation.error,
-          });
-        }
-      } else {
-        logger.error('customerPhone faltante en serialización', {
-          conversationId: this.id,
-          participants: validatedParticipants,
-        });
-      }
-
-      // ✅ VALIDACIÓN CRÍTICA: Verificar y normalizar agentPhone
-      let normalizedAgentPhone = null;
-      if (this.agentPhone) {
-        const agentValidation = validateAndNormalizePhone(this.agentPhone, { logErrors: false });
-        if (agentValidation.isValid) {
-          normalizedAgentPhone = agentValidation.normalized;
-        } else {
-          logger.error('agentPhone malformado en serialización', {
-            conversationId: this.id,
-            originalPhone: this.agentPhone,
-            error: agentValidation.error,
-          });
-        }
-      } else {
-        logger.error('agentPhone faltante en serialización', {
-          conversationId: this.id,
-          participants: validatedParticipants,
-        });
-      }
+      // ✅ AGENT PHONE (DEPRECATED): Se elimina.
+      // const normalizedAgentPhone = null;
 
       // ✅ Construir objeto contact según especificación
       const contact = {
         id: normalizedCustomerPhone || this.contact?.id || 'unknown',
         name: this.contact?.name || normalizedCustomerPhone || 'Cliente',
         avatar: this.contact?.avatar || null,
-        channel: 'whatsapp', // Por defecto WhatsApp, se puede extender
+        channel: 'whatsapp',
       };
 
-      // ✅ CAMPO PRINCIPAL: assignedTo debe ser UID real o null
+      // ✅ ASSIGNED_TO: Objeto con UID y nombre.
       let assignedTo = null;
       if (this.assignedTo) {
-        // ✅ IMPORTANTE: assignedTo debe ser un UID real
         assignedTo = {
-          id: this.assignedTo, // UID real
-          name: this.assignedToName || this.assignedTo, // Nombre si existe, sino UID
+          id: this.assignedTo,
+          name: this.assignedToName || this.assignedTo,
         };
-      } else {
-        logger.warn('assignedTo faltante en conversación', {
-          conversationId: this.id,
-          status: this.status,
-        });
       }
 
-      // ✅ VALIDACIÓN: Asegurar que todos los campos críticos estén presentes
+      // ✅ ESTRUCTURA DE RESPUESTA FINAL (UID-FIRST)
       const result = {
         id: this.id,
-        participants: validatedParticipants, // ✅ Array de 2 únicos
-        customerPhone: normalizedCustomerPhone, // ✅ E.164
-        agentPhone: normalizedAgentPhone, // ✅ E.164
+        participants: validatedParticipants,
+        customerPhone: normalizedCustomerPhone,
+        // agentPhone: DEPRECATED
         contact,
-        assignedTo, // ✅ CAMPO PRINCIPAL con UID real
-        assignedAgent: this.assignedTo, // ✅ SOLO para compatibilidad
+        assignedTo,
         status: this.status || 'open',
         unreadCount: this.unreadCount || 0,
         messageCount: this.messageCount || 0,
         lastMessage: this.lastMessage || null,
         lastMessageId: this.lastMessageId || null,
-        lastMessageAt: normalizedLastMessageAt, // ✅ STRING ISO o null
-        createdAt: normalizedCreatedAt, // ✅ STRING ISO o null
-        updatedAt: normalizedUpdatedAt, // ✅ STRING ISO o null
+        lastMessageAt: normalizedLastMessageAt,
+        createdAt: normalizedCreatedAt,
+        updatedAt: normalizedUpdatedAt,
       };
 
-      // ✅ VALIDACIÓN: Log si faltan campos críticos
+      // Validación final (simplificada)
       const missingFields = [];
-      const invalidFields = [];
-      
       if (!result.id) missingFields.push('id');
-      if (!Array.isArray(result.participants)) missingFields.push('participants');
-      if (result.participants.length !== 2) invalidFields.push(`participants (${result.participants.length} en lugar de 2)`);
       if (!result.customerPhone) missingFields.push('customerPhone');
-      if (!result.agentPhone) missingFields.push('agentPhone');
       if (!result.status) missingFields.push('status');
 
-      if (missingFields.length > 0 || invalidFields.length > 0) {
-        logger.error('Campos críticos faltantes o inválidos en Conversation.toJSON()', {
+      if (missingFields.length > 0) {
+        logger.error('Campos críticos faltantes en Conversation.toJSON()', {
           conversationId: this.id,
           missingFields,
-          invalidFields,
-          currentData: {
-            participants: result.participants,
-            customerPhone: result.customerPhone,
-            agentPhone: result.agentPhone,
-            assignedTo: result.assignedTo,
-            status: result.status,
-          },
         });
       }
-
-      // ✅ LOGGING: Log detallado antes de enviar la respuesta
-      logger.info('Conversación serializada para frontend', {
-        conversationId: result.id,
-        participantsCount: result.participants.length,
-        participants: result.participants,
-        customerPhone: result.customerPhone,
-        agentPhone: result.agentPhone,
-        assignedToId: result.assignedTo?.id,
-        assignedToType: typeof this.assignedTo,
-        status: result.status,
-        messageCount: result.messageCount,
-        hasLastMessage: !!result.lastMessage,
-        datesAsISO: {
-          createdAt: normalizedCreatedAt,
-          updatedAt: normalizedUpdatedAt,
-          lastMessageAt: normalizedLastMessageAt,
-        },
-      });
 
       return result;
 

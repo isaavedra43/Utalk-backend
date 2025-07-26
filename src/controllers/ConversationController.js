@@ -8,6 +8,8 @@ const Message = require('../models/Message');
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { safeDateToISOString } = require('../utils/dateHelpers');
+const { v4: uuidv4 } = require('uuid'); // Importar uuid
+const User = require('../models/User'); // Para buscar UIDs
 
 /**
  * CONTROLADOR DE CONVERSACIONES - VERSIÓN ROBUSTA Y DEFINITIVA
@@ -26,68 +28,41 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
  */
 class ConversationController {
   /**
-   * ✅ CORREGIDO: Listar conversaciones con filtros optimizados
-   * Filtro por assignedTo en lugar de userId para agentes
-   * ✅ ESTRUCTURA GARANTIZADA: Siempre devuelve la estructura esperada por frontend
+   * ✅ UID-FIRST: Listar conversaciones.
+   * El filtro `assignedTo` ahora usa el UID del usuario logueado por defecto.
    */
   static async listConversations (req, res) {
     try {
       const {
         limit = 20,
         cursor = null,
-        assignedTo = null,
+        assignedTo = undefined, // Permitir `null` explícito para no asignadas
         status = null,
         customerPhone = null,
         sortBy = 'lastMessageAt',
         sortOrder = 'desc',
       } = req.query;
 
-      // ✅ CORRECCIÓN CRÍTICA: Determinar filtro assignedTo basado en usuario autenticado
       let finalAssignedToFilter = assignedTo;
-      
-      // Si no se especifica assignedTo, usar el UID del usuario autenticado (excepto admins)
-      if (!finalAssignedToFilter && req.user) {
-        if (req.user.role === 'admin') {
-          // Admins ven todas las conversaciones (sin filtro)
-          finalAssignedToFilter = null;
+
+      if (assignedTo === undefined && req.user) {
+        if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+          // Admins y superadmins, por defecto, ven todas las conversaciones.
+          // Para ver las no asignadas, deben pasar `assignedTo=null`.
+          finalAssignedToFilter = undefined; 
         } else {
-          // Agentes solo ven sus conversaciones asignadas
+          // Agentes solo ven sus conversaciones.
           finalAssignedToFilter = req.user.uid;
         }
       }
 
-      // ✅ VALIDACIÓN: Normalizar teléfono del cliente si se proporciona
-      let normalizedCustomerPhone = null;
-      if (customerPhone) {
-        const phoneValidation = validateAndNormalizePhone(customerPhone);
-        if (!phoneValidation.isValid) {
-          logger.warn('Teléfono del cliente inválido en listConversations', {
-            originalPhone: customerPhone,
-            error: phoneValidation.error,
-            userAgent: req.get('User-Agent'),
-            ip: req.ip,
-          });
-          return res.status(400).json({
-            success: false,
-            error: `Teléfono del cliente inválido: ${phoneValidation.error}`,
-            details: {
-              field: 'customerPhone',
-              originalValue: customerPhone,
-              expectedFormat: 'Formato internacional E.164 (ej: +1234567890)',
-            },
-          });
-        }
-        normalizedCustomerPhone = phoneValidation.normalized;
-      }
-
-      // ✅ MONITOREO: Log de parámetros de consulta
-      logger.info('Listando conversaciones', {
+      logger.info('Listando conversaciones (UID-FIRST)', {
         limit: parseInt(limit),
         cursor: cursor ? 'presente' : 'ausente',
         filters: {
-          assignedTo: finalAssignedToFilter || 'todas_para_admin',
+          assignedTo: finalAssignedToFilter,
           status: status || 'ninguno',
-          customerPhone: normalizedCustomerPhone ? 'normalizado' : 'ninguno',
+          customerPhone: customerPhone ? 'normalizado' : 'ninguno',
         },
         sortBy,
         sortOrder,
@@ -104,14 +79,13 @@ class ConversationController {
         startAfter: cursor,
         assignedTo: finalAssignedToFilter,
         status,
-        customerPhone: normalizedCustomerPhone,
+        customerPhone,
         sortBy,
         sortOrder,
       };
 
-      // ✅ CORRECCIÓN CRÍTICA: Obtener conversaciones de Firestore
       let conversations = await Conversation.list(options);
-
+      
       // ✅ FEATURE: Si no hay conversaciones asignadas, buscar y asignar automáticamente
       if (conversations.length === 0 && finalAssignedToFilter && req.user.role !== 'admin') {
         logger.info('No se encontraron conversaciones asignadas, buscando sin asignar', {
@@ -178,11 +152,11 @@ class ConversationController {
       // ✅ MONITOREO: Log de resultados
       logger.info('Conversaciones listadas exitosamente', {
         totalResults: serializedConversations.length,
-        hasFilters: !!(finalAssignedToFilter || status || normalizedCustomerPhone),
+        hasFilters: !!(finalAssignedToFilter || status || customerPhone),
         filtersApplied: {
           assignedTo: !!finalAssignedToFilter,
           status: !!status,
-          customerPhone: !!normalizedCustomerPhone,
+          customerPhone: !!customerPhone,
         },
         validConversations: serializedConversations.length,
         userRole: req.user.role,
@@ -202,7 +176,7 @@ class ConversationController {
           appliedFilters: {
             assignedTo: finalAssignedToFilter,
             status,
-            customerPhone: normalizedCustomerPhone,
+            customerPhone: customerPhone,
           },
           autoAssignment: {
             performed: conversations.length > 0 && finalAssignedToFilter && req.user.role !== 'admin',
@@ -244,21 +218,14 @@ class ConversationController {
   }
 
   /**
-   * ✅ CORREGIDO: Obtener conversación por ID con validación completa
+   * ✅ UID-FIRST: Obtener una conversación por su UUID.
    */
   static async getConversation (req, res) {
     try {
-      const { conversationId } = req.params;
+      const { conversationId } = req.params; // Ahora es un UUID
 
       if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: 'conversationId es requerido',
-          details: {
-            field: 'conversationId',
-            expectedFormat: 'conv_phone1_phone2',
-          },
-        });
+        return res.status(400).json({ error: 'conversationId (UUID) es requerido' });
       }
 
       logger.info('Obteniendo conversación', { 
@@ -272,14 +239,7 @@ class ConversationController {
 
       if (!conversation) {
         logger.warn('Conversación no encontrada', { conversationId });
-        return res.status(404).json({
-          success: false,
-          error: 'Conversación no encontrada',
-          details: {
-            conversationId,
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
+        return res.status(404).json({ error: 'Conversación no encontrada' });
       }
 
       // ✅ SERIALIZACIÓN SEGURA
@@ -511,201 +471,40 @@ class ConversationController {
   }
 
   /**
-   * ✅ CORREGIDO: Crear nueva conversación con validación de teléfonos
-   * SIEMPRE garantiza que el campo assignedTo sea un UID real
+   * ✅ UID-FIRST: Crear una nueva conversación.
+   * Se enfoca en el `customerPhone` y opcionalmente en el `assignedTo` UID.
    */
   static async createConversation (req, res) {
     try {
-      const {
-        participants = [],
-        customerPhone = null,
-        agentPhone = null,
-        contact = null,
-        assignedTo = null, // ✅ DEBE ser UID real o null
-      } = req.body;
+      const { customerPhone, assignedTo = null } = req.body; // `assignedTo` es un UID
 
-      // ✅ IMPORTANTE: Obtener usuario actual para UID real
-      const currentUser = req.user || null; // Obtenido del middleware de autenticación
-
-      // ✅ VALIDACIÓN: assignedTo debe ser UID válido si se proporciona
-      if (assignedTo && (typeof assignedTo !== 'string' || assignedTo.trim() === '')) {
-        return res.status(400).json({
-          success: false,
-          error: 'assignedTo debe ser un UID válido',
-          details: {
-            field: 'assignedTo',
-            expectedType: 'string (UID del usuario)',
-            receivedType: typeof assignedTo,
-            receivedValue: assignedTo,
-          },
-        });
+      if (!customerPhone) {
+        return res.status(400).json({ error: 'customerPhone es requerido.' });
       }
-
-      // ✅ VALIDACIÓN: Verificar que se proporcionen participantes
-      if (!Array.isArray(participants) || participants.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Se requiere al menos un participante',
-          details: {
-            field: 'participants',
-            expectedType: 'Array de números de teléfono',
-            expectedFormat: '["+1234567890", "+1987654321"]',
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Normalizar teléfonos de participantes
-      const normalizedParticipants = [];
-      const validationErrors = [];
-
-      participants.forEach((phone, index) => {
-        const validation = validateAndNormalizePhone(phone);
-        if (validation.isValid) {
-          normalizedParticipants.push(validation.normalized);
-        } else {
-          validationErrors.push(`Participante ${index + 1}: ${validation.error}`);
-        }
-      });
-
-      if (validationErrors.length > 0) {
-        logger.warn('Errores de validación en participantes', {
-          errors: validationErrors,
-          originalParticipants: participants,
-          userAgent: req.get('User-Agent'),
-          ip: req.ip,
-        });
-        
-        return res.status(400).json({
-          success: false,
-          error: 'Teléfonos de participantes inválidos',
-          details: {
-            field: 'participants',
-            errors: validationErrors,
-            expectedFormat: 'Formato internacional E.164 (ej: +1234567890)',
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Normalizar teléfono del cliente si se proporciona
-      let normalizedCustomerPhone = null;
-      if (customerPhone) {
-        const customerValidation = validateAndNormalizePhone(customerPhone);
-        if (!customerValidation.isValid) {
-          return res.status(400).json({
-            success: false,
-            error: `Teléfono del cliente inválido: ${customerValidation.error}`,
-            details: {
-              field: 'customerPhone',
-              originalValue: customerPhone,
-              expectedFormat: 'Formato internacional E.164 (ej: +1234567890)',
-            },
-          });
-        }
-        normalizedCustomerPhone = customerValidation.normalized;
-      }
-
-      // ✅ VALIDACIÓN: Normalizar teléfono del agente si se proporciona
-      let normalizedAgentPhone = null;
-      if (agentPhone) {
-        const agentValidation = validateAndNormalizePhone(agentPhone);
-        if (!agentValidation.isValid) {
-          return res.status(400).json({
-            success: false,
-            error: `Teléfono del agente inválido: ${agentValidation.error}`,
-            details: {
-              field: 'agentPhone',
-              originalValue: agentPhone,
-              expectedFormat: 'Formato internacional E.164 (ej: +1234567890)',
-            },
-          });
-        }
-        normalizedAgentPhone = agentValidation.normalized;
-      }
-
-      // ✅ GENERAR ID ÚNICO para la conversación
-      const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      const conversationData = {
-        id: conversationId,
-        participants: normalizedParticipants,
-        customerPhone: normalizedCustomerPhone,
-        agentPhone: normalizedAgentPhone,
-        contact,
-        assignedTo, // ✅ UID real o null - NO se inventan valores
-      };
-
-      logger.info('Creando nueva conversación manualmente', {
-        conversationId,
-        participantsCount: normalizedParticipants.length,
-        hasCustomerPhone: !!normalizedCustomerPhone,
-        hasAgentPhone: !!normalizedAgentPhone,
-        assignedTo: assignedTo || 'null',
-        assignedToType: typeof assignedTo,
-        currentUserUID: currentUser ? currentUser.uid : 'no_autenticado',
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      // ✅ IMPORTANTE: Pasar currentUser para UID real
-      const conversation = await Conversation.createOrUpdate(conversationData, currentUser);
-
-      // ✅ SERIALIZACIÓN SEGURA
-      let serializedConversation;
-      try {
-        serializedConversation = conversation.toJSON();
-      } catch (serializationError) {
-        logger.error('Error serializando conversación creada', {
-          conversationId,
-          error: serializationError.message,
-          stack: serializationError.stack,
-        });
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Conversación creada pero error en procesamiento',
-          details: {
-            conversationId,
-            message: 'Error en serialización de datos',
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
-      }
-
-      logger.info('Conversación creada exitosamente manualmente', {
-        conversationId,
-        assignedToId: serializedConversation.assignedTo?.id,
-        assignedToType: typeof serializedConversation.assignedTo?.id,
-        customerPhone: serializedConversation.customerPhone,
-        participantsCount: serializedConversation.participants?.length || 0,
-      });
+      
+      // La lógica ahora está en el modelo.
+      const conversation = await Conversation.findOrCreate(customerPhone, assignedTo || req.user.uid);
 
       res.status(201).json({
         success: true,
-        data: serializedConversation,
+        data: conversation.toJSON(),
         metadata: {
           created: true,
           timestamp: safeDateToISOString(new Date()),
-          conversationId,
+          conversationId: conversation.id,
         },
       });
 
     } catch (error) {
-      logger.error('Error creando conversación', {
+      logger.error('Error creando conversación (UID-FIRST)', {
+        customerPhone: req.body.customerPhone,
+        assignedTo: req.body.assignedTo,
         error: error.message,
         stack: error.stack,
-        body: req.body,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
       });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
+      res.status(500).json({ error: 'Error interno del servidor' });
     }
   }
 
@@ -865,96 +664,33 @@ class ConversationController {
   }
 
   /**
-   * ✅ CORREGIDO: Asignar conversación a agente (UID real)
+   * ✅ UID-FIRST: Asignar una conversación a un agente por su UID.
    */
   static async assignConversation (req, res) {
     try {
-      const { conversationId } = req.params;
-      const { assignedTo } = req.body;
+      const { conversationId } = req.params; // UUID
+      const { assignedTo } = req.body; // UID del agente
 
-      if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: 'conversationId es requerido',
-          details: {
-            field: 'conversationId',
-            expectedFormat: 'conv_phone1_phone2',
-          },
-        });
+      if (!assignedTo) {
+        return res.status(400).json({ error: 'assignedTo (UID) es requerido' });
       }
 
-      // ✅ VALIDACIÓN: assignedTo debe ser UID válido
-      if (!assignedTo || typeof assignedTo !== 'string' || assignedTo.trim() === '') {
-        return res.status(400).json({
-          success: false,
-          error: 'assignedTo es requerido y debe ser un UID válido',
-          details: {
-            field: 'assignedTo',
-            expectedType: 'string (UID del usuario)',
-            description: 'UID del agente al que asignar la conversación',
-            receivedType: typeof assignedTo,
-            receivedValue: assignedTo,
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Verificar que la conversación existe
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
-        return res.status(404).json({
-          success: false,
-          error: 'Conversación no encontrada',
-          details: {
-            conversationId,
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
+        return res.status(404).json({ error: 'Conversación no encontrada' });
+      }
+      
+      // Opcional: Validar que el UID del agente exista en la colección de usuarios.
+      const agent = await User.getByUid(assignedTo);
+      if(!agent) {
+        return res.status(404).json({ error: 'Agente no encontrado con el UID proporcionado.' });
       }
 
-      logger.info('Asignando conversación', {
-        conversationId,
-        assignedTo,
-        assignedToType: typeof assignedTo,
-        previousAssignment: conversation.assignedTo,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      await conversation.assignTo(assignedTo);
-
-      // ✅ SERIALIZACIÓN SEGURA
-      let serializedConversation;
-      try {
-        serializedConversation = conversation.toJSON();
-      } catch (serializationError) {
-        logger.error('Error serializando conversación asignada', {
-          conversationId,
-          error: serializationError.message,
-          stack: serializationError.stack,
-        });
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Conversación asignada pero error en procesamiento',
-          details: {
-            conversationId,
-            assignedTo,
-            message: 'Error en serialización de datos',
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
-      }
-
-      logger.info('Conversación asignada exitosamente', {
-        conversationId,
-        assignedTo,
-        newAssignedTo: serializedConversation.assignedTo?.id,
-        assignmentConfirmed: serializedConversation.assignedTo?.id === assignedTo,
-      });
+      await conversation.assignTo(agent.uid, agent.displayName || agent.email);
 
       res.json({
         success: true,
-        data: serializedConversation,
+        data: conversation.toJSON(),
         metadata: {
           assigned: true,
           timestamp: safeDateToISOString(new Date()),

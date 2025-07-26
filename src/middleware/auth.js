@@ -1,169 +1,146 @@
+const { getAuth } = require('firebase-admin/auth');
+const User = require('../models/User');
 const logger = require('../utils/logger');
-const jwt = require('jsonwebtoken');
 
 /**
- * Middleware de autenticación con JWT propio (NO Firebase ID Token)
+ * Middleware de autenticación con Firebase ID Token
  *
- * CRÍTICO: Este middleware ahora valida ÚNICAMENTE nuestro JWT generado internamente
- * por el backend en el login, NO los tokens de Firebase Auth.
- *
- * El JWT contiene: { uid, email, role } y está firmado con JWT_SECRET
+ * CRÍTICO: Este middleware valida los ID Tokens de Firebase Auth.
+ * En cada petición válida, sincroniza el usuario con Firestore
+ * y adjunta la instancia del modelo User a `req.user`.
  */
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    // Validación estricta del header Authorization
-    if (!authHeader) {
-      logger.warn('Token de autorización faltante', {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.warn('Token de autorización faltante o con formato incorrecto', {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         url: req.originalUrl,
+        authHeader: authHeader ? authHeader.substring(0, 20) + '...' : 'N/A',
       });
-
       return res.status(401).json({
-        error: 'Token de autorización requerido',
-        message: 'Debes incluir el header Authorization con un token Bearer válido',
+        error: 'Token de autorización inválido',
+        message: 'Se requiere un token "Bearer" de Firebase Auth.',
       });
     }
 
-    if (!authHeader.startsWith('Bearer ')) {
-      logger.warn('Formato de token inválido', {
-        ip: req.ip,
-        authHeader: authHeader.substring(0, 20) + '...', // Solo primeros caracteres por seguridad
-      });
+    const idToken = authHeader.substring(7); // Remover "Bearer "
 
-      return res.status(401).json({
-        error: 'Formato de token inválido',
-        message: 'El token debe tener el formato "Bearer <token>"',
-      });
-    }
-
-    const token = authHeader.substring(7); // Remover "Bearer "
-
-    if (!token) {
+    if (!idToken) {
       logger.warn('Token vacío detectado', { ip: req.ip });
-
       return res.status(401).json({
         error: 'Token vacío',
-        message: 'El token no puede estar vacío',
+        message: 'El token no puede estar vacío.',
       });
     }
 
-    // CRÍTICO: Verificar JWT propio (NO Firebase ID Token)
-    jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
-      if (error) {
-        // Logs específicos por tipo de error JWT
-        if (error.name === 'TokenExpiredError') {
-          logger.warn('Token JWT expirado', {
-            ip: req.ip,
-            expiredAt: error.expiredAt,
-          });
+    // ✅ Verificar Firebase ID Token
+    const decodedToken = await getAuth().verifyIdToken(idToken, true);
 
-          return res.status(401).json({
-            error: 'Token expirado',
-            message: 'El token ha expirado, por favor inicia sesión nuevamente',
-          });
-        }
+    // ✅ SINCRONIZACIÓN AUTOMÁTICA Auth -> Firestore
+    // En cada petición, nos aseguramos que el usuario exista en nuestra BD
+    // y que sus datos básicos (email, nombre) estén actualizados.
+    const userFromDb = await User.syncFromAuth(decodedToken);
 
-        if (error.name === 'JsonWebTokenError') {
-          logger.warn('Token JWT inválido', {
-            ip: req.ip,
-            error: error.message,
-          });
-
-          return res.status(401).json({
-            error: 'Token inválido',
-            message: 'El token proporcionado no es válido',
-          });
-        }
-
-        if (error.name === 'NotBeforeError') {
-          logger.warn('Token JWT usado antes de tiempo', {
-            ip: req.ip,
-            notBefore: error.date,
-          });
-
-          return res.status(401).json({
-            error: 'Token no válido aún',
-            message: 'El token no es válido todavía',
-          });
-        }
-
-        // Error genérico
-        logger.error('Error al verificar JWT', {
-          ip: req.ip,
-          error: error.message,
-          name: error.name,
-        });
-
-        return res.status(401).json({
-          error: 'Error de autenticación',
-          message: 'No se pudo verificar el token de autenticación',
-        });
-      }
-
-      // IMPORTANTE: Construir req.user SOLO con propiedades del JWT propio
-      // NO incluimos propiedades específicas de Firebase como emailVerified, photoURL, etc.
-      // Ajustamos al contrato centralizado: solo id, email y role.
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        role: decoded.role,
-      };
-
-      logger.info('Usuario autenticado con JWT propio', {
-        id: req.user.id,
-        email: req.user.email,
-        role: req.user.role,
+    if (!userFromDb) {
+      logger.error('Fallo crítico: No se pudo sincronizar al usuario desde el token', {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
         ip: req.ip,
       });
+      return res.status(403).json({
+        error: 'Acceso denegado',
+        message: 'El usuario autenticado no pudo ser verificado en la base de datos.',
+      });
+    }
+    
+    // ✅ VERIFICACIÓN DE ESTADO: Asegurarse que el usuario no esté deshabilitado
+    if (!userFromDb.isActive) {
+      logger.warn('Intento de acceso de usuario inactivo', {
+        uid: userFromDb.uid,
+        email: userFromDb.email,
+        ip: req.ip,
+      });
+      return res.status(403).json({
+        error: 'Cuenta inactiva',
+        message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
+      });
+    }
 
-      next();
-    });
-  } catch (error) {
-    logger.error('Error inesperado en middleware de autenticación', {
-      error: error.message,
-      stack: error.stack,
+    // ✅ Adjuntar la instancia completa del usuario de Firestore a la petición
+    req.user = userFromDb;
+
+    logger.info('Usuario autenticado y sincronizado vía Firebase Token', {
+      uid: req.user.uid,
+      email: req.user.email,
+      role: req.user.role,
       ip: req.ip,
     });
 
-    return res.status(500).json({
-      error: 'Error interno del servidor',
-      message: 'Error inesperado al procesar la autenticación',
+    next();
+  } catch (error) {
+    let errorMessage = 'Token de autenticación inválido o expirado.';
+    let errorDetails = {
+      name: error.name,
+      code: error.code,
+      message: error.message,
+    };
+
+    if (error.code === 'auth/id-token-expired') {
+      errorMessage = 'El token de Firebase ha expirado. Por favor, inicia sesión de nuevo.';
+      logger.warn('Firebase ID token expirado', { ip: req.ip, ...errorDetails });
+    } else if (error.code === 'auth/argument-error') {
+      errorMessage = 'El token de Firebase proporcionado no es válido.';
+      logger.warn('Token de Firebase inválido', { ip: req.ip, ...errorDetails });
+    } else {
+      logger.error('Error inesperado en middleware de autenticación', {
+        error: error.message,
+        stack: error.stack,
+        ip: req.ip,
+      });
+      errorMessage = 'Error interno al procesar la autenticación.';
+    }
+
+    return res.status(401).json({
+      error: 'Error de autenticación',
+      message: errorMessage,
+      details: error.code, // Enviar el código de error para debugging en frontend
     });
   }
 };
 
+
 /**
- * Middleware para verificar roles específicos
- * COMPATIBLE: Funciona igual que antes, pero ahora con JWT propio
+ * Middleware para verificar roles específicos.
+ * Ahora opera sobre `req.user.role` que viene de Firestore.
  */
 const requireRole = (roles) => {
   return (req, res, next) => {
+    // `req.user` es ahora una instancia de nuestro modelo User
     if (!req.user) {
       logger.warn('Usuario no autenticado intentando acceder a recurso con rol', {
         ip: req.ip,
         requiredRoles: roles,
+        url: req.originalUrl,
       });
-
       return res.status(401).json({
         error: 'Usuario no autenticado',
-        message: 'Debes estar autenticado para acceder a este recurso',
+        message: 'Debes estar autenticado para acceder a este recurso.',
       });
     }
 
-    const userRole = req.user.role;
+    const userRole = req.user.role; // ✅ Rol viene de Firestore
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
     if (!allowedRoles.includes(userRole)) {
-      logger.warn('Permisos insuficientes', {
-        id: req.user.id,
+      logger.warn('Permisos insuficientes por rol', {
+        uid: req.user.uid,
         userRole,
         requiredRoles: allowedRoles,
         ip: req.ip,
       });
-
       return res.status(403).json({
         error: 'Permisos insuficientes',
         message: `Necesitas uno de los siguientes roles: ${allowedRoles.join(', ')}`,
@@ -173,11 +150,51 @@ const requireRole = (roles) => {
     }
 
     logger.info('Acceso autorizado por rol', {
-      id: req.user.id,
+      uid: req.user.uid,
       userRole,
       requiredRoles: allowedRoles,
     });
+    next();
+  };
+};
 
+/**
+ * Middleware para verificar permisos específicos.
+ * Es más granular que los roles.
+ */
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user || !req.user.hasPermission) {
+      logger.warn('Intento de acceso sin objeto de usuario válido para permisos', {
+        ip: req.ip,
+        url: req.originalUrl,
+      });
+      return res.status(401).json({
+        error: 'Usuario no autenticado',
+        message: 'No se puede verificar el permiso sin un usuario autenticado.',
+      });
+    }
+
+    // La lógica de permisos está en el modelo User
+    if (!req.user.hasPermission(permission)) {
+      logger.warn('Permiso denegado', {
+        uid: req.user.uid,
+        role: req.user.role,
+        requiredPermission: permission,
+        userPermissions: req.user.permissions,
+        ip: req.ip,
+      });
+      return res.status(403).json({
+        error: 'Permiso denegado',
+        message: `No tienes el permiso requerido: "${permission}"`,
+        requiredPermission: permission,
+      });
+    }
+
+    logger.info('Acceso autorizado por permiso', {
+      uid: req.user.uid,
+      permission,
+    });
     next();
   };
 };
@@ -221,7 +238,7 @@ const requireViewerOrHigher = (req, res, next) => {
 
   if (!allowedRoles.includes(userRole)) {
     logger.warn('Rol no autorizado para acceso básico', {
-      id: req.user.id,
+      uid: req.user.uid,
       userRole,
       ip: req.ip,
     });
@@ -234,7 +251,7 @@ const requireViewerOrHigher = (req, res, next) => {
 
   // Log de acceso para auditoria
   logger.info('Acceso autorizado para viewer o superior', {
-    id: req.user.id,
+    uid: req.user.uid,
     userRole,
     method: req.method,
     url: req.originalUrl,
@@ -243,14 +260,12 @@ const requireViewerOrHigher = (req, res, next) => {
   next();
 };
 
-// IMPORTANTE: Este middleware ahora usa JWT propio (jsonwebtoken), NO Firebase ID Token
-// Propiedades disponibles en req.user después de autenticación:
-// - uid: string (ID único del usuario)
-// - email: string (email del usuario)
-// - role: string (rol: 'admin', 'agent', 'viewer')
+
+// EXPORTS ACTUALIZADOS
 module.exports = {
   authMiddleware,
   requireRole,
+  requirePermission, // ✅ Exportar nuevo middleware de permisos
   requireAdmin,
   requireAgentOrAdmin,
   requireReadAccess,
