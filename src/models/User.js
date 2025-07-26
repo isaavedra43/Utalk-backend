@@ -75,7 +75,7 @@ class User {
   }
 
   /**
-   * ✅ VALIDAR contraseña del usuario
+   * 🚨 VALIDAR contraseña del usuario (TEXTO PLANO - SOLO PRUEBAS)
    */
   static async validatePassword(email, plainPassword) {
     try {
@@ -83,7 +83,7 @@ class User {
         throw new Error('Email y contraseña son requeridos');
       }
 
-      logger.info('🔐 Validando contraseña para usuario', { email });
+      logger.info('🔐 Validando contraseña para usuario (TEXTO PLANO)', { email });
 
       // Obtener usuario con contraseña incluida
       const usersQuery = await firestore
@@ -105,10 +105,13 @@ class User {
         return false;
       }
 
-      // Comparar contraseña con bcrypt
-      const isValid = await bcrypt.compare(plainPassword, userData.password);
+      // 🚨 COMPARACIÓN DIRECTA SIN HASHING (SOLO PRUEBAS)
+      const isValid = (plainPassword === userData.password);
 
-      logger.info(isValid ? '✅ Contraseña válida' : '❌ Contraseña inválida', { email });
+      logger.info(isValid ? '✅ Contraseña válida (TEXTO PLANO)' : '❌ Contraseña inválida (TEXTO PLANO)', { 
+        email,
+        passwordMatch: isValid 
+      });
 
       return isValid;
     } catch (error) {
@@ -137,13 +140,13 @@ class User {
         throw new Error('Usuario ya existe');
       }
 
-      // Hash de la contraseña
-      const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      // 🚨 GUARDAR CONTRASEÑA EN TEXTO PLANO (SOLO PRUEBAS)
+      // const saltRounds = 12;
+      // const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
       const newUserData = {
         email: userData.email,
-        password: hashedPassword,
+        password: userData.password, // 🚨 TEXTO PLANO
         name: userData.name || userData.email.split('@')[0],
         phone: userData.phone || null,
         role: userData.role || 'viewer',
@@ -244,10 +247,14 @@ class User {
         updates: Object.keys(updates),
       });
 
-      // Si se actualiza la contraseña, hashearla
+      // 🚨 SI SE ACTUALIZA LA CONTRASEÑA, GUARDAR EN TEXTO PLANO (SOLO PRUEBAS)
       if (updates.password) {
-        const saltRounds = 12;
-        updates.password = await bcrypt.hash(updates.password, saltRounds);
+        // const saltRounds = 12;
+        // updates.password = await bcrypt.hash(updates.password, saltRounds);
+        // 🚨 NO HACER HASH - GUARDAR TEXTO PLANO
+        logger.info('🚨 Actualizando contraseña en texto plano (SOLO PRUEBAS)', {
+          email: this.email,
+        });
       }
 
       const cleanData = prepareForFirestore({

@@ -66,8 +66,8 @@ class AuthController {
         });
       }
 
-      // ✅ VALIDAR contraseña con bcrypt
-      logger.info('🔐 Validando contraseña...', { email });
+      // 🚨 VALIDAR contraseña en texto plano (SOLO PRUEBAS)
+      logger.info('🔐 Validando contraseña en texto plano...', { email });
       
       const isPasswordValid = await User.validatePassword(email, password);
       
