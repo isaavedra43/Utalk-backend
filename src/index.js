@@ -88,15 +88,77 @@ try {
   // ✅ CONFIGURACIÓN DE CORS
   console.log('🌐 Configurando CORS...');
   const corsOptions = {
-    origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:3000'],
+    origin: function (origin, callback) {
+      // Lista de orígenes permitidos
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://utalk-frontend.vercel.app',
+        'https://utalk-frontend-production.vercel.app',
+        'https://utalk-frontend-git-main.vercel.app'
+      ];
+      
+      // Permitir requests sin origin (como Postman, curl, etc.)
+      if (!origin) return callback(null, true);
+      
+      // Verificar si el origin está en la lista permitida
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // Si hay FRONTEND_URL en variables de entorno, también permitir esos dominios
+      if (process.env.FRONTEND_URL) {
+        const envOrigins = process.env.FRONTEND_URL.split(',');
+        if (envOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+      }
+      
+      console.log('🚫 CORS bloqueado para origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
   };
 
   // ✅ MIDDLEWARES GLOBALES
   console.log('🔧 Aplicando middlewares globales...');
-  app.use(helmet()); // Seguridad básica
-  app.use(cors(corsOptions)); // CORS
+  
+  // CORS debe ir ANTES de helmet para evitar conflictos
+  app.use(cors(corsOptions)); // CORS - PRIMERO
+  
+  // Debug middleware para CORS
+  app.use((req, res, next) => {
+    console.log('🌐 CORS DEBUG:', {
+      origin: req.get('Origin'),
+      method: req.method,
+      url: req.url,
+      headers: {
+        'user-agent': req.get('User-Agent'),
+        'content-type': req.get('Content-Type'),
+        'authorization': req.get('Authorization') ? 'present' : 'missing'
+      }
+    });
+    next();
+  });
+  
+  // Helmet con configuración compatible con CORS
+  app.use(helmet({
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://api.twilio.com", "https://firestore.googleapis.com"],
+      },
+    },
+  }));
+  
   app.use(compression()); // Compresión gzip
   app.use(limiter); // Rate limiting
   app.use(morgan('combined')); // Logging
@@ -104,6 +166,22 @@ try {
   app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded
 
   console.log('✅ Middlewares aplicados exitosamente');
+
+  // ✅ ENDPOINT DE PRUEBA CORS
+  app.get('/api/cors-test', (req, res) => {
+    console.log('🧪 CORS TEST - Request recibido:', {
+      origin: req.get('Origin'),
+      method: req.method,
+      headers: req.headers
+    });
+    
+    res.json({
+      message: 'CORS test successful',
+      timestamp: new Date().toISOString(),
+      origin: req.get('Origin'),
+      cors: 'working'
+    });
+  });
 
   // ✅ HEALTH CHECK OPTIMIZADO: Verificación real de servicios
   app.get('/health', async (req, res) => {
