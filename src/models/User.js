@@ -265,6 +265,13 @@ class User {
   }
 
   /**
+   * ✅ ALIAS: findByUid apunta a getByUid para consistencia con nomenclatura
+   */
+  static async findByUid(uid) {
+    return await this.getByUid(uid);
+  }
+
+  /**
    * ✅ OBTENER usuario por teléfono (DEPRECADO - usar findUidByPhone)
    * Mantenido solo para compatibilidad temporal
    */

@@ -139,7 +139,7 @@ class TeamController {
   static async getById (req, res, next) {
     try {
       const { id } = req.params;
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
 
       if (!user) {
         return res.status(404).json({
@@ -187,7 +187,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -241,7 +241,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -292,7 +292,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -332,7 +332,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -373,7 +373,7 @@ class TeamController {
       const { id } = req.params;
       const { period = '30d' } = req.query;
 
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -421,7 +421,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getById(id);
+      const user = await User.getByUid(id);
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',

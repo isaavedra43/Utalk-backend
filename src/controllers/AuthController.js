@@ -1,247 +1,458 @@
-const { auth } = require('../config/firebase');
+const { getAuth } = require('firebase-admin/auth');
 const User = require('../models/User');
 const logger = require('../utils/logger');
-const jwt = require('jsonwebtoken');
 
 class AuthController {
   /**
-   * 🔒 LOGIN EXCLUSIVO VÍA FIREBASE AUTH
-   * ALINEADO 100% CON FRONTEND - Solo acepta idToken de Firebase
+   * 🔒 LOGIN EXCLUSIVO VÍA FIREBASE AUTH (UID-FIRST)
+   * Solo acepta Firebase ID Tokens válidos y sincroniza automáticamente con Firestore
    */
-  static async login (req, res, next) {
+  static async login(req, res, next) {
     try {
       const { idToken } = req.body;
 
-      // ✅ VALIDACIÓN: Solo aceptar idToken
+      logger.info('🔐 Intento de login con Firebase ID Token', {
+        hasIdToken: !!idToken,
+        tokenLength: idToken ? idToken.length : 0,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
+      // ✅ VALIDACIÓN: Solo aceptar idToken de Firebase
       if (!idToken) {
+        logger.warn('❌ Login fallido: Token faltante', { ip: req.ip });
         return res.status(400).json({
           error: 'Token de Firebase requerido',
           message: 'Debes proporcionar un idToken válido de Firebase Auth',
+          code: 'MISSING_ID_TOKEN',
         });
       }
 
       // ✅ VALIDAR idToken con Firebase Admin SDK
       let decodedToken;
       try {
-        decodedToken = await auth.verifyIdToken(idToken);
-      } catch (firebaseError) {
-        logger.warn('Token de Firebase inválido', {
-          error: firebaseError.message,
-          ip: req.ip,
+        logger.info('🔍 Verificando Firebase ID Token...');
+        decodedToken = await getAuth().verifyIdToken(idToken, true); // checkRevoked = true
+        
+        logger.info('✅ Firebase ID Token válido', {
+          uid: decodedToken.uid,
+          email: decodedToken.email,
+          emailVerified: decodedToken.email_verified,
+          hasKid: !!decodedToken.kid,
+          issuer: decodedToken.iss,
+          audience: decodedToken.aud,
         });
+      } catch (firebaseError) {
+        logger.error('❌ Firebase ID Token inválido', {
+          error: firebaseError.message,
+          code: firebaseError.code,
+          ip: req.ip,
+          tokenPrefix: idToken ? idToken.substring(0, 20) + '...' : 'N/A',
+        });
+
+        let errorMessage = 'El token de Firebase proporcionado no es válido';
+        let errorCode = 'INVALID_ID_TOKEN';
+
+        if (firebaseError.code === 'auth/id-token-expired') {
+          errorMessage = 'El token de Firebase ha expirado. Por favor, inicia sesión de nuevo.';
+          errorCode = 'TOKEN_EXPIRED';
+        } else if (firebaseError.code === 'auth/argument-error') {
+          errorMessage = 'El token de Firebase tiene un formato inválido.';
+          errorCode = 'TOKEN_FORMAT_ERROR';
+        } else if (firebaseError.message.includes('kid')) {
+          errorMessage = 'El token no es un Firebase ID Token válido. Asegúrate de usar getIdToken() en el frontend.';
+          errorCode = 'INVALID_TOKEN_TYPE';
+        }
 
         return res.status(401).json({
           error: 'Token inválido',
-          message: 'El token de Firebase proporcionado no es válido',
+          message: errorMessage,
+          code: errorCode,
         });
       }
 
-      // ✅ OBTENER información del usuario desde Firebase
-      const { uid, email, name, email_verified: emailVerified } = decodedToken;
+      // ✅ EXTRAER información del usuario desde el token verificado
+      const {
+        uid,
+        email,
+        name,
+        picture,
+        phone_number: phoneNumber,
+        email_verified: emailVerified
+      } = decodedToken;
 
       if (!email) {
+        logger.warn('❌ Login fallido: Email faltante en token', { uid });
         return res.status(400).json({
           error: 'Email requerido',
-          message: 'El usuario debe tener un email válido en Firebase',
+          message: 'El usuario debe tener un email válido en Firebase Auth',
+          code: 'MISSING_EMAIL',
         });
       }
 
-      // ✅ SINCRONIZAR usuario en Firestore (crear si no existe)
-      let user = await User.getById(uid);
+      logger.info('🔄 Iniciando sincronización usuario Firebase -> Firestore', {
+        uid,
+        email,
+        hasDisplayName: !!name,
+        hasPhoneNumber: !!phoneNumber,
+        emailVerified,
+      });
 
-      if (!user) {
-        // Crear usuario en Firestore sincronizado con Firebase
-        try {
-          user = await User.create({
-            id: uid,
-            email,
-            name: name || email.split('@')[0], // Usar email como fallback
-            role: 'viewer', // Rol por defecto
-            status: 'active',
-            emailVerified,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
+      // ✅ SINCRONIZAR usuario con Firestore (crear si no existe, actualizar si existe)
+      let user;
+      try {
+        user = await User.syncFromAuth({
+          uid,
+          email,
+          displayName: name,
+          photoURL: picture,
+          phoneNumber,
+          emailVerified,
+        });
 
-          logger.info('Usuario creado automáticamente desde Firebase', {
-            userId: uid,
-            email,
-          });
-        } catch (createError) {
-          logger.error('Error creando usuario desde Firebase', {
-            userId: uid,
-            email,
-            error: createError.message,
-          });
+        logger.info('✅ Usuario sincronizado correctamente', {
+          uid: user.uid,
+          email: user.email,
+          role: user.role,
+          isActive: user.isActive,
+          wasCreated: !user.lastLoginAt,
+        });
+      } catch (syncError) {
+        logger.error('❌ Error crítico en sincronización Firebase -> Firestore', {
+          uid,
+          email,
+          error: syncError.message,
+          stack: syncError.stack,
+        });
 
-          return res.status(500).json({
-            error: 'Error creando usuario',
-            message: 'No se pudo crear el usuario en el sistema',
-          });
-        }
-      } else {
-        // Actualizar información si ha cambiado en Firebase
-        const updates = {};
-        if (user.email !== email) updates.email = email;
-        if (user.name !== name && name) updates.name = name;
-        if (user.emailVerified !== emailVerified) updates.emailVerified = emailVerified;
-
-        if (Object.keys(updates).length > 0) {
-          updates.updatedAt = new Date();
-          await user.update(updates);
-          logger.info('Usuario actualizado desde Firebase', { userId: uid, updates });
-        }
+        return res.status(500).json({
+          error: 'Error de sincronización',
+          message: 'No se pudo sincronizar el usuario con la base de datos',
+          code: 'SYNC_ERROR',
+        });
       }
 
       // ✅ VERIFICAR que el usuario esté activo
-      if (user.status !== 'active') {
-        return res.status(401).json({
+      if (!user.isActive) {
+        logger.warn('❌ Login denegado: Usuario inactivo', {
+          uid: user.uid,
+          email: user.email,
+        });
+
+        return res.status(403).json({
           error: 'Usuario inactivo',
           message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
+          code: 'USER_INACTIVE',
         });
       }
 
-      // ✅ GENERAR JWT PROPIO para la API
-      const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
-      const token = jwt.sign(
-        {
-          id: user.id, // uid de Firebase
-          email: user.email,
-          role: user.role,
-          uid: user.id, // Compatibilidad
-        },
-        process.env.JWT_SECRET,
-        { expiresIn },
-      );
-
-      logger.info('Login exitoso via Firebase', {
-        userId: user.id,
+      // ✅ LOGIN EXITOSO - Respuesta canónica
+      logger.info('🎉 LOGIN EXITOSO', {
+        uid: user.uid,
         email: user.email,
         role: user.role,
+        department: user.department,
         ip: req.ip,
+        timestamp: new Date().toISOString(),
       });
 
-      // ✅ ESTRUCTURA CANÓNICA EXACTA según especificación
+      // ✅ RESPUESTA ESTÁNDAR UID-FIRST (sin JWT propio, solo Firebase ID Token)
       res.json({
+        success: true,
+        message: 'Login exitoso',
         user: user.toJSON(),
-        token,
+        // NO enviamos token JWT propio - el frontend sigue usando Firebase ID Token
       });
     } catch (error) {
-      logger.error('Error en login Firebase', {
+      logger.error('💥 Error crítico en login', {
         error: error.message,
         stack: error.stack,
         ip: req.ip,
+        timestamp: new Date().toISOString(),
       });
       next(error);
     }
   }
 
   /**
-   * Logout
+   * 🚪 LOGOUT
    */
-  static async logout (req, res, next) {
+  static async logout(req, res, next) {
     try {
-      const { id } = req.user;
+      const uid = req.user?.uid;
 
-      // Revocar tokens de Firebase (opcional)
-      // await auth.revokeRefreshTokens(id);
+      logger.info('🚪 Logout iniciado', {
+        uid,
+        ip: req.ip,
+      });
 
-      logger.info('Logout exitoso', { id });
+      // En UID-first, el logout es principalmente del lado del cliente
+      // Firebase Admin SDK puede revocar refresh tokens si es necesario
+      if (uid) {
+        try {
+          await getAuth().revokeRefreshTokens(uid);
+          logger.info('✅ Refresh tokens revocados en Firebase', { uid });
+        } catch (revokeError) {
+          logger.warn('⚠️ No se pudieron revocar tokens en Firebase', {
+            uid,
+            error: revokeError.message,
+          });
+        }
+      }
+
+      logger.info('✅ Logout completado', { uid });
 
       res.json({
+        success: true,
         message: 'Logout exitoso',
       });
     } catch (error) {
-      logger.error('Error en logout:', error);
+      logger.error('❌ Error en logout', {
+        error: error.message,
+        uid: req.user?.uid,
+      });
       next(error);
     }
   }
 
   /**
-   * Refrescar token
+   * 👤 OBTENER PERFIL DEL USUARIO ACTUAL
    */
-  static async refreshToken (req, res, next) {
+  static async getProfile(req, res, next) {
     try {
-      // Nota: El refresh de tokens se maneja en el frontend con Firebase SDK
-      // Aquí podríamos implementar lógica adicional si es necesario
+      const uid = req.user?.uid;
 
-      res.json({
-        message: 'Token refrescado exitosamente',
-      });
-    } catch (error) {
-      logger.error('Error al refrescar token:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Obtener perfil del usuario actual
-   */
-  static async getProfile (req, res, next) {
-    try {
-      const { id } = req.user; // id desde el token JWT
-      const user = await User.getById(id);
-      if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-      res.json({ user: user.toJSON() });
-    } catch (error) { next(error); }
-  }
-
-  /**
-   * Actualizar perfil del usuario
-   */
-  static async updateProfile (req, res, next) {
-    try {
-      const { id } = req.user;
-      const { name } = req.body; // Solo 'name' es actualizable por el usuario
-      const user = await User.getById(id);
-      if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
-      await user.update({ name });
-      logger.info('Perfil actualizado', { userId: id });
-
-      res.json({
-        message: 'Perfil actualizado exitosamente',
-        user: user.toJSON(),
-      });
-    } catch (error) { next(error); }
-  }
-
-  /**
-   * Crear usuario (solo administradores)
-   */
-  static async createUser (req, res, next) {
-    try {
-      const { email, name, role = 'viewer' } = req.body;
-
-      // Verificar que es administrador
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Permisos insuficientes',
-          message: 'Solo los administradores pueden crear usuarios',
+      if (!uid) {
+        return res.status(401).json({
+          error: 'Usuario no autenticado',
+          message: 'No se pudo obtener el UID del usuario',
+          code: 'MISSING_UID',
         });
       }
 
-      // Crear usuario en Firebase Auth
-      const userRecord = await auth.createUser({ email, displayName: name });
+      logger.info('👤 Obteniendo perfil de usuario', { uid });
 
-      // Establecer claims personalizados
-      await auth.setCustomUserClaims(userRecord.uid, { role });
+      const user = await User.getByUid(uid);
+      
+      if (!user) {
+        logger.warn('⚠️ Usuario no encontrado en Firestore', { uid });
+        return res.status(404).json({
+          error: 'Usuario no encontrado',
+          message: 'El usuario no existe en la base de datos',
+          code: 'USER_NOT_FOUND',
+        });
+      }
 
-      // Crear usuario en Firestore
-      const newUser = await User.create({
-        id: userRecord.uid,
-        email,
-        name,
-        role,
-        status: 'active',
+      logger.info('✅ Perfil obtenido correctamente', {
+        uid: user.uid,
+        email: user.email,
       });
-      logger.info('Usuario creado', { newUserId: newUser.id, createdBy: req.user.id });
+
+      res.json({
+        success: true,
+        user: user.toJSON(),
+      });
+    } catch (error) {
+      logger.error('❌ Error obteniendo perfil', {
+        error: error.message,
+        uid: req.user?.uid,
+      });
+      next(error);
+    }
+  }
+
+  /**
+   * ✏️ ACTUALIZAR PERFIL DEL USUARIO
+   */
+  static async updateProfile(req, res, next) {
+    try {
+      const uid = req.user?.uid;
+      const { displayName, phone, settings } = req.body;
+
+      if (!uid) {
+        return res.status(401).json({
+          error: 'Usuario no autenticado',
+          code: 'MISSING_UID',
+        });
+      }
+
+      logger.info('✏️ Actualizando perfil de usuario', {
+        uid,
+        updates: { displayName, phone, settings },
+      });
+
+      const user = await User.getByUid(uid);
+      
+      if (!user) {
+        return res.status(404).json({
+          error: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND',
+        });
+      }
+
+      // ✅ Preparar actualizaciones permitidas
+      const allowedUpdates = {};
+      if (displayName !== undefined) allowedUpdates.displayName = displayName;
+      if (phone !== undefined) allowedUpdates.phone = phone;
+      if (settings !== undefined) allowedUpdates.settings = { ...user.settings, ...settings };
+
+      if (Object.keys(allowedUpdates).length === 0) {
+        return res.status(400).json({
+          error: 'Sin actualizaciones',
+          message: 'No se proporcionaron campos válidos para actualizar',
+          code: 'NO_UPDATES',
+        });
+      }
+
+      await user.update(allowedUpdates);
+
+      logger.info('✅ Perfil actualizado exitosamente', {
+        uid,
+        updatedFields: Object.keys(allowedUpdates),
+      });
+
+      res.json({
+        success: true,
+        message: 'Perfil actualizado exitosamente',
+        user: user.toJSON(),
+      });
+    } catch (error) {
+      logger.error('❌ Error actualizando perfil', {
+        error: error.message,
+        uid: req.user?.uid,
+      });
+      next(error);
+    }
+  }
+
+  /**
+   * 👥 CREAR USUARIO (solo administradores)
+   */
+  static async createUser(req, res, next) {
+    try {
+      const { email, displayName, role = 'viewer', department } = req.body;
+      const adminUid = req.user?.uid;
+
+      logger.info('👥 Creación de usuario solicitada por admin', {
+        adminUid,
+        targetEmail: email,
+        role,
+        department,
+      });
+
+      // ✅ Verificar permisos de administrador
+      if (!req.user?.hasRole('admin') && !req.user?.hasRole('superadmin')) {
+        logger.warn('🚫 Intento de creación de usuario sin permisos', {
+          adminUid,
+          adminRole: req.user?.role,
+        });
+
+        return res.status(403).json({
+          error: 'Permisos insuficientes',
+          message: 'Solo los administradores pueden crear usuarios',
+          code: 'INSUFFICIENT_PERMISSIONS',
+        });
+      }
+
+      // ✅ Crear usuario en Firebase Auth primero
+      let userRecord;
+      try {
+        userRecord = await getAuth().createUser({
+          email,
+          displayName,
+          emailVerified: false,
+        });
+
+        logger.info('✅ Usuario creado en Firebase Auth', {
+          uid: userRecord.uid,
+          email: userRecord.email,
+        });
+      } catch (authError) {
+        logger.error('❌ Error creando usuario en Firebase Auth', {
+          email,
+          error: authError.message,
+        });
+
+        return res.status(400).json({
+          error: 'Error creando usuario en Firebase',
+          message: authError.message,
+          code: 'FIREBASE_CREATE_ERROR',
+        });
+      }
+
+      // ✅ Establecer claims personalizados en Firebase
+      try {
+        await getAuth().setCustomUserClaims(userRecord.uid, { role, department });
+        logger.info('✅ Claims personalizados establecidos', {
+          uid: userRecord.uid,
+          role,
+          department,
+        });
+      } catch (claimsError) {
+        logger.warn('⚠️ Error estableciendo claims personalizados', {
+          uid: userRecord.uid,
+          error: claimsError.message,
+        });
+      }
+
+      // ✅ Crear usuario en Firestore usando syncFromAuth
+      let newUser;
+      try {
+        newUser = await User.syncFromAuth({
+          uid: userRecord.uid,
+          email: userRecord.email,
+          displayName,
+        }, {
+          role,
+          department,
+          isActive: true,
+        });
+
+        logger.info('✅ Usuario creado completamente', {
+          uid: newUser.uid,
+          email: newUser.email,
+          role: newUser.role,
+          createdBy: adminUid,
+        });
+      } catch (syncError) {
+        logger.error('❌ Error creando usuario en Firestore', {
+          uid: userRecord.uid,
+          error: syncError.message,
+        });
+
+        // Intentar limpiar el usuario de Firebase Auth si falla Firestore
+        try {
+          await getAuth().deleteUser(userRecord.uid);
+          logger.info('🧹 Usuario eliminado de Firebase Auth tras error en Firestore', {
+            uid: userRecord.uid,
+          });
+        } catch (cleanupError) {
+          logger.error('💥 Error eliminando usuario de Firebase tras fallo', {
+            uid: userRecord.uid,
+            error: cleanupError.message,
+          });
+        }
+
+        return res.status(500).json({
+          error: 'Error creando usuario en base de datos',
+          message: syncError.message,
+          code: 'DATABASE_CREATE_ERROR',
+        });
+      }
 
       res.status(201).json({
+        success: true,
         message: 'Usuario creado exitosamente',
         user: newUser.toJSON(),
       });
-    } catch (error) { next(error); }
+    } catch (error) {
+      logger.error('💥 Error crítico creando usuario', {
+        error: error.message,
+        stack: error.stack,
+        adminUid: req.user?.uid,
+      });
+      next(error);
+    }
   }
 }
 

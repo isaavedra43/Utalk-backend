@@ -19,12 +19,8 @@ router.post('/login', validate(schemas.auth.login), AuthController.login);
  */
 router.post('/logout', authMiddleware, AuthController.logout);
 
-/**
- * @route POST /api/auth/refresh
- * @desc Refrescar token
- * @access Public
- */
-router.post('/refresh', validate(schemas.auth.refreshToken), AuthController.refreshToken);
+// NOTA: En sistema UID-first, el refresh se maneja directamente en el frontend con Firebase SDK
+// No necesitamos endpoint de refresh en el backend
 
 /**
  * @route GET /api/auth/me
