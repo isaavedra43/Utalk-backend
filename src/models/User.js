@@ -2,23 +2,27 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { prepareForFirestore } = require('../utils/firestore');
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
+const bcrypt = require('bcryptjs');
 
 class User {
   constructor(data) {
-    // ✅ UID de Firebase Auth como identificador principal
-    this.uid = data.uid;
+    // ✅ EMAIL como identificador principal (NO más UID)
     this.email = data.email;
-    this.displayName = data.displayName || data.name;
-    this.photoURL = data.photoURL || null;
+    this.password = data.password; // Hash de bcrypt
+    this.name = data.name || data.displayName;
     this.phone = data.phone || null;
     
-    // ✅ Metadata y permisos de Firestore
+    // ✅ Metadata y permisos de Firestore únicamente
     this.role = data.role || 'viewer';
     this.permissions = data.permissions || [];
     this.department = data.department || null;
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.lastLoginAt = data.lastLoginAt || null;
-    this.settings = data.settings || {};
+    this.settings = data.settings || {
+      notifications: true,
+      language: 'es',
+      timezone: 'America/Mexico_City',
+    };
     
     // ✅ Timestamps
     this.createdAt = data.createdAt || Timestamp.now();
@@ -29,129 +33,255 @@ class User {
   }
 
   /**
-   * ✅ SINCRONIZACIÓN AUTOMÁTICA: Crear o actualizar usuario desde Firebase Auth
-   * Esta función debe llamarse en cada login
+   * ✅ OBTENER usuario por EMAIL (identificador principal)
    */
-  static async syncFromAuth(authUser, additionalData = {}) {
+  static async getByEmail(email) {
     try {
-      if (!authUser || !authUser.uid) {
-        throw new Error('authUser con UID es requerido para sincronización');
+      if (!email) {
+        throw new Error('Email es requerido');
       }
 
-      const uid = authUser.uid;
-      
-      logger.info('🔄 Sincronizando usuario desde Firebase Auth', {
-        uid,
-        email: authUser.email,
-        hasDisplayName: !!authUser.displayName,
-        hasPhone: !!authUser.phoneNumber,
+      logger.info('🔍 Buscando usuario por email', { email });
+
+      const usersQuery = await firestore
+        .collection('users')
+        .where('email', '==', email)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+
+      if (usersQuery.empty) {
+        logger.warn('⚠️ Usuario no encontrado', { email });
+        return null;
+      }
+
+      const userData = usersQuery.docs[0].data();
+      const user = new User(userData);
+
+      logger.info('✅ Usuario encontrado', {
+        email: user.email,
+        role: user.role,
+        name: user.name,
       });
 
-      // ✅ Verificar si el documento existe en Firestore
-      const userRef = firestore.collection('users').doc(uid);
-      const userDoc = await userRef.get();
-      
-      // ✅ Normalizar teléfono si existe
-      let normalizedPhone = null;
-      if (authUser.phoneNumber) {
-        const phoneValidation = validateAndNormalizePhone(authUser.phoneNumber);
-        if (phoneValidation.isValid) {
-          normalizedPhone = phoneValidation.normalized;
-        } else {
-          logger.warn('Teléfono inválido en Auth durante sincronización', {
-            uid,
-            phoneNumber: authUser.phoneNumber,
-            error: phoneValidation.error,
-          });
-        }
-      }
-
-      const now = Timestamp.now();
-      
-      if (userDoc.exists) {
-        // ✅ ACTUALIZAR documento existente
-        const existingData = userDoc.data();
-        
-        const updateData = {
-          email: authUser.email,
-          displayName: authUser.displayName || existingData.displayName,
-          photoURL: authUser.photoURL || existingData.photoURL,
-          phone: normalizedPhone || existingData.phone,
-          lastLoginAt: now,
-          updatedAt: now,
-          ...additionalData // Permitir datos adicionales en la sincronización
-        };
-
-        await userRef.update(prepareForFirestore(updateData));
-        
-        logger.info('✅ Usuario actualizado en Firestore', {
-          uid,
-          email: authUser.email,
-          updatedFields: Object.keys(updateData),
-        });
-
-        // Retornar usuario completo
-        return new User({
-          uid,
-          ...existingData,
-          ...updateData,
-        });
-      } else {
-        // ✅ CREAR nuevo documento
-        const newUserData = {
-          uid,
-          email: authUser.email,
-          displayName: authUser.displayName || authUser.email,
-          photoURL: authUser.photoURL,
-          phone: normalizedPhone,
-          role: 'viewer', // Rol por defecto
-          permissions: [],
-          department: null,
-          isActive: true,
-          settings: {
-            notifications: true,
-            language: 'es',
-            timezone: 'America/Mexico_City',
-          },
-          lastLoginAt: now,
-          createdAt: now,
-          updatedAt: now,
-          performance: null,
-          ...additionalData
-        };
-
-        await userRef.set(prepareForFirestore(newUserData));
-        
-        logger.info('✅ Nuevo usuario creado en Firestore', {
-          uid,
-          email: authUser.email,
-          role: newUserData.role,
-        });
-
-        return new User(newUserData);
-      }
+      return user;
     } catch (error) {
-      logger.error('❌ Error sincronizando usuario desde Auth', {
-        uid: authUser?.uid,
-        email: authUser?.email,
+      logger.error('❌ Error obteniendo usuario por email', {
+        email,
         error: error.message,
-        stack: error.stack,
       });
       throw error;
     }
   }
 
   /**
-   * ✅ MAPEO: Encontrar UID por número de teléfono
-   * Esencial para webhooks de Twilio y mapeo phone -> UID
+   * ✅ VALIDAR contraseña del usuario
    */
-  static async findUidByPhone(phone) {
+  static async validatePassword(email, plainPassword) {
     try {
-      if (!phone) {
-        throw new Error('Teléfono es requerido para mapeo a UID');
+      if (!email || !plainPassword) {
+        throw new Error('Email y contraseña son requeridos');
       }
 
-      // ✅ Normalizar teléfono
+      logger.info('🔐 Validando contraseña para usuario', { email });
+
+      // Obtener usuario con contraseña incluida
+      const usersQuery = await firestore
+        .collection('users')
+        .where('email', '==', email)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+
+      if (usersQuery.empty) {
+        logger.warn('❌ Usuario no encontrado para validación', { email });
+        return false;
+      }
+
+      const userData = usersQuery.docs[0].data();
+      
+      if (!userData.password) {
+        logger.warn('❌ Usuario sin contraseña configurada', { email });
+        return false;
+      }
+
+      // Comparar contraseña con bcrypt
+      const isValid = await bcrypt.compare(plainPassword, userData.password);
+
+      logger.info(isValid ? '✅ Contraseña válida' : '❌ Contraseña inválida', { email });
+
+      return isValid;
+    } catch (error) {
+      logger.error('💥 Error validando contraseña', {
+        email,
+        error: error.message,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ CREAR usuario nuevo
+   */
+  static async create(userData) {
+    try {
+      if (!userData.email || !userData.password) {
+        throw new Error('Email y contraseña son requeridos');
+      }
+
+      logger.info('👤 Creando nuevo usuario', { email: userData.email });
+
+      // Verificar que no exista ya
+      const existingUser = await this.getByEmail(userData.email);
+      if (existingUser) {
+        throw new Error('Usuario ya existe');
+      }
+
+      // Hash de la contraseña
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+
+      const newUserData = {
+        email: userData.email,
+        password: hashedPassword,
+        name: userData.name || userData.email.split('@')[0],
+        phone: userData.phone || null,
+        role: userData.role || 'viewer',
+        permissions: userData.permissions || [],
+        department: userData.department || null,
+        isActive: userData.isActive !== undefined ? userData.isActive : true,
+        settings: userData.settings || {
+          notifications: true,
+          language: 'es',
+          timezone: 'America/Mexico_City',
+        },
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        lastLoginAt: null,
+        performance: null,
+      };
+
+      // Usar email como document ID para facilitar búsquedas
+      const docId = userData.email.replace(/[.#$[\]]/g, '_'); // Firestore safe ID
+      await firestore.collection('users').doc(docId).set(prepareForFirestore(newUserData));
+
+      logger.info('✅ Usuario creado exitosamente', {
+        email: userData.email,
+        role: newUserData.role,
+      });
+
+      return new User(newUserData);
+    } catch (error) {
+      logger.error('❌ Error creando usuario', {
+        email: userData.email,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ LISTAR usuarios con filtros
+   */
+  static async list(options = {}) {
+    try {
+      const {
+        limit = 50,
+        role = null,
+        department = null,
+        isActive = true,
+      } = options;
+
+      logger.info('📋 Listando usuarios', { options });
+
+      let query = firestore.collection('users');
+
+      // Aplicar filtros
+      if (role) {
+        query = query.where('role', '==', role);
+      }
+      if (department) {
+        query = query.where('department', '==', department);
+      }
+      if (isActive !== null) {
+        query = query.where('isActive', '==', isActive);
+      }
+
+      query = query.limit(limit).orderBy('createdAt', 'desc');
+
+      const snapshot = await query.get();
+      const users = [];
+
+      snapshot.forEach(doc => {
+        const userData = doc.data();
+        // No incluir contraseña en listados
+        delete userData.password;
+        users.push(new User(userData));
+      });
+
+      logger.info('✅ Usuarios listados', {
+        count: users.length,
+        filters: options,
+      });
+
+      return users;
+    } catch (error) {
+      logger.error('❌ Error listando usuarios', {
+        error: error.message,
+        options,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ ACTUALIZAR usuario
+   */
+  async update(updates) {
+    try {
+      logger.info('✏️ Actualizando usuario', {
+        email: this.email,
+        updates: Object.keys(updates),
+      });
+
+      // Si se actualiza la contraseña, hashearla
+      if (updates.password) {
+        const saltRounds = 12;
+        updates.password = await bcrypt.hash(updates.password, saltRounds);
+      }
+
+      const cleanData = prepareForFirestore({
+        ...updates,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      const docId = this.email.replace(/[.#$[\]]/g, '_');
+      await firestore.collection('users').doc(docId).update(cleanData);
+
+      // Actualizar instancia local
+      Object.assign(this, updates);
+      this.updatedAt = Timestamp.now();
+
+      logger.info('✅ Usuario actualizado', { email: this.email });
+    } catch (error) {
+      logger.error('❌ Error actualizando usuario', {
+        email: this.email,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ MAPEO: Encontrar email por número de teléfono
+   */
+  static async findEmailByPhone(phone) {
+    try {
+      if (!phone) {
+        throw new Error('Teléfono es requerido');
+      }
+
+      // Normalizar teléfono
       const phoneValidation = validateAndNormalizePhone(phone);
       if (!phoneValidation.isValid) {
         throw new Error(`Teléfono inválido: ${phoneValidation.error}`);
@@ -159,12 +289,11 @@ class User {
 
       const normalizedPhone = phoneValidation.normalized;
       
-      logger.info('🔍 Buscando UID por teléfono', {
+      logger.info('🔍 Buscando email por teléfono', {
         originalPhone: phone,
         normalizedPhone,
       });
 
-      // ✅ Buscar en Firestore
       const usersQuery = await firestore
         .collection('users')
         .where('phone', '==', normalizedPhone)
@@ -173,24 +302,24 @@ class User {
         .get();
 
       if (usersQuery.empty) {
-        logger.warn('⚠️ No se encontró UID para el teléfono', {
+        logger.warn('⚠️ No se encontró email para el teléfono', {
           phone: normalizedPhone,
         });
         return null;
       }
 
       const userData = usersQuery.docs[0].data();
-      const uid = userData.uid;
+      const email = userData.email;
 
-      logger.info('✅ UID encontrado por teléfono', {
+      logger.info('✅ Email encontrado por teléfono', {
         phone: normalizedPhone,
-        uid,
-        userEmail: userData.email,
+        email,
+        userName: userData.name,
       });
 
-      return uid;
+      return email;
     } catch (error) {
-      logger.error('❌ Error buscando UID por teléfono', {
+      logger.error('❌ Error buscando email por teléfono', {
         phone,
         error: error.message,
       });
@@ -199,141 +328,34 @@ class User {
   }
 
   /**
-   * ✅ MAPEO: Encontrar teléfono por UID
-   * Para casos donde necesitamos el teléfono desde el UID
+   * ✅ ACTUALIZAR último login
    */
-  static async findPhoneByUid(uid) {
+  async updateLastLogin() {
     try {
-      if (!uid) {
-        throw new Error('UID es requerido para mapeo a teléfono');
-      }
-
-      const userDoc = await firestore.collection('users').doc(uid).get();
-      
-      if (!userDoc.exists) {
-        logger.warn('⚠️ Usuario no encontrado por UID', { uid });
-        return null;
-      }
-
-      const userData = userDoc.data();
-      const phone = userData.phone;
-
-      if (!phone) {
-        logger.warn('⚠️ Usuario sin teléfono registrado', { uid });
-        return null;
-      }
-
-      logger.info('✅ Teléfono encontrado por UID', {
-        uid,
-        phone,
-        userEmail: userData.email,
+      const docId = this.email.replace(/[.#$[\]]/g, '_');
+      await firestore.collection('users').doc(docId).update({
+        lastLoginAt: FieldValue.serverTimestamp(),
       });
 
-      return phone;
+      this.lastLoginAt = Timestamp.now();
+      
+      logger.info('✅ Último login actualizado', { email: this.email });
     } catch (error) {
-      logger.error('❌ Error buscando teléfono por UID', {
-        uid,
+      logger.error('❌ Error actualizando último login', {
+        email: this.email,
         error: error.message,
       });
-      return null;
     }
   }
 
   /**
-   * ✅ OBTENER usuario por UID
-   */
-  static async getByUid(uid) {
-    try {
-      if (!uid) {
-        throw new Error('UID es requerido');
-      }
-
-      const userDoc = await firestore.collection('users').doc(uid).get();
-      
-      if (!userDoc.exists) {
-        return null;
-      }
-
-      return new User({ uid, ...userDoc.data() });
-    } catch (error) {
-      logger.error('Error obteniendo usuario por UID', {
-        uid,
-        error: error.message,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ ALIAS: findByUid apunta a getByUid para consistencia con nomenclatura
-   */
-  static async findByUid(uid) {
-    return await this.getByUid(uid);
-  }
-
-  /**
-   * ✅ OBTENER usuario por teléfono (DEPRECADO - usar findUidByPhone)
-   * Mantenido solo para compatibilidad temporal
-   */
-  static async getByPhone(phone) {
-    logger.warn('⚠️ getByPhone está DEPRECADO - usar findUidByPhone y luego getByUid', {
-      phone,
-      stack: new Error().stack.split('\n').slice(1, 3),
-    });
-
-    const uid = await this.findUidByPhone(phone);
-    if (!uid) return null;
-    
-    return await this.getByUid(uid);
-  }
-
-  /**
-   * ✅ CREAR usuario
-   */
-  static async create(userData) {
-    const user = new User(userData);
-
-    if (!user.uid) {
-      throw new Error('UID es requerido para crear usuario');
-    }
-
-    const cleanData = prepareForFirestore({
-      ...user,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    await firestore.collection('users').doc(user.uid).set(cleanData);
-    return user;
-  }
-
-  /**
-   * ✅ ACTUALIZAR usuario
-   */
-  async update(updates) {
-    const cleanData = prepareForFirestore({
-      ...updates,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    await firestore.collection('users').doc(this.uid).update(cleanData);
-
-    // Actualizar instancia local
-    Object.assign(this, updates);
-    this.updatedAt = Timestamp.now();
-  }
-
-  /**
-   * ✅ SERIALIZACIÓN para frontend
-   * Incluye UID y toda la metadata de Firestore
+   * ✅ SERIALIZACIÓN para frontend (SIN contraseña)
    */
   toJSON() {
     return {
-      uid: this.uid, // ✅ Identificador principal
-      email: this.email,
-      displayName: this.displayName,
-      photoURL: this.photoURL,
-      phone: this.phone, // ✅ Solo metadata
+      email: this.email, // ✅ Identificador principal
+      name: this.name,
+      phone: this.phone,
       role: this.role,
       permissions: this.permissions,
       department: this.department,
@@ -343,6 +365,7 @@ class User {
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       performance: this.performance,
+      // NO incluir password en JSON
     };
   }
 
@@ -350,7 +373,7 @@ class User {
    * ✅ VALIDAR permisos
    */
   hasPermission(permission) {
-    if (this.role === 'admin') return true;
+    if (this.role === 'admin' || this.role === 'superadmin') return true;
     return this.permissions.includes(permission);
   }
 
@@ -359,6 +382,13 @@ class User {
    */
   hasRole(role) {
     return this.role === role;
+  }
+
+  /**
+   * ✅ ACTIVAR usuario
+   */
+  async setActive(isActive) {
+    await this.update({ isActive });
   }
 }
 

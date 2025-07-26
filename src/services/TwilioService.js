@@ -257,7 +257,7 @@ class TwilioService {
         if (!agentByPhoneQuery.empty) {
           const agentData = agentByPhoneQuery.docs[0].data();
           assignedTo = {
-            id: agentData.uid || agentByPhoneQuery.docs[0].id, // ✅ UID REAL
+            id: agentData.email || agentByPhoneQuery.docs[0].id, // ✅ EMAIL como identificador
             name: agentData.name || agentData.displayName || agentData.email || 'Agent',
           };
           
@@ -282,7 +282,7 @@ class TwilioService {
             const firstAvailableAgent = availableAgentsQuery.docs[0].data();
             
             assignedTo = {
-              id: firstAvailableAgent.uid || availableAgentsQuery.docs[0].id,
+              id: firstAvailableAgent.email || availableAgentsQuery.docs[0].id, // ✅ EMAIL como identificador
               name: firstAvailableAgent.name || firstAvailableAgent.displayName || firstAvailableAgent.email || 'Agent',
             };
             
@@ -357,7 +357,7 @@ class TwilioService {
         participants: [customerPhone, agentPhone], // ✅ Array de teléfonos únicos
         customerPhone, // ✅ Campo obligatorio
         agentPhone, // ✅ Campo obligatorio
-        assignedTo, // ✅ UID real o null
+        assignedTo, // ✅ EMAIL real o null
         status: 'open',
         contact,
         messageCount: 1,

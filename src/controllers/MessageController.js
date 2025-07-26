@@ -10,7 +10,7 @@ const {
 
 class MessageController {
   /**
-   * ✅ UID-FIRST: Maneja el webhook de Twilio.
+   * ✅ EMAIL-FIRST: Maneja el webhook de Twilio.
    * Mapea el teléfono entrante a una conversación y guarda el mensaje.
    */
   static async handleWebhookSafe (req, res) {
@@ -26,7 +26,7 @@ class MessageController {
         conversationId: conversation.id,
         content: content,
         senderIdentifier: fromPhone,
-        recipientIdentifier: conversation.assignedTo || twilioPhone, // UID del agente o número de Twilio
+        recipientIdentifier: conversation.assignedTo || twilioPhone, // EMAIL del agente o número de Twilio
         direction: 'inbound',
         status: 'received',
         metadata: { twilio: req.body },
@@ -47,10 +47,10 @@ class MessageController {
         socketManager.emitNewMessage(conversation.id, message.toJSON());
       }
       
-      logger.info('Webhook procesado exitosamente (UID-FIRST)', { conversationId: conversation.id, messageId: message.id });
+      logger.info('Webhook procesado exitosamente (EMAIL-FIRST)', { conversationId: conversation.id, messageId: message.id });
 
     } catch (error) {
-      logger.error('Error crítico en webhook (UID-FIRST)', { error: error.message, stack: error.stack });
+      logger.error('Error crítico en webhook (EMAIL-FIRST)', { error: error.message, stack: error.stack });
     }
     
     // 5. Responder SIEMPRE 200 OK a Twilio.
@@ -58,12 +58,12 @@ class MessageController {
   }
   
   /**
-   * ✅ UID-FIRST: Enviar un mensaje saliente.
+   * ✅ EMAIL-FIRST: Enviar un mensaje saliente.
    */
   static async sendMessage (req, res, next) {
     try {
       const { conversationId, content, mediaUrl } = req.body;
-      const senderUid = req.user.uid;
+      const senderEmail = req.user.email;
 
       if (!conversationId || !content) {
         return res.status(400).json({ error: 'conversationId y content son requeridos.' });
@@ -87,11 +87,11 @@ class MessageController {
         id: sentMessage.sid,
         conversationId: conversation.id,
         content: content,
-        senderIdentifier: senderUid, // UID del agente
+        senderIdentifier: senderEmail, // Email del agente
         recipientIdentifier: conversation.customerPhone, // Teléfono del cliente
         direction: 'outbound',
         status: 'sent',
-        metadata: { sentBy: senderUid },
+        metadata: { sentBy: senderEmail },
       };
       
       const message = await Message.create(messageData);
@@ -105,13 +105,13 @@ class MessageController {
       res.status(201).json({ success: true, data: message.toJSON() });
 
     } catch (error) {
-      logger.error('Error enviando mensaje (UID-FIRST)', { error: error.message, stack: error.stack });
+      logger.error('Error enviando mensaje (EMAIL-FIRST)', { error: error.message, stack: error.stack });
       next(error);
     }
   }
 
   /**
-   * ✅ UID-FIRST: Obtener mensajes de una conversación.
+   * ✅ EMAIL-FIRST: Obtener mensajes de una conversación.
    */
   static async getMessages (req, res, next) {
     try {
@@ -134,7 +134,7 @@ class MessageController {
         });
 
     } catch (error) {
-        logger.error('Error obteniendo mensajes (UID-FIRST)', { error: error.message });
+        logger.error('Error obteniendo mensajes (EMAIL-FIRST)', { error: error.message });
         next(error);
     }
   }

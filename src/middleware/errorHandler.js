@@ -86,7 +86,7 @@ const errorHandler = (err, req, res, _next) => {
 };
 
 /**
- * Traduce códigos de error de Firebase Auth a mensajes amigables
+ * Traduce códigos de error de JWT interno a mensajes amigables
  */
 function getFirebaseAuthErrorMessage (code) {
   const errorMessages = {

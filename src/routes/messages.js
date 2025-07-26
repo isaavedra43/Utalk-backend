@@ -7,7 +7,7 @@ const router = express.Router();
 
 /**
  * @route   GET /api/conversations/:conversationId/messages
- * @desc    Obtener todos los mensajes de una conversación específica (UID-FIRST)
+ * @desc    Obtener todos los mensajes de una conversación específica (EMAIL-FIRST)
  * @access  Private (Admin, Agent, Viewer)
  * @params  conversationId (UUID)
  * @query   limit, cursor
@@ -18,7 +18,7 @@ const router = express.Router();
 
 /**
  * @route   POST /api/messages/send
- * @desc    Enviar un mensaje de WhatsApp saliente (UID-FIRST)
+ * @desc    Enviar un mensaje de WhatsApp saliente (EMAIL-FIRST)
  * @access  Private (Admin, Agent only)
  * @body    { conversationId: (UUID), content: "..." }
  */
@@ -31,7 +31,7 @@ router.post('/send',
 
 // --- RUTAS OBSOLETAS ELIMINADAS ---
 // Las siguientes rutas fueron eliminadas porque sus controladores
-// no existen después de la refactorización UID-FIRST o su lógica ha cambiado.
+// no existen después de la refactorización EMAIL-FIRST o su lógica ha cambiado.
 
 // router.get('/', MessageController.getMessages); // <- Ambiguo sin conversationId
 // router.get('/conversation/:phone', MessageController.getConversationByPhone); // <- Obsoleto

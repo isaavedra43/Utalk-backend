@@ -313,18 +313,34 @@ const commonSchemas = {
 
 // Esquemas específicos para cada entidad con validaciones mejoradas
 const schemas = {
-  // Autenticación EXCLUSIVA con Firebase Auth idToken
+  // Autenticación con EMAIL y PASSWORD (Firestore únicamente)
   auth: {
     login: Joi.object({
-      idToken: Joi.string().min(1).max(4096).required().messages({
-        'string.empty': 'El token de Firebase es requerido',
-        'any.required': 'Debes proporcionar un idToken válido de Firebase Auth',
-        'string.max': 'El token de Firebase es demasiado largo',
+      email: Joi.string().email({ minDomainSegments: 2 }).max(254).required().messages({
+        'string.empty': 'El email es requerido',
+        'string.email': 'Debes proporcionar un email válido',
+        'any.required': 'Email es obligatorio',
+      }),
+      password: Joi.string().min(6).max(128).required().messages({
+        'string.empty': 'La contraseña es requerida',
+        'string.min': 'La contraseña debe tener al menos 6 caracteres',
+        'any.required': 'Contraseña es obligatoria',
       }),
     }),
 
-    refreshToken: Joi.object({
-      refreshToken: Joi.string().min(10).max(512).required(),
+    changePassword: Joi.object({
+      currentPassword: Joi.string().min(1).max(128).required(),
+      newPassword: Joi.string().min(8).max(128).required().messages({
+        'string.min': 'La nueva contraseña debe tener al menos 8 caracteres',
+      }),
+    }),
+
+    createUser: Joi.object({
+      email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
+      password: Joi.string().min(8).max(128).required(),
+      name: Joi.string().min(1).max(100).required(),
+      role: Joi.string().valid('viewer', 'agent', 'admin', 'superadmin').default('viewer'),
+      department: Joi.string().max(100).optional().allow(null),
     }),
   },
 

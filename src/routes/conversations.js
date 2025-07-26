@@ -38,7 +38,7 @@ router.get('/:conversationId',
 
 /**
  * @route   GET /api/conversations/:conversationId/messages
- * @desc    Obtener los mensajes de una conversación (UID-FIRST)
+ * @desc    Obtener los mensajes de una conversación (EMAIL-FIRST)
  * @access  Private (Admin, Agent, Viewer)
  * @params  conversationId (UUID)
  */
@@ -49,7 +49,7 @@ router.get('/:conversationId/messages',
 
 /**
  * @route POST /api/conversations
- * @desc Crear nueva conversación (UID-FIRST)
+ * @desc Crear nueva conversación (EMAIL-FIRST)
  * @access Private (Admin, Agent only)
  */
 router.post('/',

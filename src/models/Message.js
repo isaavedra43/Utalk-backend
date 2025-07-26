@@ -21,9 +21,9 @@ class Message {
     this.content = data.content || null;
     this.mediaUrl = data.mediaUrl || null;
     
-    // ✅ UID-FIRST: Identificadores de remitente y destinatario.
-    this.senderIdentifier = data.senderIdentifier; // Puede ser UID o teléfono.
-    this.recipientIdentifier = data.recipientIdentifier; // Puede ser UID o teléfono.
+    // ✅ EMAIL-FIRST: Identificadores de remitente y destinatario.
+    this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
+    this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
 
     // ✅ DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
     // this.senderPhone = ...
@@ -44,7 +44,7 @@ class Message {
   }
 
   /**
-   * Crear mensaje en Firestore (UID-FIRST)
+   * Crear mensaje en Firestore (EMAIL-FIRST)
    */
   static async create (messageData) {
     const message = new Message(messageData);
@@ -59,7 +59,7 @@ class Message {
       .doc(message.id)
       .set(cleanData);
       
-    logger.info('Mensaje guardado (UID-FIRST)', {
+    logger.info('Mensaje guardado (EMAIL-FIRST)', {
       messageId: message.id,
       conversationId: message.conversationId,
       sender: message.senderIdentifier,
@@ -376,7 +376,7 @@ class Message {
   }
 
   /**
-   * ✅ UID-FIRST: Convertir a objeto plano para respuestas JSON
+   * ✅ EMAIL-FIRST: Convertir a objeto plano para respuestas JSON
    */
   toJSON () {
     const normalizedTimestamp = safeDateToISOString(this.timestamp);

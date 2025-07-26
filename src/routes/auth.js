@@ -36,6 +36,20 @@ router.get('/me', authMiddleware, AuthController.getProfile);
  */
 router.put('/profile', authMiddleware, AuthController.updateProfile);
 
+/**
+ * @route POST /api/auth/change-password
+ * @desc Cambiar contraseña del usuario
+ * @access Private
+ */
+router.post('/change-password', authMiddleware, validate(schemas.auth.changePassword), AuthController.changePassword);
+
+/**
+ * @route POST /api/auth/create-user
+ * @desc Crear nuevo usuario (solo administradores)
+ * @access Private - Admin only
+ */
+router.post('/create-user', authMiddleware, validate(schemas.auth.createUser), AuthController.createUser);
+
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const authRoutes = require('./routes/auth');
 module.exports = router;

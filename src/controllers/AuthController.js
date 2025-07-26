@@ -1,142 +1,62 @@
-const { getAuth } = require('firebase-admin/auth');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
 
 class AuthController {
   /**
-   * 🔒 LOGIN EXCLUSIVO VÍA FIREBASE AUTH (UID-FIRST)
-   * Solo acepta Firebase ID Tokens válidos y sincroniza automáticamente con Firestore
+   * 🔒 LOGIN CON FIRESTORE ÚNICAMENTE (EMAIL + PASSWORD)
+   * NO más JWT interno - Solo Firestore y JWT interno
    */
   static async login(req, res, next) {
     try {
-      const { idToken } = req.body;
+      const { email, password } = req.body;
 
-      logger.info('🔐 Intento de login con Firebase ID Token', {
-        hasIdToken: !!idToken,
-        tokenLength: idToken ? idToken.length : 0,
+      logger.info('🔐 Intento de login con Firestore', {
+        email,
+        hasPassword: !!password,
         ip: req.ip,
         userAgent: req.get('User-Agent'),
       });
 
-      // ✅ VALIDACIÓN: Solo aceptar idToken de Firebase
-      if (!idToken) {
-        logger.warn('❌ Login fallido: Token faltante', { ip: req.ip });
-        return res.status(400).json({
-          error: 'Token de Firebase requerido',
-          message: 'Debes proporcionar un idToken válido de Firebase Auth',
-          code: 'MISSING_ID_TOKEN',
+      // ✅ VALIDACIÓN: Email y password requeridos
+      if (!email || !password) {
+        logger.warn('❌ Login fallido: Datos faltantes', { 
+          email: email || 'FALTANTE',
+          hasPassword: !!password,
+          ip: req.ip 
         });
-      }
-
-      // ✅ VALIDAR idToken con Firebase Admin SDK
-      let decodedToken;
-      try {
-        logger.info('🔍 Verificando Firebase ID Token...');
-        decodedToken = await getAuth().verifyIdToken(idToken, true); // checkRevoked = true
         
-        logger.info('✅ Firebase ID Token válido', {
-          uid: decodedToken.uid,
-          email: decodedToken.email,
-          emailVerified: decodedToken.email_verified,
-          hasKid: !!decodedToken.kid,
-          issuer: decodedToken.iss,
-          audience: decodedToken.aud,
-        });
-      } catch (firebaseError) {
-        logger.error('❌ Firebase ID Token inválido', {
-          error: firebaseError.message,
-          code: firebaseError.code,
-          ip: req.ip,
-          tokenPrefix: idToken ? idToken.substring(0, 20) + '...' : 'N/A',
-        });
-
-        let errorMessage = 'El token de Firebase proporcionado no es válido';
-        let errorCode = 'INVALID_ID_TOKEN';
-
-        if (firebaseError.code === 'auth/id-token-expired') {
-          errorMessage = 'El token de Firebase ha expirado. Por favor, inicia sesión de nuevo.';
-          errorCode = 'TOKEN_EXPIRED';
-        } else if (firebaseError.code === 'auth/argument-error') {
-          errorMessage = 'El token de Firebase tiene un formato inválido.';
-          errorCode = 'TOKEN_FORMAT_ERROR';
-        } else if (firebaseError.message.includes('kid')) {
-          errorMessage = 'El token no es un Firebase ID Token válido. Asegúrate de usar getIdToken() en el frontend.';
-          errorCode = 'INVALID_TOKEN_TYPE';
-        }
-
-        return res.status(401).json({
-          error: 'Token inválido',
-          message: errorMessage,
-          code: errorCode,
-        });
-      }
-
-      // ✅ EXTRAER información del usuario desde el token verificado
-      const {
-        uid,
-        email,
-        name,
-        picture,
-        phone_number: phoneNumber,
-        email_verified: emailVerified
-      } = decodedToken;
-
-      if (!email) {
-        logger.warn('❌ Login fallido: Email faltante en token', { uid });
         return res.status(400).json({
-          error: 'Email requerido',
-          message: 'El usuario debe tener un email válido en Firebase Auth',
-          code: 'MISSING_EMAIL',
+          error: 'Datos requeridos',
+          message: 'Email y contraseña son requeridos',
+          code: 'MISSING_CREDENTIALS',
         });
       }
 
-      logger.info('🔄 Iniciando sincronización usuario Firebase -> Firestore', {
-        uid,
-        email,
-        hasDisplayName: !!name,
-        hasPhoneNumber: !!phoneNumber,
-        emailVerified,
-      });
-
-      // ✅ SINCRONIZAR usuario con Firestore (crear si no existe, actualizar si existe)
-      let user;
-      try {
-        user = await User.syncFromAuth({
-          uid,
+      // ✅ BUSCAR usuario en Firestore
+      logger.info('🔍 Buscando usuario en Firestore...', { email });
+      
+      const user = await User.getByEmail(email);
+      
+      if (!user) {
+        logger.warn('❌ Login fallido: Usuario no encontrado', { 
           email,
-          displayName: name,
-          photoURL: picture,
-          phoneNumber,
-          emailVerified,
+          ip: req.ip 
         });
-
-        logger.info('✅ Usuario sincronizado correctamente', {
-          uid: user.uid,
-          email: user.email,
-          role: user.role,
-          isActive: user.isActive,
-          wasCreated: !user.lastLoginAt,
-        });
-      } catch (syncError) {
-        logger.error('❌ Error crítico en sincronización Firebase -> Firestore', {
-          uid,
-          email,
-          error: syncError.message,
-          stack: syncError.stack,
-        });
-
-        return res.status(500).json({
-          error: 'Error de sincronización',
-          message: 'No se pudo sincronizar el usuario con la base de datos',
-          code: 'SYNC_ERROR',
+        
+        return res.status(401).json({
+          error: 'Credenciales inválidas',
+          message: 'Email o contraseña incorrectos',
+          code: 'INVALID_CREDENTIALS',
         });
       }
 
       // ✅ VERIFICAR que el usuario esté activo
       if (!user.isActive) {
         logger.warn('❌ Login denegado: Usuario inactivo', {
-          uid: user.uid,
           email: user.email,
+          name: user.name,
+          ip: req.ip,
         });
 
         return res.status(403).json({
@@ -146,25 +66,73 @@ class AuthController {
         });
       }
 
-      // ✅ LOGIN EXITOSO - Respuesta canónica
-      logger.info('🎉 LOGIN EXITOSO', {
-        uid: user.uid,
+      // ✅ VALIDAR contraseña con bcrypt
+      logger.info('🔐 Validando contraseña...', { email });
+      
+      const isPasswordValid = await User.validatePassword(email, password);
+      
+      if (!isPasswordValid) {
+        logger.warn('❌ Login fallido: Contraseña incorrecta', { 
+          email,
+          ip: req.ip 
+        });
+        
+        return res.status(401).json({
+          error: 'Credenciales inválidas',
+          message: 'Email o contraseña incorrectos',
+          code: 'INVALID_CREDENTIALS',
+        });
+      }
+
+      // ✅ ACTUALIZAR último login
+      await user.updateLastLogin();
+
+      // ✅ GENERAR JWT INTERNO
+      const jwtSecret = process.env.JWT_SECRET;
+      const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
+      
+      if (!jwtSecret) {
+        logger.error('💥 JWT_SECRET no configurado');
+        return res.status(500).json({
+          error: 'Error de configuración',
+          message: 'Servidor mal configurado',
+          code: 'SERVER_ERROR',
+        });
+      }
+
+      const tokenPayload = {
         email: user.email,
+        role: user.role,
+        name: user.name,
+        iat: Math.floor(Date.now() / 1000),
+      };
+
+      const token = jwt.sign(tokenPayload, jwtSecret, { 
+        expiresIn: jwtExpiresIn,
+        issuer: 'utalk-backend',
+        audience: 'utalk-frontend',
+      });
+
+      // ✅ LOGIN EXITOSO
+      logger.info('🎉 LOGIN EXITOSO con Firestore', {
+        email: user.email,
+        name: user.name,
         role: user.role,
         department: user.department,
         ip: req.ip,
         timestamp: new Date().toISOString(),
       });
 
-      // ✅ RESPUESTA ESTÁNDAR UID-FIRST (sin JWT propio, solo Firebase ID Token)
+      // ✅ RESPUESTA ESTÁNDAR (EMAIL-FIRST)
       res.json({
         success: true,
         message: 'Login exitoso',
+        token: token,
         user: user.toJSON(),
-        // NO enviamos token JWT propio - el frontend sigue usando Firebase ID Token
       });
     } catch (error) {
       logger.error('💥 Error crítico en login', {
+        email: req.body?.email,
         error: error.message,
         stack: error.stack,
         ip: req.ip,
@@ -179,28 +147,17 @@ class AuthController {
    */
   static async logout(req, res, next) {
     try {
-      const uid = req.user?.uid;
+      const email = req.user?.email;
 
       logger.info('🚪 Logout iniciado', {
-        uid,
+        email,
         ip: req.ip,
       });
 
-      // En UID-first, el logout es principalmente del lado del cliente
-      // Firebase Admin SDK puede revocar refresh tokens si es necesario
-      if (uid) {
-        try {
-          await getAuth().revokeRefreshTokens(uid);
-          logger.info('✅ Refresh tokens revocados en Firebase', { uid });
-        } catch (revokeError) {
-          logger.warn('⚠️ No se pudieron revocar tokens en Firebase', {
-            uid,
-            error: revokeError.message,
-          });
-        }
-      }
+      // En sistema con JWT, el logout es principalmente del lado del cliente
+      // El token se invalida cuando expira o el cliente lo descarta
 
-      logger.info('✅ Logout completado', { uid });
+      logger.info('✅ Logout completado', { email });
 
       res.json({
         success: true,
@@ -209,7 +166,7 @@ class AuthController {
     } catch (error) {
       logger.error('❌ Error en logout', {
         error: error.message,
-        uid: req.user?.uid,
+        email: req.user?.email,
       });
       next(error);
     }
@@ -220,22 +177,23 @@ class AuthController {
    */
   static async getProfile(req, res, next) {
     try {
-      const uid = req.user?.uid;
+      const email = req.user?.email;
 
-      if (!uid) {
+      if (!email) {
         return res.status(401).json({
           error: 'Usuario no autenticado',
-          message: 'No se pudo obtener el UID del usuario',
-          code: 'MISSING_UID',
+          message: 'No se pudo obtener el email del usuario',
+          code: 'MISSING_EMAIL',
         });
       }
 
-      logger.info('👤 Obteniendo perfil de usuario', { uid });
+      logger.info('👤 Obteniendo perfil de usuario', { email });
 
-      const user = await User.getByUid(uid);
+      // Obtener datos frescos de Firestore
+      const user = await User.getByEmail(email);
       
       if (!user) {
-        logger.warn('⚠️ Usuario no encontrado en Firestore', { uid });
+        logger.warn('⚠️ Usuario no encontrado en Firestore', { email });
         return res.status(404).json({
           error: 'Usuario no encontrado',
           message: 'El usuario no existe en la base de datos',
@@ -244,8 +202,9 @@ class AuthController {
       }
 
       logger.info('✅ Perfil obtenido correctamente', {
-        uid: user.uid,
         email: user.email,
+        name: user.name,
+        role: user.role,
       });
 
       res.json({
@@ -255,7 +214,7 @@ class AuthController {
     } catch (error) {
       logger.error('❌ Error obteniendo perfil', {
         error: error.message,
-        uid: req.user?.uid,
+        email: req.user?.email,
       });
       next(error);
     }
@@ -266,22 +225,22 @@ class AuthController {
    */
   static async updateProfile(req, res, next) {
     try {
-      const uid = req.user?.uid;
-      const { displayName, phone, settings } = req.body;
+      const email = req.user?.email;
+      const { name, phone, settings } = req.body;
 
-      if (!uid) {
+      if (!email) {
         return res.status(401).json({
           error: 'Usuario no autenticado',
-          code: 'MISSING_UID',
+          code: 'MISSING_EMAIL',
         });
       }
 
       logger.info('✏️ Actualizando perfil de usuario', {
-        uid,
-        updates: { displayName, phone, settings },
+        email,
+        updates: { name, phone, settings },
       });
 
-      const user = await User.getByUid(uid);
+      const user = await User.getByEmail(email);
       
       if (!user) {
         return res.status(404).json({
@@ -290,9 +249,9 @@ class AuthController {
         });
       }
 
-      // ✅ Preparar actualizaciones permitidas
+      // ✅ Preparar actualizaciones permitidas (NO incluir email como actualizable)
       const allowedUpdates = {};
-      if (displayName !== undefined) allowedUpdates.displayName = displayName;
+      if (name !== undefined) allowedUpdates.name = name;
       if (phone !== undefined) allowedUpdates.phone = phone;
       if (settings !== undefined) allowedUpdates.settings = { ...user.settings, ...settings };
 
@@ -307,7 +266,7 @@ class AuthController {
       await user.update(allowedUpdates);
 
       logger.info('✅ Perfil actualizado exitosamente', {
-        uid,
+        email,
         updatedFields: Object.keys(allowedUpdates),
       });
 
@@ -319,7 +278,72 @@ class AuthController {
     } catch (error) {
       logger.error('❌ Error actualizando perfil', {
         error: error.message,
-        uid: req.user?.uid,
+        email: req.user?.email,
+      });
+      next(error);
+    }
+  }
+
+  /**
+   * 🔑 CAMBIAR CONTRASEÑA
+   */
+  static async changePassword(req, res, next) {
+    try {
+      const email = req.user?.email;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!email) {
+        return res.status(401).json({
+          error: 'Usuario no autenticado',
+          code: 'MISSING_EMAIL',
+        });
+      }
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          error: 'Datos requeridos',
+          message: 'Contraseña actual y nueva contraseña son requeridas',
+          code: 'MISSING_PASSWORDS',
+        });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({
+          error: 'Contraseña débil',
+          message: 'La nueva contraseña debe tener al menos 8 caracteres',
+          code: 'WEAK_PASSWORD',
+        });
+      }
+
+      logger.info('🔑 Cambio de contraseña solicitado', { email });
+
+      // Validar contraseña actual
+      const isCurrentPasswordValid = await User.validatePassword(email, currentPassword);
+      
+      if (!isCurrentPasswordValid) {
+        logger.warn('❌ Cambio de contraseña fallido: Contraseña actual incorrecta', { email });
+        
+        return res.status(401).json({
+          error: 'Contraseña actual incorrecta',
+          message: 'La contraseña actual no es válida',
+          code: 'INVALID_CURRENT_PASSWORD',
+        });
+      }
+
+      // Obtener usuario y actualizar contraseña
+      const user = await User.getByEmail(email);
+      await user.update({ password: newPassword }); // Se hasheará automáticamente en el modelo
+
+      logger.info('✅ Contraseña cambiada exitosamente', { email });
+
+      res.json({
+        success: true,
+        message: 'Contraseña cambiada exitosamente',
+      });
+    } catch (error) {
+      logger.error('❌ Error cambiando contraseña', {
+        error: error.message,
+        email: req.user?.email,
       });
       next(error);
     }
@@ -330,11 +354,11 @@ class AuthController {
    */
   static async createUser(req, res, next) {
     try {
-      const { email, displayName, role = 'viewer', department } = req.body;
-      const adminUid = req.user?.uid;
+      const { email, password, name, role = 'viewer', department } = req.body;
+      const adminEmail = req.user?.email;
 
       logger.info('👥 Creación de usuario solicitada por admin', {
-        adminUid,
+        adminEmail,
         targetEmail: email,
         role,
         department,
@@ -343,7 +367,7 @@ class AuthController {
       // ✅ Verificar permisos de administrador
       if (!req.user?.hasRole('admin') && !req.user?.hasRole('superadmin')) {
         logger.warn('🚫 Intento de creación de usuario sin permisos', {
-          adminUid,
+          adminEmail,
           adminRole: req.user?.role,
         });
 
@@ -354,102 +378,52 @@ class AuthController {
         });
       }
 
-      // ✅ Crear usuario en Firebase Auth primero
-      let userRecord;
-      try {
-        userRecord = await getAuth().createUser({
-          email,
-          displayName,
-          emailVerified: false,
-        });
-
-        logger.info('✅ Usuario creado en Firebase Auth', {
-          uid: userRecord.uid,
-          email: userRecord.email,
-        });
-      } catch (authError) {
-        logger.error('❌ Error creando usuario en Firebase Auth', {
-          email,
-          error: authError.message,
-        });
-
+      if (!email || !password || !name) {
         return res.status(400).json({
-          error: 'Error creando usuario en Firebase',
-          message: authError.message,
-          code: 'FIREBASE_CREATE_ERROR',
+          error: 'Datos requeridos',
+          message: 'Email, contraseña y nombre son requeridos',
+          code: 'MISSING_REQUIRED_FIELDS',
         });
       }
 
-      // ✅ Establecer claims personalizados en Firebase
+      // ✅ Crear usuario en Firestore
       try {
-        await getAuth().setCustomUserClaims(userRecord.uid, { role, department });
-        logger.info('✅ Claims personalizados establecidos', {
-          uid: userRecord.uid,
-          role,
-          department,
-        });
-      } catch (claimsError) {
-        logger.warn('⚠️ Error estableciendo claims personalizados', {
-          uid: userRecord.uid,
-          error: claimsError.message,
-        });
-      }
-
-      // ✅ Crear usuario en Firestore usando syncFromAuth
-      let newUser;
-      try {
-        newUser = await User.syncFromAuth({
-          uid: userRecord.uid,
-          email: userRecord.email,
-          displayName,
-        }, {
+        const newUser = await User.create({
+          email,
+          password,
+          name,
           role,
           department,
           isActive: true,
         });
 
         logger.info('✅ Usuario creado completamente', {
-          uid: newUser.uid,
           email: newUser.email,
+          name: newUser.name,
           role: newUser.role,
-          createdBy: adminUid,
-        });
-      } catch (syncError) {
-        logger.error('❌ Error creando usuario en Firestore', {
-          uid: userRecord.uid,
-          error: syncError.message,
+          createdBy: adminEmail,
         });
 
-        // Intentar limpiar el usuario de Firebase Auth si falla Firestore
-        try {
-          await getAuth().deleteUser(userRecord.uid);
-          logger.info('🧹 Usuario eliminado de Firebase Auth tras error en Firestore', {
-            uid: userRecord.uid,
-          });
-        } catch (cleanupError) {
-          logger.error('💥 Error eliminando usuario de Firebase tras fallo', {
-            uid: userRecord.uid,
-            error: cleanupError.message,
+        res.status(201).json({
+          success: true,
+          message: 'Usuario creado exitosamente',
+          user: newUser.toJSON(),
+        });
+      } catch (createError) {
+        if (createError.message === 'Usuario ya existe') {
+          return res.status(409).json({
+            error: 'Usuario ya existe',
+            message: 'Ya existe un usuario con ese email',
+            code: 'USER_ALREADY_EXISTS',
           });
         }
-
-        return res.status(500).json({
-          error: 'Error creando usuario en base de datos',
-          message: syncError.message,
-          code: 'DATABASE_CREATE_ERROR',
-        });
+        throw createError;
       }
-
-      res.status(201).json({
-        success: true,
-        message: 'Usuario creado exitosamente',
-        user: newUser.toJSON(),
-      });
     } catch (error) {
       logger.error('💥 Error crítico creando usuario', {
         error: error.message,
         stack: error.stack,
-        adminUid: req.user?.uid,
+        adminEmail: req.user?.email,
       });
       next(error);
     }

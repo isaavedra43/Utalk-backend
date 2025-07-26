@@ -136,7 +136,7 @@ class Logger {
       duration: `${duration}ms`,
       userAgent: req.headers['user-agent'],
       ip: req.ip || req.connection.remoteAddress,
-      userId: req.user?.uid,
+              userEmail: req.user?.email,
       // Headers específicos de Twilio
       twilioSignature: req.headers['x-twilio-signature'] ? 'presente' : 'ausente',
     });

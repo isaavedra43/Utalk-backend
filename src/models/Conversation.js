@@ -9,16 +9,16 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Conversation {
   constructor (data) {
-    // ✅ ID: Usar UUIDv4 si no se proporciona uno. UID-FIRST.
+    // ✅ ID: Usar UUIDv4 si no se proporciona uno. EMAIL-FIRST.
     this.id = data.id || uuidv4();
 
-    // ✅ PARTICIPANTS: Array de UIDs de usuarios internos y/o teléfonos de externos.
+    // ✅ PARTICIPANTS: Array de emails de usuarios internos y/o teléfonos de externos.
     this.participants = data.participants || [];
 
     // ✅ CUSTOMER: Identificador del cliente externo.
     this.customerPhone = this.validateCustomerPhone(data.customerPhone);
 
-    // ✅ DEPRECATED: agentPhone se elimina, se usa assignedTo (UID).
+    // ✅ DEPRECATED: agentPhone se elimina, se usa assignedTo (EMAIL).
     // this.agentPhone = data.agentPhone;
 
     // ✅ CONTACT: Info del cliente.
@@ -32,7 +32,7 @@ class Conversation {
     this.messageCount = data.messageCount || 0;
     this.status = data.status || 'open';
 
-    // ✅ ASSIGNED_TO: UID del agente asignado. La única fuente de verdad.
+    // ✅ ASSIGNED_TO: EMAIL del agente asignado. La única fuente de verdad.
     this.assignedTo = data.assignedTo || null;
     this.assignedToName = data.assignedToName || null;
 
@@ -45,7 +45,7 @@ class Conversation {
    */
   validateCustomerPhone(phone) {
     if (!phone) {
-      // En un sistema UID-first, una conversación podría no tener un teléfono
+        // En un sistema EMAIL-first, una conversación podría no tener un teléfono
       // si es entre dos usuarios internos. Por ahora, lo mantenemos requerido.
       throw new Error('customerPhone es requerido.');
     }
@@ -60,13 +60,13 @@ class Conversation {
    * DEPRECATED: Ya no se usa.
    */
   validateAndNormalizeParticipants (participants) {
-    // Esta lógica ahora se centrará en validar UIDs y teléfonos.
+    // Esta lógica ahora se centrará en validar EMAILs y teléfonos.
     // Por ahora, aceptamos el array como viene.
     return participants;
   }
 
   /**
-   * DEPRECATED: Se reemplaza por lógica de UIDs.
+   * DEPRECATED: Se reemplaza por lógica de EMAILs.
    */
   getCustomerPhone () {
     return this.customerPhone;
@@ -76,15 +76,15 @@ class Conversation {
    * DEPRECATED: Se reemplaza por assignedTo.
    */
   getAgentPhone () {
-    logger.warn('getAgentPhone() está obsoleto. Usar `assignedTo` (UID).');
+    logger.warn('getAgentPhone() está obsoleto. Usar `assignedTo` (EMAIL).');
     return null;
   }
 
   /**
-   * ✅ REFACTORIZADO: Crear o encontrar una conversación. UID-FIRST.
+   * ✅ REFACTORIZADO: Crear o encontrar una conversación. EMAIL-FIRST.
    * Busca una conversación abierta para un `customerPhone`. Si no existe, la crea.
    */
-  static async findOrCreate(customerPhone, agentUid = null) {
+  static async findOrCreate(customerPhone, agentEmail = null) {
     const normalizedPhone = validateAndNormalizePhone(customerPhone);
     if (!normalizedPhone.isValid) {
       throw new Error(`Número de teléfono de cliente inválido: ${customerPhone}`);
@@ -106,13 +106,14 @@ class Conversation {
       customerPhone: normalizedPhone.normalized,
       participants: [normalizedPhone.normalized], // Inicialmente solo el cliente
       status: 'open',
-      assignedTo: agentUid, // Puede ser null
+      assignedTo: agentEmail, // ✅ EMAIL del agente (puede ser null)
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
 
-    if(agentUid) {
-      conversationData.participants.push(agentUid);
+    // ✅ AGREGAR EMAIL del agente a participants si está asignado
+    if (agentEmail) {
+      conversationData.participants.push(agentEmail);
     }
 
     const conversation = new Conversation(conversationData);
@@ -203,9 +204,9 @@ class Conversation {
         query = query.where('assignedTo', '==', null);
         logger.info('Aplicando filtro para conversaciones SIN asignar');
       } else {
-        // Buscar conversaciones asignadas a un UID específico
+        // Buscar conversaciones asignadas a un EMAIL específico
         query = query.where('assignedTo', '==', assignedTo);
-        logger.info('Aplicando filtro para conversaciones asignadas a UID', { assignedTo });
+        logger.info('Aplicando filtro para conversaciones asignadas a EMAIL', { assignedTo });
       }
     } else {
       logger.info('Sin filtro assignedTo - buscando TODAS las conversaciones');
@@ -401,22 +402,22 @@ class Conversation {
   /**
    * Asignar a usuario
    */
-  async assignTo (userId, userName = null) {
-    // ✅ VALIDACIÓN: userId debe ser un UID real
-    if (!userId || typeof userId !== 'string') {
-      throw new Error('userId debe ser un UID válido');
+  async assignTo (userEmail, userName = null) {
+    // ✅ VALIDACIÓN: userEmail debe ser un EMAIL real
+    if (!userEmail || typeof userEmail !== 'string') {
+      throw new Error('userEmail debe ser un EMAIL válido');
     }
 
-    // TODO: Aquí se podría validar que el UID existe en la colección users
+    // TODO: Aquí se podría validar que el EMAIL existe en la colección users
     logger.info('Asignando conversación a usuario', {
       conversationId: this.id,
-      userId,
+      userEmail,
       userName: userName || 'no_especificado',
       previousAssignedTo: this.assignedTo,
     });
 
     const updateData = {
-      assignedTo: userId,
+      assignedTo: userEmail,
       updatedAt: Timestamp.now(),
     };
 
@@ -427,7 +428,7 @@ class Conversation {
 
     await this.update(updateData);
 
-    this.assignedTo = userId;
+    this.assignedTo = userEmail;
     if (userName) {
       this.assignedToName = userName;
     }
@@ -533,7 +534,7 @@ class Conversation {
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
       const normalizedLastMessageAt = safeDateToISOString(this.lastMessageAt);
 
-      // ✅ PARTICIPANTS: Puede contener UIDs y/o teléfonos.
+      // ✅ PARTICIPANTS: Puede contener EMAILs y/o teléfonos.
       const validatedParticipants = this.participants || [];
 
       // ✅ CUSTOMER PHONE:
@@ -550,7 +551,7 @@ class Conversation {
         channel: 'whatsapp',
       };
 
-      // ✅ ASSIGNED_TO: Objeto con UID y nombre.
+              // ✅ ASSIGNED_TO: Objeto con EMAIL y nombre.
       let assignedTo = null;
       if (this.assignedTo) {
         assignedTo = {
@@ -559,7 +560,7 @@ class Conversation {
         };
       }
 
-      // ✅ ESTRUCTURA DE RESPUESTA FINAL (UID-FIRST)
+              // ✅ ESTRUCTURA DE RESPUESTA FINAL (EMAIL-FIRST)
       const result = {
         id: this.id,
         participants: validatedParticipants,

@@ -24,11 +24,11 @@ const User = require('../models/User'); // Para buscar UIDs
  * - DELETE /api/conversations/:id - Archiva conversación
  * - GET /api/conversations/stats - Obtiene estadísticas
  * 
- * ✅ IMPORTANTE: assignedTo debe ser SIEMPRE un UID real del sistema de autenticación
+ * ✅ IMPORTANTE: assignedTo debe ser SIEMPRE un EMAIL real del sistema de autenticación
  */
 class ConversationController {
   /**
-   * ✅ UID-FIRST: Listar conversaciones.
+   * ✅ EMAIL-FIRST: Listar conversaciones.
    * El filtro `assignedTo` ahora usa el UID del usuario logueado por defecto.
    */
   static async listConversations (req, res) {
@@ -52,11 +52,11 @@ class ConversationController {
           finalAssignedToFilter = undefined; 
         } else {
           // Agentes solo ven sus conversaciones.
-          finalAssignedToFilter = req.user.uid;
+          finalAssignedToFilter = req.user.email;
         }
       }
 
-      logger.info('Listando conversaciones (UID-FIRST)', {
+      logger.info('Listando conversaciones (EMAIL-FIRST)', {
         limit: parseInt(limit),
         cursor: cursor ? 'presente' : 'ausente',
         filters: {
@@ -69,7 +69,7 @@ class ConversationController {
         userAgent: req.get('User-Agent'),
         ip: req.ip,
         currentUser: {
-          uid: req.user ? req.user.uid : 'no_autenticado',
+          email: req.user ? req.user.email : 'no_autenticado',
           role: req.user ? req.user.role : 'no_autenticado',
         },
       });
@@ -89,7 +89,7 @@ class ConversationController {
       // ✅ FEATURE: Si no hay conversaciones asignadas, buscar y asignar automáticamente
       if (conversations.length === 0 && finalAssignedToFilter && req.user.role !== 'admin') {
         logger.info('No se encontraron conversaciones asignadas, buscando sin asignar', {
-          userUID: req.user.uid,
+          userEmail: req.user.email,
           userRole: req.user.role,
         });
 
@@ -103,19 +103,19 @@ class ConversationController {
         
         if (unassignedConversations.length > 0) {
           logger.info('Asignando conversaciones automáticamente', {
-            userUID: req.user.uid,
+            userEmail: req.user.email,
             conversationsToAssign: unassignedConversations.length,
           });
 
           // Asignar automáticamente al usuario actual
           for (const conv of unassignedConversations) {
             try {
-              await conv.assignTo(req.user.uid, req.user.name || req.user.email || 'Agent');
+              await conv.assignTo(req.user.email, req.user.name || req.user.email || 'Agent');
               conversations.push(conv); // Agregar a la lista de resultados
             } catch (assignError) {
               logger.error('Error asignando conversación automáticamente', {
                 conversationId: conv.id,
-                userUID: req.user.uid,
+                userEmail: req.user.email,
                 error: assignError.message,
               });
             }
@@ -180,7 +180,7 @@ class ConversationController {
           },
           autoAssignment: {
             performed: conversations.length > 0 && finalAssignedToFilter && req.user.role !== 'admin',
-            userUID: req.user.uid,
+            userEmail: req.user.email,
             userRole: req.user.role,
           },
           timestamp: safeDateToISOString(new Date()),
@@ -196,7 +196,7 @@ class ConversationController {
         query: req.query,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
-        userUID: req.user ? req.user.uid : 'no_autenticado',
+        userEmail: req.user ? req.user.email : 'no_autenticado',
       });
 
       // ✅ ESTRUCTURA GARANTIZADA: Error también en formato consistente
@@ -218,7 +218,7 @@ class ConversationController {
   }
 
   /**
-   * ✅ UID-FIRST: Obtener una conversación por su UUID.
+   * ✅ EMAIL-FIRST: Obtener una conversación por su UUID.
    */
   static async getConversation (req, res) {
     try {
@@ -232,7 +232,7 @@ class ConversationController {
         conversationId,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
-        currentUser: req.user ? req.user.uid : 'no_autenticado',
+        currentUser: req.user ? req.user.email : 'no_autenticado',
       });
 
       const conversation = await Conversation.getById(conversationId);
@@ -471,7 +471,7 @@ class ConversationController {
   }
 
   /**
-   * ✅ UID-FIRST: Crear una nueva conversación.
+   * ✅ EMAIL-FIRST: Crear una nueva conversación.
    * Se enfoca en el `customerPhone` y opcionalmente en el `assignedTo` UID.
    */
   static async createConversation (req, res) {
@@ -483,7 +483,7 @@ class ConversationController {
       }
       
       // La lógica ahora está en el modelo.
-      const conversation = await Conversation.findOrCreate(customerPhone, assignedTo || req.user.uid);
+      const conversation = await Conversation.findOrCreate(customerPhone, assignedTo || req.user.email);
 
       res.status(201).json({
         success: true,
@@ -496,7 +496,7 @@ class ConversationController {
       });
 
     } catch (error) {
-      logger.error('Error creando conversación (UID-FIRST)', {
+      logger.error('Error creando conversación (EMAIL-FIRST)', {
         customerPhone: req.body.customerPhone,
         assignedTo: req.body.assignedTo,
         error: error.message,
@@ -664,15 +664,15 @@ class ConversationController {
   }
 
   /**
-   * ✅ UID-FIRST: Asignar una conversación a un agente por su UID.
+   * ✅ EMAIL-FIRST: Asignar una conversación a un agente por su UID.
    */
   static async assignConversation (req, res) {
     try {
       const { conversationId } = req.params; // UUID
-      const { assignedTo } = req.body; // UID del agente
+      const { assignedTo } = req.body; // EMAIL del agente
 
       if (!assignedTo) {
-        return res.status(400).json({ error: 'assignedTo (UID) es requerido' });
+        return res.status(400).json({ error: 'assignedTo (EMAIL) es requerido' });
       }
 
       const conversation = await Conversation.getById(conversationId);
@@ -680,13 +680,13 @@ class ConversationController {
         return res.status(404).json({ error: 'Conversación no encontrada' });
       }
       
-      // Opcional: Validar que el UID del agente exista en la colección de usuarios.
-      const agent = await User.getByUid(assignedTo);
+      // Opcional: Validar que el EMAIL del agente exista en la colección de usuarios.
+      const agent = await User.getByEmail(assignedTo); // assignedTo es ahora email
       if(!agent) {
-        return res.status(404).json({ error: 'Agente no encontrado con el UID proporcionado.' });
+        return res.status(404).json({ error: 'Agente no encontrado con el EMAIL proporcionado.' });
       }
 
-      await conversation.assignTo(agent.uid, agent.displayName || agent.email);
+      await conversation.assignTo(agent.email, agent.name || agent.email);
 
       res.json({
         success: true,

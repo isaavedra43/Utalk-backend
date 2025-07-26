@@ -1,12 +1,12 @@
-const { getAuth } = require('firebase-admin/auth');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
 
 /**
- * Middleware de autenticación con Firebase ID Token
+ * Middleware de autenticación con JWT INTERNO
  *
- * CRÍTICO: Este middleware valida los ID Tokens de Firebase Auth.
- * En cada petición válida, sincroniza el usuario con Firestore
+ * CRÍTICO: Este middleware valida los JWT generados por nuestro backend.
+ * En cada petición válida, obtiene el usuario completo desde Firestore
  * y adjunta la instancia del modelo User a `req.user`.
  */
 const authMiddleware = async (req, res, next) => {
@@ -22,253 +22,306 @@ const authMiddleware = async (req, res, next) => {
       });
       return res.status(401).json({
         error: 'Token de autorización inválido',
-        message: 'Se requiere un token "Bearer" de Firebase Auth.',
+        message: 'Se requiere un token "Bearer" válido.',
+        code: 'MISSING_TOKEN',
       });
     }
 
-    const idToken = authHeader.substring(7); // Remover "Bearer "
+    const token = authHeader.substring(7); // Remover "Bearer "
 
-    if (!idToken) {
+    if (!token) {
       logger.warn('Token vacío detectado', { ip: req.ip });
       return res.status(401).json({
         error: 'Token vacío',
         message: 'El token no puede estar vacío.',
+        code: 'EMPTY_TOKEN',
       });
     }
 
-    // ✅ Verificar Firebase ID Token
-    const decodedToken = await getAuth().verifyIdToken(idToken, true);
+    // ✅ Verificar JWT interno con JWT_SECRET
+    const jwtSecret = process.env.JWT_SECRET;
+    
+    if (!jwtSecret) {
+      logger.error('💥 JWT_SECRET no configurado en servidor');
+      return res.status(500).json({
+        error: 'Error de configuración del servidor',
+        message: 'Servidor mal configurado.',
+        code: 'SERVER_CONFIG_ERROR',
+      });
+    }
 
-    // ✅ SINCRONIZACIÓN AUTOMÁTICA Auth -> Firestore
-    // En cada petición, nos aseguramos que el usuario exista en nuestra BD
-    // y que sus datos básicos (email, nombre) estén actualizados.
-    const userFromDb = await User.syncFromAuth(decodedToken);
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(token, jwtSecret, {
+        issuer: 'utalk-backend',
+        audience: 'utalk-frontend',
+      });
+    } catch (jwtError) {
+      let errorMessage = 'Token inválido o expirado.';
+      let errorCode = 'INVALID_TOKEN';
+
+      if (jwtError.name === 'TokenExpiredError') {
+        errorMessage = 'El token ha expirado. Por favor, inicia sesión de nuevo.';
+        errorCode = 'TOKEN_EXPIRED';
+      } else if (jwtError.name === 'JsonWebTokenError') {
+        errorMessage = 'El token proporcionado no es válido.';
+        errorCode = 'MALFORMED_TOKEN';
+      } else if (jwtError.name === 'NotBeforeError') {
+        errorMessage = 'El token aún no es válido.';
+        errorCode = 'TOKEN_NOT_ACTIVE';
+      }
+
+      logger.warn('❌ JWT inválido', {
+        error: jwtError.message,
+        name: jwtError.name,
+        ip: req.ip,
+        tokenPrefix: token ? token.substring(0, 20) + '...' : 'N/A',
+      });
+
+      return res.status(401).json({
+        error: 'Token inválido',
+        message: errorMessage,
+        code: errorCode,
+      });
+    }
+
+    // ✅ OBTENER usuario completo desde Firestore usando email del token
+    const email = decodedToken.email;
+    
+    if (!email) {
+      logger.error('❌ Token sin email', {
+        tokenPayload: decodedToken,
+        ip: req.ip,
+      });
+      return res.status(401).json({
+        error: 'Token inválido',
+        message: 'El token no contiene un email válido.',
+        code: 'INVALID_TOKEN_PAYLOAD',
+      });
+    }
+
+    const userFromDb = await User.getByEmail(email);
 
     if (!userFromDb) {
-      logger.error('Fallo crítico: No se pudo sincronizar al usuario desde el token', {
-        uid: decodedToken.uid,
-        email: decodedToken.email,
+      logger.error('❌ Usuario del token no encontrado en Firestore', {
+        email,
         ip: req.ip,
       });
       return res.status(403).json({
-        error: 'Acceso denegado',
-        message: 'El usuario autenticado no pudo ser verificado en la base de datos.',
+        error: 'Usuario no encontrado',
+        message: 'El usuario autenticado no existe en la base de datos.',
+        code: 'USER_NOT_FOUND',
       });
     }
     
-    // ✅ VERIFICACIÓN DE ESTADO: Asegurarse que el usuario no esté deshabilitado
+    // ✅ VERIFICACIÓN DE ESTADO: Asegurarse que el usuario esté activo
     if (!userFromDb.isActive) {
-      logger.warn('Intento de acceso de usuario inactivo', {
-        uid: userFromDb.uid,
+      logger.warn('❌ Intento de acceso de usuario inactivo', {
         email: userFromDb.email,
+        name: userFromDb.name,
         ip: req.ip,
       });
       return res.status(403).json({
         error: 'Cuenta inactiva',
         message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
+        code: 'USER_INACTIVE',
       });
     }
 
     // ✅ Adjuntar la instancia completa del usuario de Firestore a la petición
     req.user = userFromDb;
 
-    logger.info('Usuario autenticado y sincronizado vía Firebase Token', {
-      uid: req.user.uid,
+    logger.info('✅ Usuario autenticado correctamente', {
       email: req.user.email,
+      name: req.user.name,
       role: req.user.role,
       ip: req.ip,
+      url: req.originalUrl,
     });
 
     next();
   } catch (error) {
-    let errorMessage = 'Token de autenticación inválido o expirado.';
-    let errorDetails = {
-      name: error.name,
-      code: error.code,
-      message: error.message,
-    };
+    logger.error('💥 Error inesperado en middleware de autenticación', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip,
+      url: req.originalUrl,
+    });
 
-    if (error.code === 'auth/id-token-expired') {
-      errorMessage = 'El token de Firebase ha expirado. Por favor, inicia sesión de nuevo.';
-      logger.warn('Firebase ID token expirado', { ip: req.ip, ...errorDetails });
-    } else if (error.code === 'auth/argument-error') {
-      errorMessage = 'El token de Firebase proporcionado no es válido.';
-      logger.warn('Token de Firebase inválido', { ip: req.ip, ...errorDetails });
-    } else {
-      logger.error('Error inesperado en middleware de autenticación', {
-        error: error.message,
-        stack: error.stack,
-        ip: req.ip,
-      });
-      errorMessage = 'Error interno al procesar la autenticación.';
-    }
-
-    return res.status(401).json({
-      error: 'Error de autenticación',
-      message: errorMessage,
-      details: error.code, // Enviar el código de error para debugging en frontend
+    return res.status(500).json({
+      error: 'Error interno del servidor',
+      message: 'Error procesando la autenticación.',
+      code: 'INTERNAL_ERROR',
     });
   }
 };
 
-
 /**
- * Middleware para verificar roles específicos.
- * Ahora opera sobre `req.user.role` que viene de Firestore.
+ * Middleware para requerir rol específico
  */
-const requireRole = (roles) => {
+const requireRole = (role) => {
   return (req, res, next) => {
-    // `req.user` es ahora una instancia de nuestro modelo User
     if (!req.user) {
-      logger.warn('Usuario no autenticado intentando acceder a recurso con rol', {
-        ip: req.ip,
-        requiredRoles: roles,
-        url: req.originalUrl,
-      });
       return res.status(401).json({
         error: 'Usuario no autenticado',
-        message: 'Debes estar autenticado para acceder a este recurso.',
+        code: 'NOT_AUTHENTICATED',
       });
     }
 
-    const userRole = req.user.role; // ✅ Rol viene de Firestore
-    const allowedRoles = Array.isArray(roles) ? roles : [roles];
-
-    if (!allowedRoles.includes(userRole)) {
-      logger.warn('Permisos insuficientes por rol', {
-        uid: req.user.uid,
-        userRole,
-        requiredRoles: allowedRoles,
+    if (!req.user.hasRole(role)) {
+      logger.warn('🚫 Acceso denegado por rol insuficiente', {
+        email: req.user.email,
+        requiredRole: role,
+        userRole: req.user.role,
         ip: req.ip,
       });
+
       return res.status(403).json({
         error: 'Permisos insuficientes',
-        message: `Necesitas uno de los siguientes roles: ${allowedRoles.join(', ')}`,
-        requiredRoles: allowedRoles,
-        userRole,
+        message: `Se requiere rol: ${role}`,
+        code: 'INSUFFICIENT_ROLE',
       });
     }
 
-    logger.info('Acceso autorizado por rol', {
-      uid: req.user.uid,
-      userRole,
-      requiredRoles: allowedRoles,
-    });
     next();
   };
 };
 
 /**
- * Middleware para verificar permisos específicos.
- * Es más granular que los roles.
+ * Middleware para requerir ser administrador
  */
-const requirePermission = (permission) => {
-  return (req, res, next) => {
-    if (!req.user || !req.user.hasPermission) {
-      logger.warn('Intento de acceso sin objeto de usuario válido para permisos', {
-        ip: req.ip,
-        url: req.originalUrl,
-      });
-      return res.status(401).json({
-        error: 'Usuario no autenticado',
-        message: 'No se puede verificar el permiso sin un usuario autenticado.',
-      });
-    }
+const requireAdmin = requireRole('admin');
 
-    // La lógica de permisos está en el modelo User
-    if (!req.user.hasPermission(permission)) {
-      logger.warn('Permiso denegado', {
-        uid: req.user.uid,
-        role: req.user.role,
-        requiredPermission: permission,
-        userPermissions: req.user.permissions,
-        ip: req.ip,
-      });
-      return res.status(403).json({
-        error: 'Permiso denegado',
-        message: `No tienes el permiso requerido: "${permission}"`,
-        requiredPermission: permission,
-      });
-    }
-
-    logger.info('Acceso autorizado por permiso', {
-      uid: req.user.uid,
-      permission,
+/**
+ * Middleware para requerir ser administrador o superadmin
+ */
+const requireAgentOrAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Usuario no autenticado',
+      code: 'NOT_AUTHENTICATED',
     });
-    next();
-  };
+  }
+
+  const allowedRoles = ['admin', 'superadmin', 'agent'];
+  if (!allowedRoles.includes(req.user.role)) {
+    logger.warn('🚫 Acceso denegado: Se requiere rol de agente o admin', {
+      email: req.user.email,
+      userRole: req.user.role,
+      allowedRoles,
+      ip: req.ip,
+    });
+
+    return res.status(403).json({
+      error: 'Permisos insuficientes',
+      message: 'Se requiere ser agente o administrador',
+      code: 'INSUFFICIENT_ROLE',
+    });
+  }
+
+  next();
 };
 
 /**
- * Middleware para verificar si el usuario es administrador
+ * Middleware para requerir acceso de lectura
  */
-const requireAdmin = requireRole(['admin']);
+const requireReadAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Usuario no autenticado',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  // Todos los usuarios activos tienen acceso de lectura básico
+  // Los permisos específicos se validan en los controladores
+  next();
+};
 
 /**
- * Middleware para verificar si el usuario es agente o administrador
+ * Middleware para requerir acceso de escritura
  */
-const requireAgentOrAdmin = requireRole(['agent', 'admin']);
+const requireWriteAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Usuario no autenticado',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  const writeRoles = ['admin', 'superadmin', 'agent'];
+  if (!writeRoles.includes(req.user.role)) {
+    logger.warn('🚫 Acceso de escritura denegado', {
+      email: req.user.email,
+      userRole: req.user.role,
+      writeRoles,
+      ip: req.ip,
+    });
+
+    return res.status(403).json({
+      error: 'Permisos de escritura insuficientes',
+      message: 'No tienes permisos para realizar esta acción',
+      code: 'INSUFFICIENT_WRITE_ACCESS',
+    });
+  }
+
+  next();
+};
 
 /**
- * Middleware para usuarios que pueden leer conversaciones (incluye viewer)
- * Para endpoints GET de conversaciones y mensajes
- */
-const requireReadAccess = requireRole(['admin', 'agent', 'viewer']);
-
-/**
- * Middleware para usuarios que pueden escribir/modificar (excluye viewer)
- * Para endpoints POST, PUT, PATCH, DELETE
- */
-const requireWriteAccess = requireRole(['admin', 'agent']);
-
-/**
- * Middleware para verificar acceso específico del viewer
- * Los viewers solo pueden leer, no escribir
+ * Middleware para requerir nivel viewer o superior
  */
 const requireViewerOrHigher = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
       error: 'Usuario no autenticado',
-      message: 'Debes estar autenticado para acceder a este recurso',
+      code: 'NOT_AUTHENTICATED',
     });
   }
 
-  const userRole = req.user.role;
-  const allowedRoles = ['admin', 'agent', 'viewer'];
-
-  if (!allowedRoles.includes(userRole)) {
-    logger.warn('Rol no autorizado para acceso básico', {
-      uid: req.user.uid,
-      userRole,
-      ip: req.ip,
-    });
-
-    return res.status(403).json({
-      error: 'Rol no autorizado',
-      message: 'Tu rol no tiene acceso a este sistema',
-    });
-  }
-
-  // Log de acceso para auditoria
-  logger.info('Acceso autorizado para viewer o superior', {
-    uid: req.user.uid,
-    userRole,
-    method: req.method,
-    url: req.originalUrl,
-  });
-
+  // Todos los usuarios activos tienen al menos nivel viewer
   next();
 };
 
+/**
+ * Middleware para requerir permiso específico
+ */
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Usuario no autenticado',
+        code: 'NOT_AUTHENTICATED',
+      });
+    }
 
-// EXPORTS ACTUALIZADOS
+    if (!req.user.hasPermission(permission)) {
+      logger.warn('🚫 Acceso denegado por permiso insuficiente', {
+        email: req.user.email,
+        requiredPermission: permission,
+        userPermissions: req.user.permissions,
+        userRole: req.user.role,
+        ip: req.ip,
+      });
+
+      return res.status(403).json({
+        error: 'Permisos insuficientes',
+        message: `Se requiere permiso: ${permission}`,
+        code: 'INSUFFICIENT_PERMISSION',
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   authMiddleware,
   requireRole,
-  requirePermission, // ✅ Exportar nuevo middleware de permisos
   requireAdmin,
   requireAgentOrAdmin,
   requireReadAccess,
   requireWriteAccess,
   requireViewerOrHigher,
+  requirePermission,
 };

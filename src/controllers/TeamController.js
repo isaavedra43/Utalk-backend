@@ -1,5 +1,4 @@
 const User = require('../models/User');
-const { auth } = require('../config/firebase');
 const logger = require('../utils/logger');
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
@@ -23,7 +22,7 @@ class TeamController {
       let users;
       if (search) {
         // Búsqueda por nombre o email
-        const allUsers = await User.list({ status: 'active' });
+        const allUsers = await User.list({ isActive: true });
         const searchLower = search.toLowerCase();
         users = allUsers.filter(user =>
           user.name?.toLowerCase().includes(searchLower) ||
@@ -33,14 +32,14 @@ class TeamController {
         users = await User.list({
           limit: parseInt(limit),
           role,
-          status,
+          isActive: status === 'active',
         });
       }
 
       // Obtener KPIs básicos para cada usuario
       const usersWithKPIs = await Promise.all(
         users.map(async (user) => {
-          const kpis = await this.getUserKPIs(user.id, '30d');
+          const kpis = await this.getUserKPIs(user.email, '30d');
           return {
             ...user.toJSON(),
             kpis: kpis.summary,
@@ -49,7 +48,7 @@ class TeamController {
       );
 
       logger.info('Miembros del equipo listados', {
-        userId: req.user.id,
+        userEmail: req.user.email,
         count: usersWithKPIs.length,
         filters: { role, status, search },
       });
@@ -92,34 +91,25 @@ class TeamController {
         });
       }
 
-      // Crear usuario en Firebase Auth
-      const userRecord = await auth.createUser({
-        email,
-        displayName: name,
-        emailVerified: false,
-        password: this.generateTemporaryPassword(), // Contraseña temporal
-      });
-
-      // Establecer claims personalizados
-      await auth.setCustomUserClaims(userRecord.uid, { role });
-
-      // Crear usuario en Firestore
+      // ✅ CREAR usuario directamente en Firestore (EMAIL-FIRST)
+      const temporaryPassword = this.generateTemporaryPassword();
+      
       const user = await User.create({
-        id: userRecord.uid,
         email,
+        password: temporaryPassword,
         name,
         role,
-        status: 'active',
+        isActive: true,
       });
 
       // TODO: Enviar email de invitación con contraseña temporal
       // await this.sendInvitationEmail(email, displayName, temporaryPassword);
 
       logger.info('Miembro invitado al equipo', {
-        newUserId: user.id,
+        newUserEmail: user.email,
         email: user.email,
         role: user.role,
-        invitedBy: req.user.id,
+        invitedBy: req.user.email,
       });
 
       res.status(201).json({
@@ -138,8 +128,8 @@ class TeamController {
    */
   static async getById (req, res, next) {
     try {
-      const { id } = req.params;
-      const user = await User.getByUid(id);
+      const { id } = req.params; // id es ahora email
+      const user = await User.getByEmail(id);
 
       if (!user) {
         return res.status(404).json({
@@ -149,7 +139,7 @@ class TeamController {
       }
 
       // Los usuarios pueden ver su propia información, los admins pueden ver todo
-      if (req.user.role !== 'admin' && req.user.id !== id) {
+      if (req.user.role !== 'admin' && req.user.email !== id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para ver este miembro',
@@ -157,7 +147,7 @@ class TeamController {
       }
 
       // Obtener KPIs detallados
-      const kpis = await this.getUserKPIs(user.id, '30d');
+      const kpis = await this.getUserKPIs(user.email, '30d');
 
       res.json({
         user: {
@@ -187,7 +177,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getByUid(id);
+      const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -196,7 +186,7 @@ class TeamController {
       }
 
       // No permitir que se modifique el propio rol de admin
-      if (req.user.id === id && role && role !== 'admin') {
+      if (req.user.email === id && role && role !== 'admin') {
         return res.status(400).json({
           error: 'Operación no permitida',
           message: 'No puedes cambiar tu propio rol de administrador',
@@ -212,7 +202,7 @@ class TeamController {
       await user.update(updates);
       logger.info('Usuario actualizado', {
         userId: id,
-        updatedBy: req.user.id,
+        updatedBy: req.user.email,
         updates,
       });
 
@@ -241,7 +231,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getByUid(id);
+      const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -250,7 +240,7 @@ class TeamController {
       }
 
       // No permitir que se elimine a sí mismo
-      if (req.user.id === id) {
+      if (req.user.email === id) {
         return res.status(400).json({
           error: 'Operación no permitida',
           message: 'No puedes eliminarte a ti mismo',
@@ -260,12 +250,11 @@ class TeamController {
       // Soft delete del usuario
       await user.setActive(false);
 
-      // Desactivar en Firebase Auth
-      await auth.updateUser(user.id, { disabled: true });
+      // Desactivar en JWT interno
 
       logger.info('Miembro eliminado', {
-        userId: user.id,
-        deletedBy: req.user.id,
+        userEmail: user.email,
+        deletedBy: req.user.email,
       });
 
       res.json({
@@ -292,7 +281,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getByUid(id);
+      const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -300,11 +289,10 @@ class TeamController {
       }
 
       await user.setActive(true);
-      await auth.updateUser(user.id, { disabled: false });
 
       logger.info('Miembro activado', {
-        userId: user.id,
-        activatedBy: req.user.id,
+        userEmail: user.email,
+        activatedBy: req.user.email,
       });
 
       res.json({
@@ -332,7 +320,7 @@ class TeamController {
         });
       }
 
-      const user = await User.getByUid(id);
+      const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -340,7 +328,7 @@ class TeamController {
       }
 
       // No permitir desactivarse a sí mismo
-      if (req.user.id === id) {
+      if (req.user.email === id) {
         return res.status(400).json({
           error: 'Operación no permitida',
           message: 'No puedes desactivarte a ti mismo',
@@ -348,11 +336,10 @@ class TeamController {
       }
 
       await user.setActive(false);
-      await auth.updateUser(user.id, { disabled: true });
 
       logger.info('Miembro desactivado', {
-        userId: user.id,
-        deactivatedBy: req.user.id,
+        userEmail: user.email,
+        deactivatedBy: req.user.email,
       });
 
       res.json({
@@ -373,7 +360,7 @@ class TeamController {
       const { id } = req.params;
       const { period = '30d' } = req.query;
 
-      const user = await User.getByUid(id);
+      const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
@@ -381,18 +368,18 @@ class TeamController {
       }
 
       // Los usuarios pueden ver sus propios KPIs, los admins pueden ver todos
-      if (req.user.role !== 'admin' && req.user.id !== id) {
+      if (req.user.role !== 'admin' && req.user.email !== id) {
         return res.status(403).json({
           error: 'Sin permisos',
           message: 'No tienes permisos para ver los KPIs de este miembro',
         });
       }
 
-      const kpis = await this.getUserKPIs(user.id, period);
+      const kpis = await this.getUserKPIs(user.email, period);
 
       res.json({
         user: {
-          id: user.id,
+          id: user.email,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -421,27 +408,25 @@ class TeamController {
         });
       }
 
-      const user = await User.getByUid(id);
+      const user = await User.getByEmail(id); // id es ahora email
       if (!user) {
         return res.status(404).json({
           error: 'Usuario no encontrado',
         });
       }
 
-      // Generar nueva contraseña temporal
+      // ✅ Generar nueva contraseña temporal
       const temporaryPassword = this.generateTemporaryPassword();
 
-      // Actualizar contraseña en Firebase Auth
-      await auth.updateUser(user.id, {
-        password: temporaryPassword,
-      });
+      // ✅ Actualizar contraseña directamente en Firestore (EMAIL-FIRST)
+      await user.update({ password: temporaryPassword });
 
       // TODO: Enviar email con nueva contraseña
       // await this.sendPasswordResetEmail(user.email, user.displayName, temporaryPassword);
 
       logger.info('Contraseña reseteada', {
-        userId: user.id,
-        resetBy: req.user.id,
+        userEmail: user.email,
+        resetBy: req.user.email,
       });
 
       res.json({
