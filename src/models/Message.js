@@ -409,12 +409,182 @@ class Message {
   }
 
   /**
-   * Buscar mensajes
+   * ✅ Marcar mensaje como leído por un usuario específico
+   */
+  async markAsReadBy(userEmail, readTimestamp = new Date()) {
+    await firestore
+      .collection('conversations')
+      .doc(this.conversationId)
+      .collection('messages')
+      .doc(this.id)
+      .update({
+        status: 'read',
+        readBy: FieldValue.arrayUnion(userEmail),
+        readAt: Timestamp.fromDate(readTimestamp),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+    this.status = 'read';
+    this.readBy = this.readBy || [];
+    if (!this.readBy.includes(userEmail)) {
+      this.readBy.push(userEmail);
+    }
+    this.readAt = readTimestamp;
+
+    logger.info('Mensaje marcado como leído por usuario', {
+      messageId: this.id,
+      conversationId: this.conversationId,
+      userEmail,
+      readAt: readTimestamp
+    });
+  }
+
+  /**
+   * 🗑️ Eliminación soft del mensaje
+   */
+  async softDelete(deletedBy) {
+    await firestore
+      .collection('conversations')
+      .doc(this.conversationId)
+      .collection('messages')
+      .doc(this.id)
+      .update({
+        isDeleted: true,
+        deletedBy,
+        deletedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+    this.isDeleted = true;
+    this.deletedBy = deletedBy;
+    this.deletedAt = new Date();
+
+    logger.info('Mensaje eliminado (soft delete)', {
+      messageId: this.id,
+      conversationId: this.conversationId,
+      deletedBy
+    });
+  }
+
+  /**
+   * 📊 Obtener estadísticas de mensajes
+   */
+  static async getStats(agentEmail = null, period = '7d', conversationId = null) {
+    const startDate = new Date();
+    const daysToSubtract = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 7;
+    startDate.setDate(startDate.getDate() - daysToSubtract);
+
+    // Obtener todas las conversaciones del agente o una específica
+    let conversationsQuery = firestore.collection('conversations');
+    
+    if (agentEmail) {
+      conversationsQuery = conversationsQuery.where('assignedTo', '==', agentEmail);
+    }
+    
+    if (conversationId) {
+      conversationsQuery = conversationsQuery.where(FieldPath.documentId(), '==', conversationId);
+    }
+
+    const conversationsSnapshot = await conversationsQuery.get();
+    
+    let totalMessages = 0;
+    let inboundMessages = 0;
+    let outboundMessages = 0;
+    let readMessages = 0;
+    let mediaMessages = 0;
+    let responseTimes = [];
+
+    // Procesar mensajes de cada conversación
+    for (const convDoc of conversationsSnapshot.docs) {
+      const messagesQuery = convDoc.ref
+        .collection('messages')
+        .where('timestamp', '>=', Timestamp.fromDate(startDate))
+        .orderBy('timestamp', 'asc');
+      
+      const messagesSnapshot = await messagesQuery.get();
+      const messages = messagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      totalMessages += messages.length;
+      inboundMessages += messages.filter(m => m.direction === 'inbound').length;
+      outboundMessages += messages.filter(m => m.direction === 'outbound').length;
+      readMessages += messages.filter(m => m.status === 'read').length;
+      mediaMessages += messages.filter(m => m.type !== 'text').length;
+
+      // Calcular tiempos de respuesta
+      for (let i = 1; i < messages.length; i++) {
+        const current = messages[i];
+        const previous = messages[i - 1];
+        
+        if (previous.direction === 'inbound' && current.direction === 'outbound') {
+          const prevTime = previous.timestamp.toDate ? previous.timestamp.toDate() : new Date(previous.timestamp);
+          const currTime = current.timestamp.toDate ? current.timestamp.toDate() : new Date(current.timestamp);
+          responseTimes.push(currTime - prevTime);
+        }
+      }
+    }
+
+    const averageResponseTime = responseTimes.length > 0 
+      ? Math.round(responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length / (1000 * 60))
+      : 0;
+
+    return {
+      total: totalMessages,
+      inbound: inboundMessages,
+      outbound: outboundMessages,
+      read: readMessages,
+      unread: totalMessages - readMessages,
+      media: mediaMessages,
+      text: totalMessages - mediaMessages,
+      averageResponseTime, // en minutos
+      period,
+      agentEmail,
+      conversationId
+    };
+  }
+
+  /**
+   * 🔍 Buscar mensajes en conversaciones del usuario
+   */
+  static async searchInUserConversations(options = {}) {
+    const { searchTerm, limit = 20, userEmail = null } = options;
+    
+    // Obtener conversaciones del usuario
+    let conversationsQuery = firestore.collection('conversations');
+    
+    if (userEmail) {
+      conversationsQuery = conversationsQuery.where('assignedTo', '==', userEmail);
+    }
+
+    const conversationsSnapshot = await conversationsQuery.limit(50).get(); // Limitar conversaciones
+    const results = [];
+
+    // Buscar en mensajes de cada conversación
+    for (const convDoc of conversationsSnapshot.docs) {
+      if (results.length >= limit) break;
+
+      const messagesQuery = convDoc.ref
+        .collection('messages')
+        .where('content', '>=', searchTerm)
+        .where('content', '<=', searchTerm + '\uf8ff')
+        .limit(limit - results.length);
+      
+      const messagesSnapshot = await messagesQuery.get();
+      
+      messagesSnapshot.docs.forEach(doc => {
+        const messageData = doc.data();
+        if (messageData.content?.toLowerCase().includes(searchTerm.toLowerCase())) {
+          results.push(new Message({ id: doc.id, ...messageData }));
+        }
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Buscar mensajes en una conversación específica
    */
   static async search (conversationId, searchTerm, options = {}) {
-    // La validación isValidConversationId se elimina porque ahora son UUIDs.
-    // ... el resto de la lógica de search permanece igual
-
     const messages = await this.getByConversation(conversationId, { ...options, limit: 1000 });
     return messages.messages.filter(message =>
       message.content?.toLowerCase().includes(searchTerm.toLowerCase()),

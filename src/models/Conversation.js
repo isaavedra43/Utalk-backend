@@ -31,11 +31,13 @@ class Conversation {
     this.unreadCount = data.unreadCount || 0;
     this.messageCount = data.messageCount || 0;
     this.status = data.status || 'open';
-
+    this.priority = data.priority || 'normal'; // ✅ NUEVO: Prioridad
+    this.tags = data.tags || []; // ✅ NUEVO: Etiquetas
+    
     // ✅ ASSIGNED_TO: EMAIL del agente asignado. La única fuente de verdad.
     this.assignedTo = data.assignedTo || null;
     this.assignedToName = data.assignedToName || null;
-
+    
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
   }
@@ -182,7 +184,7 @@ class Conversation {
 
     // ✅ VALIDACIÓN: Límites de consulta
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
-
+    
     logger.info('Ejecutando consulta de conversaciones en Firestore', {
       limit: validatedLimit,
       startAfter: startAfter ? 'presente' : 'ausente',
@@ -569,6 +571,8 @@ class Conversation {
         contact,
         assignedTo,
         status: this.status || 'open',
+        priority: this.priority || 'normal', // ✅ NUEVO: Prioridad
+        tags: this.tags || [], // ✅ NUEVO: Etiquetas
         unreadCount: this.unreadCount || 0,
         messageCount: this.messageCount || 0,
         lastMessage: this.lastMessage || null,
@@ -633,6 +637,264 @@ class Conversation {
   }
 
   /**
+   * 🚫 Desasignar conversación (quitar agente)
+   */
+  async unassign() {
+    this.assignedTo = null;
+    this.assignedToName = null;
+    this.updatedAt = Timestamp.now();
+
+    await firestore
+      .collection('conversations')
+      .doc(this.id)
+      .update(prepareForFirestore({
+        assignedTo: null,
+        assignedToName: null,
+        updatedAt: FieldValue.serverTimestamp()
+      }));
+
+    logger.info('Conversación desasignada', {
+      conversationId: this.id,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * 🎯 Cambiar prioridad de conversación
+   */
+  async changePriority(newPriority) {
+    const validPriorities = ['low', 'normal', 'high', 'urgent'];
+    if (!validPriorities.includes(newPriority)) {
+      throw new Error(`Prioridad inválida: ${newPriority}. Debe ser: ${validPriorities.join(', ')}`);
+    }
+
+    this.priority = newPriority;
+    this.updatedAt = Timestamp.now();
+
+    await firestore
+      .collection('conversations')
+      .doc(this.id)
+      .update(prepareForFirestore({
+        priority: newPriority,
+        updatedAt: FieldValue.serverTimestamp()
+      }));
+
+    logger.info('Prioridad de conversación cambiada', {
+      conversationId: this.id,
+      newPriority,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * ✅ Marcar toda la conversación como leída por un usuario
+   */
+  async markAllAsRead(userEmail) {
+    const messagesSnapshot = await firestore
+      .collection('conversations')
+      .doc(this.id)
+      .collection('messages')
+      .where('status', '!=', 'read')
+      .get();
+
+    let markedCount = 0;
+    const batch = firestore.batch();
+
+    messagesSnapshot.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        status: 'read',
+        readBy: FieldValue.arrayUnion(userEmail),
+        readAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      markedCount++;
+    });
+
+    if (markedCount > 0) {
+      await batch.commit();
+      
+      // Actualizar contador de no leídos
+      this.unreadCount = 0;
+      await firestore
+        .collection('conversations')
+        .doc(this.id)
+        .update({ unreadCount: 0 });
+    }
+
+    logger.info('Conversación marcada como leída', {
+      conversationId: this.id,
+      userEmail,
+      markedCount,
+      timestamp: new Date().toISOString()
+    });
+
+    return markedCount;
+  }
+
+  /**
+   * 📊 Obtener estadísticas de la conversación
+   */
+  static async getStats(agentEmail = null, period = '7d') {
+    const startDate = new Date();
+    const daysToSubtract = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 7;
+    startDate.setDate(startDate.getDate() - daysToSubtract);
+
+    let query = firestore.collection('conversations');
+
+    if (agentEmail) {
+      query = query.where('assignedTo', '==', agentEmail);
+    }
+
+    query = query.where('createdAt', '>=', Timestamp.fromDate(startDate));
+
+    const snapshot = await query.get();
+    const conversations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const stats = {
+      total: conversations.length,
+      open: conversations.filter(c => c.status === 'open').length,
+      closed: conversations.filter(c => c.status === 'closed').length,
+      pending: conversations.filter(c => c.status === 'pending').length,
+      archived: conversations.filter(c => c.status === 'archived').length,
+      assigned: conversations.filter(c => c.assignedTo).length,
+      unassigned: conversations.filter(c => !c.assignedTo).length,
+      byPriority: {
+        low: conversations.filter(c => c.priority === 'low').length,
+        normal: conversations.filter(c => c.priority === 'normal').length,
+        high: conversations.filter(c => c.priority === 'high').length,
+        urgent: conversations.filter(c => c.priority === 'urgent').length
+      },
+      averageResponseTime: this.calculateAverageResponseTime(conversations),
+      period: period,
+      agentEmail: agentEmail
+    };
+
+    return stats;
+  }
+
+  /**
+   * 📊 Calcular tiempo promedio de respuesta
+   */
+  static calculateAverageResponseTime(conversations) {
+    if (!conversations.length) return 0;
+
+    const responseTimes = conversations
+      .filter(c => c.lastMessageAt && c.createdAt)
+      .map(c => {
+        const created = c.createdAt.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
+        const lastMsg = c.lastMessageAt.toDate ? c.lastMessageAt.toDate() : new Date(c.lastMessageAt);
+        return lastMsg - created;
+      });
+
+    if (!responseTimes.length) return 0;
+
+    const average = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
+    return Math.round(average / (1000 * 60)); // Retornar en minutos
+  }
+
+  /**
+   * 🆕 Crear nueva conversación
+   */
+  static async create(conversationData) {
+    const conversation = new Conversation(conversationData);
+    
+    const cleanData = prepareForFirestore({ ...conversation });
+    
+    await firestore
+      .collection('conversations')
+      .doc(conversation.id)
+      .set(cleanData);
+      
+    logger.info('Nueva conversación creada', {
+      conversationId: conversation.id,
+      customerPhone: conversation.customerPhone,
+      assignedTo: conversation.assignedTo,
+      priority: conversation.priority,
+      tags: conversation.tags
+    });
+    
+    return conversation;
+  }
+
+  /**
+   * 📋 Listar conversaciones con filtros y paginación mejorada
+   */
+  static async list(options = {}) {
+    const {
+      limit = 20,
+      cursor = null,
+      assignedTo = undefined,
+      status = null,
+      priority = null,
+      tags = null,
+      search = null,
+      sortBy = 'lastMessageAt',
+      sortOrder = 'desc'
+    } = options;
+
+    let query = firestore.collection('conversations');
+
+    // 🔍 APLICAR FILTROS
+    if (assignedTo !== undefined) {
+      query = query.where('assignedTo', '==', assignedTo);
+    }
+
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+
+    if (priority) {
+      query = query.where('priority', '==', priority);
+    }
+
+    if (tags && tags.length > 0) {
+      query = query.where('tags', 'array-contains-any', tags);
+    }
+
+    // 🔍 BÚSQUEDA POR TEXTO (limitada en Firestore)
+    if (search) {
+      // Buscar por customerPhone (implementar más tarde con Algolia si es necesario)
+      query = query.where('customerPhone', '>=', search)
+                   .where('customerPhone', '<=', search + '\uf8ff');
+    }
+
+    // 📊 ORDENAMIENTO
+    query = query.orderBy(sortBy, sortOrder);
+
+    // 📄 PAGINACIÓN
+    if (cursor) {
+      // Implementar cursor pagination
+      query = query.startAfter(cursor);
+    }
+
+    query = query.limit(limit + 1); // +1 para determinar hasMore
+
+    const snapshot = await query.get();
+    const conversations = [];
+    let hasMore = false;
+
+    snapshot.docs.forEach((doc, index) => {
+      if (index < limit) {
+        conversations.push(new Conversation({ id: doc.id, ...doc.data() }));
+      } else {
+        hasMore = true;
+      }
+    });
+
+    const result = {
+      conversations,
+      pagination: {
+        hasMore,
+        nextCursor: hasMore && conversations.length > 0 ? conversations[conversations.length - 1].id : null,
+        totalResults: conversations.length,
+        limit
+      }
+    };
+
+    return result;
+  }
+
+  /**
    * Archivar conversación
    */
   async archive () {
@@ -640,15 +902,40 @@ class Conversation {
   }
 
   /**
-   * Buscar conversaciones
+   * 🔍 Buscar conversaciones con mejor implementación
    */
   static async search (searchTerm, options = {}) {
-    // Implementación básica de búsqueda
-    const conversations = await this.list(options);
-    return conversations.filter(conv =>
-      conv.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.customerPhone?.includes(searchTerm),
+    // Implementación mejorada de búsqueda
+    const { limit = 20, assignedTo = null } = options;
+    
+    let query = firestore.collection('conversations');
+    
+    if (assignedTo) {
+      query = query.where('assignedTo', '==', assignedTo);
+    }
+
+    // Búsqueda básica por customerPhone
+    if (searchTerm.startsWith('+')) {
+      query = query.where('customerPhone', '>=', searchTerm)
+                   .where('customerPhone', '<=', searchTerm + '\uf8ff');
+    }
+
+    query = query.limit(limit);
+    const snapshot = await query.get();
+
+    const conversations = snapshot.docs.map(doc => 
+      new Conversation({ id: doc.id, ...doc.data() })
     );
+
+    // Filtro adicional por nombre de contacto (en memoria)
+    if (!searchTerm.startsWith('+')) {
+      return conversations.filter(conv =>
+        conv.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        conv.customerPhone?.includes(searchTerm)
+      );
+    }
+
+    return conversations;
   }
 }
 

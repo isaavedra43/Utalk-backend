@@ -370,32 +370,74 @@ const schemas = {
     }),
   },
 
-  // Conversaciones con validaciones estrictas
+  // Conversaciones con validaciones estrictas (EMAIL-FIRST)
   conversation: {
+    create: Joi.object({
+      customerPhone: commonSchemas.phone.required(),
+      assignedTo: commonSchemas.email.optional(),
+      initialMessage: Joi.string().max(4096).optional(),
+      priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
+      tags: Joi.array().items(Joi.string().max(50)).max(10).default([]),
+    }),
+
+    update: Joi.object({
+      status: Joi.string().valid('open', 'closed', 'pending', 'archived').optional(),
+      priority: Joi.string().valid('low', 'normal', 'high', 'urgent').optional(),
+      tags: Joi.array().items(Joi.string().max(50)).max(10).optional(),
+    }),
+
     assign: Joi.object({
-      assignedTo: Joi.object({
-        id: commonSchemas.id,
-        name: commonSchemas.safeText(100).required(),
-      }).required(),
+      assignedTo: commonSchemas.email.required(), // ✅ EMAIL directo, no objeto
+    }),
+
+    transfer: Joi.object({
+      fromAgent: commonSchemas.email.required(),
+      toAgent: commonSchemas.email.required(),
+      reason: Joi.string().max(500).optional(),
     }),
 
     changeStatus: Joi.object({
-      status: Joi.string().valid('open', 'closed').required(),
+      status: Joi.string().valid('open', 'closed', 'pending', 'archived').required(),
+      reason: Joi.string().max(500).optional(),
+    }),
+
+    changePriority: Joi.object({
+      priority: Joi.string().valid('low', 'normal', 'high', 'urgent').required(),
+      reason: Joi.string().max(500).optional(),
     }),
 
     list: Joi.object({
-      page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(20),
-      assignedTo: Joi.string().max(128).optional(),
-      status: Joi.string().valid('open', 'closed').optional(),
-      customerPhone: commonSchemas.phone.optional(),
-      sortBy: Joi.string().valid('lastMessageAt', 'createdAt').default('lastMessageAt'),
+      cursor: Joi.string().optional(),
+      assignedTo: Joi.alternatives().try(
+        Joi.string().valid('me', 'unassigned', 'all'),
+        commonSchemas.email
+      ).optional(),
+      status: Joi.string().valid('open', 'closed', 'pending', 'archived').optional(),
+      priority: Joi.string().valid('low', 'normal', 'high', 'urgent').optional(),
+      tags: Joi.alternatives().try(
+        Joi.string(),
+        Joi.array().items(Joi.string().max(50))
+      ).optional(),
+      search: Joi.string().min(2).max(200).optional(),
+      sortBy: Joi.string().valid('lastMessageAt', 'createdAt', 'priority').default('lastMessageAt'),
       sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
-      search: Joi.string().max(200).optional(),
+    }),
+
+    search: Joi.object({
+      q: Joi.string().min(2).max(200).required(),
+      limit: Joi.number().integer().min(1).max(100).default(20),
+      assignedTo: commonSchemas.email.optional(),
+      status: Joi.string().valid('open', 'closed', 'pending', 'archived').optional(),
+    }),
+
+    stats: Joi.object({
+      period: Joi.string().valid('1d', '7d', '30d', '90d').default('7d'),
+      agentEmail: commonSchemas.email.optional(),
     }),
   },
 
-  // Mensajes con validación alineada al frontend
+  // Mensajes con validación alineada al frontend (EMAIL-FIRST)
   message: {
     send: Joi.object({
       conversationId: Joi.string().min(1).optional(), // Opcional si se proporciona 'to'
@@ -409,6 +451,19 @@ const schemas = {
       })).optional().default([]),
       metadata: Joi.object().optional().default({}),
     }).or('conversationId', 'to'), // Al menos uno de los dos debe estar presente
+
+    createInConversation: Joi.object({
+      content: Joi.string().min(1).max(4096).required(),
+      type: Joi.string().valid('text', 'image', 'audio', 'video', 'document').default('text'),
+      mediaUrl: commonSchemas.url.optional(),
+      replyToMessageId: Joi.string().optional(), // Para responder a mensaje específico
+      metadata: Joi.object().optional().default({}),
+    }),
+
+    markAsRead: Joi.object({
+      markTimestamp: Joi.date().iso().optional().default(() => new Date()),
+      readBy: commonSchemas.email.optional(), // Se extrae del req.user
+    }),
 
     create: Joi.object({
       conversationId: Joi.string().pattern(/^conv_\d+_\d+$/).required(),

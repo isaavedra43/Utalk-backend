@@ -1,0 +1,364 @@
+{
+  "timestamp": "2025-07-26T22:16:15.494Z",
+  "summary": {
+    "endpoints": "21/21",
+    "models": "2/2",
+    "websockets": true,
+    "validations": true,
+    "documentation": "3/3",
+    "tests": "3/3"
+  },
+  "details": {
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/conversations",
+        "description": "Listar conversaciones",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "GET",
+        "path": "/api/conversations/unassigned",
+        "description": "Conversaciones sin asignar",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "GET",
+        "path": "/api/conversations/stats",
+        "description": "Estadísticas",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "GET",
+        "path": "/api/conversations/search",
+        "description": "Búsqueda",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "GET",
+        "path": "/api/conversations/:id",
+        "description": "Obtener conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "POST",
+        "path": "/api/conversations",
+        "description": "Crear conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id",
+        "description": "Actualizar conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id/assign",
+        "description": "Asignar conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id/unassign",
+        "description": "Desasignar conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "POST",
+        "path": "/api/conversations/:id/transfer",
+        "description": "Transferir conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id/status",
+        "description": "Cambiar estado",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id/priority",
+        "description": "Cambiar prioridad",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id/read-all",
+        "description": "Marcar como leída",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "POST",
+        "path": "/api/conversations/:id/typing",
+        "description": "Indicar typing",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "GET",
+        "path": "/api/conversations/:id/messages",
+        "description": "Listar mensajes",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "POST",
+        "path": "/api/conversations/:id/messages",
+        "description": "Crear mensaje en conversación",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "POST",
+        "path": "/api/messages/send",
+        "description": "Enviar mensaje independiente",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/conversations/:id/messages/:mid/read",
+        "description": "Marcar mensaje leído",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/conversations/:id/messages/:mid",
+        "description": "Eliminar mensaje",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "POST",
+        "path": "/api/messages/webhook",
+        "description": "Webhook Twilio",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "method": "GET",
+        "path": "/api/messages/webhook",
+        "description": "Verificación webhook",
+        "exists": true,
+        "status": "✅"
+      }
+    ],
+    "models": [
+      {
+        "name": "Conversation",
+        "file": "src/models/Conversation.js",
+        "exists": true,
+        "methods": [
+          {
+            "name": "constructor",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "create",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "getById",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "list",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "search",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "update",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "assignTo",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "unassign",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "changePriority",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "changeStatus",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "markAllAsRead",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "getStats",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "toJSON",
+            "exists": true,
+            "status": "✅"
+          }
+        ],
+        "isValid": true,
+        "completeness": "13/13"
+      },
+      {
+        "name": "Message",
+        "file": "src/models/Message.js",
+        "exists": true,
+        "methods": [
+          {
+            "name": "constructor",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "create",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "getById",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "getByConversation",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "update",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "markAsReadBy",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "softDelete",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "getStats",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "searchInUserConversations",
+            "exists": true,
+            "status": "✅"
+          },
+          {
+            "name": "toJSON",
+            "exists": true,
+            "status": "✅"
+          }
+        ],
+        "isValid": true,
+        "completeness": "10/10"
+      }
+    ],
+    "websockets": [
+      {
+        "file": "src/socket/index.js",
+        "exists": true,
+        "events": {
+          "required": 8,
+          "found": 8,
+          "missing": []
+        },
+        "emitters": {
+          "required": 8,
+          "found": 5,
+          "missing": [
+            "conversation-assigned",
+            "conversation-transferred",
+            "conversation-priority-changed"
+          ]
+        }
+      }
+    ],
+    "validations": [
+      {
+        "file": "src/utils/validation.js",
+        "exists": true,
+        "schemas": {
+          "required": 12,
+          "found": 12,
+          "missing": []
+        }
+      }
+    ],
+    "documentation": [
+      {
+        "file": "docs/api-chat-documentation.md",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "file": "src/utils/responseHandler.js",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "file": "README.md",
+        "exists": true,
+        "status": "✅"
+      }
+    ],
+    "tests": [
+      {
+        "file": "tests/integration/chat-flow.test.js",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "file": "jest.config.js",
+        "exists": true,
+        "status": "✅"
+      },
+      {
+        "file": "package.json",
+        "exists": true,
+        "status": "✅"
+      }
+    ],
+    "errors": [],
+    "warnings": []
+  }
+}

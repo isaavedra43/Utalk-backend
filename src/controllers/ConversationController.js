@@ -1,1029 +1,851 @@
-// ConversationController.js
-// Controlador robusto para gestión de conversaciones
-// Implementa: paginación, filtros, logs exhaustivos, mapping content → text, manejo de errores
-// ✅ ACTUALIZADO: Manejo de UIDs reales y fechas como strings ISO
+/**
+ * 💬 CONTROLADOR DE CONVERSACIONES - VERSIÓN COMPLETA PRODUCTION-READY
+ * 
+ * Implementa todos los endpoints RESTful requeridos por el frontend
+ * siguiendo las mejores prácticas de Vinay Sahni y compatibilidad total.
+ * 
+ * ENDPOINTS IMPLEMENTADOS:
+ * - GET /api/conversations (lista con filtros y paginación)
+ * - GET /api/conversations/unassigned (sin asignar)
+ * - GET /api/conversations/stats (estadísticas)
+ * - GET /api/conversations/search (búsqueda)
+ * - GET /api/conversations/:id (obtener una)
+ * - POST /api/conversations (crear nueva)
+ * - PUT /api/conversations/:id (actualizar)
+ * - PUT /api/conversations/:id/assign (asignar)
+ * - PUT /api/conversations/:id/unassign (desasignar)
+ * - POST /api/conversations/:id/transfer (transferir)
+ * - PUT /api/conversations/:id/status (cambiar estado)
+ * - PUT /api/conversations/:id/priority (cambiar prioridad)
+ * - PUT /api/conversations/:id/read-all (marcar como leída)
+ * - POST /api/conversations/:id/typing (indicar typing)
+ * 
+ * @version 2.0.0
+ * @author Backend Team
+ */
 
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
+const User = require('../models/User');
+const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { safeDateToISOString } = require('../utils/dateHelpers');
-const { v4: uuidv4 } = require('uuid'); // Importar uuid
-const User = require('../models/User'); // Para buscar UIDs
 
-/**
- * CONTROLADOR DE CONVERSACIONES - VERSIÓN ROBUSTA Y DEFINITIVA
- *
- * Endpoints principales:
- * - GET /api/conversations - Lista conversaciones con filtros y paginación
- * - GET /api/conversations/:id - Obtiene una conversación específica
- * - GET /api/conversations/:id/messages - Obtiene mensajes de una conversación
- * - PUT /api/conversations/:id/read - Marca conversación como leída
- * - PUT /api/conversations/:id/assign - Asigna conversación a agente
- * - PUT /api/conversations/:id/status - Cambia estado de conversación
- * - DELETE /api/conversations/:id - Archiva conversación
- * - GET /api/conversations/stats - Obtiene estadísticas
- * 
- * ✅ IMPORTANTE: assignedTo debe ser SIEMPRE un EMAIL real del sistema de autenticación
- */
 class ConversationController {
   /**
-   * ✅ EMAIL-FIRST: Listar conversaciones.
-   * El filtro `assignedTo` ahora usa el UID del usuario logueado por defecto.
+   * 📋 GET /api/conversations
+   * Lista conversaciones con filtros avanzados y paginación
+   * 
+   * QUERY PARAMS:
+   * - limit: número de resultados (default: 20, max: 100)
+   * - cursor: cursor de paginación
+   * - assignedTo: email del agente | 'me' | 'unassigned'
+   * - status: open|closed|pending|archived
+   * - priority: low|normal|high|urgent
+   * - tags: array de tags
+   * - search: búsqueda en customerPhone, contact.name
+   * - sortBy: lastMessageAt|createdAt|priority (default: lastMessageAt)
+   * - sortOrder: asc|desc (default: desc)
    */
-  static async listConversations (req, res) {
+  static async listConversations(req, res, next) {
     try {
       const {
         limit = 20,
         cursor = null,
-        assignedTo = undefined, // Permitir `null` explícito para no asignadas
+        assignedTo = 'me', // Por defecto: mis conversaciones
         status = null,
-        customerPhone = null,
+        priority = null,
+        tags = null,
+        search = null,
         sortBy = 'lastMessageAt',
-        sortOrder = 'desc',
+        sortOrder = 'desc'
       } = req.query;
 
+      // 🔍 LÓGICA DE FILTRADO INTELIGENTE
       let finalAssignedToFilter = assignedTo;
-
-      if (assignedTo === undefined && req.user) {
-        if (req.user.role === 'admin' || req.user.role === 'superadmin') {
-          // Admins y superadmins, por defecto, ven todas las conversaciones.
-          // Para ver las no asignadas, deben pasar `assignedTo=null`.
-          finalAssignedToFilter = undefined; 
-        } else {
-          // Agentes solo ven sus conversaciones.
-          finalAssignedToFilter = req.user.email;
+      
+      if (assignedTo === 'me') {
+        finalAssignedToFilter = req.user.email;
+      } else if (assignedTo === 'unassigned') {
+        finalAssignedToFilter = null;
+      } else if (assignedTo && assignedTo !== 'all') {
+        // Verificar que el agente exista
+        const agent = await User.getByEmail(assignedTo);
+        if (!agent) {
+          throw CommonErrors.USER_NOT_AUTHORIZED('ver conversaciones de', assignedTo);
         }
       }
 
-      logger.info('Listando conversaciones (EMAIL-FIRST)', {
-        limit: parseInt(limit),
-        cursor: cursor ? 'presente' : 'ausente',
-        filters: {
-          assignedTo: finalAssignedToFilter,
-          status: status || 'ninguno',
-          customerPhone: customerPhone ? 'normalizado' : 'ninguno',
-        },
-        sortBy,
-        sortOrder,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-        currentUser: {
-          email: req.user ? req.user.email : 'no_autenticado',
-          role: req.user ? req.user.role : 'no_autenticado',
-        },
-      });
+      // 🔒 CONTROL DE PERMISOS POR ROL
+      if (req.user.role === 'viewer' && assignedTo !== 'me') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver conversaciones de otros agentes', 'conversations');
+      }
 
-      const options = {
-        limit: parseInt(limit),
-        startAfter: cursor,
+      // 🔍 OPCIONES DE BÚSQUEDA
+      const searchOptions = {
+        limit: Math.min(parseInt(limit), 100),
+        cursor,
         assignedTo: finalAssignedToFilter,
         status,
-        customerPhone,
+        priority,
+        tags: tags ? (Array.isArray(tags) ? tags : tags.split(',')) : null,
+        search,
         sortBy,
-        sortOrder,
+        sortOrder
       };
 
-      let conversations = await Conversation.list(options);
+      logger.info('Listando conversaciones', {
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        filters: searchOptions,
+        ip: req.ip
+      });
+
+      // 📊 EJECUTAR BÚSQUEDA
+      const result = await Conversation.list(searchOptions);
       
-      // ✅ FEATURE: Si no hay conversaciones asignadas, buscar y asignar automáticamente
-      if (conversations.length === 0 && finalAssignedToFilter && req.user.role !== 'admin') {
-        logger.info('No se encontraron conversaciones asignadas, buscando sin asignar', {
-          userEmail: req.user.email,
-          userRole: req.user.role,
+      // 🎯 AUTO-ASIGNACIÓN INTELIGENTE (solo para agentes sin conversaciones)
+      if (result.conversations.length === 0 && assignedTo === 'me' && req.user.role === 'agent') {
+        logger.info('Sin conversaciones asignadas, buscando auto-asignación', {
+          userEmail: req.user.email
         });
 
-        // Buscar conversaciones sin asignar
-        const unassignedOptions = {
-          ...options,
-          assignedTo: null, // Buscar conversaciones sin asignar
-        };
-        
-        const unassignedConversations = await Conversation.list(unassignedOptions);
-        
-        if (unassignedConversations.length > 0) {
-          logger.info('Asignando conversaciones automáticamente', {
-            userEmail: req.user.email,
-            conversationsToAssign: unassignedConversations.length,
-          });
+        const unassignedResult = await Conversation.list({
+          ...searchOptions,
+          assignedTo: null,
+          limit: 3 // Solo auto-asignar pocas
+        });
 
-          // Asignar automáticamente al usuario actual
-          for (const conv of unassignedConversations) {
+        if (unassignedResult.conversations.length > 0) {
+          for (const conv of unassignedResult.conversations) {
             try {
-              await conv.assignTo(req.user.email, req.user.name || req.user.email || 'Agent');
-              conversations.push(conv); // Agregar a la lista de resultados
+              await conv.assignTo(req.user.email, req.user.name);
+              result.conversations.push(conv);
+              
+              // 📡 EMITIR EVENTO WEBSOCKET
+              const socketManager = req.app.get('socketManager');
+              if (socketManager) {
+                socketManager.io.emit('conversation-assigned', {
+                  conversationId: conv.id,
+                  assignedTo: {
+                    email: req.user.email,
+                    name: req.user.name
+                  },
+                  timestamp: new Date().toISOString()
+                });
+              }
             } catch (assignError) {
-              logger.error('Error asignando conversación automáticamente', {
+              logger.error('Error en auto-asignación', {
                 conversationId: conv.id,
                 userEmail: req.user.email,
-                error: assignError.message,
+                error: assignError.message
               });
             }
           }
         }
       }
 
-      // ✅ SERIALIZACIÓN SEGURA: Asegurar que todas las conversaciones tengan estructura válida
-      const serializedConversations = conversations.map(conv => {
-        try {
-          const serialized = conv.toJSON();
-          
-          // ✅ VALIDACIÓN CRÍTICA: Verificar campos obligatorios
-          if (!serialized.customerPhone || !serialized.agentPhone) {
-            logger.warn('Conversación con teléfonos faltantes', {
-              conversationId: conv.id,
-              hasCustomerPhone: !!serialized.customerPhone,
-              hasAgentPhone: !!serialized.agentPhone,
-            });
-            return null; // Excluir conversaciones inválidas
-          }
-
-          return serialized;
-        } catch (error) {
-          logger.error('Error serializando conversación en lista', {
-            conversationId: conv.id,
-            error: error.message,
-            stack: error.stack,
-          });
-          return null; // Excluir conversaciones que fallan serialización
-        }
-      }).filter(conv => conv !== null); // Remover conversaciones nulas
-
-      // ✅ MONITOREO: Log de resultados
-      logger.info('Conversaciones listadas exitosamente', {
-        totalResults: serializedConversations.length,
-        hasFilters: !!(finalAssignedToFilter || status || customerPhone),
-        filtersApplied: {
-          assignedTo: !!finalAssignedToFilter,
-          status: !!status,
-          customerPhone: !!customerPhone,
-        },
-        validConversations: serializedConversations.length,
-        userRole: req.user.role,
-      });
-
-      // ✅ ESTRUCTURA GARANTIZADA: Respuesta siempre en el formato esperado
-      const response = {
-        success: true,
-        data: serializedConversations,
-        pagination: {
-          hasMore: conversations.length === parseInt(limit),
-          totalResults: serializedConversations.length,
-          limit: parseInt(limit),
-          currentCursor: cursor,
-        },
-        metadata: {
-          appliedFilters: {
-            assignedTo: finalAssignedToFilter,
-            status,
-            customerPhone: customerPhone,
-          },
-          autoAssignment: {
-            performed: conversations.length > 0 && finalAssignedToFilter && req.user.role !== 'admin',
-            userEmail: req.user.email,
-            userRole: req.user.role,
-          },
-          timestamp: safeDateToISOString(new Date()),
-        },
-      };
-
-      res.json(response);
+      // 📤 RESPUESTA ESTÁNDAR CON PAGINACIÓN
+      return ResponseHandler.successPaginated(
+        res,
+        result.conversations.map(conv => conv.toJSON()),
+        result.pagination,
+        `${result.conversations.length} conversaciones encontradas`,
+        200
+      );
 
     } catch (error) {
       logger.error('Error listando conversaciones', {
         error: error.message,
         stack: error.stack,
-        query: req.query,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-        userEmail: req.user ? req.user.email : 'no_autenticado',
+        userEmail: req.user?.email,
+        query: req.query
       });
-
-      // ✅ ESTRUCTURA GARANTIZADA: Error también en formato consistente
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-        data: [],
-        pagination: {
-          hasMore: false,
-          totalResults: 0,
-          limit: parseInt(req.query.limit || 20),
-        },
-      });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ EMAIL-FIRST: Obtener una conversación por su UUID.
+   * 📊 GET /api/conversations/unassigned  
+   * Obtiene conversaciones sin asignar (solo agentes/admins)
    */
-  static async getConversation (req, res) {
+  static async getUnassignedConversations(req, res, next) {
     try {
-      const { conversationId } = req.params; // Ahora es un UUID
-
-      if (!conversationId) {
-        return res.status(400).json({ error: 'conversationId (UUID) es requerido' });
+      if (!['agent', 'admin', 'superadmin'].includes(req.user.role)) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver conversaciones sin asignar', 'conversations');
       }
 
-      logger.info('Obteniendo conversación', { 
-        conversationId,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-        currentUser: req.user ? req.user.email : 'no_autenticado',
-      });
+      const { limit = 20, cursor = null } = req.query;
 
-      const conversation = await Conversation.getById(conversationId);
-
-      if (!conversation) {
-        logger.warn('Conversación no encontrada', { conversationId });
-        return res.status(404).json({ error: 'Conversación no encontrada' });
-      }
-
-      // ✅ SERIALIZACIÓN SEGURA
-      let serializedConversation;
-      try {
-        serializedConversation = conversation.toJSON();
-      } catch (serializationError) {
-        logger.error('Error serializando conversación', {
-          conversationId,
-          error: serializationError.message,
-          stack: serializationError.stack,
-        });
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Error procesando conversación',
-          details: {
-            conversationId,
-            message: 'Error en serialización de datos',
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
-      }
-
-      logger.info('Conversación obtenida exitosamente', { 
-        conversationId,
-        hasAssignedTo: !!serializedConversation.assignedTo,
-        participantsCount: serializedConversation.participants?.length || 0,
-      });
-
-      res.json({
-        success: true,
-        data: serializedConversation,
-        metadata: {
-          timestamp: safeDateToISOString(new Date()),
-          conversationId,
-        },
-      });
-
-    } catch (error) {
-      logger.error('Error obteniendo conversación', {
-        conversationId: req.params.conversationId,
-        error: error.message,
-        stack: error.stack,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          conversationId: req.params.conversationId,
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
-    }
-  }
-
-  /**
-   * ✅ CORREGIDO: Obtener mensajes de conversación con paginación optimizada
-   */
-  static async getConversationMessages (req, res) {
-    try {
-      const { conversationId } = req.params;
-      const {
-        limit = 20,
-        cursor = null,
-        direction = null,
-        status = null,
-        type = null,
-        startDate = null,
-        endDate = null,
-        orderBy = 'timestamp',
-        order = 'desc',
-      } = req.query;
-
-      if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: 'conversationId es requerido',
-          details: {
-            field: 'conversationId',
-            expectedFormat: 'conv_phone1_phone2',
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Verificar que la conversación existe
-      const conversation = await Conversation.getById(conversationId);
-      if (!conversation) {
-        logger.warn('Conversación no encontrada para mensajes', { conversationId });
-        return res.status(404).json({
-          success: false,
-          error: 'Conversación no encontrada',
-          details: {
-            conversationId,
-            timestamp: safeDateToISOString(new Date()),
-          },
-          data: [],
-          pagination: {
-            hasMore: false,
-            totalResults: 0,
-            limit: parseInt(limit),
-          },
-        });
-      }
-
-      // ✅ MONITOREO: Log de parámetros de consulta
-      logger.info('Obteniendo mensajes de conversación', {
-        conversationId,
-        limit: parseInt(limit),
-        cursor: cursor ? 'presente' : 'ausente',
-        filters: {
-          direction: direction || 'ninguno',
-          status: status || 'ninguno',
-          type: type || 'ninguno',
-          startDate: startDate ? 'presente' : 'ausente',
-          endDate: endDate ? 'presente' : 'ausente',
-        },
-        orderBy,
-        order,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      const options = {
-        limit: parseInt(limit),
+      const result = await Conversation.list({
+        limit: Math.min(parseInt(limit), 100),
         cursor,
-        direction,
-        status,
-        type,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-        orderBy,
-        order,
-      };
-
-      const result = await Message.getByConversation(conversationId, options);
-
-      // ✅ SERIALIZACIÓN SEGURA: Asegurar que todos los mensajes tengan estructura válida
-      const serializedMessages = result.messages.map(msg => {
-        try {
-          return msg.toJSON();
-        } catch (error) {
-          logger.error('Error serializando mensaje en lista', {
-            messageId: msg.id,
-            conversationId,
-            error: error.message,
-            stack: error.stack,
-          });
-          // Retornar estructura mínima válida en caso de error
-          return {
-            id: msg.id || 'error',
-            conversationId,
-            content: 'Error al cargar mensaje',
-            mediaUrl: null,
-            sender: 'system',
-            senderPhone: null,
-            recipientPhone: null,
-            direction: 'error',
-            type: 'text',
-            status: 'error',
-            timestamp: null,
-            metadata: {},
-            createdAt: null,
-            updatedAt: null,
-          };
-        }
+        assignedTo: null,
+        status: 'open', // Solo abiertas sin asignar
+        sortBy: 'createdAt',
+        sortOrder: 'asc' // Más antiguas primero
       });
 
-      // ✅ MONITOREO: Log de resultados
-      logger.info('Mensajes obtenidos exitosamente', {
-        conversationId,
-        totalResults: serializedMessages.length,
-        hasMore: result.pagination.hasMore,
-        appliedFilters: result.metadata.appliedFilters,
-        queryTime: result.metadata.queryTime,
-        validMessages: serializedMessages.filter(m => m.status !== 'error').length,
-        errorMessages: serializedMessages.filter(m => m.status === 'error').length,
+      logger.info('Conversaciones sin asignar obtenidas', {
+        userEmail: req.user.email,
+        count: result.conversations.length
       });
 
-      // ✅ ESTRUCTURA GARANTIZADA: Respuesta consistente
-      const response = {
-        success: true,
-        data: serializedMessages,
-        pagination: {
-          ...result.pagination,
-          currentCursor: cursor,
-        },
-        metadata: {
-          ...result.metadata,
-          conversationExists: true,
-          totalValid: serializedMessages.filter(m => m.status !== 'error').length,
-          totalErrors: serializedMessages.filter(m => m.status === 'error').length,
-          timestamp: safeDateToISOString(new Date()),
-        },
-      };
-
-      res.json(response);
+      return ResponseHandler.successPaginated(
+        res,
+        result.conversations.map(conv => conv.toJSON()),
+        result.pagination,
+        `${result.conversations.length} conversaciones sin asignar`
+      );
 
     } catch (error) {
-      logger.error('Error obteniendo mensajes de conversación', {
-        conversationId: req.params.conversationId,
-        error: error.message,
-        stack: error.stack,
-        query: req.query,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          conversationId: req.params.conversationId,
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-        data: [],
-        pagination: {
-          hasMore: false,
-          totalResults: 0,
-          limit: parseInt(req.query.limit || 20),
-        },
-      });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ EMAIL-FIRST: Crear una nueva conversación.
-   * Se enfoca en el `customerPhone` y opcionalmente en el `assignedTo` UID.
+   * 📈 GET /api/conversations/stats
+   * Estadísticas de conversaciones del usuario o globales (admins)
    */
-  static async createConversation (req, res) {
+  static async getConversationStats(req, res, next) {
     try {
-      const { customerPhone, assignedTo = null } = req.body; // `assignedTo` es un UID
-
-      if (!customerPhone) {
-        return res.status(400).json({ error: 'customerPhone es requerido.' });
-      }
+      const { period = '7d', agentEmail = null } = req.query;
       
-      // La lógica ahora está en el modelo.
-      const conversation = await Conversation.findOrCreate(customerPhone, assignedTo || req.user.email);
+      // 🔒 CONTROL DE PERMISOS
+      let targetAgent = req.user.email;
+      if (agentEmail && req.user.role === 'admin') {
+        targetAgent = agentEmail;
+      } else if (agentEmail && req.user.role !== 'admin') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver estadísticas de otros agentes', 'stats');
+      }
 
-      res.status(201).json({
-        success: true,
-        data: conversation.toJSON(),
-        metadata: {
-          created: true,
-          timestamp: safeDateToISOString(new Date()),
-          conversationId: conversation.id,
-        },
+      const stats = await Conversation.getStats(targetAgent, period);
+
+      logger.info('Estadísticas de conversaciones obtenidas', {
+        userEmail: req.user.email,
+        targetAgent,
+        period
       });
+
+      return ResponseHandler.success(res, stats, 'Estadísticas generadas exitosamente');
 
     } catch (error) {
-      logger.error('Error creando conversación (EMAIL-FIRST)', {
-        customerPhone: req.body.customerPhone,
-        assignedTo: req.body.assignedTo,
-        error: error.message,
-        stack: error.stack,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-      res.status(500).json({ error: 'Error interno del servidor' });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ CORREGIDO: Actualizar conversación con validación
+   * 🔍 GET /api/conversations/search
+   * Búsqueda avanzada de conversaciones
    */
-  static async updateConversation (req, res) {
+  static async searchConversations(req, res, next) {
+    try {
+      const { q: searchTerm, limit = 20, ...filters } = req.query;
+
+      if (!searchTerm || searchTerm.length < 2) {
+        throw new ApiError(
+          'SEARCH_TERM_TOO_SHORT',
+          'El término de búsqueda debe tener al menos 2 caracteres',
+          'Proporciona un término de búsqueda más específico',
+          400
+        );
+      }
+
+      const searchOptions = {
+        limit: Math.min(parseInt(limit), 100),
+        search: searchTerm,
+        assignedTo: req.user.role === 'viewer' ? req.user.email : filters.assignedTo,
+        ...filters
+      };
+
+      const result = await Conversation.search(searchTerm, searchOptions);
+
+      logger.info('Búsqueda de conversaciones ejecutada', {
+        userEmail: req.user.email,
+        searchTerm,
+        resultsCount: result.length
+      });
+
+      return ResponseHandler.success(
+        res,
+        result.map(conv => conv.toJSON()),
+        `${result.length} conversaciones encontradas para: "${searchTerm}"`
+      );
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 👁️ GET /api/conversations/:conversationId
+   * Obtiene una conversación específica con validación de permisos
+   */
+  static async getConversation(req, res, next) {
     try {
       const { conversationId } = req.params;
+
+      const conversation = await Conversation.getById(conversationId);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
+      }
+
+      // 🔒 VALIDAR PERMISOS DE ACCESO
+      if (req.user.role === 'viewer' && conversation.assignedTo !== req.user.email) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver esta conversación', conversationId);
+      }
+
+      logger.info('Conversación obtenida', {
+        conversationId,
+        userEmail: req.user.email,
+        assignedTo: conversation.assignedTo
+      });
+
+      return ResponseHandler.success(res, conversation.toJSON(), 'Conversación obtenida exitosamente');
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * ➕ POST /api/conversations
+   * Crea nueva conversación con mensaje inicial opcional
+   */
+  static async createConversation(req, res, next) {
+    try {
+      const { customerPhone, assignedTo, initialMessage, priority = 'normal', tags = [] } = req.body;
+
+      // 🔍 VALIDAR TELÉFONO DEL CLIENTE
+      const phoneValidation = validateAndNormalizePhone(customerPhone);
+      if (!phoneValidation.isValid) {
+        throw new ApiError(
+          'INVALID_CUSTOMER_PHONE',
+          `Número de teléfono inválido: ${phoneValidation.error}`,
+          'Proporciona un número de teléfono válido en formato internacional (+1234567890)',
+          400,
+          { customerPhone, error: phoneValidation.error }
+        );
+      }
+
+      // 🔍 VALIDAR AGENTE ASIGNADO
+      let assignedAgent = null;
+      if (assignedTo) {
+        assignedAgent = await User.getByEmail(assignedTo);
+        if (!assignedAgent) {
+          throw CommonErrors.USER_NOT_AUTHORIZED('asignar conversación a', assignedTo);
+        }
+      }
+
+      // 🆕 CREAR CONVERSACIÓN
+      const conversationData = {
+        customerPhone: phoneValidation.normalized,
+        assignedTo: assignedAgent?.email || null,
+        assignedToName: assignedAgent?.name || null,
+        priority,
+        tags,
+        participants: [phoneValidation.normalized],
+        createdBy: req.user.email
+      };
+
+      if (assignedAgent) {
+        conversationData.participants.push(assignedAgent.email);
+      }
+
+      const conversation = await Conversation.create(conversationData);
+
+      // 💬 CREAR MENSAJE INICIAL SI SE PROPORCIONA
+      if (initialMessage) {
+        const messageData = {
+          conversationId: conversation.id,
+          content: initialMessage,
+          senderIdentifier: req.user.email,
+          recipientIdentifier: phoneValidation.normalized,
+          direction: 'outbound',
+          type: 'text',
+          status: 'sent',
+          metadata: { createdWithConversation: true }
+        };
+
+        await Message.create(messageData);
+      }
+
+      // 📡 EMITIR EVENTOS WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.emit('conversation-created', {
+          conversation: conversation.toJSON(),
+          createdBy: req.user.email,
+          timestamp: new Date().toISOString()
+        });
+
+        if (assignedAgent) {
+          socketManager.io.emit('conversation-assigned', {
+            conversationId: conversation.id,
+            assignedTo: {
+              email: assignedAgent.email,
+              name: assignedAgent.name
+            },
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      logger.info('Nueva conversación creada', {
+        conversationId: conversation.id,
+        customerPhone: phoneValidation.normalized,
+        assignedTo: assignedAgent?.email,
+        createdBy: req.user.email,
+        hasInitialMessage: !!initialMessage
+      });
+
+      return ResponseHandler.created(res, conversation.toJSON(), 'Conversación creada exitosamente');
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * ✏️ PUT /api/conversations/:id
+   * Actualiza conversación (status, priority, tags)
+   */
+  static async updateConversation(req, res, next) {
+    try {
+      const { id } = req.params;
       const updates = req.body;
 
-      if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: 'conversationId es requerido',
-          details: {
-            field: 'conversationId',
-            expectedFormat: 'conv_phone1_phone2',
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Verificar que la conversación existe
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await Conversation.getById(id);
       if (!conversation) {
-        return res.status(404).json({
-          success: false,
-          error: 'Conversación no encontrada',
-          details: {
-            conversationId,
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
 
-      // ✅ VALIDACIÓN: Si se actualiza assignedTo, debe ser UID válido
-      if (updates.assignedTo !== undefined) {
-        if (updates.assignedTo !== null && (typeof updates.assignedTo !== 'string' || updates.assignedTo.trim() === '')) {
-          return res.status(400).json({
-            success: false,
-            error: 'assignedTo debe ser un UID válido o null',
-            details: {
-              field: 'assignedTo',
-              expectedType: 'string (UID del usuario) o null',
-              receivedType: typeof updates.assignedTo,
-              receivedValue: updates.assignedTo,
-            },
-          });
-        }
+      // 🔒 VALIDAR PERMISOS
+      if (req.user.role === 'viewer') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('actualizar conversaciones', id);
       }
 
-      // ✅ VALIDACIÓN: Normalizar teléfonos si se actualizan
-      if (updates.customerPhone) {
-        const customerValidation = validateAndNormalizePhone(updates.customerPhone);
-        if (!customerValidation.isValid) {
-          return res.status(400).json({
-            success: false,
-            error: `Teléfono del cliente inválido: ${customerValidation.error}`,
-            details: {
-              field: 'customerPhone',
-              originalValue: updates.customerPhone,
-              expectedFormat: 'Formato internacional E.164 (ej: +1234567890)',
-            },
-          });
-        }
-        updates.customerPhone = customerValidation.normalized;
-      }
-
-      if (updates.agentPhone) {
-        const agentValidation = validateAndNormalizePhone(updates.agentPhone);
-        if (!agentValidation.isValid) {
-          return res.status(400).json({
-            success: false,
-            error: `Teléfono del agente inválido: ${agentValidation.error}`,
-            details: {
-              field: 'agentPhone',
-              originalValue: updates.agentPhone,
-              expectedFormat: 'Formato internacional E.164 (ej: +1234567890)',
-            },
-          });
-        }
-        updates.agentPhone = agentValidation.normalized;
-      }
-
-      logger.info('Actualizando conversación', {
-        conversationId,
-        updates: Object.keys(updates),
-        assignedToUpdate: updates.assignedTo !== undefined ? {
-          value: updates.assignedTo,
-          type: typeof updates.assignedTo,
-        } : 'no_cambio',
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
+      // 📝 APLICAR ACTUALIZACIONES
       await conversation.update(updates);
 
-      // ✅ SERIALIZACIÓN SEGURA
-      let serializedConversation;
-      try {
-        serializedConversation = conversation.toJSON();
-      } catch (serializationError) {
-        logger.error('Error serializando conversación actualizada', {
-          conversationId,
-          error: serializationError.message,
-          stack: serializationError.stack,
-        });
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Conversación actualizada pero error en procesamiento',
-          details: {
-            conversationId,
-            message: 'Error en serialización de datos',
-            timestamp: safeDateToISOString(new Date()),
-          },
+      // 📡 EMITIR EVENTO WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.to(`conversation-${id}`).emit('conversation-updated', {
+          conversationId: id,
+          updates,
+          updatedBy: req.user.email,
+          timestamp: new Date().toISOString()
         });
       }
 
-      logger.info('Conversación actualizada exitosamente', { 
-        conversationId,
-        updatedFields: Object.keys(updates),
-        finalAssignedTo: serializedConversation.assignedTo?.id,
+      logger.info('Conversación actualizada', {
+        conversationId: id,
+        updates: Object.keys(updates),
+        updatedBy: req.user.email
       });
 
-      res.json({
-        success: true,
-        data: serializedConversation,
-        metadata: {
-          updated: true,
-          timestamp: safeDateToISOString(new Date()),
-          conversationId,
-          updatedFields: Object.keys(updates),
-        },
-      });
+      return ResponseHandler.success(res, conversation.toJSON(), 'Conversación actualizada exitosamente');
 
     } catch (error) {
-      logger.error('Error actualizando conversación', {
-        conversationId: req.params.conversationId,
-        error: error.message,
-        stack: error.stack,
-        body: req.body,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          conversationId: req.params.conversationId,
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ EMAIL-FIRST: Asignar una conversación a un agente por su UID.
+   * 👤 PUT /api/conversations/:id/assign
+   * Asigna conversación a un agente
    */
-  static async assignConversation (req, res) {
+  static async assignConversation(req, res, next) {
     try {
-      const { conversationId } = req.params; // UUID
-      const { assignedTo } = req.body; // EMAIL del agente
+      const { id } = req.params;
+      const { assignedTo } = req.body;
 
-      if (!assignedTo) {
-        return res.status(400).json({ error: 'assignedTo (EMAIL) es requerido' });
-      }
-
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await Conversation.getById(id);
       if (!conversation) {
-        return res.status(404).json({ error: 'Conversación no encontrada' });
-      }
-      
-      // Opcional: Validar que el EMAIL del agente exista en la colección de usuarios.
-      const agent = await User.getByEmail(assignedTo); // assignedTo es ahora email
-      if(!agent) {
-        return res.status(404).json({ error: 'Agente no encontrado con el EMAIL proporcionado.' });
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
 
-      await conversation.assignTo(agent.email, agent.name || agent.email);
+      // 🔍 VALIDAR AGENTE
+      const agent = await User.getByEmail(assignedTo);
+      if (!agent) {
+        throw new ApiError(
+          'AGENT_NOT_FOUND',
+          `No se encontró el agente con email: ${assignedTo}`,
+          'Verifica que el email del agente sea correcto y que el usuario exista',
+          404,
+          { assignedTo }
+        );
+      }
 
-      res.json({
-        success: true,
-        data: conversation.toJSON(),
-        metadata: {
-          assigned: true,
-          timestamp: safeDateToISOString(new Date()),
-          conversationId,
-          assignedTo,
-        },
+      if (!agent.isActive) {
+        throw new ApiError(
+          'AGENT_INACTIVE',
+          `El agente ${assignedTo} está inactivo`,
+          'Asigna la conversación a un agente activo',
+          400,
+          { assignedTo, isActive: agent.isActive }
+        );
+      }
+
+      // 🔄 VERIFICAR SI YA ESTÁ ASIGNADA
+      if (conversation.assignedTo === assignedTo) {
+        throw CommonErrors.CONVERSATION_ALREADY_ASSIGNED(id, assignedTo);
+      }
+
+      // 📋 ASIGNAR
+      await conversation.assignTo(agent.email, agent.name);
+
+      // 📡 EMITIR EVENTOS WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.emit('conversation-assigned', {
+          conversationId: id,
+          assignedTo: {
+            email: agent.email,
+            name: agent.name
+          },
+          previousAssignedTo: conversation.assignedTo,
+          assignedBy: req.user.email,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.info('Conversación asignada', {
+        conversationId: id,
+        assignedTo: agent.email,
+        assignedBy: req.user.email,
+        previousAssignedTo: conversation.assignedTo
       });
+
+      return ResponseHandler.success(res, conversation.toJSON(), `Conversación asignada a ${agent.name}`);
 
     } catch (error) {
-      logger.error('Error asignando conversación', {
-        conversationId: req.params.conversationId,
-        error: error.message,
-        stack: error.stack,
-        body: req.body,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          conversationId: req.params.conversationId,
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ CORREGIDO: Cambiar estado de conversación
+   * 🚫 PUT /api/conversations/:id/unassign
+   * Desasigna conversación (quita agente)
    */
-  static async changeConversationStatus (req, res) {
+  static async unassignConversation(req, res, next) {
     try {
-      const { conversationId } = req.params;
-      const { status } = req.body;
+      const { id } = req.params;
 
-      if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: 'conversationId es requerido',
-          details: {
-            field: 'conversationId',
-            expectedFormat: 'conv_phone1_phone2',
-          },
-        });
-      }
-
-      if (!status) {
-        return res.status(400).json({
-          success: false,
-          error: 'status es requerido',
-          details: {
-            field: 'status',
-            allowedValues: ['open', 'closed', 'pending', 'archived'],
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Verificar que la conversación existe
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await Conversation.getById(id);
       if (!conversation) {
-        return res.status(404).json({
-          success: false,
-          error: 'Conversación no encontrada',
-          details: {
-            conversationId,
-            timestamp: safeDateToISOString(new Date()),
-          },
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
+      }
+
+      if (!conversation.assignedTo) {
+        throw new ApiError(
+          'CONVERSATION_NOT_ASSIGNED',
+          'La conversación no tiene agente asignado',
+          'Solo puedes desasignar conversaciones que tengan un agente asignado',
+          400,
+          { conversationId: id }
+        );
+      }
+
+      const previousAgent = conversation.assignedTo;
+      await conversation.unassign();
+
+      // 📡 EMITIR EVENTO WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.emit('conversation-unassigned', {
+          conversationId: id,
+          previousAssignedTo: previousAgent,
+          unassignedBy: req.user.email,
+          timestamp: new Date().toISOString()
         });
       }
 
-      logger.info('Cambiando estado de conversación', {
-        conversationId,
-        currentStatus: conversation.status,
-        newStatus: status,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
+      logger.info('Conversación desasignada', {
+        conversationId: id,
+        previousAssignedTo: previousAgent,
+        unassignedBy: req.user.email
       });
 
-      await conversation.changeStatus(status);
-
-      // ✅ SERIALIZACIÓN SEGURA
-      let serializedConversation;
-      try {
-        serializedConversation = conversation.toJSON();
-      } catch (serializationError) {
-        logger.error('Error serializando conversación con estado cambiado', {
-          conversationId,
-          error: serializationError.message,
-          stack: serializationError.stack,
-        });
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Estado cambiado pero error en procesamiento',
-          details: {
-            conversationId,
-            newStatus: status,
-            message: 'Error en serialización de datos',
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
-      }
-
-      logger.info('Estado de conversación cambiado exitosamente', {
-        conversationId,
-        newStatus: status,
-        confirmedStatus: serializedConversation.status,
-      });
-
-      res.json({
-        success: true,
-        data: serializedConversation,
-        metadata: {
-          statusChanged: true,
-          timestamp: safeDateToISOString(new Date()),
-          conversationId,
-          previousStatus: conversation.status,
-          newStatus: status,
-        },
-      });
+      return ResponseHandler.success(res, conversation.toJSON(), 'Conversación desasignada exitosamente');
 
     } catch (error) {
-      logger.error('Error cambiando estado de conversación', {
-        conversationId: req.params.conversationId,
-        error: error.message,
-        stack: error.stack,
-        body: req.body,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          conversationId: req.params.conversationId,
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ CORREGIDO: Obtener estadísticas de conversación
+   * 🔄 POST /api/conversations/:id/transfer
+   * Transfiere conversación de un agente a otro
    */
-  static async getConversationStats (req, res) {
+  static async transferConversation(req, res, next) {
     try {
-      const { conversationId } = req.params;
+      const { id } = req.params;
+      const { fromAgent, toAgent, reason = '' } = req.body;
 
-      if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: 'conversationId es requerido',
-          details: {
-            field: 'conversationId',
-            expectedFormat: 'conv_phone1_phone2',
-          },
-        });
-      }
-
-      // ✅ VALIDACIÓN: Verificar que la conversación existe
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await Conversation.getById(id);
       if (!conversation) {
-        return res.status(404).json({
-          success: false,
-          error: 'Conversación no encontrada',
-          details: {
-            conversationId,
-            timestamp: safeDateToISOString(new Date()),
-          },
-        });
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
 
-      logger.info('Obteniendo estadísticas de conversación', { 
-        conversationId,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
+      // 🔍 VALIDAR AGENTES
+      const sourceAgent = await User.getByEmail(fromAgent);
+      const targetAgent = await User.getByEmail(toAgent);
 
-      const stats = await conversation.getStats();
+      if (!sourceAgent) {
+        throw new ApiError('AGENT_NOT_FOUND', `Agente origen no encontrado: ${fromAgent}`, 'Verifica el email del agente origen', 404);
+      }
 
-      // ✅ NORMALIZAR FECHAS EN ESTADÍSTICAS
-      const normalizedStats = {
-        ...stats,
-        firstMessageAt: safeDateToISOString(stats.firstMessageAt),
-        lastMessageAt: safeDateToISOString(stats.lastMessageAt),
+      if (!targetAgent) {
+        throw new ApiError('AGENT_NOT_FOUND', `Agente destino no encontrado: ${toAgent}`, 'Verifica el email del agente destino', 404);
+      }
+
+      if (!targetAgent.isActive) {
+        throw new ApiError('AGENT_INACTIVE', `El agente destino está inactivo: ${toAgent}`, 'Transfiere a un agente activo', 400);
+      }
+
+      // 🔄 TRANSFERIR
+      await conversation.assignTo(targetAgent.email, targetAgent.name);
+
+      // 💬 CREAR MENSAJE DE TRANSFERENCIA
+      const transferMessage = {
+        conversationId: id,
+        content: `Conversación transferida de ${sourceAgent.name} a ${targetAgent.name}${reason ? `. Motivo: ${reason}` : ''}`,
+        senderIdentifier: 'system',
+        recipientIdentifier: conversation.customerPhone,
+        direction: 'system',
+        type: 'system',
+        status: 'sent',
+        metadata: {
+          type: 'transfer',
+          fromAgent: fromAgent,
+          toAgent: toAgent,
+          reason,
+          transferredBy: req.user.email
+        }
       };
 
-      logger.info('Estadísticas obtenidas exitosamente', {
-        conversationId,
-        totalMessages: normalizedStats.totalMessages,
-        inboundMessages: normalizedStats.inboundMessages,
-        outboundMessages: normalizedStats.outboundMessages,
+      await Message.create(transferMessage);
+
+      // 📡 EMITIR EVENTOS WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.emit('conversation-transferred', {
+          conversationId: id,
+          fromAgent: {
+            email: fromAgent,
+            name: sourceAgent.name
+          },
+          toAgent: {
+            email: toAgent,
+            name: targetAgent.name
+          },
+          reason,
+          transferredBy: req.user.email,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.info('Conversación transferida', {
+        conversationId: id,
+        fromAgent,
+        toAgent,
+        reason,
+        transferredBy: req.user.email
       });
 
-      res.json({
-        success: true,
-        data: normalizedStats,
-        metadata: {
-          conversationId,
-          timestamp: safeDateToISOString(new Date()),
-          generatedAt: safeDateToISOString(new Date()),
-        },
-      });
+      return ResponseHandler.success(res, conversation.toJSON(), `Conversación transferida a ${targetAgent.name}`);
 
     } catch (error) {
-      logger.error('Error obteniendo estadísticas de conversación', {
-        conversationId: req.params.conversationId,
-        error: error.message,
-        stack: error.stack,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
-      });
-
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          conversationId: req.params.conversationId,
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
+      return ResponseHandler.error(res, error);
     }
   }
 
   /**
-   * ✅ CORREGIDO: Buscar conversaciones
+   * 🔄 PUT /api/conversations/:id/status
+   * Cambia estado de conversación
    */
-  static async searchConversations (req, res) {
+  static async changeConversationStatus(req, res, next) {
     try {
-      const { q: searchTerm, ...options } = req.query;
+      const { id } = req.params;
+      const { status, reason = '' } = req.body;
 
-      if (!searchTerm) {
-        return res.status(400).json({
-          success: false,
-          error: 'Término de búsqueda es requerido',
-          details: {
-            field: 'q',
-            expectedType: 'string',
-            description: 'Término para buscar en nombres de contacto o números de teléfono',
-          },
+      const conversation = await Conversation.getById(id);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
+      }
+
+      const previousStatus = conversation.status;
+      await conversation.changeStatus(status);
+
+      // 💬 CREAR MENSAJE DE CAMBIO DE ESTADO
+      if (status !== previousStatus) {
+        const statusMessage = {
+          conversationId: id,
+          content: `Estado cambiado de ${previousStatus} a ${status}${reason ? `. Motivo: ${reason}` : ''}`,
+          senderIdentifier: 'system',
+          recipientIdentifier: conversation.customerPhone,
+          direction: 'system',
+          type: 'system',
+          status: 'sent',
+          metadata: {
+            type: 'status_change',
+            previousStatus,
+            newStatus: status,
+            reason,
+            changedBy: req.user.email
+          }
+        };
+
+        await Message.create(statusMessage);
+      }
+
+      // 📡 EMITIR EVENTO WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.to(`conversation-${id}`).emit('conversation-status-changed', {
+          conversationId: id,
+          previousStatus,
+          newStatus: status,
+          reason,
+          changedBy: req.user.email,
+          timestamp: new Date().toISOString()
         });
       }
 
-      logger.info('Buscando conversaciones', {
-        searchTerm,
-        options: Object.keys(options),
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
+      logger.info('Estado de conversación cambiado', {
+        conversationId: id,
+        previousStatus,
+        newStatus: status,
+        changedBy: req.user.email
       });
 
-      const conversations = await Conversation.search(searchTerm, options);
-
-      // ✅ SERIALIZACIÓN SEGURA: Asegurar que todas las conversaciones tengan estructura válida
-      const serializedConversations = conversations.map(conv => {
-        try {
-          return conv.toJSON();
-        } catch (error) {
-          logger.error('Error serializando conversación en búsqueda', {
-            conversationId: conv.id,
-            error: error.message,
-            stack: error.stack,
-          });
-          // Retornar estructura mínima válida en caso de error
-          return {
-            id: conv.id || 'error',
-            participants: [],
-            customerPhone: null,
-            agentPhone: null,
-            contact: { id: 'error', name: 'Error', avatar: null, channel: 'whatsapp' },
-            assignedTo: null,
-            assignedAgent: null,
-            status: 'error',
-            unreadCount: 0,
-            messageCount: 0,
-            lastMessage: null,
-            lastMessageId: null,
-            lastMessageAt: null,
-            createdAt: null,
-            updatedAt: null,
-          };
-        }
-      });
-
-      logger.info('Búsqueda de conversaciones completada', {
-        searchTerm,
-        totalResults: serializedConversations.length,
-        validResults: serializedConversations.filter(c => c.status !== 'error').length,
-        errorResults: serializedConversations.filter(c => c.status === 'error').length,
-      });
-
-      res.json({
-        success: true,
-        data: serializedConversations,
-        pagination: {
-          totalResults: serializedConversations.length,
-          hasMore: false, // Search no pagina por ahora
-        },
-        metadata: {
-          searchTerm,
-          totalValid: serializedConversations.filter(c => c.status !== 'error').length,
-          totalErrors: serializedConversations.filter(c => c.status === 'error').length,
-          timestamp: safeDateToISOString(new Date()),
-        },
-      });
+      return ResponseHandler.success(res, conversation.toJSON(), `Estado cambiado a ${status}`);
 
     } catch (error) {
-      logger.error('Error buscando conversaciones', {
-        error: error.message,
-        stack: error.stack,
-        query: req.query,
-        userAgent: req.get('User-Agent'),
-        ip: req.ip,
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🎯 PUT /api/conversations/:id/priority
+   * Cambia prioridad de conversación
+   */
+  static async changeConversationPriority(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { priority, reason = '' } = req.body;
+
+      const conversation = await Conversation.getById(id);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
+      }
+
+      const previousPriority = conversation.priority;
+      await conversation.changePriority(priority);
+
+      // 📡 EMITIR EVENTO WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.emit('conversation-priority-changed', {
+          conversationId: id,
+          previousPriority,
+          newPriority: priority,
+          reason,
+          changedBy: req.user.email,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.info('Prioridad de conversación cambiada', {
+        conversationId: id,
+        previousPriority,
+        newPriority: priority,
+        changedBy: req.user.email
       });
 
-      res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor',
-        details: {
-          message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno',
-          timestamp: safeDateToISOString(new Date()),
-        },
-        data: [],
-        pagination: {
-          totalResults: 0,
-          hasMore: false,
-        },
+      return ResponseHandler.success(res, conversation.toJSON(), `Prioridad cambiada a ${priority}`);
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * ✅ PUT /api/conversations/:conversationId/read-all
+   * Marca toda la conversación como leída por el usuario actual
+   */
+  static async markConversationAsRead(req, res, next) {
+    try {
+      const { conversationId } = req.params;
+
+      const conversation = await Conversation.getById(conversationId);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
+      }
+
+      // 📝 MARCAR MENSAJES COMO LEÍDOS
+      const markedCount = await conversation.markAllAsRead(req.user.email);
+
+      // 📡 EMITIR EVENTO WEBSOCKET
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.to(`conversation-${conversationId}`).emit('conversation-marked-read', {
+          conversationId,
+          readBy: req.user.email,
+          markedCount,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.info('Conversación marcada como leída', {
+        conversationId,
+        readBy: req.user.email,
+        markedCount
       });
+
+      return ResponseHandler.success(res, {
+        conversationId,
+        markedCount,
+        readBy: req.user.email
+      }, `${markedCount} mensajes marcados como leídos`);
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * ⌨️ POST /api/conversations/:id/typing
+   * Indica que el usuario está escribiendo
+   */
+  static async indicateTyping(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { isTyping = true } = req.body;
+
+      // 📡 EMITIR EVENTO WEBSOCKET INMEDIATAMENTE
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.to(`conversation-${id}`).emit('user-typing', {
+          conversationId: id,
+          email: req.user.email,
+          displayName: req.user.name,
+          isTyping,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return ResponseHandler.success(res, {
+        conversationId: id,
+        isTyping,
+        user: req.user.email
+      }, `Indicador de escritura ${isTyping ? 'activado' : 'desactivado'}`);
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
     }
   }
 }
