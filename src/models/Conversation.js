@@ -181,8 +181,8 @@ class Conversation {
   async save() {
     const data = prepareForFirestore({
       ...this,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+        updatedAt: FieldValue.serverTimestamp(),
+      });
 
     await firestore.collection('conversations').doc(this.id).set(data, { merge: true });
     logger.info('Conversación guardada.', { id: this.id });
@@ -217,7 +217,7 @@ class Conversation {
     } = options;
 
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
-
+    
     // VISTA GENERAL DEL PANEL
     if (fetchForUser) {
       logger.info('Ejecutando consulta combinada para panel', { user: fetchForUser });
@@ -989,10 +989,10 @@ class Conversation {
 
     // Filtro adicional por nombre de contacto (en memoria)
     if (!searchTerm.startsWith('+')) {
-      return conversations.filter(conv =>
-        conv.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    return conversations.filter(conv =>
+      conv.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         conv.customerPhone?.includes(searchTerm)
-      );
+    );
     }
 
     return conversations;

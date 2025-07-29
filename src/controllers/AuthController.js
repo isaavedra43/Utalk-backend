@@ -77,14 +77,14 @@ class AuthController {
         logger.warn('❌ Login fallido: Contraseña incorrecta', { 
             email,
           ip: req.ip 
-        });
-        
+          });
+
         return res.status(401).json({
           error: 'Credenciales inválidas',
           message: 'Email o contraseña incorrectos',
           code: 'INVALID_CREDENTIALS',
-        });
-      }
+          });
+        }
 
       // ✅ ACTUALIZAR último login
       await user.updateLastLogin();
@@ -92,7 +92,7 @@ class AuthController {
       // ✅ GENERAR JWT INTERNO
       const jwtSecret = process.env.JWT_SECRET;
       const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
-      
+
       if (!jwtSecret) {
         logger.error('💥 JWT_SECRET no configurado');
         return res.status(500).json({
@@ -397,7 +397,7 @@ class AuthController {
         role,
           department,
           isActive: true,
-        });
+      });
 
         logger.info('✅ Usuario creado completamente', {
           email: newUser.email,
@@ -410,7 +410,7 @@ class AuthController {
           success: true,
         message: 'Usuario creado exitosamente',
         user: newUser.toJSON(),
-        });
+      });
       } catch (createError) {
         if (createError.message === 'Usuario ya existe') {
           return res.status(409).json({
