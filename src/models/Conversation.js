@@ -235,6 +235,9 @@ class Conversation {
 
       const [assignedSnapshot, unassignedSnapshot] = await Promise.all(queries.map(q => q.get()));
       
+      // 🔍 LOG CRÍTICO DE CONSULTA FIRESTORE
+      console.log(`[BACKEND][CONVERSATIONS][FIRESTORE] Asignadas: ${assignedSnapshot.size} | No asignadas: ${unassignedSnapshot.size} | Usuario: ${fetchForUser}`);
+      
       const combined = new Map();
       assignedSnapshot.docs.forEach(doc => combined.set(doc.id, new Conversation({ id: doc.id, ...doc.data() })));
       unassignedSnapshot.docs.forEach(doc => combined.set(doc.id, new Conversation({ id: doc.id, ...doc.data() })));
@@ -250,6 +253,10 @@ class Conversation {
       });
       
       const conversations = uniqueConversations.slice(0, validatedLimit);
+      
+      // 🔍 LOG CRÍTICO DE RESULTADO FINAL
+      console.log(`[BACKEND][CONVERSATIONS][COMBINADAS] Total únicas: ${uniqueConversations.length} | Limitadas: ${conversations.length}`);
+      
       return { conversations, pagination: { hasMore: uniqueConversations.length > validatedLimit, limit: validatedLimit } };
     }
 
@@ -273,12 +280,19 @@ class Conversation {
     if (startAfter) query = query.startAfter(startAfter);
 
     const snapshot = await query.limit(validatedLimit + 1).get();
+    
+    // 🔍 LOG CRÍTICO DE CONSULTA ESPECÍFICA
+    console.log(`[BACKEND][CONVERSATIONS][FIRESTORE] Consulta específica: ${snapshot.size} documentos | Filtros: participantEmail=${participantEmail}, assignedTo=${assignedTo}, status=${status}`);
+    
     const conversations = snapshot.docs.map(doc => new Conversation({ id: doc.id, ...doc.data() }));
 
     const hasMore = conversations.length > validatedLimit;
     if (hasMore) conversations.pop();
 
     const nextCursor = hasMore && conversations.length ? conversations[conversations.length - 1][sortBy] : null;
+
+    // 🔍 LOG CRÍTICO DE RESULTADO ESPECÍFICO
+    console.log(`[BACKEND][CONVERSATIONS][ESPECIFICA] Resultado: ${conversations.length} conversaciones | hasMore: ${hasMore}`);
 
     return {
       conversations,

@@ -62,6 +62,9 @@ class ConversationController {
         sortOrder = 'desc'
       } = req.query;
 
+      // 🔍 LOG CRÍTICO DE ENTRADA
+      console.log(`[BACKEND][CONVERSATIONS][ENTRADA] Usuario: ${req.user.email} | Role: ${req.user.role} | Filtros: assignedTo=${assignedTo}, status=${status}, limit=${limit}`);
+
       // 🔍 LÓGICA DE FILTRADO INTELIGENTE
       let finalAssignedToFilter = assignedTo;
       
@@ -115,10 +118,23 @@ class ConversationController {
       // 📊 EJECUTAR BÚSQUEDA
       const result = await Conversation.list(searchOptions);
       
+      // 🔍 LOG CRÍTICO DE RESULTADO
+      console.log(`[BACKEND][CONVERSATIONS][RESULTADO] Encontradas: ${result.conversations?.length || 0} conversaciones | Es array: ${Array.isArray(result.conversations)} | Pagination: hasMore=${result.pagination?.hasMore}`);
+
+      // Verificar si el resultado está vacío y loguear filtros
+      if (!result.conversations || result.conversations.length === 0) {
+        console.log(`[BACKEND][CONVERSATIONS][VACIO] Sin resultados con filtros: ${JSON.stringify(searchOptions)}`);
+      }
+      
       // 📤 RESPUESTA ESTÁNDAR CON PAGINACIÓN
+      const responseData = result.conversations.map(conv => conv.toJSON());
+      
+      // 🔍 LOG CRÍTICO ANTES DE RESPUESTA
+      console.log(`[BACKEND][CONVERSATIONS][RESPONSE] Enviando ${responseData.length} conversaciones al frontend | Status: 200`);
+      
       return ResponseHandler.successPaginated(
         res,
-        result.conversations.map(conv => conv.toJSON()),
+        responseData,
         result.pagination,
         `${result.conversations.length} conversaciones encontradas`,
         200
