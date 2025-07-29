@@ -45,7 +45,7 @@ class AuthController {
           email,
           ip: req.ip 
         });
-        
+
         return res.status(401).json({
           error: 'Credenciales inválidas',
           message: 'Email o contraseña incorrectos',
@@ -75,7 +75,7 @@ class AuthController {
       
       if (!isPasswordValid) {
         logger.warn('❌ Login fallido: Contraseña incorrecta', { 
-          email,
+            email,
           ip: req.ip 
         });
         
@@ -103,8 +103,8 @@ class AuthController {
       }
 
       const tokenPayload = {
-        email: user.email,
-        role: user.role,
+          email: user.email,
+          role: user.role,
         name: user.name,
         iat: Math.floor(Date.now() / 1000),
       };
@@ -390,11 +390,11 @@ class AuthController {
 
       // ✅ Crear usuario en Firestore
       try {
-        const newUser = await User.create({
-          email,
+      const newUser = await User.create({
+        email,
           password,
-          name,
-          role,
+        name,
+        role,
           department,
           isActive: true,
         });
@@ -406,10 +406,10 @@ class AuthController {
           createdBy: adminEmail,
         });
 
-        res.status(201).json({
+      res.status(201).json({
           success: true,
-          message: 'Usuario creado exitosamente',
-          user: newUser.toJSON(),
+        message: 'Usuario creado exitosamente',
+        user: newUser.toJSON(),
         });
       } catch (createError) {
         if (createError.message === 'Usuario ya existe') {

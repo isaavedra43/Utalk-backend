@@ -68,7 +68,7 @@ class ConversationController {
       if (assignedTo === 'me') {
         finalAssignedToFilter = req.user.email;
       } else if (assignedTo === 'unassigned') {
-        finalAssignedToFilter = null;
+          finalAssignedToFilter = null;
       } else if (assignedTo && assignedTo !== 'all') {
         // Verificar que el agente exista
         const agent = await User.getByEmail(assignedTo);
@@ -78,7 +78,7 @@ class ConversationController {
       }
 
       // 🔒 CONTROL DE PERMISOS POR ROL
-      if (req.user.role === 'viewer' && assignedTo !== 'me') {
+      if (req.user.role === 'viewer' && finalAssignedToFilter !== req.user.email) {
         throw CommonErrors.USER_NOT_AUTHORIZED('ver conversaciones de otros agentes', 'conversations');
       }
 
@@ -86,71 +86,35 @@ class ConversationController {
       const searchOptions = {
         limit: Math.min(parseInt(limit), 100),
         cursor,
-        assignedTo: finalAssignedToFilter,
         status,
         priority,
         tags: tags ? (Array.isArray(tags) ? tags : tags.split(',')) : null,
-        search,
         sortBy,
         sortOrder
       };
 
+      // Determinar si es una vista general o una búsqueda específica
+      if (assignedTo === 'me' || assignedTo === 'all') {
+        searchOptions.fetchForUser = req.user.email; // VISTA GENERAL
+      } else if (assignedTo === 'unassigned') {
+        searchOptions.assignedTo = null; // Búsqueda específica de no asignadas
+      } else if (assignedTo) {
+        searchOptions.assignedTo = finalAssignedToFilter; // Búsqueda específica de un agente
+      } else {
+        searchOptions.fetchForUser = req.user.email; // Por defecto, vista general
+      }
+
+
       logger.info('Listando conversaciones', {
         userEmail: req.user.email,
-        userRole: req.user.role,
+          userRole: req.user.role,
         filters: searchOptions,
         ip: req.ip
       });
 
       // 📊 EJECUTAR BÚSQUEDA
-      // 🔧 CORREGIDO: Pasar participantEmail para filtrar por participants
-      const result = await Conversation.list({
-        ...searchOptions,
-        participantEmail: req.user.email // 🔧 CORREGIDO: Pasar el email del usuario logeado como participantEmail
-      });
+      const result = await Conversation.list(searchOptions);
       
-      // 🎯 AUTO-ASIGNACIÓN INTELIGENTE (solo para agentes sin conversaciones)
-      if (result.conversations.length === 0 && assignedTo === 'me' && req.user.role === 'agent') {
-        logger.info('Sin conversaciones asignadas, buscando auto-asignación', {
-          userEmail: req.user.email
-        });
-
-        const unassignedResult = await Conversation.list({
-          ...searchOptions,
-          assignedTo: null,
-          participantEmail: null, // 🔧 CORREGIDO: No filtrar por participantEmail para auto-asignación
-          limit: 3 // Solo auto-asignar pocas
-        });
-
-        if (unassignedResult.conversations.length > 0) {
-          for (const conv of unassignedResult.conversations) {
-            try {
-              await conv.assignTo(req.user.email, req.user.name);
-              result.conversations.push(conv);
-              
-              // 📡 EMITIR EVENTO WEBSOCKET
-              const socketManager = req.app.get('socketManager');
-              if (socketManager) {
-                socketManager.io.emit('conversation-assigned', {
-                  conversationId: conv.id,
-                  assignedTo: {
-                    email: req.user.email,
-                    name: req.user.name
-                  },
-                  timestamp: new Date().toISOString()
-                });
-              }
-            } catch (assignError) {
-              logger.error('Error en auto-asignación', {
-                conversationId: conv.id,
-                userEmail: req.user.email,
-                error: assignError.message
-              });
-            }
-          }
-        }
-      }
-
       // 📤 RESPUESTA ESTÁNDAR CON PAGINACIÓN
       return ResponseHandler.successPaginated(
         res,
@@ -160,10 +124,10 @@ class ConversationController {
         200
       );
 
-    } catch (error) {
+        } catch (error) {
       logger.error('Error listando conversaciones', {
-        error: error.message,
-        stack: error.stack,
+            error: error.message,
+            stack: error.stack,
         userEmail: req.user?.email,
         query: req.query
       });
@@ -801,7 +765,7 @@ class ConversationController {
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
         socketManager.io.to(`conversation-${conversationId}`).emit('conversation-marked-read', {
-          conversationId,
+        conversationId,
           readBy: req.user.email,
           markedCount,
           timestamp: new Date().toISOString()
@@ -815,7 +779,7 @@ class ConversationController {
       });
 
       return ResponseHandler.success(res, {
-        conversationId,
+          conversationId,
         markedCount,
         readBy: req.user.email
       }, `${markedCount} mensajes marcados como leídos`);
@@ -852,7 +816,7 @@ class ConversationController {
         user: req.user.email
       }, `Indicador de escritura ${isTyping ? 'activado' : 'desactivado'}`);
 
-    } catch (error) {
+        } catch (error) {
       return ResponseHandler.error(res, error);
     }
   }

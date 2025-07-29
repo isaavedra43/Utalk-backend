@@ -198,7 +198,7 @@ class MessageController {
 
       logger.info('Mensaje creado en conversación', {
         messageId: message.id,
-        conversationId,
+          conversationId,
         type,
         senderEmail: req.user.email,
         recipientPhone: conversation.customerPhone,
@@ -490,7 +490,7 @@ class MessageController {
    */
   static async handleWebhookSafe(req, res) {
     const startTime = Date.now();
-
+    
     try {
       const { From: fromPhone, To: twilioPhone, Body: content, MessageSid: messageSid, NumMedia: numMedia } = req.body;
 

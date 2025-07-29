@@ -20,7 +20,7 @@ class Message {
     }
     this.content = data.content || null;
     this.mediaUrl = data.mediaUrl || null;
-    
+
     // ✅ EMAIL-FIRST: Identificadores de remitente y destinatario.
     this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
     this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
@@ -28,7 +28,7 @@ class Message {
     // ✅ DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
     // this.senderPhone = ...
     // this.recipientPhone = ...
-    
+
     // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
     this.direction = data.direction || 'inbound';
     this.type = data.type || (this.mediaUrl ? 'media' : 'text');
@@ -58,14 +58,14 @@ class Message {
       .collection('messages')
       .doc(message.id)
       .set(cleanData);
-      
+
     logger.info('Mensaje guardado (EMAIL-FIRST)', {
       messageId: message.id,
       conversationId: message.conversationId,
       sender: message.senderIdentifier,
       recipient: message.recipientIdentifier,
     });
-    
+
     // Actualizar conversación
     const Conversation = require('./Conversation');
     const conversation = await Conversation.getById(message.conversationId);
@@ -379,9 +379,9 @@ class Message {
    * ✅ EMAIL-FIRST: Convertir a objeto plano para respuestas JSON
    */
   toJSON () {
-    const normalizedTimestamp = safeDateToISOString(this.timestamp);
-    const normalizedCreatedAt = safeDateToISOString(this.createdAt);
-    const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
+      const normalizedTimestamp = safeDateToISOString(this.timestamp);
+      const normalizedCreatedAt = safeDateToISOString(this.createdAt);
+      const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
     return {
       id: this.id,
@@ -432,8 +432,8 @@ class Message {
     this.readAt = readTimestamp;
 
     logger.info('Mensaje marcado como leído por usuario', {
-      messageId: this.id,
-      conversationId: this.conversationId,
+          messageId: this.id,
+          conversationId: this.conversationId,
       userEmail,
       readAt: readTimestamp
     });
@@ -460,8 +460,8 @@ class Message {
     this.deletedAt = new Date();
 
     logger.info('Mensaje eliminado (soft delete)', {
-      messageId: this.id,
-      conversationId: this.conversationId,
+          messageId: this.id,
+          conversationId: this.conversationId,
       deletedBy
     });
   }

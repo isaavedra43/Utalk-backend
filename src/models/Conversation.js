@@ -207,133 +207,83 @@ class Conversation {
     const {
       limit = 20,
       startAfter = null,
-      assignedTo = undefined, // Permitir `null` explícito.
+      assignedTo = undefined,
       status = null,
       customerPhone = null,
-      participantEmail = null, // 🔧 CORREGIDO: Renombrar a participantEmail para claridad
+      participantEmail = null,
+      fetchForUser = null, // NUEVO
       sortBy = 'lastMessageAt',
       sortOrder = 'desc',
     } = options;
 
-    // ✅ VALIDACIÓN: Límites de consulta
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
-    
-    logger.info('Ejecutando consulta de conversaciones en Firestore', {
-      limit: validatedLimit,
-      startAfter: startAfter ? 'presente' : 'ausente',
-      filters: {
-        assignedTo: assignedTo === null ? 'NULL_EXPLICIT' : (assignedTo || 'sin_filtro'),
-        participantEmail: participantEmail || 'sin_filtro', // 🔧 CORREGIDO: Log del filtro participantEmail
-        status: status || 'sin_filtro',
-        customerPhone: customerPhone || 'sin_filtro',
-      },
-      sortBy,
-      sortOrder,
-    });
 
+    // VISTA GENERAL DEL PANEL
+    if (fetchForUser) {
+      logger.info('Ejecutando consulta combinada para panel', { user: fetchForUser });
+
+      const assignedQuery = firestore.collection('conversations').where('assignedTo', '==', fetchForUser);
+      const unassignedQuery = firestore.collection('conversations').where('assignedTo', '==', null);
+
+      let queries = [assignedQuery, unassignedQuery];
+      
+      // Aplicar filtros adicionales a ambas consultas
+      queries = queries.map(q => {
+          if (status) q = q.where('status', '==', status);
+          return q.orderBy(sortBy, sortOrder).limit(validatedLimit);
+      });
+
+      const [assignedSnapshot, unassignedSnapshot] = await Promise.all(queries.map(q => q.get()));
+      
+      const combined = new Map();
+      assignedSnapshot.docs.forEach(doc => combined.set(doc.id, new Conversation({ id: doc.id, ...doc.data() })));
+      unassignedSnapshot.docs.forEach(doc => combined.set(doc.id, new Conversation({ id: doc.id, ...doc.data() })));
+
+      const uniqueConversations = Array.from(combined.values());
+      
+      uniqueConversations.sort((a, b) => {
+          const valA = a[sortBy] || new Date(0);
+          const valB = b[sortBy] || new Date(0);
+          const timeA = valA.toMillis ? valA.toMillis() : new Date(valA).getTime();
+          const timeB = valB.toMillis ? valB.toMillis() : new Date(valB).getTime();
+          return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+      });
+      
+      const conversations = uniqueConversations.slice(0, validatedLimit);
+      return { conversations, pagination: { hasMore: uniqueConversations.length > validatedLimit, limit: validatedLimit } };
+    }
+
+    // BÚSQUEDA ESPECÍFICA
+    logger.info('Ejecutando consulta específica', { options });
     let query = firestore.collection('conversations');
 
-    // 🔧 LÓGICA DE FILTRADO CORREGIDA: participantEmail tiene prioridad sobre assignedTo
     if (participantEmail) {
-      // 🔧 SOLO filtrar por participants cuando participantEmail está presente
       query = query.where('participants', 'array-contains', participantEmail);
-      logger.info('🔧 Aplicando filtro por participants', { participantEmail });
     } else if (assignedTo !== undefined) {
-      // ✅ Filtrar por assignedTo solo cuando NO hay participantEmail
-      if (assignedTo === null) {
-        // Buscar conversaciones SIN asignar
-        query = query.where('assignedTo', '==', null);
-        logger.info('Aplicando filtro para conversaciones SIN asignar');
-      } else {
-        // Buscar conversaciones asignadas a un EMAIL específico
-        query = query.where('assignedTo', '==', assignedTo);
-        logger.info('Aplicando filtro para conversaciones asignadas a EMAIL', { assignedTo });
-      }
-    } else {
-      logger.info('Sin filtro participantEmail/assignedTo - buscando TODAS las conversaciones');
+      query = query.where('assignedTo', '==', assignedTo);
     }
-
-    if (status) {
-      query = query.where('status', '==', status);
-      logger.info('Aplicando filtro de status', { status });
-    }
-
+    
+    if (status) query = query.where('status', '==', status);
     if (customerPhone) {
-      const normalizedPhone = validateAndNormalizePhone(customerPhone);
-      if(normalizedPhone.isValid) {
-        query = query.where('customerPhone', '==', normalizedPhone.normalized);
-        logger.info('Aplicando filtro de customerPhone', { customerPhone: normalizedPhone.normalized });
-      } else {
-        logger.warn('customerPhone inválido para filtro, ignorando.', { customerPhone });
-      }
+      const normPhone = validateAndNormalizePhone(customerPhone);
+      if (normPhone.isValid) query = query.where('customerPhone', '==', normPhone.normalized);
     }
 
-    // ✅ ORDENAMIENTO
-    try {
-      query = query.orderBy(sortBy, sortOrder);
-    } catch (error) {
-      logger.warn('Error aplicando ordenamiento, usando por defecto', {
-        sortBy,
-        sortOrder,
-        error: error.message,
-      });
-      query = query.orderBy('lastMessageAt', 'desc');
-    }
+    query = query.orderBy(sortBy, sortOrder);
+    if (startAfter) query = query.startAfter(startAfter);
 
-    // ✅ PAGINACIÓN
-    if (startAfter) {
-      query = query.startAfter(startAfter);
-    }
+    const snapshot = await query.limit(validatedLimit + 1).get();
+    const conversations = snapshot.docs.map(doc => new Conversation({ id: doc.id, ...doc.data() }));
 
-    query = query.limit(validatedLimit);
+    const hasMore = conversations.length > validatedLimit;
+    if (hasMore) conversations.pop();
 
-    // ✅ EJECUTAR CONSULTA
-    const startTime = Date.now();
-    const snapshot = await query.get();
-    const queryTime = Date.now() - startTime;
+    const nextCursor = hasMore && conversations.length ? conversations[conversations.length - 1][sortBy] : null;
 
-    logger.info('Consulta de conversaciones completada', {
-      totalDocuments: snapshot.size,
-      isEmpty: snapshot.empty,
-      queryTime,
-      appliedFilters: {
-        assignedTo: assignedTo === null ? 'NULL_EXPLICIT' : (assignedTo || 'sin_filtro'),
-        status: status || 'sin_filtro',
-        customerPhone: customerPhone || 'sin_filtro',
-      },
-    });
-
-    if (snapshot.empty) {
-      logger.info('No se encontraron conversaciones con los filtros aplicados');
-      return [];
-    }
-
-    // ✅ PROCESAR RESULTADOS
-    const conversations = [];
-    const errors = [];
-
-    for (const doc of snapshot.docs) {
-      try {
-        const conversation = new Conversation({ id: doc.id, ...doc.data() });
-        conversations.push(conversation);
-      } catch (error) {
-        logger.error('Error construyendo conversación desde Firestore', {
-          documentId: doc.id,
-          error: error.message,
-          data: doc.data(),
-        });
-        errors.push({ id: doc.id, error: error.message });
-      }
-    }
-
-    logger.info('Conversaciones procesadas exitosamente', {
-      totalFound: snapshot.size,
-      validConversations: conversations.length,
-      errors: errors.length,
-      errorDetails: errors,
-    });
-
-    return conversations;
+    return {
+      conversations,
+      pagination: { hasMore, nextCursor, limit: validatedLimit }
+    };
   }
 
   /**
@@ -881,6 +831,67 @@ class Conversation {
       sortOrder = 'desc'
     } = options;
 
+    // ✅ Lógica de consulta principal
+    // Si se especifica `fetchForUser`, se obtienen las conversaciones de ese usuario Y las no asignadas.
+    if (assignedTo !== undefined) {
+      logger.info('🚀 Ejecutando consulta combinada: (asignadas a usuario + no asignadas)', { fetchForUser: assignedTo });
+
+      // 1. Crear las dos consultas base
+      const baseUnassignedQuery = firestore.collection('conversations').where('assignedTo', '==', null);
+      const baseAssignedQuery = firestore.collection('conversations').where('assignedTo', '==', assignedTo);
+
+      // Lista de promesas de consulta
+      const queries = [baseUnassignedQuery, baseAssignedQuery];
+      let finalResults = [];
+
+      // 2. Aplicar filtros y ejecutar consultas
+      for (const baseQuery of queries) {
+        let query = baseQuery;
+        if (status) {
+          query = query.where('status', '==', status);
+        }
+        // Aquí se pueden agregar más filtros comunes si es necesario (priority, tags, etc.)
+        
+        query = query.orderBy(sortBy, sortOrder);
+
+        if (startAfter) {
+          query = query.startAfter(startAfter);
+        }
+
+        query = query.limit(limit);
+        
+        const snapshot = await query.get();
+        snapshot.docs.forEach(doc => finalResults.push(new Conversation({ id: doc.id, ...doc.data() })));
+      }
+
+      // 3. Unificar y ordenar resultados
+      // Eliminar duplicados por si acaso
+      finalResults = Array.from(new Map(finalResults.map(c => [c.id, c])).values());
+
+      // Ordenar el array combinado
+      finalResults.sort((a, b) => {
+        const valA = a[sortBy] || new Date(0);
+        const valB = b[sortBy] || new Date(0);
+        const timeA = valA.toMillis ? valA.toMillis() : new Date(valA).getTime();
+        const timeB = valB.toMillis ? valB.toMillis() : new Date(valB).getTime();
+        return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+      });
+
+      // 4. Paginar el resultado final
+      const conversations = finalResults.slice(0, limit);
+      const hasMore = finalResults.length > limit;
+      const nextCursor = hasMore && conversations.length > 0 ? conversations[conversations.length - 1][sortBy] : null;
+
+      logger.info(`Consulta combinada completada. Total unificado: ${conversations.length}`, { fetchForUser: assignedTo });
+
+      return {
+        conversations,
+        pagination: { hasMore, nextCursor, limit, totalResults: conversations.length },
+      };
+    }
+
+    // ✅ Lógica de consulta específica (cuando no es la vista general)
+    logger.info('🚀 Ejecutando consulta específica (no combinada)');
     let query = firestore.collection('conversations');
 
     // 🔍 APLICAR FILTROS
