@@ -50,6 +50,13 @@ router.post('/change-password', authMiddleware, validate(schemas.auth.changePass
  */
 router.post('/create-user', authMiddleware, validate(schemas.auth.createUser), AuthController.createUser);
 
+/**
+ * @route GET /api/auth/validate-token
+ * @desc Validar token JWT para mantener sesión al refrescar página
+ * @access Public - No requiere middleware (valida su propio token)
+ */
+router.get('/validate-token', AuthController.validateToken);
+
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
 // USAGE: const authRoutes = require('./routes/auth');
 module.exports = router;

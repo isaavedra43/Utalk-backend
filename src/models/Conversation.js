@@ -178,6 +178,7 @@ class Conversation {
       assignedTo = undefined, // Permitir `null` explícito.
       status = null,
       customerPhone = null,
+      userEmail = null, // 🔧 NUEVO: Email del usuario para filtrar por participants
       sortBy = 'lastMessageAt',
       sortOrder = 'desc',
     } = options;
@@ -190,6 +191,7 @@ class Conversation {
       startAfter: startAfter ? 'presente' : 'ausente',
       filters: {
         assignedTo: assignedTo === null ? 'NULL_EXPLICIT' : (assignedTo || 'sin_filtro'),
+        userEmail: userEmail || 'sin_filtro', // 🔧 NUEVO: Log del filtro userEmail
         status: status || 'sin_filtro',
         customerPhone: customerPhone || 'sin_filtro',
       },
@@ -199,8 +201,13 @@ class Conversation {
 
     let query = firestore.collection('conversations');
 
-    // ✅ APLICAR FILTROS: Manejar explícitamente el caso assignedTo = null
-    if (assignedTo !== undefined) {
+    // 🔧 FILTRO CORREGIDO: Priorizar userEmail sobre assignedTo
+    if (userEmail) {
+      // 🔧 NUEVA LÓGICA: Buscar por participants (incluye al usuario)
+      query = query.where('participants', 'array-contains', userEmail);
+      logger.info('🔧 Aplicando filtro CORREGIDO: participants contiene usuario', { userEmail });
+    } else if (assignedTo !== undefined) {
+      // ✅ MANTENER LÓGICA EXISTENTE: Para casos donde no hay userEmail
       if (assignedTo === null) {
         // Buscar conversaciones SIN asignar
         query = query.where('assignedTo', '==', null);
@@ -211,7 +218,7 @@ class Conversation {
         logger.info('Aplicando filtro para conversaciones asignadas a EMAIL', { assignedTo });
       }
     } else {
-      logger.info('Sin filtro assignedTo - buscando TODAS las conversaciones');
+      logger.info('Sin filtro assignedTo/userEmail - buscando TODAS las conversaciones');
     }
 
     if (status) {

@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
+const { ResponseHandler, ApiError } = require('../utils/responseHandler');
+const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class AuthController {
   /**
@@ -426,6 +428,226 @@ class AuthController {
         adminEmail: req.user?.email,
       });
       next(error);
+    }
+  }
+
+  /**
+   * 🔍 GET /api/auth/validate-token
+   * Valida JWT existente para mantener sesión al refrescar página
+   * 
+   * Este endpoint es CRÍTICO para la experiencia de usuario:
+   * - Permite al frontend restaurar el estado de autenticación
+   * - Evita logout automático al refrescar la página
+   * - Mantiene la sesión persistente sin pedir login nuevamente
+   * 
+   * NO renueva tokens, solo valida y responde con datos del usuario
+   */
+  static async validateToken(req, res) {
+    const startTime = Date.now();
+    
+    try {
+      // 🔍 EXTRAER TOKEN DEL HEADER
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        logger.warn('Validación de token fallida: Header ausente', {
+          hasAuthHeader: !!authHeader,
+          headerFormat: authHeader ? authHeader.substring(0, 20) + '...' : 'none',
+          userAgent: req.get('User-Agent'),
+          ip: req.ip,
+          endpoint: '/api/auth/validate-token'
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'NO_TOKEN',
+          'No se encontró token de autenticación en la petición',
+          'Incluye el header Authorization: Bearer {token} en tu petición',
+          401,
+          { headerPresent: !!authHeader }
+        ));
+      }
+
+      const token = authHeader.split(' ')[1];
+
+      if (!token || token === 'null' || token === 'undefined') {
+        logger.warn('Validación de token fallida: Token vacío', {
+          tokenExists: !!token,
+          tokenValue: token,
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'EMPTY_TOKEN',
+          'El token de autenticación está vacío',
+          'Proporciona un token JWT válido',
+          401
+        ));
+      }
+
+      // 🔐 VERIFICAR JWT
+      let decodedToken;
+      try {
+        decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+        
+        logger.info('Token JWT verificado exitosamente', {
+          email: decodedToken.email,
+          iat: decodedToken.iat ? new Date(decodedToken.iat * 1000).toISOString() : 'unknown',
+          exp: decodedToken.exp ? new Date(decodedToken.exp * 1000).toISOString() : 'unknown',
+          ip: req.ip
+        });
+
+      } catch (jwtError) {
+        // 🚨 DIFERENTES TIPOS DE ERRORES JWT
+        let errorCode = 'INVALID_TOKEN';
+        let errorMessage = 'El token es inválido o ha expirado';
+        let suggestion = 'Inicia sesión nuevamente para obtener un token válido';
+
+        if (jwtError.name === 'TokenExpiredError') {
+          errorCode = 'TOKEN_EXPIRED';
+          errorMessage = 'El token ha expirado';
+          suggestion = 'Inicia sesión nuevamente para renovar tu sesión';
+        } else if (jwtError.name === 'JsonWebTokenError') {
+          errorCode = 'MALFORMED_TOKEN';
+          errorMessage = 'El formato del token es inválido';
+          suggestion = 'Verifica que el token esté correctamente formateado';
+        } else if (jwtError.name === 'NotBeforeError') {
+          errorCode = 'TOKEN_NOT_ACTIVE';
+          errorMessage = 'El token aún no es válido';
+          suggestion = 'Espera a que el token se active o solicita uno nuevo';
+        }
+
+        logger.warn('Validación JWT fallida', {
+          error: jwtError.name,
+          message: jwtError.message,
+          tokenPreview: token.substring(0, 20) + '...',
+          ip: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          errorCode,
+          errorMessage,
+          suggestion,
+          401,
+          { 
+            jwtError: jwtError.name,
+            timestamp: new Date().toISOString()
+          }
+        ));
+      }
+
+      // 📧 VALIDAR QUE EL TOKEN TENGA EMAIL
+      if (!decodedToken.email) {
+        logger.error('Token sin email', {
+          tokenPayload: decodedToken,
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_TOKEN_PAYLOAD',
+          'El token no contiene información de usuario válida',
+          'Inicia sesión nuevamente para obtener un token correcto',
+          401
+        ));
+      }
+
+      // 👤 BUSCAR USUARIO EN FIRESTORE
+      const user = await User.getByEmail(decodedToken.email);
+
+      if (!user) {
+        logger.warn('Usuario no encontrado durante validación de token', {
+          email: decodedToken.email,
+          tokenAge: decodedToken.iat ? Math.floor((Date.now() / 1000) - decodedToken.iat) : 'unknown',
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'USER_NOT_FOUND',
+          'El usuario asociado al token no existe',
+          'El usuario puede haber sido eliminado. Inicia sesión nuevamente',
+          401,
+          { email: decodedToken.email }
+        ));
+      }
+
+      // 🔒 VERIFICAR QUE EL USUARIO ESTÉ ACTIVO
+      if (!user.isActive) {
+        logger.warn('Usuario inactivo intentando validar token', {
+          email: user.email,
+          isActive: user.isActive,
+          role: user.role,
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'USER_INACTIVE',
+          'Tu cuenta ha sido desactivada',
+          'Contacta al administrador para reactivar tu cuenta',
+          401,
+          { 
+            email: user.email,
+            isActive: user.isActive
+          }
+        ));
+      }
+
+      // ✅ TOKEN VÁLIDO - RESPONDER CON DATOS DEL USUARIO
+      const responseData = {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isActive: user.isActive,
+        permissions: user.permissions || [],
+        avatar: user.avatar || null,
+        lastLoginAt: user.lastLoginAt ? safeDateToISOString(user.lastLoginAt) : null,
+        createdAt: user.createdAt ? safeDateToISOString(user.createdAt) : null
+      };
+
+      // 📊 ACTUALIZAR ÚLTIMA ACTIVIDAD (opcional, sin bloquear respuesta)
+      setImmediate(async () => {
+        try {
+          await user.updateLastActivity();
+        } catch (activityError) {
+          logger.error('Error actualizando última actividad', {
+            email: user.email,
+            error: activityError.message
+          });
+        }
+      });
+
+      logger.info('Token validado exitosamente', {
+        email: user.email,
+        role: user.role,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        responseTime: Date.now() - startTime + 'ms'
+      });
+
+      return ResponseHandler.success(res, {
+        user: responseData,
+        sessionValid: true,
+        validatedAt: new Date().toISOString()
+      }, 'Token válido - sesión activa');
+
+    } catch (error) {
+      logger.error('Error interno validando token', {
+        error: error.message,
+        stack: error.stack,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        responseTime: Date.now() - startTime + 'ms'
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'VALIDATION_ERROR',
+        'Error interno validando el token de autenticación',
+        'Intenta nuevamente o inicia sesión si el problema persiste',
+        500,
+        { 
+          originalError: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          timestamp: new Date().toISOString()
+        }
+      ));
     }
   }
 }

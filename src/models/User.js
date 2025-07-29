@@ -33,6 +33,42 @@ class User {
   }
 
   /**
+   * 📊 Actualizar última actividad del usuario
+   */
+  async updateLastActivity() {
+    try {
+      this.lastActivityAt = new Date();
+      
+      await firestore
+        .collection('users')
+        .where('email', '==', this.email)
+        .limit(1)
+        .get()
+        .then(snapshot => {
+          if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            return doc.ref.update({
+              lastActivityAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp()
+            });
+          }
+        });
+
+      logger.info('Última actividad actualizada', {
+        email: this.email,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error actualizando última actividad', {
+        email: this.email,
+        error: error.message
+      });
+      // No lanzar error para no bloquear la validación del token
+    }
+  }
+
+  /**
    * ✅ OBTENER usuario por EMAIL (identificador principal)
    */
   static async getByEmail(email) {
