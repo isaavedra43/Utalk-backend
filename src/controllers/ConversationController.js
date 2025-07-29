@@ -103,10 +103,10 @@ class ConversationController {
       });
 
       // 📊 EJECUTAR BÚSQUEDA
-      // 🔧 CORREGIDO: Pasar userEmail para filtrar por participants
+      // 🔧 CORREGIDO: Pasar participantEmail para filtrar por participants
       const result = await Conversation.list({
         ...searchOptions,
-        userEmail: req.user.email // 🔧 NUEVO: Pasar el email del usuario logeado
+        participantEmail: req.user.email // 🔧 CORREGIDO: Pasar el email del usuario logeado como participantEmail
       });
       
       // 🎯 AUTO-ASIGNACIÓN INTELIGENTE (solo para agentes sin conversaciones)
@@ -118,7 +118,7 @@ class ConversationController {
         const unassignedResult = await Conversation.list({
           ...searchOptions,
           assignedTo: null,
-          userEmail: null, // 🔧 CORREGIDO: No filtrar por userEmail para auto-asignación
+          participantEmail: null, // 🔧 CORREGIDO: No filtrar por participantEmail para auto-asignación
           limit: 3 // Solo auto-asignar pocas
         });
 
@@ -187,7 +187,7 @@ class ConversationController {
         limit: Math.min(parseInt(limit), 100),
         cursor,
         assignedTo: null,
-        userEmail: null, // 🔧 CORREGIDO: No filtrar por userEmail para conversaciones sin asignar
+        participantEmail: null, // 🔧 CORREGIDO: No filtrar por participantEmail para conversaciones sin asignar
         status: 'open', // Solo abiertas sin asignar
         sortBy: 'createdAt',
         sortOrder: 'asc' // Más antiguas primero
