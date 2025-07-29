@@ -516,11 +516,11 @@ class MessageController {
         });
         
         // ✅ RESPONDER 200 OK SIEMPRE A TWILIO
-        return res.status(200).json({
+        return ResponseHandler.success(res, {
           status: 'warning',
           message: 'Datos incompletos procesados',
           processTime: Date.now() - startTime
-        });
+        }, 'Datos incompletos procesados', 200);
       }
 
       // 🔍 NORMALIZAR TELÉFONO
@@ -532,11 +532,11 @@ class MessageController {
           messageSid
         });
         
-        return res.status(200).json({
+        return ResponseHandler.success(res, {
           status: 'error',
           message: 'Teléfono inválido procesado',
           processTime: Date.now() - startTime
-        });
+        }, 'Teléfono inválido procesado', 200);
       }
 
       // 🔍 ENCONTRAR O CREAR CONVERSACIÓN
@@ -597,13 +597,13 @@ class MessageController {
       });
 
       // ✅ RESPUESTA EXITOSA A TWILIO
-      return res.status(200).json({
+      return ResponseHandler.success(res, {
         status: 'success',
         message: 'Mensaje procesado exitosamente',
         messageId: message.id,
         conversationId: conversation.id,
         processTime: Date.now() - startTime
-      });
+      }, 'Mensaje procesado exitosamente', 200);
 
     } catch (error) {
       // ❌ ERROR CRÍTICO: Log pero responder 200 OK
@@ -622,12 +622,12 @@ class MessageController {
       });
 
       // ✅ RESPONDER SIEMPRE 200 OK A TWILIO
-      return res.status(200).json({
+      return ResponseHandler.success(res, {
         status: 'error_handled',
         message: 'Error procesado, reintento no requerido',
         error: error.message,
         processTime: Date.now() - startTime
-      });
+      }, 'Error procesado, reintento no requerido', 200);
     }
   }
 

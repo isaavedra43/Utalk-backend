@@ -126,7 +126,8 @@ Este backend está **100% alineado** con las expectativas del frontend React + T
 **Estructura de Respuesta (EXACTA):**
 ```json
 {
-  "conversations": [
+  "success": true,
+  "data": [
     {
       "id": "conv_001_002",
       "contact": {
@@ -167,9 +168,13 @@ Este backend está **100% alineado** con las expectativas del frontend React + T
       "updatedAt": "2024-01-15T11:00:00.000Z"
     }
   ],
-  "total": 10,
-  "page": 1,
-  "limit": 20
+  "pagination": {
+    "hasMore": false,
+    "limit": 20,
+    "totalResults": 1
+  },
+  "message": "1 conversaciones encontradas",
+  "timestamp": "2024-01-15T11:00:00.000Z"
 }
 ```
 

@@ -196,22 +196,24 @@ async function testConversationsEndpoint() {
 
     console.log('✅ Respuesta recibida para conversaciones');
     
-    // Verificar estructura básica
+    // Verificar estructura básica estándar
     const hasCorrectStructure = 
-      response.data.hasOwnProperty('conversations') &&
-      response.data.hasOwnProperty('total') &&
-      response.data.hasOwnProperty('page') &&
-      response.data.hasOwnProperty('limit');
+      response.data.hasOwnProperty('success') &&
+      response.data.hasOwnProperty('data') &&
+      Array.isArray(response.data.data);
 
     if (hasCorrectStructure) {
       console.log('🎉 ¡ESTRUCTURA DE CONVERSACIONES CORRECTA!');
       console.log('📊 Estadísticas:', {
-        conversationsCount: response.data.conversations?.length || 0,
-        responseFields: Object.keys(response.data)
+        conversationsCount: response.data.data?.length || 0,
+        responseFields: Object.keys(response.data),
+        hasSuccess: response.data.success,
+        hasPagination: !!response.data.pagination
       });
     } else {
       console.log('❌ Estructura de conversaciones incorrecta');
       console.log('📋 Campos presentes:', Object.keys(response.data));
+      console.log('📄 Esperado: { success: true, data: [...] }');
     }
 
   } catch (error) {

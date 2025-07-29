@@ -239,8 +239,8 @@ export const messagesService = {
   },
 
   // Obtener mensajes de una conversación
-  getConversation: async (phone, params = {}) => {
-    const response = await apiClient.get(`/messages/conversation/${phone}`, { params });
+  getConversation: async (conversationId, params = {}) => {
+    const response = await apiClient.get(`/conversations/${conversationId}/messages`, { params });
     return response.data;
   },
 

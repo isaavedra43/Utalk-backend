@@ -350,8 +350,8 @@ export const useMessages = () => {
       setLoading(true);
       setError(null);
       
-      const response = await apiClient.get('/messages/conversations');
-      setConversations(response.data.conversations);
+      const response = await apiClient.get('/conversations');
+      setConversations(response.data.data);
       return response.data;
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Error al cargar conversaciones';

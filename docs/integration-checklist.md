@@ -126,11 +126,11 @@ interface ContactCreateRequest {
 ## 💬 Módulo de Mensajes
 
 ### Endpoints Implementados ✅
-- `GET /messages` - Listar mensajes con filtros
+- `GET /conversations/:id/messages` - Mensajes de una conversación
 - `POST /messages/send` - Enviar mensaje
 - `GET /messages/:id` - Obtener mensaje por ID
 - `POST /messages/:id/read` - Marcar como leído
-- `GET /messages/conversation/:contactId` - Conversación completa
+- `GET /conversations/:id/messages` - Mensajes de conversación específica
 - `GET /messages/stats` - Estadísticas de mensajes
 - `GET /webhook/whatsapp` - Verificación webhook
 - `POST /webhook/whatsapp` - Procesar webhook Twilio
