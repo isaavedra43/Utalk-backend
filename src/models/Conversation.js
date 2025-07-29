@@ -59,6 +59,36 @@ class Conversation {
   }
 
   /**
+   * 🔧 NUEVA FUNCIÓN: Asegurar que participants incluya cliente y agente
+   * Garantiza que el array participants siempre contenga:
+   * 1. El número de teléfono del cliente
+   * 2. El email del agente/admin (si está asignado)
+   * Sin duplicados
+   */
+  static ensureParticipantsArray(customerPhone, agentEmail = null, existingParticipants = []) {
+    const participants = [...existingParticipants];
+    
+    // ✅ AGREGAR TELÉFONO DEL CLIENTE (si no existe)
+    if (customerPhone && !participants.includes(customerPhone)) {
+      participants.push(customerPhone);
+    }
+    
+    // ✅ AGREGAR EMAIL DEL AGENTE (si no existe)
+    if (agentEmail && !participants.includes(agentEmail)) {
+      participants.push(agentEmail);
+    }
+    
+    logger.info('🔧 Array de participants actualizado', {
+      customerPhone,
+      agentEmail,
+      participantsCount: participants.length,
+      participants
+    });
+    
+    return participants;
+  }
+
+  /**
    * DEPRECATED: Ya no se usa.
    */
   validateAndNormalizeParticipants (participants) {
@@ -103,20 +133,22 @@ class Conversation {
     // Si no existe, crear una nueva.
     logger.info(`No se encontró conversación abierta. Creando nueva para ${normalizedPhone.normalized}`);
     const conversationId = uuidv4();
+    
+    // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
+    const participants = Conversation.ensureParticipantsArray(
+      normalizedPhone.normalized, 
+      agentEmail
+    );
+    
     const conversationData = {
       id: conversationId,
       customerPhone: normalizedPhone.normalized,
-      participants: [normalizedPhone.normalized], // Inicialmente solo el cliente
+      participants: participants, // 🔧 CORREGIDO: Array completo con cliente y agente
       status: 'open',
       assignedTo: agentEmail, // ✅ EMAIL del agente (puede ser null)
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
-
-    // ✅ AGREGAR EMAIL del agente a participants si está asignado
-    if (agentEmail) {
-      conversationData.participants.push(agentEmail);
-    }
 
     const conversation = new Conversation(conversationData);
     await conversation.save();
@@ -425,8 +457,16 @@ class Conversation {
       previousAssignedTo: this.assignedTo,
     });
 
+    // 🔧 CORREGIDO: Actualizar participants para incluir al nuevo agente
+    const updatedParticipants = Conversation.ensureParticipantsArray(
+      this.customerPhone,
+      userEmail,
+      this.participants || []
+    );
+
     const updateData = {
       assignedTo: userEmail,
+      participants: updatedParticipants, // 🔧 CORREGIDO: Actualizar participants
       updatedAt: Timestamp.now(),
     };
 
@@ -437,7 +477,9 @@ class Conversation {
 
     await this.update(updateData);
 
+    // 🔧 CORREGIDO: Actualizar instancia local
     this.assignedTo = userEmail;
+    this.participants = updatedParticipants;
     if (userName) {
       this.assignedToName = userName;
     }

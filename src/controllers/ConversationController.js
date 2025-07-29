@@ -345,19 +345,21 @@ class ConversationController {
       }
 
       // 🆕 CREAR CONVERSACIÓN
+      // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
+      const participants = Conversation.ensureParticipantsArray(
+        phoneValidation.normalized,
+        assignedAgent?.email || null
+      );
+      
       const conversationData = {
         customerPhone: phoneValidation.normalized,
         assignedTo: assignedAgent?.email || null,
         assignedToName: assignedAgent?.name || null,
         priority,
         tags,
-        participants: [phoneValidation.normalized],
+        participants: participants, // 🔧 CORREGIDO: Array completo con cliente y agente
         createdBy: req.user.email
       };
-
-      if (assignedAgent) {
-        conversationData.participants.push(assignedAgent.email);
-      }
 
       const conversation = await Conversation.create(conversationData);
 
