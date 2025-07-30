@@ -8,10 +8,11 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Message {
   constructor (data) {
-    // ID y ConversationID (UUIDs)
-    if (!data.id) throw new Error('Message ID es requerido');
+    // ID y ConversationID (UUIDs) - ACEPTAR AMBOS FORMATOS
+    const messageId = data.id || data.messageId;
+    if (!messageId) throw new Error('Message ID es requerido');
     if (!data.conversationId) throw new Error('conversationId (UUID) es requerido');
-    this.id = data.id;
+    this.id = messageId;
     this.conversationId = data.conversationId;
 
     // Contenido

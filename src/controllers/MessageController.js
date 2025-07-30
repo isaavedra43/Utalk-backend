@@ -212,8 +212,9 @@ class MessageController {
             conversation.customerPhone,
             content
           );
-          messageData.id = sentMessage.sid;
+          // ✅ MANTENER EL UUID DEL FRONTEND COMO ID PRINCIPAL
           messageData.metadata.twilioSid = sentMessage.sid;
+          messageData.metadata.sentViaWhatsApp = true;
         } catch (twilioError) {
           logger.error('Error enviando mensaje por Twilio', {
             conversationId,
@@ -240,7 +241,7 @@ class MessageController {
               content || `📎 ${fileMetadata.originalName || 'Archivo adjunto'}`,
               mediaUrl
             );
-            messageData.id = sentMessage.sid;
+            // ✅ MANTENER EL UUID DEL FRONTEND COMO ID PRINCIPAL
             messageData.metadata.twilioSid = sentMessage.sid;
             messageData.metadata.sentViaWhatsApp = true;
           } else {
