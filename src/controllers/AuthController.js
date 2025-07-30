@@ -102,17 +102,20 @@ class AuthController {
         });
       }
 
+      // ✅ PAYLOAD DEL JWT - Claims que se incluyen en el token
       const tokenPayload = {
-          email: user.email,
-          role: user.role,
-        name: user.name,
-        iat: Math.floor(Date.now() / 1000),
+          email: user.email,        // Identificador principal del usuario
+          role: user.role,          // Rol para autorización
+        name: user.name,          // Nombre para UI
+        iat: Math.floor(Date.now() / 1000), // Timestamp de emisión
       };
 
+      // ✅ GENERACIÓN DEL JWT CON CLAIMS DE SEGURIDAD
+      // IMPORTANTE: issuer y audience deben coincidir con la validación en auth.js
       const token = jwt.sign(tokenPayload, jwtSecret, { 
         expiresIn: jwtExpiresIn,
-        issuer: 'utalk-backend',
-        audience: 'utalk-frontend',
+        issuer: 'utalk-backend',      // Debe coincidir con auth.js:55
+        audience: 'utalk-frontend',   // Debe coincidir con auth.js:56
       });
 
       // LOGIN EXITOSO

@@ -56,6 +56,27 @@ const authMiddleware = async (req, res, next) => {
         issuer: 'utalk-backend',
         audience: 'utalk-frontend',
       });
+      
+      // ✅ VALIDACIÓN ADICIONAL DE CLAIMS CRÍTICOS
+      if (!decodedToken.email) {
+        logger.error('Token sin claim email requerido', {
+          tokenPayload: decodedToken,
+          ip: req.ip,
+        });
+        return res.status(401).json({
+          error: 'Token inválido',
+          message: 'El token no contiene el email requerido.',
+          code: 'MISSING_EMAIL_CLAIM',
+        });
+      }
+      
+      if (!decodedToken.role) {
+        logger.warn('Token sin claim role', {
+          email: decodedToken.email,
+          ip: req.ip,
+        });
+        // No es crítico, pero es recomendable
+      }
     } catch (jwtError) {
       let errorMessage = 'Token inválido o expirado.';
       let errorCode = 'INVALID_TOKEN';
