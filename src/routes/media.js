@@ -1,8 +1,5 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs').promises;
 const { authMiddleware } = require('../middleware/auth');
-const MediaService = require('../services/MediaService');
 const MediaUploadController = require('../controllers/MediaUploadController');
 const logger = require('../utils/logger');
 
@@ -42,7 +39,7 @@ router.delete('/file/:fileId',
 
 /**
  * @route GET /media/:category/:filename
- * @desc Servir archivo multimedia con autenticación (LEGACY - para compatibilidad)
+ * @desc Redirigir a Firebase Storage (LEGACY - solo para compatibilidad)
  * @access Private
  */
 router.get('/:category/:filename', authMiddleware, async (req, res) => {
@@ -66,58 +63,23 @@ router.get('/:category/:filename', authMiddleware, async (req, res) => {
       });
     }
 
-    const relativePath = `${category}/${filename}`;
-    const mediaInfo = await MediaService.getMediaInfo(relativePath);
+    logger.warn('Acceso a ruta legacy de media - migrar a Firebase Storage URLs', {
+      userEmail: req.user.email,
+      category,
+      filename,
+      path: req.originalUrl
+    });
 
-    if (!mediaInfo.exists) {
-      return res.status(404).json({
-        error: 'Archivo no encontrado',
-        message: 'El archivo solicitado no existe',
-      });
-    }
-
-    // Determinar tipo de contenido
-    const ext = path.extname(filename).toLowerCase();
-    let contentType = 'application/octet-stream';
-
-    const mimeTypes = {
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.gif': 'image/gif',
-      '.webp': 'image/webp',
-      '.mp4': 'video/mp4',
-      '.webm': 'video/webm',
-      '.ogv': 'video/ogg',
-      '.mp3': 'audio/mpeg',
-      '.wav': 'audio/wav',
-      '.ogg': 'audio/ogg',
-      '.weba': 'audio/webm',
-      '.pdf': 'application/pdf',
-      '.txt': 'text/plain',
-    };
-
-    if (mimeTypes[ext]) {
-      contentType = mimeTypes[ext];
-    }
-
-    // Configurar headers de respuesta
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Length', mediaInfo.size);
-    res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 año
-
-    // Leer y enviar archivo
-    const fileBuffer = await fs.readFile(mediaInfo.fullPath);
-    res.send(fileBuffer);
-
-    logger.info('Archivo multimedia servido', {
-      userId: req.user.id,
-      file: relativePath,
-      size: mediaInfo.size,
-      contentType,
+    return res.status(410).json({
+      error: 'Endpoint obsoleto',
+      message: 'Esta ruta ha sido migrada a Firebase Storage. Use /api/media/upload para subir archivos y las URLs firmadas para acceder a ellos.',
+      migration: {
+        upload: '/api/media/upload',
+        info: '/api/media/file/:fileId'
+      }
     });
   } catch (error) {
-    logger.error('Error sirviendo archivo multimedia:', error);
+    logger.error('Error en ruta legacy de media:', error);
     res.status(500).json({
       error: 'Error interno del servidor',
     });

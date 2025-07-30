@@ -44,7 +44,7 @@ router.get('/search',
  */
 router.get('/export',
   requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  ContactController.exportCSV,
+  ContactController.export,
 );
 
 /**
@@ -115,7 +115,7 @@ router.delete('/:id/tags',
  */
 router.post('/import',
   requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
-  ContactController.importCSV,
+  ContactController.import,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)

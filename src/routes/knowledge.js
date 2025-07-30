@@ -12,7 +12,7 @@ const router = express.Router();
  */
 router.get('/',
   requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  KnowledgeController.list,
+  KnowledgeController.listKnowledge,
 );
 
 /**
@@ -22,8 +22,9 @@ router.get('/',
  */
 router.post('/',
   requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess para permitir agents
+  KnowledgeController.uploadMiddleware(),
   validate(schemas.knowledge.create),
-  KnowledgeController.create,
+  KnowledgeController.createKnowledge,
 );
 
 /**
@@ -33,7 +34,7 @@ router.post('/',
  */
 router.get('/search',
   requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  KnowledgeController.search,
+  KnowledgeController.searchKnowledge,
 );
 
 /**
@@ -53,7 +54,7 @@ router.get('/categories',
  */
 router.get('/:id',
   requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  KnowledgeController.getById,
+  KnowledgeController.getKnowledge,
 );
 
 /**
@@ -63,8 +64,9 @@ router.get('/:id',
  */
 router.put('/:id',
   requireAdmin,
+  KnowledgeController.uploadMiddleware(),
   validate(schemas.knowledge.update),
-  KnowledgeController.update,
+  KnowledgeController.updateKnowledge,
 );
 
 /**
@@ -74,7 +76,7 @@ router.put('/:id',
  */
 router.delete('/:id',
   requireAdmin,
-  KnowledgeController.delete,
+  KnowledgeController.deleteKnowledge,
 );
 
 /**
@@ -84,7 +86,7 @@ router.delete('/:id',
  */
 router.post('/:id/publish',
   requireAdmin,
-  KnowledgeController.publish,
+  KnowledgeController.publishKnowledge,
 );
 
 /**
@@ -94,7 +96,7 @@ router.post('/:id/publish',
  */
 router.post('/:id/unpublish',
   requireAdmin,
-  KnowledgeController.unpublish,
+  KnowledgeController.unpublishKnowledge,
 );
 
 // EXPORT PATTERN: Single router export (STANDARD for all routes)
