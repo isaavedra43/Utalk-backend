@@ -23,6 +23,7 @@ const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHa
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const MediaUploadController = require('../controllers/MediaUploadController');
+const { v4: uuidv4 } = require('uuid');
 
 class MessageController {
   /**
@@ -150,9 +151,16 @@ class MessageController {
         throw new ApiError('MISSING_CONTENT', 'Debes proporcionar contenido o un archivo multimedia', 'Agrega texto o sube un archivo', 400);
       }
 
-      // 🆔 VALIDAR messageId REQUERIDO
-      if (!messageId) {
-        throw new ApiError('MISSING_MESSAGE_ID', 'messageId es requerido', 'El frontend debe enviar un messageId UUID válido', 400);
+      // 🆔 VALIDAR O GENERAR messageId
+      let finalMessageId = messageId;
+      if (!finalMessageId) {
+        // Generar UUID si el frontend no lo envía
+        finalMessageId = uuidv4();
+        logger.info('MessageId generado automáticamente', {
+          conversationId,
+          generatedMessageId: finalMessageId,
+          senderEmail: req.user.email
+        });
       }
 
       // VALIDAR URL DE FIREBASE STORAGE SI EXISTE
@@ -167,7 +175,7 @@ class MessageController {
 
       // 📝 PREPARAR DATOS DEL MENSAJE
       const messageData = {
-        id: messageId,              // ✅ CORREGIDO: Usar messageId del frontend como id
+        id: finalMessageId,              // ✅ CORREGIDO: Usar messageId del frontend como id
         conversationId,
         content: content || null,
         type: mediaUrl ? 'media' : 'text',

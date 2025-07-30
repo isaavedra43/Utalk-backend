@@ -64,17 +64,17 @@ function extractParticipants (conversationId) {
 }
 
 /**
- * Valida que un conversationId tenga el formato correcto
+ * Valida que un conversationId tenga el formato correcto (UUID)
  * @param {string} conversationId - ID a validar
  * @returns {boolean} - true si es válido
  */
 function isValidConversationId (conversationId) {
   try {
     if (!conversationId || typeof conversationId !== 'string') return false;
-    if (!conversationId.startsWith('conv_')) return false;
-
-    extractParticipants(conversationId);
-    return true;
+    
+    // NUEVO: Validar formato UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(conversationId);
   } catch {
     return false;
   }
