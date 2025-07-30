@@ -1,129 +1,65 @@
-# ✅ UTalk Backend - API 100% Alineada con Frontend
+# 🚀 UTalk Backend API
 
-## 🎯 **ALINEAMIENTO COMPLETO FRONTEND-BACKEND**
+Backend completo para la aplicación de mensajería omnicanal UTalk con WhatsApp, gestión de conversaciones, campañas de marketing y base de conocimiento.
 
-Este backend ha sido **completamente alineado** con las especificaciones exactas del frontend. Implementa autenticación exclusiva vía Firebase Auth y estructura canónica de datos sin margen de error.
+## 📋 Características Principales
 
-### 🔒 **CAMBIOS DE ALINEAMIENTO IMPLEMENTADOS:**
+- **🔐 Autenticación JWT robusta** con roles y permisos granulares
+- **📱 Integración WhatsApp completa** via Twilio con webhooks
+- **💬 Chat tiempo real** con Socket.IO y gestión de estado
+- **📊 Sistema de conversaciones avanzado** con asignación automática
+- **🏷️ Gestión de contactos** con tags y campos personalizados
+- **📢 Campañas de marketing** automatizadas y programadas
+- **📚 Base de conocimiento** con documentos y FAQs
+- **📈 Dashboard con métricas** y analytics en tiempo real
+- **👥 Gestión de equipo** y roles de usuario
+- **📁 Manejo de multimedia** (imágenes, videos, documentos, audio)
 
-- ✅ **Login exclusivo vía Firebase Auth**: Solo acepta `{ idToken }` de Firebase
-- ✅ **Estructura canónica exacta**: Respuestas sin `data`, `result`, ni `pagination` anidada  
-- ✅ **Campos sin null/undefined**: Valores por defecto en todas las respuestas
-- ✅ **Timestamps ISO strings**: Todos los timestamps en formato ISO 8601
-- ✅ **WebSockets alineados**: Eventos `message:new` con estructura consistente
-- ✅ **Endpoints específicos**: GET `/conversations/:id/messages` y POST `/messages/send`
+## 🏗️ Arquitectura y Tecnologías
 
-## 🎯 **ESTRUCTURA CANÓNICA DE DATOS**
+- **Backend:** Node.js + Express.js
+- **Base de datos:** Google Cloud Firestore
+- **Autenticación:** JWT con email como identificador principal  
+- **Mensajería:** Twilio WhatsApp Business API
+- **Tiempo real:** Socket.IO para eventos instantáneos
+- **Storage:** Sistema de archivos local + validación multimedia
+- **Deployment:** Railway con Docker containerization
 
-Este backend está **100% alineado** con las expectativas del frontend React + TypeScript. Todas las respuestas siguen estructuras **exactas** y **consistentes**.
+## 📡 **ESTRUCTURA DE RESPUESTA API UNIFICADA**
 
----
+Todos los endpoints del sistema responden con la siguiente estructura estándar siguiendo las mejores prácticas REST según [Quilltez](https://quilltez.com/blog/maintaining-standard-rest-api-response-format-expressjs) y [Medium](https://medium.com/@seun.thedeveloper/simplifying-api-responses-with-node-js-introducing-a-response-service-46c641ce2411):
 
-## 🔐 **LOGIN EXCLUSIVO VÍA FIREBASE AUTH**
-
-### **POST** `/api/auth/login`
-
-**IMPORTANTE:** Este endpoint SOLO acepta idToken de Firebase Auth. No hay login manual.
-
-**Request Body:**
+### ✅ **Respuesta Exitosa:**
 ```json
 {
-  "idToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." 
-}
-```
-
-**Response (ESTRUCTURA EXACTA):**
-```json
-{
-  "user": {
-    "id": "firebase_uid_123",
-    "email": "usuario@example.com", 
-    "name": "Usuario Test",
-    "role": "viewer"
+  "success": true,
+  "data": [...] | {...},
+  "message": "Descripción opcional del resultado",
+  "pagination": {  // Solo en endpoints paginados
+    "hasMore": false,
+    "nextCursor": "cursor_token",
+    "limit": 20,
+    "totalResults": 150
   },
-  "token": "jwt_token_backend_para_api"
+  "timestamp": "2024-01-15T11:00:00.000Z"
 }
 ```
 
-**Flujo de Autenticación:**
-1. Frontend autentica con Firebase Auth
-2. Frontend obtiene `idToken` de Firebase  
-3. Frontend envía `idToken` al backend
-4. Backend valida con Firebase Admin SDK
-5. Backend crea/sincroniza usuario en Firestore
-6. Backend genera JWT propio para la API
-7. Frontend usa JWT del backend para todas las requests
-
----
-
-## 📨 **ENDPOINT PRINCIPAL: MENSAJES DE CONVERSACIÓN**
-
-### **GET** `/api/conversations/:id/messages`
-
-**Descripción:** Obtiene mensajes de una conversación específica con paginación basada en cursor.
-
-**Parámetros de Query:**
-```javascript
-{
-  limit: 50,           // Número de mensajes por página (máx: 100)
-  cursor: "string",    // Cursor para paginación (opcional)
-  orderBy: "timestamp", // Campo de ordenamiento
-  order: "desc"        // Orden: "asc" o "desc"
-}
-```
-
-**Estructura de Respuesta (EXACTA):**
+### ❌ **Respuesta de Error:**
 ```json
 {
-  "messages": [
-    {
-      "id": "msg_12345",
-      "conversationId": "conv_1234567890_0987654321",
-      "content": "Hola, necesito ayuda con mi pedido",
-      "type": "text",
-      "timestamp": "2024-01-15T10:30:00.000Z",
-      "sender": {
-        "id": "+1234567890",
-        "name": "Juan Pérez",
-        "type": "contact",
-        "avatar": null
-      },
-      "direction": "inbound",
-      "attachments": [
-        {
-          "id": "media_001",
-          "name": "foto.jpg",
-          "url": "https://storage.example.com/media/foto.jpg",
-          "type": "image/jpeg",
-          "size": 12345
-        }
-      ],
-      "isRead": true,
-      "isDelivered": true,
-      "metadata": {
-        "twilioSid": "SM1234567890abcdef",
-        "userId": null,
-        "from": "+1234567890",
-        "to": "+0987654321",
-        "status": "delivered"
-      }
-    }
-  ],
-  "total": 25,
-  "page": 1,
-  "limit": 50
+  "success": false,
+  "error": "ERROR_CODE",
+  "message": "Descripción del error",
+  "suggestion": "Cómo solucionarlo",
+  "details": {},
+  "timestamp": "2024-01-15T11:00:00.000Z"
 }
 ```
 
-**Campos NUNCA devueltos:** `data`, `result`, `items`, `pagination` anidada.
+### 📋 **Ejemplos por Módulo:**
 
----
-
-## 💬 **ENDPOINT: LISTA DE CONVERSACIONES**
-
-### **GET** `/api/conversations`
-
-**Estructura de Respuesta (EXACTA):**
+**Conversaciones:**
 ```json
 {
   "success": true,
@@ -137,31 +73,12 @@ Este backend está **100% alineado** con las expectativas del frontend React + T
         "channel": "whatsapp"
       },
       "lastMessage": {
-        "id": "msg_12345",
-        "content": "Gracias por la ayuda",
-        "type": "text",
-        "timestamp": "2024-01-15T11:00:00.000Z",
-        "sender": {
-          "id": "+1234567890",
-          "name": "Cliente X", 
-          "type": "contact",
-          "avatar": null
-        },
-        "direction": "inbound",
-        "attachments": [],
-        "isRead": false,
-        "isDelivered": true,
-        "metadata": {
-          "twilioSid": "SM1234567890abcdef",
-          "userId": null,
-          "from": "+1234567890",
-          "to": "+0987654321",
-          "status": "delivered"
-        }
+        "content": "Último mensaje",
+        "timestamp": "2024-01-15T10:30:00.000Z"
       },
       "status": "open",
       "assignedTo": {
-        "id": "user_123",
+        "email": "agent@company.com",
         "name": "Agente 1"
       },
       "createdAt": "2024-01-15T10:30:00.000Z",
@@ -178,376 +95,234 @@ Este backend está **100% alineado** con las expectativas del frontend React + T
 }
 ```
 
----
-
-## 📤 **ENVÍO DE MENSAJES ALINEADO**
-
-### **POST** `/api/messages/send`
-
-**ESTRUCTURA ALINEADA CON FRONTEND:**
-
-**Request Body:**
+**Mensajes:**
 ```json
 {
-  "conversationId": "conv_1234567890_0987654321",  // Opcional si se envía 'to'
-  "to": "+1234567890",                             // Opcional si se envía 'conversationId'  
-  "content": "Mensaje desde backend alineado",
-  "type": "text",                                  // "text", "image", "audio", etc.
-  "attachments": [],                               // Array de attachments opcionales
-  "metadata": {}                                   // Metadata opcional
-}
-```
-
-**Response (ESTRUCTURA CANÓNICA):**
-```json
-{
-  "message": {
-    "id": "msg_12345",
-    "conversationId": "conv_1234567890_0987654321",
-    "content": "Mensaje desde backend alineado",
-    "type": "text",
-    "timestamp": "2024-01-15T10:30:00.000Z",
-    "sender": {
-      "id": "agent_123",
-      "name": "Usuario Test", 
-      "type": "agent"
-    },
-    "direction": "outbound",
-    "attachments": [],
-    "isRead": false,
-    "isDelivered": true,
-    "metadata": {
-      "twilioSid": "SM_123",
-      "userId": "agent_123",
-      "from": "+0987654321",
-      "to": "+1234567890", 
-      "status": "sent"
+  "success": true,
+  "data": [
+    {
+      "id": "msg_001",
+      "conversationId": "conv_001_002", 
+      "content": "Hola, ¿cómo están?",
+      "senderIdentifier": "+1234567890",
+      "recipientIdentifier": "agent@company.com",
+      "direction": "inbound",
+      "type": "text",
+      "status": "read",
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "media": []
     }
-  }
-}
-```
-
-**Comportamiento:**
-- Si solo se envía `conversationId`, extrae el número destino
-- Si solo se envía `to`, crea/obtiene la conversación automáticamente
-- Envía via Twilio WhatsApp API
-- Guarda en Firestore con estructura canónica
-- Emite evento WebSocket `message:new` inmediatamente
-- Devuelve mensaje con estructura exacta del modelo
-
----
-
-## 🔄 **WEBSOCKET EVENTS**
-
-### **Evento:** `new-message`
-```json
-{
-  "type": "new-message",
-  "conversationId": "conv_1234567890_0987654321",
-  "message": {
-    // ✅ MISMA estructura exacta que REST API
-    "id": "msg_12345",
-    "conversationId": "conv_1234567890_0987654321",
-    "content": "Nuevo mensaje",
-    "type": "text",
-    "timestamp": "2024-01-15T10:30:00.000Z",
-    "sender": {
-      "id": "+1234567890",
-      "name": "Cliente",
-      "type": "contact", 
-      "avatar": null
-    },
-    "direction": "inbound",
-    "attachments": [],
-    "isRead": false,
-    "isDelivered": true,
-    "metadata": {
-      "twilioSid": "SM1234567890abcdef",
-      "userId": null,
-      "from": "+1234567890",
-      "to": "+0987654321",
-      "status": "delivered"
-    }
+  ],
+  "pagination": {
+    "hasMore": true,
+    "nextCursor": "cursor_token_123",
+    "limit": 50
   },
-  "timestamp": 1705320600000
+  "message": "50 mensajes encontrados"
 }
 ```
 
----
+## 🚀 Instalación y Configuración
 
-## 🔐 **AUTENTICACIÓN**
+### Prerrequisitos
+- Node.js 18+ y npm
+- Cuenta Google Cloud con Firestore habilitado
+- Cuenta Twilio con WhatsApp Business configurado
+- Variables de entorno configuradas
 
-**Header requerido:**
-```
-Authorization: Bearer <jwt-token>
-```
-
-**Estructura del token:** JWT firmado con `process.env.JWT_SECRET`
-
-**Campos en `req.user`:**
-```json
-{
-  "id": "user_12345",
-  "email": "usuario@example.com", 
-  "role": "admin|agent|viewer"
-}
-```
-
----
-
-## 📋 **TIPOS DE DATOS GARANTIZADOS**
-
-### **Mensaje (Message):**
-- ✅ `id`: string (NUNCA null/undefined)
-- ✅ `conversationId`: string (formato: `conv_XXXXXX_YYYYYY`)
-- ✅ `content`: string (puede ser string vacío `""`)
-- ✅ `type`: string (`text|image|file|audio|video|document`)
-- ✅ `timestamp`: string ISO 8601 (NUNCA Firestore timestamp object)
-- ✅ `sender`: object (NUNCA null, siempre con `id`, `name`, `type`)
-- ✅ `direction`: string (`inbound|outbound`)
-- ✅ `attachments`: array (NUNCA null, puede ser `[]`)
-- ✅ `isRead`: boolean (NUNCA string)
-- ✅ `isDelivered`: boolean (NUNCA string)
-- ✅ `metadata`: object (NUNCA null)
-
-### **Conversación (Conversation):**
-- ✅ `id`: string (NUNCA null/undefined)
-- ✅ `contact`: object (NUNCA null, siempre con `id`, `name`, `channel`)
-- ✅ `lastMessage`: Message object o `null`
-- ✅ `status`: string (`open|closed|pending|archived`)
-- ✅ `assignedTo`: object con `{id, name}` o `null`
-- ✅ `createdAt`: string ISO 8601
-- ✅ `updatedAt`: string ISO 8601
-
----
-
-## 🚨 **LOGS DE VERIFICACIÓN**
-
-El backend incluye logs automáticos para verificar la estructura:
-
+### Instalación
 ```bash
-🔍 PRIMER MENSAJE FORMATEADO: {"id":"msg_12345","hasAllFields":{"id":true,"conversationId":true,"content":true,"type":true,"timestamp":true,"sender":true,"direction":true,"isRead":true,"isDelivered":true},"senderType":"contact","attachmentsCount":0}
+# Clonar repositorio
+git clone https://github.com/tu-org/utalk-backend.git
+cd utalk-backend
 
-📤 ENVIANDO RESPUESTA FINAL: {"responseStructure":["messages","total","page","limit"],"messagesCount":1,"hasMessages":true,"firstMessageStructure":["id","conversationId","content","type","timestamp","sender","direction","attachments","isRead","isDelivered","metadata"],"total":1,"limit":50,"page":1}
+# Instalar dependencias
+npm install
 
-RESPONSE_FINAL: {"messagesCount":1,"hasMessages":true,"structure":["messages","total","page","limit"],"sampleMessage":["id","conversationId","content","type","timestamp","sender","direction","attachments","isRead","isDelivered","metadata"]}
-```
+# Configurar variables de entorno
+cp env.example .env
+# Editar .env con tus credenciales
 
----
-
-## ✅ **GARANTÍAS DEL BACKEND**
-
-1. **NUNCA devuelve:** `data`, `result`, `items`, `pagination` anidada
-2. **SIEMPRE devuelve:** Arrays con nombres específicos (`messages`, `conversations`)
-3. **TODOS los timestamps:** Convertidos a ISO 8601 strings
-4. **TODOS los objetos:** Limpiados de `undefined`/`null` donde no corresponde
-5. **ESTRUCTURA IDÉNTICA:** REST y WebSocket usan la misma estructura
-6. **COMPATIBILIDAD:** 100% alineado con interfaces TypeScript del frontend
-
----
-
-## 🔧 **TESTING CON FRONTEND**
-
-### **Test rápido:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://localhost:3000/api/conversations/conv_123_456/messages?limit=10"
-```
-
-**Debe devolver EXACTAMENTE:**
-```json
-{
-  "messages": [...],
-  "total": N,
-  "page": 1, 
-  "limit": 10
-}
-```
-
-### **Verificación de estructura:**
-- ✅ Campo `messages` presente (no `data`)
-- ✅ Cada mensaje tiene `sender` object
-- ✅ Cada mensaje tiene `isRead` boolean
-- ✅ Timestamps son strings ISO 8601
-- ✅ Arrays nunca son `null`
-
----
-
-## 📚 **DOCUMENTACIÓN ADICIONAL**
-
-- **Swagger/OpenAPI:** `/docs/swagger.yaml`
-- **Esquemas de validación:** `/src/utils/validation.js`
-- **Modelos de datos:** `/src/models/`
-- **Guía de integración:** `/docs/integration-checklist.md`
-
----
-
-## 🔥 **ÍNDICES REQUERIDOS EN FIRESTORE**
-
-### **Índices Críticos (Requeridos para Producción):**
-
-#### **Colección `conversations`:**
-```javascript
-// Filtro por agente asignado
-conversations.assignedTo_lastMessageAt
-
-// Filtro por estado
-conversations.status_lastMessageAt
-
-// Filtro por teléfono del cliente
-conversations.customerPhone_lastMessageAt
-
-// Filtro compuesto
-conversations.assignedTo_status_lastMessageAt
-```
-
-#### **Colección `messages` (Collection Group):**
-```javascript
-// Ordenamiento por timestamp
-messages.timestamp
-
-// Filtro por dirección
-messages.direction_timestamp
-
-// Filtro por tipo
-messages.type_timestamp
-
-// Filtro por usuario
-messages.userId_timestamp
-```
-
-### **Comandos para Crear Índices:**
-
-```bash
-# Verificar índices existentes
-firebase firestore:indexes:list --project=utalk-backend
-
-# Crear índices específicos
-firebase firestore:indexes:create --project=utalk-backend --collection=conversations --fields=assignedTo,lastMessageAt
-
-# Ver documentación completa
-cat docs/FIRESTORE_INDEXES.md
-```
-
----
-
-## ⚡ **OPTIMIZACIÓN DE PERFORMANCE**
-
-### **Paginación Basada en Cursor:**
-
-El sistema implementa paginación eficiente usando cursores de Firestore:
-
-```javascript
-// Primera página
-GET /api/conversations/conv_123/messages?limit=50
-
-// Página siguiente (usando cursor)
-GET /api/conversations/conv_123/messages?limit=50&cursor=eyJ0aW1lc3RhbXAiOiIyMDI0LTAxLTE1VDEwOjMwOjAwLjAwMFoiLCJpZCI6Im1zZ18xMjM0NSJ9
-```
-
-### **Métricas de Performance Esperadas:**
-
-- **Query de conversaciones**: < 200ms
-- **Query de mensajes**: < 100ms
-- **Paginación**: < 50ms por página
-- **Búsqueda**: < 300ms
-
-### **Logs de Debugging:**
-
-El sistema incluye logs detallados para monitoreo:
-
-```javascript
-// Log de paginación
-[CONVERSATIONS API PAGINATION] Detalles de paginación {
-  pagination: { limit: 50, orderBy: 'timestamp', order: 'desc' },
-  results: { total: 25, hasMore: false, showing: 25 },
-  performance: { executionTime: 45, itemsPerSecond: 556 }
-}
-
-// Log de filtros aplicados
-[CONVERSATIONS API FILTERS] Filtros aplicados {
-  activeFilters: { assignedTo: 'user123', status: 'open' },
-  totalFilters: 3,
-  activeFiltersCount: 2
-}
-```
-
-### **Monitoreo de Índices:**
-
-```javascript
-// Verificar uso de índices
-[CONVERSATIONS API INDEX] Uso de índice {
-  collection: 'conversations',
-  filters: { assignedTo: 'user123', status: 'open' },
-  indexUsed: 'assignedTo_status_lastMessageAt',
-  performance: { executionTime: 150, indexEfficiency: 'excellent' }
-}
-```
-
----
-
-## 📊 **MONITOREO Y DEBUGGING**
-
-### **Logs Automáticos:**
-
-- ✅ **Conteo de resultados** por query
-- ✅ **Filtros aplicados** con razones
-- ✅ **Performance de endpoints** con métricas
-- ✅ **Uso de índices** con eficiencia
-- ✅ **Errores de validación** detallados
-
-### **Métricas de Performance:**
-
-```javascript
-// Ejemplo de log de performance
-[CONVERSATIONS API PERFORMANCE] Métricas de endpoint {
-  metrics: {
-    executionTime: 245,
-    queriesExecuted: 2,
-    documentsRead: 50
-  },
-  performance: {
-    queriesPerSecond: 8,
-    documentsPerSecond: 204
-  }
-}
-```
-
-### **Alertas Recomendadas:**
-
-1. **Query sin índice**: > 1000ms
-2. **Query con índice**: > 500ms
-3. **Documentos leídos**: > 1000 por query
-4. **Índices faltantes**: Cualquier error de índice
-
----
-
-## 🚨 **TROUBLESHOOTING**
-
-### **Error: "The query requires an index"**
-
-**Solución:**
-1. Verificar que el índice existe en Firebase Console
-2. Esperar a que el índice se construya (puede tomar minutos)
-3. Usar fallback temporal mientras se construye el índice
-
-### **Performance Lenta**
-
-**Solución:**
-1. Verificar que se están usando los índices correctos
-2. Optimizar queries para usar menos filtros
-3. Implementar paginación cursor-based
-4. Usar `limit()` en todas las queries
-
-### **Logs de Debugging:**
-
-```bash
-# Ver logs detallados
+# Iniciar en desarrollo
 npm run dev
 
-# Monitorear queries específicas
-grep "QUERY MONITOR" logs/app.log
+# Iniciar en producción
+npm start
+```
 
-# Verificar performance
-grep "PERFORMANCE" logs/app.log
-``` 
+### Variables de Entorno Requeridas
+```bash
+# Firebase
+FIREBASE_PROJECT_ID=tu-proyecto-firebase
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@tu-proyecto.iam.gserviceaccount.com
+
+# Twilio WhatsApp
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=tu-auth-token-twilio
+TWILIO_WHATSAPP_NUMBER=whatsapp:+1234567890
+
+# JWT y Seguridad
+JWT_SECRET=tu-jwt-secret-muy-seguro-y-largo
+JWT_EXPIRES_IN=7d
+
+# Frontend
+FRONTEND_URL=http://localhost:3000,https://tu-dominio.com
+
+# Opcional
+NODE_ENV=development|production
+PORT=3000
+```
+
+## 📖 API Endpoints Principales
+
+### 🔐 Autenticación
+- `POST /api/auth/login` - Login con email/password
+- `GET /api/auth/validate-token` - Validar JWT para persistencia de sesión
+- `POST /api/auth/create-user` - Crear nuevo usuario (Admin only)
+
+### 💬 Conversaciones
+- `GET /api/conversations` - Listar conversaciones con filtros
+- `GET /api/conversations/:id` - Obtener conversación específica
+- `POST /api/conversations` - Crear nueva conversación
+- `PUT /api/conversations/:id/assign` - Asignar a agente
+- `PUT /api/conversations/:id/status` - Cambiar estado
+
+### 📨 Mensajes
+- `GET /api/conversations/:id/messages` - Historial de mensajes
+- `POST /api/messages/send` - Enviar mensaje WhatsApp
+- `POST /api/messages/webhook` - Webhook público de Twilio (sin auth)
+
+### 👥 Contactos
+- `GET /api/contacts` - Listar contactos con búsqueda
+- `POST /api/contacts` - Crear/actualizar contacto
+- `GET /api/contacts/:phone` - Obtener contacto por teléfono
+
+### 📁 Multimedia
+- `GET /media/:category/:filename` - Servir archivos con autenticación
+- Soporte para: imágenes (10MB), videos (50MB), audio (20MB), documentos (25MB)
+
+## 🔌 WebSocket Events
+
+### Cliente → Servidor
+- `join-conversation` - Unirse a conversación
+- `typing-start/stop` - Indicadores de escritura
+- `message-read` - Marcar mensaje como leído
+
+### Servidor → Cliente  
+- `new-message` - Nuevo mensaje recibido
+- `user-typing` - Usuario escribiendo
+- `conversation-assigned` - Conversación asignada
+- `message-read-by-user` - Mensaje leído por usuario
+
+## 🧪 Testing
+
+```bash
+# Tests unitarios
+npm test
+
+# Tests con watch mode
+npm run test:watch
+
+# Linter
+npm run lint
+npm run lint:fix
+```
+
+## 📁 Estructura del Proyecto
+
+```
+src/
+├── config/          # Configuración de servicios externos
+│   ├── firebase.js  # Firestore configuration
+│   └── twilio.js    # Twilio WhatsApp setup
+├── controllers/     # Lógica de endpoints
+│   ├── AuthController.js
+│   ├── ConversationController.js
+│   ├── MessageController.js
+│   └── ...
+├── models/          # Modelos de datos
+│   ├── User.js
+│   ├── Conversation.js
+│   ├── Message.js
+│   └── ...
+├── routes/          # Definición de rutas
+├── services/        # Servicios de negocio
+│   ├── TwilioService.js
+│   ├── MessageService.js
+│   └── MediaService.js
+├── middleware/      # Middlewares personalizados
+│   ├── auth.js      # Autenticación JWT
+│   ├── security.js  # Headers de seguridad
+│   └── errorHandler.js
+├── utils/           # Utilidades
+│   ├── responseHandler.js  # Respuestas API estandarizadas
+│   ├── validation.js       # Schemas Joi
+│   └── logger.js          # Winston logging
+├── socket/          # WebSocket management
+│   └── index.js     # Socket.IO server setup
+└── index.js         # Entry point de la aplicación
+```
+
+## 🚀 Deployment
+
+### Railway (Recomendado)
+1. Conectar repositorio GitHub a Railway
+2. Configurar variables de entorno en Railway dashboard
+3. El deploy es automático con cada push a main
+
+### Docker
+```bash
+# Build imagen
+docker build -t utalk-backend .
+
+# Ejecutar contenedor
+docker run -p 3000:3000 --env-file .env utalk-backend
+```
+
+## 📊 Monitoreo y Logs
+
+- **Health Check:** `GET /health` - Estado de servicios
+- **Logs estructurados** con Winston
+- **Rate limiting** para prevenir abuso
+- **Métricas** de conversaciones y mensajes
+- **Error tracking** con códigos únicos
+
+## 🔒 Seguridad
+
+- ✅ Autenticación JWT robusta
+- ✅ Rate limiting por IP y usuario
+- ✅ Validación de entrada con Joi
+- ✅ Headers de seguridad con Helmet
+- ✅ CORS configurado específicamente
+- ✅ Sanitización HTML automática
+- ✅ Logs de auditoría detallados
+
+## 📚 Documentación
+
+- `/docs/api-integration.md` - Guía de integración frontend
+- `/docs/guia-integracion-final.md` - Documentación completa
+- `/docs/swagger.yaml` - Especificación OpenAPI 3.0
+- `/docs/firebase-collections.md` - Estructura de base de datos
+
+## 🤝 Contribución
+
+1. Fork del repositorio
+2. Crear branch para feature (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit cambios (`git commit -am 'Agregar nueva funcionalidad'`)
+4. Push a branch (`git push origin feature/nueva-funcionalidad`)
+5. Crear Pull Request
+
+## 📄 Licencia
+
+MIT License - ver archivo `LICENSE` para detalles.
+
+## 📞 Soporte
+
+- Email: support@utalk.com
+- Issues: GitHub Issues
+- Documentación: `/docs/`
+
+---
+
+**Desarrollado con ❤️ por el equipo UTalk** 
