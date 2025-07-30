@@ -43,7 +43,10 @@ logger.info('🚀 Iniciando UTalk Backend', {
   environment: process.env.NODE_ENV || 'development',
   port: PORT,
   nodeVersion: process.version,
-  platform: process.platform
+  platform: process.platform,
+  // ✅ NUEVO: Confirmar que la corrección de rate limiting está activa
+  rateLimitFix: 'express-rate-limit v7 handler implemented',
+  deployment: 'latest'
 });
 
 // Middleware de seguridad básico
