@@ -1,7 +1,6 @@
 const Knowledge = require('../models/Knowledge');
 const logger = require('../utils/logger');
 const multer = require('multer');
-const { Storage } = require('@google-cloud/storage');
 const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid');
 const { ResponseHandler, ApiError } = require('../utils/responseHandler');
@@ -11,9 +10,8 @@ const { ResponseHandler, ApiError } = require('../utils/responseHandler');
  */
 class KnowledgeController {
   constructor() {
-    this.storage = new Storage();
-    this.bucket = admin.storage().bucket();
-    
+    // No inicializar bucket aquí para evitar errores
+
     // Configuración de multer para memoria
     this.upload = multer({
       storage: multer.memoryStorage(),
@@ -30,7 +28,7 @@ class KnowledgeController {
           'text/markdown',
           'application/json'
         ];
-        
+
         if (allowedMimes.includes(file.mimetype)) {
           cb(null, true);
         } else {
@@ -38,6 +36,27 @@ class KnowledgeController {
         }
       }
     });
+  }
+
+  /**
+   * Obtener bucket de forma segura
+   */
+  getBucket() {
+    try {
+      if (!admin.apps.length) {
+        throw new Error('Firebase Admin SDK no inicializado');
+      }
+      return admin.storage().bucket();
+    } catch (error) {
+      logger.warn('Firebase Storage no disponible:', error.message);
+      return {
+        file: () => ({
+          save: () => Promise.reject(new Error('Storage no disponible')),
+          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
+          delete: () => Promise.reject(new Error('Storage no disponible'))
+        })
+      };
+    }
   }
 
   /**
@@ -431,7 +450,8 @@ class KnowledgeController {
       const filename = `${fileId}.${extension}`;
       const storagePath = `${folder}/${filename}`;
 
-      const fileRef = this.bucket.file(storagePath);
+      const bucket = this.getBucket();
+      const fileRef = bucket.file(storagePath);
       
       await fileRef.save(file.buffer, {
         metadata: {
@@ -476,7 +496,8 @@ class KnowledgeController {
         const encodedPath = urlParts[pathIndex].split('?')[0];
         const storagePath = decodeURIComponent(encodedPath);
         
-        const fileRef = this.bucket.file(storagePath);
+        const bucket = this.getBucket();
+        const fileRef = bucket.file(storagePath);
         await fileRef.delete();
         
         logger.info('Archivo eliminado de Firebase Storage:', { storagePath });

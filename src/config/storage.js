@@ -3,86 +3,64 @@ const path = require('path');
 const logger = require('../utils/logger');
 
 /**
- * CONFIGURACIÓN DE FIREBASE STORAGE
- * Configuración centralizada para manejo de archivos multimedia
+ * CONFIGURACIÓN SIMPLIFICADA DE FIREBASE STORAGE
+ * Solo utilidades estáticas, sin inicialización en constructor
  */
 class StorageConfig {
-  constructor() {
+  /**
+   * Obtener bucket de forma segura
+   */
+  static getBucket() {
     try {
-      // VERIFICAR QUE FIREBASE ADMIN ESTÉ INICIALIZADO
       if (!admin.apps.length) {
-        throw new Error('Firebase Admin SDK debe estar inicializado antes de configurar Storage');
+        throw new Error('Firebase Admin SDK no inicializado');
       }
-
-      // OBTENER BUCKET DESDE FIREBASE ADMIN SDK
-      this.bucket = admin.storage().bucket();
-      this.bucketName = this.bucket.name;
-
-      // CONFIGURACIÓN DE ARCHIVOS
-      this.config = {
-        // Límites de tamaño por tipo (en bytes)
-        maxSizes: {
-          image: 10 * 1024 * 1024,    // 10MB
-          video: 100 * 1024 * 1024,   // 100MB  
-          audio: 50 * 1024 * 1024,    // 50MB
-          document: 25 * 1024 * 1024, // 25MB
-        },
-
-        // Tipos MIME permitidos
-        allowedMimeTypes: {
-          image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-          video: ['video/mp4', 'video/webm', 'video/ogg', 'video/avi'],
-          audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'],
-          document: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-        },
-
-        // Configuración de URLs firmadas
-        signedUrlExpiration: 24 * 60 * 60 * 1000, // 24 horas
-      };
-
-      logger.info('Firebase Storage configurado correctamente', {
-        bucketName: this.bucketName
-      });
-
+      return admin.storage().bucket();
     } catch (error) {
-      logger.error('Error configurando Firebase Storage:', error.message);
-      
-      // CREAR MOCK PARA DESARROLLO SIN FIREBASE
-      this.bucket = {
+      logger.warn('Firebase Storage no disponible:', error.message);
+      return {
         file: () => ({
-          save: () => Promise.reject(new Error('Firebase Storage no configurado')),
-          getSignedUrl: () => Promise.reject(new Error('Firebase Storage no configurado')),
-          delete: () => Promise.reject(new Error('Firebase Storage no configurado')),
+          save: () => Promise.reject(new Error('Storage no disponible')),
+          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
+          delete: () => Promise.reject(new Error('Storage no disponible')),
           exists: () => Promise.resolve([false])
         })
       };
-      this.bucketName = 'mock-bucket';
-      
-      this.config = {
-        maxSizes: {
-          image: 10 * 1024 * 1024,
-          video: 100 * 1024 * 1024,
-          audio: 50 * 1024 * 1024,
-          document: 25 * 1024 * 1024,
-        },
-        allowedMimeTypes: {
-          image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-          video: ['video/mp4', 'video/webm', 'video/ogg', 'video/avi'],
-          audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'],
-          document: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-        },
-        signedUrlExpiration: 24 * 60 * 60 * 1000,
-      };
-      
-      logger.warn('Firebase Storage en modo mock - configurar credenciales para producción');
     }
+  }
+
+  /**
+   * CONFIGURACIÓN DE ARCHIVOS
+   */
+  static getConfig() {
+    return {
+      // Límites de tamaño por tipo (en bytes)
+      maxSizes: {
+        image: 10 * 1024 * 1024,    // 10MB
+        video: 100 * 1024 * 1024,   // 100MB  
+        audio: 50 * 1024 * 1024,    // 50MB
+        document: 25 * 1024 * 1024, // 25MB
+      },
+
+      // Tipos MIME permitidos
+      allowedMimeTypes: {
+        image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+        video: ['video/mp4', 'video/webm', 'video/ogg', 'video/avi'],
+        audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'],
+        document: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+      },
+
+      // Configuración de URLs firmadas
+      signedUrlExpiration: 24 * 60 * 60 * 1000, // 24 horas
+    };
   }
 
   /**
    * OBTENER CATEGORÍA DEL ARCHIVO
    */
-  getFileCategory(mimeType) {
-    for (const [category, types] of Object.entries(this.config.allowedMimeTypes)) {
+  static getFileCategory(mimeType) {
+    const config = this.getConfig();
+    for (const [category, types] of Object.entries(config.allowedMimeTypes)) {
       if (types.includes(mimeType)) {
         return category;
       }
@@ -93,8 +71,9 @@ class StorageConfig {
   /**
    * VALIDAR ARCHIVO
    */
-  validateFile(file) {
+  static validateFile(file) {
     const category = this.getFileCategory(file.mimetype);
+    const config = this.getConfig();
     
     if (category === 'other') {
       return {
@@ -103,7 +82,7 @@ class StorageConfig {
       };
     }
 
-    const maxSize = this.config.maxSizes[category];
+    const maxSize = config.maxSizes[category];
     if (file.size > maxSize) {
       return {
         valid: false,
@@ -117,7 +96,7 @@ class StorageConfig {
   /**
    * FORMATEAR TAMAÑO DE ARCHIVO
    */
-  formatFileSize(bytes) {
+  static formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -128,7 +107,7 @@ class StorageConfig {
   /**
    * GENERAR PATH SEGURO
    */
-  generateSecurePath(category, conversationId, originalName) {
+  static generateSecurePath(category, conversationId, originalName) {
     const { v4: uuidv4 } = require('uuid');
     const ext = path.extname(originalName).toLowerCase();
     const uniqueId = uuidv4();
@@ -140,9 +119,10 @@ class StorageConfig {
   /**
    * SUBIR ARCHIVO A FIREBASE STORAGE
    */
-  async uploadFile(buffer, filePath, metadata = {}) {
+  static async uploadFile(buffer, filePath, metadata = {}) {
     try {
-      const file = this.bucket.file(filePath);
+      const bucket = this.getBucket();
+      const file = bucket.file(filePath);
       
       await file.save(buffer, {
         metadata: {
@@ -172,11 +152,13 @@ class StorageConfig {
   /**
    * GENERAR URL FIRMADA
    */
-  async generateSignedUrl(filePath, expirationMs = null) {
+  static async generateSignedUrl(filePath, expirationMs = null) {
     try {
-      const expiration = Date.now() + (expirationMs || this.config.signedUrlExpiration);
+      const config = this.getConfig();
+      const expiration = Date.now() + (expirationMs || config.signedUrlExpiration);
+      const bucket = this.getBucket();
       
-      const [url] = await this.bucket
+      const [url] = await bucket
         .file(filePath)
         .getSignedUrl({
           action: 'read',
@@ -196,9 +178,10 @@ class StorageConfig {
   /**
    * ELIMINAR ARCHIVO
    */
-  async deleteFile(filePath) {
+  static async deleteFile(filePath) {
     try {
-      await this.bucket.file(filePath).delete();
+      const bucket = this.getBucket();
+      await bucket.file(filePath).delete();
       logger.info('Archivo eliminado de Firebase Storage', { filePath });
     } catch (error) {
       logger.error('Error eliminando archivo:', error);
@@ -209,9 +192,10 @@ class StorageConfig {
   /**
    * VERIFICAR SI ARCHIVO EXISTE
    */
-  async fileExists(filePath) {
+  static async fileExists(filePath) {
     try {
-      const [exists] = await this.bucket.file(filePath).exists();
+      const bucket = this.getBucket();
+      const [exists] = await bucket.file(filePath).exists();
       return exists;
     } catch (error) {
       logger.error('Error verificando existencia de archivo:', error);
@@ -220,14 +204,5 @@ class StorageConfig {
   }
 }
 
-// EXPORTAR FUNCIÓN LAZY PARA EVITAR PROBLEMAS DE INICIALIZACIÓN
-let storageInstance = null;
-
-function getStorageConfig() {
-  if (!storageInstance) {
-    storageInstance = new StorageConfig();
-  }
-  return storageInstance;
-}
-
-module.exports = getStorageConfig; 
+// EXPORTAR CLASE ESTÁTICA
+module.exports = StorageConfig; 

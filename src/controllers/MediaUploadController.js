@@ -1,13 +1,12 @@
 const multer = require('multer');
-const rateLimit = require('express-rate-limit');
-const getStorageConfig = require('../config/storage');
-const audioProcessor = require('../services/AudioProcessor');
-const Conversation = require('../models/Conversation');
+const StorageConfig = require('../config/storage');
+const AudioProcessor = require('../services/AudioProcessor');
 const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
+const rateLimit = require('express-rate-limit');
 const sharp = require('sharp');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 const admin = require('firebase-admin');
 
 /**
@@ -41,8 +40,7 @@ class MediaUploadController {
         files: 1
       },
       fileFilter: (req, file, cb) => {
-        const storage = getStorageConfig();
-        const validation = storage.validateFile(file);
+        const validation = StorageConfig.validateFile(file);
         
         if (validation.valid) {
           cb(null, true);
@@ -91,12 +89,11 @@ class MediaUploadController {
         ));
       }
 
-      const storage = getStorageConfig();
       const file = req.file;
       const userEmail = req.user.email;
 
       // Validar archivo
-      const validation = storage.validateFile(file);
+      const validation = StorageConfig.validateFile(file);
       if (!validation.valid) {
         return ResponseHandler.error(res, new ApiError(
           'INVALID_FILE',
@@ -133,7 +130,7 @@ class MediaUploadController {
         mediaUrl: processedFile.signedUrl,
         fileId,
         category,
-        size: storage.formatFileSize(file.size),
+        size: StorageConfig.formatFileSize(file.size),
         sizeBytes: file.size,
         originalName: file.originalname,
         storagePath: processedFile.storagePath,
@@ -173,6 +170,27 @@ class MediaUploadController {
   }
 
   /**
+   * Obtener bucket de forma segura
+   */
+  getBucket() {
+    try {
+      if (!admin.apps.length) {
+        throw new Error('Firebase Admin SDK no inicializado');
+      }
+      return admin.storage().bucket();
+    } catch (error) {
+      logger.warn('Firebase Storage no disponible:', error.message);
+      return {
+        file: () => ({
+          save: () => Promise.reject(new Error('Storage no disponible')),
+          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
+          delete: () => Promise.reject(new Error('Storage no disponible'))
+        })
+      };
+    }
+  }
+
+  /**
    * Procesar archivo de audio
    */
   async processAudioUpload(file, fileId, conversationId, userEmail) {
@@ -181,7 +199,7 @@ class MediaUploadController {
       const processedAudio = await processor.processAudio(file.buffer, fileId, file.mimetype);
       
       const storagePath = `audio/${conversationId}/${fileId}.mp3`;
-      const bucket = admin.storage().bucket();
+      const bucket = StorageConfig.getBucket();
       const firebaseFile = bucket.file(storagePath);
 
       await firebaseFile.save(processedAudio.buffer, {
@@ -227,7 +245,7 @@ class MediaUploadController {
         .toBuffer();
 
       const storagePath = `images/${conversationId}/${fileId}.jpg`;
-      const bucket = admin.storage().bucket();
+      const bucket = StorageConfig.getBucket();
       const firebaseFile = bucket.file(storagePath);
 
       await firebaseFile.save(optimizedBuffer, {
@@ -271,7 +289,7 @@ class MediaUploadController {
     try {
       const extension = path.extname(file.originalname).toLowerCase() || '.bin';
       const storagePath = `${category}/${conversationId}/${fileId}${extension}`;
-      const bucket = admin.storage().bucket();
+      const bucket = StorageConfig.getBucket();
       const firebaseFile = bucket.file(storagePath);
 
       await firebaseFile.save(file.buffer, {
@@ -338,7 +356,7 @@ class MediaUploadController {
       }
 
       // Buscar archivo en Firebase Storage
-      const bucket = admin.storage().bucket();
+      const bucket = StorageConfig.getBucket();
       const [files] = await bucket.getFiles({
         prefix: ``,
         delimiter: '/'
@@ -404,7 +422,7 @@ class MediaUploadController {
       }
 
       // Buscar y eliminar archivo en Firebase Storage
-      const bucket = admin.storage().bucket();
+      const bucket = StorageConfig.getBucket();
       const [files] = await bucket.getFiles({
         prefix: ``,
         delimiter: '/'

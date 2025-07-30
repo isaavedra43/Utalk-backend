@@ -1,242 +1,233 @@
 const ffmpeg = require('fluent-ffmpeg');
-const ffprobe = require('ffprobe-static');
+const ffprobePath = require('ffprobe-static');
 const logger = require('../utils/logger');
-const { Storage } = require('@google-cloud/storage');
 const admin = require('firebase-admin');
-const { v4: uuidv4 } = require('uuid');
+
+ffmpeg.setFfprobePath(ffprobePath);
 
 /**
- * Servicio de procesamiento de audio con Firebase Storage
- * Procesa archivos de audio directamente en memoria sin almacenamiento local
+ * Procesador de archivos de audio
+ * Maneja conversión, extracción de metadatos y transcripción
  */
 class AudioProcessor {
   constructor() {
-    this.storage = new Storage();
-    this.bucket = admin.storage().bucket();
-    
-    // Configurar FFmpeg para usar el binario estático
-    ffmpeg.setFfprobePath(ffprobe);
+    // No inicializar bucket aquí para evitar errores
   }
 
   /**
-   * Extraer metadatos de audio desde buffer
+   * Obtener bucket de forma segura
    */
-  async extractMetadata(audioBuffer) {
+  getBucket() {
     try {
-      return new Promise((resolve, reject) => {
-        // Crear un stream temporal en memoria
-        const Readable = require('stream').Readable;
+      if (!admin.apps.length) {
+        throw new Error('Firebase Admin SDK no inicializado');
+      }
+      return admin.storage().bucket();
+    } catch (error) {
+      logger.warn('Firebase Storage no disponible, usando mock:', error.message);
+      return {
+        file: () => ({
+          save: () => Promise.reject(new Error('Storage no disponible')),
+          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
+          delete: () => Promise.reject(new Error('Storage no disponible'))
+        })
+      };
+    }
+  }
+
+  /**
+   * Procesar archivo de audio
+   */
+  async processAudio(buffer, filename, originalContentType = 'audio/mpeg') {
+    try {
+      logger.info('🎵 Iniciando procesamiento de audio', {
+        filename,
+        originalType: originalContentType,
+        size: buffer.length
+      });
+
+      // Extraer metadatos usando streams en memoria
+      const metadata = await this.extractMetadata(buffer);
+      
+      // Convertir a MP3 si es necesario
+      let processedBuffer = buffer;
+      let finalContentType = originalContentType;
+
+      if (originalContentType !== 'audio/mpeg' && originalContentType !== 'audio/mp3') {
+        logger.info('🔄 Convirtiendo audio a MP3', { originalType: originalContentType });
+        processedBuffer = await this.convertToMp3(buffer);
+        finalContentType = 'audio/mp3';
+      }
+
+      // Transcripción con IA (placeholder)
+      const transcription = await this.transcribeAudio(processedBuffer);
+
+      const result = {
+        buffer: processedBuffer,
+        contentType: finalContentType,
+        metadata: {
+          duration: metadata.duration || '00:00:00',
+          durationSeconds: metadata.durationSeconds || 0,
+          bitrate: metadata.bitrate || 128000,
+          format: finalContentType.split('/')[1] || 'mp3',
+          codec: metadata.codec || 'mp3',
+          sampleRate: metadata.sampleRate || 44100,
+          channels: metadata.channels || 2,
+          transcription,
+          processed: true,
+          originalFilename: filename,
+          processedAt: new Date().toISOString()
+        }
+      };
+
+      logger.info('✅ Audio procesado exitosamente', {
+        originalSize: buffer.length,
+        processedSize: processedBuffer.length,
+        duration: result.metadata.duration,
+        transcription: transcription ? 'Disponible' : 'No disponible'
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('❌ Error procesando audio:', error);
+      
+      // Fallback: devolver audio original
+      return {
+        buffer,
+        contentType: originalContentType,
+        metadata: {
+          duration: '00:00:00',
+          durationSeconds: 0,
+          bitrate: 0,
+          format: 'unknown',
+          codec: 'unknown',
+          sampleRate: 0,
+          channels: 0,
+          transcription: null,
+          processed: false,
+          originalFilename: filename,
+          processedAt: new Date().toISOString(),
+          error: error.message
+        }
+      };
+    }
+  }
+
+  /**
+   * Extraer metadatos del audio
+   */
+  async extractMetadata(buffer) {
+    return new Promise((resolve) => {
+      try {
+        const { Readable } = require('stream');
         const audioStream = new Readable();
-        audioStream.push(audioBuffer);
+        audioStream.push(buffer);
         audioStream.push(null);
 
         ffmpeg(audioStream)
           .ffprobe((err, metadata) => {
             if (err) {
-              logger.error('Error extrayendo metadatos de audio:', err);
-              reject(err);
+              logger.warn('No se pudieron extraer metadatos de audio:', err.message);
+              resolve({
+                duration: '00:00:00',
+                durationSeconds: 0,
+                bitrate: 128000,
+                codec: 'unknown',
+                sampleRate: 44100,
+                channels: 2
+              });
               return;
             }
 
-            const audioStream = metadata.streams.find(stream => stream.codec_type === 'audio');
-            if (!audioStream) {
-              reject(new Error('No se encontró stream de audio válido'));
-              return;
-            }
+            const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+            const duration = metadata.format.duration || 0;
+            const hours = Math.floor(duration / 3600);
+            const minutes = Math.floor((duration % 3600) / 60);
+            const seconds = Math.floor(duration % 60);
+            const formattedDuration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-            const audioMetadata = {
-              duration: this.formatDuration(parseFloat(metadata.format.duration) || 0),
-              durationSeconds: parseFloat(metadata.format.duration) || 0,
-              bitrate: parseInt(audioStream.bit_rate) || 0,
-              sampleRate: parseInt(audioStream.sample_rate) || 0,
-              channels: parseInt(audioStream.channels) || 0,
-              codec: audioStream.codec_name || 'unknown',
-              format: metadata.format.format_name || 'unknown',
-              size: parseInt(metadata.format.size) || audioBuffer.length
-            };
-
-            logger.info('Metadatos de audio extraídos:', audioMetadata);
-            resolve(audioMetadata);
+            resolve({
+              duration: formattedDuration,
+              durationSeconds: Math.floor(duration),
+              bitrate: parseInt(metadata.format.bit_rate) || 128000,
+              codec: audioStream?.codec_name || 'unknown',
+              sampleRate: audioStream?.sample_rate || 44100,
+              channels: audioStream?.channels || 2
+            });
           });
-      });
-    } catch (error) {
-      logger.error('Error procesando metadatos de audio:', error);
-      throw error;
-    }
+      } catch (error) {
+        logger.warn('Error extrayendo metadatos:', error.message);
+        resolve({
+          duration: '00:00:00',
+          durationSeconds: 0,
+          bitrate: 128000,
+          codec: 'unknown',
+          sampleRate: 44100,
+          channels: 2
+        });
+      }
+    });
   }
 
   /**
-   * Convertir audio a MP3 y subir a Firebase Storage
+   * Convertir audio a MP3
    */
-  async convertToMp3AndUpload(audioBuffer, originalFilename, conversationId) {
-    try {
-      const fileId = uuidv4();
-      const mp3Filename = `${fileId}.mp3`;
-      const storagePath = `audio/${conversationId}/${mp3Filename}`;
+  async convertToMp3(buffer) {
+    return new Promise((resolve, reject) => {
+      try {
+        const { Readable } = require('stream');
+        const audioStream = new Readable();
+        audioStream.push(buffer);
+        audioStream.push(null);
 
-      return new Promise((resolve, reject) => {
-        // Crear streams en memoria
-        const Readable = require('stream').Readable;
-        const { PassThrough } = require('stream');
-        
-        const inputStream = new Readable();
-        inputStream.push(audioBuffer);
-        inputStream.push(null);
-        
-        const outputStream = new PassThrough();
         const chunks = [];
-
-        // Configurar conversión a MP3
-        ffmpeg(inputStream)
+        
+        ffmpeg(audioStream)
           .toFormat('mp3')
           .audioBitrate(128)
           .audioChannels(2)
-          .audioFrequency(44100)
+          .on('end', () => {
+            const outputBuffer = Buffer.concat(chunks);
+            logger.info('✅ Conversión a MP3 completada', {
+              originalSize: buffer.length,
+              convertedSize: outputBuffer.length
+            });
+            resolve(outputBuffer);
+          })
           .on('error', (err) => {
-            logger.error('Error convirtiendo audio a MP3:', err);
-            reject(err);
+            logger.warn('Error convirtiendo a MP3, usando original:', err.message);
+            resolve(buffer); // Fallback al original
           })
-          .on('end', async () => {
-            try {
-              const mp3Buffer = Buffer.concat(chunks);
-              
-              // Subir a Firebase Storage
-              const file = this.bucket.file(storagePath);
-              await file.save(mp3Buffer, {
-                metadata: {
-                  contentType: 'audio/mpeg',
-                  metadata: {
-                    originalName: originalFilename,
-                    conversationId: conversationId,
-                    processedAt: new Date().toISOString(),
-                    fileId: fileId
-                  }
-                }
-              });
-
-              // Generar URL firmada
-              const [signedUrl] = await file.getSignedUrl({
-                action: 'read',
-                expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-              });
-
-              const result = {
-                fileId,
-                storagePath,
-                signedUrl,
-                size: mp3Buffer.length,
-                contentType: 'audio/mpeg',
-                processed: true
-              };
-
-              logger.info('Audio convertido y subido a Firebase Storage:', result);
-              resolve(result);
-            } catch (uploadError) {
-              logger.error('Error subiendo audio a Firebase Storage:', uploadError);
-              reject(uploadError);
+          .pipe(require('stream').Writable({
+            write(chunk, encoding, callback) {
+              chunks.push(chunk);
+              callback();
             }
-          })
-          .pipe(outputStream);
-
-        outputStream.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-      });
-    } catch (error) {
-      logger.error('Error en conversión y subida de audio:', error);
-      throw error;
-    }
+          }));
+      } catch (error) {
+        logger.warn('Error en conversión MP3:', error.message);
+        resolve(buffer); // Fallback al original
+      }
+    });
   }
 
   /**
-   * Procesar audio completo: metadatos + conversión + subida
+   * Transcribir audio usando IA (placeholder)
    */
-  async processAudio(audioBuffer, originalFilename, conversationId) {
+  async transcribeAudio(buffer) {
     try {
-      logger.info('Iniciando procesamiento completo de audio:', {
-        originalFilename,
-        conversationId,
-        bufferSize: audioBuffer.length
-      });
-
-      // Extraer metadatos del audio original
-      const metadata = await this.extractMetadata(audioBuffer);
+      // TODO: Integrar con Whisper API o similar
+      // const transcription = await whisperAPI.transcribe(buffer);
+      // return transcription.text;
       
-      // Convertir a MP3 y subir a Firebase Storage
-      const uploadResult = await this.convertToMp3AndUpload(audioBuffer, originalFilename, conversationId);
-      
-      // Combinar resultados
-      const result = {
-        ...uploadResult,
-        metadata: {
-          ...metadata,
-          originalFilename,
-          processedAt: new Date().toISOString()
-        }
-      };
-
-      logger.info('Procesamiento de audio completado:', result);
-      return result;
+      logger.info('🎙️ Transcripción de audio pendiente de implementación');
+      return null;
     } catch (error) {
-      logger.error('Error en procesamiento de audio:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Formatear duración en formato legible
-   */
-  formatDuration(seconds) {
-    if (!seconds || seconds <= 0) return '00:00:00';
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    } else {
-      return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-  }
-
-  /**
-   * Obtener metadatos de archivo de audio desde Firebase Storage
-   */
-  async getAudioMetadata(storagePath) {
-    try {
-      const file = this.bucket.file(storagePath);
-      const [metadata] = await file.getMetadata();
-      
-      return {
-        name: metadata.name,
-        size: parseInt(metadata.size),
-        contentType: metadata.contentType,
-        created: metadata.timeCreated,
-        updated: metadata.updated,
-        customMetadata: metadata.metadata || {}
-      };
-    } catch (error) {
-      logger.error('Error obteniendo metadatos de audio:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Eliminar archivo de audio de Firebase Storage
-   */
-  async deleteAudio(storagePath) {
-    try {
-      const file = this.bucket.file(storagePath);
-      await file.delete();
-      
-      logger.info('Audio eliminado de Firebase Storage:', { storagePath });
-      return true;
-    } catch (error) {
-      logger.error('Error eliminando audio:', error);
-      throw error;
+      logger.warn('Error en transcripción:', error.message);
+      return null;
     }
   }
 }
 
-module.exports = new AudioProcessor(); 
+module.exports = AudioProcessor; 

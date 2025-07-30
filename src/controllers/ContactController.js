@@ -3,14 +3,11 @@ const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
 const csvParser = require('csv-parser');
 const multer = require('multer');
-const { Storage } = require('@google-cloud/storage');
-const admin = require('firebase-admin');
-const { v4: uuidv4 } = require('uuid');
 const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 const { Readable } = require('stream');
 
 /**
- * Controlador de contactos con Firebase Storage para archivos CSV
+ * Controlador de contactos con procesamiento CSV en memoria
  */
 const upload = multer({
   storage: multer.memoryStorage(),
