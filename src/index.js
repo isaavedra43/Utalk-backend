@@ -25,7 +25,6 @@ const campaignRoutes = require('./routes/campaigns');
 const knowledgeRoutes = require('./routes/knowledge');
 const dashboardRoutes = require('./routes/dashboard');
 const teamRoutes = require('./routes/team');
-const webhookRoutes = require('./routes/webhook');
 const mediaRoutes = require('./routes/media');
 
 const app = express();
@@ -78,7 +77,6 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/team', teamRoutes);
-app.use('/api/webhook', webhookRoutes);
 app.use('/api/media', mediaRoutes);
 
 app.use('*', (req, res) => {
