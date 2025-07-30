@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const ConversationController = require('../controllers/ConversationController');
 const MessageController = require('../controllers/MessageController');
 
@@ -12,6 +12,7 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
+  authMiddleware,
   requireReadAccess,
   ConversationController.listConversations,
 );
@@ -22,6 +23,7 @@ router.get('/',
  * @access Private (Admin, Agent)
  */
 router.get('/unassigned',
+  authMiddleware,
   requireWriteAccess,
   ConversationController.getUnassignedConversations,
 );
@@ -32,6 +34,7 @@ router.get('/unassigned',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/stats',
+  authMiddleware,
   requireReadAccess,
   ConversationController.getConversationStats,
 );
@@ -42,6 +45,7 @@ router.get('/stats',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/search',
+  authMiddleware,
   requireReadAccess,
   ConversationController.searchConversations,
 );
@@ -52,6 +56,7 @@ router.get('/search',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:conversationId',
+  authMiddleware,
   requireReadAccess,
   ConversationController.getConversation,
 );
@@ -63,6 +68,7 @@ router.get('/:conversationId',
  * @params conversationId (UUID)
  */
 router.get('/:conversationId/messages',
+  authMiddleware,
   requireReadAccess,
   MessageController.getMessages,
 );
@@ -73,6 +79,7 @@ router.get('/:conversationId/messages',
  * @access Private (Admin, Agent only)
  */
 router.post('/:conversationId/messages',
+  authMiddleware,
   requireWriteAccess,
   validate(schemas.message.createInConversation),
   MessageController.createMessageInConversation,
@@ -84,6 +91,7 @@ router.post('/:conversationId/messages',
  * @access Private (Admin, Agent, Viewer)
  */
 router.put('/:conversationId/messages/:messageId/read',
+  authMiddleware,
   requireReadAccess,
   MessageController.markMessageAsRead,
 );
@@ -94,104 +102,102 @@ router.put('/:conversationId/messages/:messageId/read',
  * @access Private (Admin, Agent, Viewer)
  */
 router.put('/:conversationId/read-all',
+  authMiddleware,
   requireReadAccess,
   ConversationController.markConversationAsRead,
 );
 
 /**
- * @route DELETE /api/conversations/:conversationId/messages/:messageId
- * @desc Eliminar mensaje específico (soft delete)
- * @access Private (Admin, Agent only)
- */
-router.delete('/:conversationId/messages/:messageId',
-  requireWriteAccess,
-  MessageController.deleteMessage,
-);
-
-/**
  * @route POST /api/conversations
- * @desc Crear nueva conversación (EMAIL-FIRST)
+ * @desc Crear nueva conversación
  * @access Private (Admin, Agent only)
  */
 router.post('/',
+  authMiddleware,
   requireWriteAccess,
   validate(schemas.conversation.create),
   ConversationController.createConversation,
 );
 
 /**
- * @route PUT /api/conversations/:id
+ * @route PUT /api/conversations/:conversationId
  * @desc Actualizar conversación
  * @access Private (Admin, Agent only)
  */
-router.put('/:id',
+router.put('/:conversationId',
+  authMiddleware,
   requireWriteAccess,
   validate(schemas.conversation.update),
   ConversationController.updateConversation,
 );
 
 /**
- * @route PUT /api/conversations/:id/assign
- * @desc Asignar conversación a agente
+ * @route PUT /api/conversations/:conversationId/assign
+ * @desc Asignar conversación a un agente
  * @access Private (Admin, Agent only)
  */
-router.put('/:id/assign',
+router.put('/:conversationId/assign',
+  authMiddleware,
   requireWriteAccess,
   validate(schemas.conversation.assign),
   ConversationController.assignConversation,
 );
 
 /**
- * @route PUT /api/conversations/:id/unassign
- * @desc Desasignar conversación (quitar agente)
+ * @route PUT /api/conversations/:conversationId/unassign
+ * @desc Desasignar conversación
  * @access Private (Admin, Agent only)
  */
-router.put('/:id/unassign',
+router.put('/:conversationId/unassign',
+  authMiddleware,
   requireWriteAccess,
   ConversationController.unassignConversation,
 );
 
 /**
- * @route POST /api/conversations/:id/transfer
+ * @route PUT /api/conversations/:conversationId/transfer
  * @desc Transferir conversación a otro agente
  * @access Private (Admin, Agent only)
  */
-router.post('/:id/transfer',
+router.put('/:conversationId/transfer',
+  authMiddleware,
   requireWriteAccess,
   validate(schemas.conversation.transfer),
   ConversationController.transferConversation,
 );
 
 /**
- * @route PUT /api/conversations/:id/status
- * @desc Cambiar estado de conversación
- * @access Private (Admin, Agent only)
- */
-router.put('/:id/status',
-  requireWriteAccess,
-  validate(schemas.conversation.changeStatus),
-  ConversationController.changeConversationStatus,
-);
-
-/**
- * @route PUT /api/conversations/:id/priority
+ * @route PUT /api/conversations/:conversationId/priority
  * @desc Cambiar prioridad de conversación
  * @access Private (Admin, Agent only)
  */
-router.put('/:id/priority',
+router.put('/:conversationId/priority',
+  authMiddleware,
   requireWriteAccess,
-  validate(schemas.conversation.changePriority),
+  validate(schemas.conversation.priority),
   ConversationController.changeConversationPriority,
 );
 
 /**
- * @route POST /api/conversations/:id/typing
+ * @route POST /api/conversations/:conversationId/typing
  * @desc Indicar que el usuario está escribiendo
- * @access Private (Admin, Agent, Viewer)
+ * @access Private (Admin, Agent only)
  */
-router.post('/:id/typing',
-  requireReadAccess,
+router.post('/:conversationId/typing',
+  authMiddleware,
+  requireWriteAccess,
   ConversationController.indicateTyping,
+);
+
+/**
+ * @route DELETE /api/conversations/:conversationId
+ * @desc Eliminar conversación (soft delete)
+ * @access Private (Admin only)
+ */
+router.delete('/:conversationId',
+  authMiddleware,
+  requireWriteAccess,
+  ConversationController.deleteConversation,
 );
 
 module.exports = router;

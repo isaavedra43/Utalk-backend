@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const ContactController = require('../controllers/ContactController');
 
 const router = express.Router();
@@ -11,7 +11,8 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess para viewers, agents, admins
+  authMiddleware,
+  requireReadAccess,
   validate(schemas.contact.list, 'query'),
   ContactController.list,
 );
@@ -22,7 +23,8 @@ router.get('/',
  * @access Private (Agent+)
  */
 router.post('/',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess (solo agent, admin)
+  authMiddleware,
+  requireWriteAccess,
   validate(schemas.contact.create),
   ContactController.create,
 );
@@ -43,7 +45,8 @@ router.get('/search',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/export',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   ContactController.export,
 );
 
@@ -58,33 +61,36 @@ router.get('/tags',
 );
 
 /**
- * @route GET /api/contacts/:id
- * @desc Obtener contacto por ID
+ * @route GET /api/contacts/:contactId
+ * @desc Obtener contacto específico
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:id',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  ContactController.getById,
+router.get('/:contactId',
+  authMiddleware,
+  requireReadAccess,
+  ContactController.get,
 );
 
 /**
- * @route PUT /api/contacts/:id
+ * @route PUT /api/contacts/:contactId
  * @desc Actualizar contacto
- * @access Private (Agent, Admin)
+ * @access Private (Agent+)
  */
-router.put('/:id',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
+router.put('/:contactId',
+  authMiddleware,
+  requireWriteAccess,
   validate(schemas.contact.update),
   ContactController.update,
 );
 
 /**
- * @route DELETE /api/contacts/:id
- * @desc Eliminar contacto (soft delete)
- * @access Private (Agent, Admin)
+ * @route DELETE /api/contacts/:contactId
+ * @desc Eliminar contacto
+ * @access Private (Agent+)
  */
-router.delete('/:id',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
+router.delete('/:contactId',
+  authMiddleware,
+  requireWriteAccess,
   ContactController.delete,
 );
 
@@ -111,10 +117,12 @@ router.delete('/:id/tags',
 /**
  * @route POST /api/contacts/import
  * @desc Importar contactos desde CSV
- * @access Private (Agent, Admin)
+ * @access Private (Agent+)
  */
 router.post('/import',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
+  authMiddleware,
+  requireWriteAccess,
+  ContactController.uploadMiddleware(),
   ContactController.import,
 );
 

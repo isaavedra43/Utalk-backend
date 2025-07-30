@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const MessageController = require('../controllers/MessageController');
 
 const router = express.Router();
@@ -12,8 +12,9 @@ const router = express.Router();
  * @body    { conversationId: (UUID), content: "..." }
  */
 router.post('/send',
+  authMiddleware,
   requireWriteAccess,
-  validate(schemas.message.send), // Asegurarse que este schema esté actualizado
+  validate(schemas.message.send),
   MessageController.sendMessage,
 );
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAdmin, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { authMiddleware, requireAdmin, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const KnowledgeController = require('../controllers/KnowledgeController');
 
 const router = express.Router();
@@ -11,7 +11,8 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   KnowledgeController.listKnowledge,
 );
 
@@ -21,7 +22,8 @@ router.get('/',
  * @access Private (Agent, Admin)
  */
 router.post('/',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess para permitir agents
+  authMiddleware,
+  requireWriteAccess,
   KnowledgeController.uploadMiddleware(),
   validate(schemas.knowledge.create),
   KnowledgeController.createKnowledge,
@@ -33,7 +35,9 @@ router.post('/',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/search',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
+  validate(schemas.knowledge.search, 'query'),
   KnowledgeController.searchKnowledge,
 );
 
@@ -48,53 +52,58 @@ router.get('/categories',
 );
 
 /**
- * @route GET /api/knowledge/:id
- * @desc Obtener documento por ID
+ * @route GET /api/knowledge/:knowledgeId
+ * @desc Obtener documento específico
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:id',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+router.get('/:knowledgeId',
+  authMiddleware,
+  requireReadAccess,
   KnowledgeController.getKnowledge,
 );
 
 /**
- * @route PUT /api/knowledge/:id
+ * @route PUT /api/knowledge/:knowledgeId
  * @desc Actualizar documento
- * @access Private (Admin)
+ * @access Private (Agent, Admin)
  */
-router.put('/:id',
-  requireAdmin,
+router.put('/:knowledgeId',
+  authMiddleware,
+  requireWriteAccess,
   KnowledgeController.uploadMiddleware(),
   validate(schemas.knowledge.update),
   KnowledgeController.updateKnowledge,
 );
 
 /**
- * @route DELETE /api/knowledge/:id
+ * @route DELETE /api/knowledge/:knowledgeId
  * @desc Eliminar documento
- * @access Private (Admin)
+ * @access Private (Agent, Admin)
  */
-router.delete('/:id',
-  requireAdmin,
+router.delete('/:knowledgeId',
+  authMiddleware,
+  requireWriteAccess,
   KnowledgeController.deleteKnowledge,
 );
 
 /**
- * @route POST /api/knowledge/:id/publish
+ * @route PUT /api/knowledge/:knowledgeId/publish
  * @desc Publicar documento
  * @access Private (Admin)
  */
-router.post('/:id/publish',
+router.put('/:knowledgeId/publish',
+  authMiddleware,
   requireAdmin,
   KnowledgeController.publishKnowledge,
 );
 
 /**
- * @route POST /api/knowledge/:id/unpublish
+ * @route PUT /api/knowledge/:knowledgeId/unpublish
  * @desc Despublicar documento
  * @access Private (Admin)
  */
-router.post('/:id/unpublish',
+router.put('/:knowledgeId/unpublish',
+  authMiddleware,
   requireAdmin,
   KnowledgeController.unpublishKnowledge,
 );

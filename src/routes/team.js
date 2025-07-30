@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireAdmin, requireReadAccess } = require('../middleware/auth');
+const { authMiddleware, requireAdmin, requireReadAccess } = require('../middleware/auth');
 const TeamController = require('../controllers/TeamController');
 
 const router = express.Router();
@@ -11,7 +11,8 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   TeamController.list,
 );
 
@@ -21,9 +22,66 @@ router.get('/',
  * @access Private (Admin)
  */
 router.post('/invite',
-  requireAdmin, // CORRECTO: Solo admin puede invitar
+  authMiddleware,
+  requireAdmin,
   validate(schemas.team.invite),
   TeamController.invite,
+);
+
+/**
+ * @route PUT /api/team/:userId/role
+ * @desc Cambiar rol de miembro
+ * @access Private (Admin)
+ */
+router.put('/:userId/role',
+  authMiddleware,
+  requireAdmin,
+  validate(schemas.team.changeRole),
+  TeamController.changeRole,
+);
+
+/**
+ * @route PUT /api/team/:userId/deactivate
+ * @desc Desactivar miembro
+ * @access Private (Admin)
+ */
+router.put('/:userId/deactivate',
+  authMiddleware,
+  requireAdmin,
+  TeamController.deactivate,
+);
+
+/**
+ * @route PUT /api/team/:userId/activate
+ * @desc Activar miembro
+ * @access Private (Admin)
+ */
+router.put('/:userId/activate',
+  authMiddleware,
+  requireAdmin,
+  TeamController.activate,
+);
+
+/**
+ * @route DELETE /api/team/:userId
+ * @desc Eliminar miembro del equipo
+ * @access Private (Admin)
+ */
+router.delete('/:userId',
+  authMiddleware,
+  requireAdmin,
+  TeamController.remove,
+);
+
+/**
+ * @route POST /api/team/:userId/reset-password
+ * @desc Resetear contraseña de miembro
+ * @access Private (Admin)
+ */
+router.post('/:userId/reset-password',
+  authMiddleware,
+  requireAdmin,
+  TeamController.resetPassword,
 );
 
 /**
@@ -87,16 +145,4 @@ router.get('/:id/kpis',
   TeamController.getKPIs,
 );
 
-/**
- * @route POST /api/team/:id/reset-password
- * @desc Resetear contraseña de miembro
- * @access Private (Admin)
- */
-router.post('/:id/reset-password',
-  requireAdmin,
-  TeamController.resetPassword,
-);
-
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const teamRoutes = require('./routes/team');
 module.exports = router;

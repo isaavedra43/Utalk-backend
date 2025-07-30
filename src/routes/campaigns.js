@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate, schemas } = require('../utils/validation');
-const { requireReadAccess, requireWriteAccess, requireAdmin } = require('../middleware/auth');
+const { authMiddleware, requireReadAccess, requireWriteAccess, requireAdmin } = require('../middleware/auth');
 const CampaignController = require('../controllers/CampaignController');
 
 const router = express.Router();
@@ -11,7 +11,8 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // CORREGIDO: Cambiado a requireReadAccess para incluir viewers
+  authMiddleware,
+  requireReadAccess,
   CampaignController.list,
 );
 
@@ -21,82 +22,99 @@ router.get('/',
  * @access Private (Agent, Admin)
  */
 router.post('/',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
+  authMiddleware,
+  requireWriteAccess,
   validate(schemas.campaign.create),
   CampaignController.create,
 );
 
 /**
- * @route GET /api/campaigns/:id
- * @desc Obtener campaña por ID
+ * @route GET /api/campaigns/stats
+ * @desc Obtener estadísticas de campañas
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:id',
-  requireReadAccess, // CORREGIDO: Cambiado a requireReadAccess
-  CampaignController.getById,
+router.get('/stats',
+  authMiddleware,
+  requireReadAccess,
+  CampaignController.getStats,
 );
 
 /**
- * @route PUT /api/campaigns/:id
+ * @route GET /api/campaigns/:campaignId
+ * @desc Obtener campaña específica
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/:campaignId',
+  authMiddleware,
+  requireReadAccess,
+  CampaignController.get,
+);
+
+/**
+ * @route PUT /api/campaigns/:campaignId
  * @desc Actualizar campaña
  * @access Private (Agent, Admin)
  */
-router.put('/:id',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
+router.put('/:campaignId',
+  authMiddleware,
+  requireWriteAccess,
   validate(schemas.campaign.update),
   CampaignController.update,
 );
 
 /**
- * @route DELETE /api/campaigns/:id
+ * @route DELETE /api/campaigns/:campaignId
  * @desc Eliminar campaña
- * @access Private (Admin)
+ * @access Private (Agent, Admin)
  */
-router.delete('/:id',
-  requireAdmin, // CORRECTO: Mantener requireAdmin para operación crítica
+router.delete('/:campaignId',
+  authMiddleware,
+  requireWriteAccess,
   CampaignController.delete,
 );
 
 /**
- * @route POST /api/campaigns/:id/send
- * @desc Enviar campaña
+ * @route POST /api/campaigns/:campaignId/start
+ * @desc Iniciar campaña
  * @access Private (Agent, Admin)
  */
-router.post('/:id/send',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
-  CampaignController.sendCampaign,
+router.post('/:campaignId/start',
+  authMiddleware,
+  requireWriteAccess,
+  CampaignController.start,
 );
 
 /**
- * @route POST /api/campaigns/:id/pause
+ * @route POST /api/campaigns/:campaignId/pause
  * @desc Pausar campaña
  * @access Private (Agent, Admin)
  */
-router.post('/:id/pause',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
-  CampaignController.pauseCampaign,
+router.post('/:campaignId/pause',
+  authMiddleware,
+  requireWriteAccess,
+  CampaignController.pause,
 );
 
 /**
- * @route POST /api/campaigns/:id/resume
+ * @route POST /api/campaigns/:campaignId/resume
  * @desc Reanudar campaña
  * @access Private (Agent, Admin)
  */
-router.post('/:id/resume',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
-  CampaignController.resumeCampaign,
+router.post('/:campaignId/resume',
+  authMiddleware,
+  requireWriteAccess,
+  CampaignController.resume,
 );
 
 /**
- * @route GET /api/campaigns/:id/report
- * @desc Obtener reporte de campaña
- * @access Private (Admin, Agent, Viewer)
+ * @route POST /api/campaigns/:campaignId/stop
+ * @desc Detener campaña
+ * @access Private (Agent, Admin)
  */
-router.get('/:id/report',
-  requireReadAccess, // CORREGIDO: Cambiado a requireReadAccess
-  CampaignController.getReport,
+router.post('/:campaignId/stop',
+  authMiddleware,
+  requireWriteAccess,
+  CampaignController.stop,
 );
 
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const campaignRoutes = require('./routes/campaigns');
 module.exports = router;

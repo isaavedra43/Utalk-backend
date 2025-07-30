@@ -1,5 +1,5 @@
 const express = require('express');
-const { requireReadAccess } = require('../middleware/auth');
+const { authMiddleware, requireReadAccess } = require('../middleware/auth');
 const DashboardController = require('../controllers/DashboardController');
 
 const router = express.Router();
@@ -10,7 +10,8 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/metrics',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   DashboardController.getMetrics,
 );
 
@@ -20,18 +21,31 @@ router.get('/metrics',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/messages/stats',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   DashboardController.getMessageStats,
 );
 
 /**
- * @route GET /api/dashboard/contacts/stats
- * @desc Estadísticas de contactos
+ * @route GET /api/dashboard/conversations/stats
+ * @desc Estadísticas de conversaciones
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/contacts/stats',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  DashboardController.getContactStats,
+router.get('/conversations/stats',
+  authMiddleware,
+  requireReadAccess,
+  DashboardController.getConversationStats,
+);
+
+/**
+ * @route GET /api/dashboard/agents/performance
+ * @desc Rendimiento de agentes
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/agents/performance',
+  authMiddleware,
+  requireReadAccess,
+  DashboardController.getAgentPerformance,
 );
 
 /**
