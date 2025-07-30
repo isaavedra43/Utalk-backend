@@ -10,10 +10,6 @@ const createRateLimit = (endpoint) => {
   return rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 100, // máximo 100 requests por ventana
-    message: {
-      error: 'Rate limit exceeded',
-      message: `Demasiadas solicitudes para ${endpoint}. Intenta nuevamente en 15 minutos.`,
-    },
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
@@ -23,7 +19,7 @@ const createRateLimit = (endpoint) => {
       }
       return false;
     },
-    // ✅ CORREGIDO: Usar handler en lugar de onLimitReached
+    // ✅ CORREGIDO: Usar handler en lugar de message y onLimitReached
     handler: (req, res) => {
       logger.warn('Rate limit alcanzado', {
         ip: req.ip,

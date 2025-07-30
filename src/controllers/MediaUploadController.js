@@ -23,13 +23,24 @@ class MediaUploadController {
     this.uploadLimit = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutos
       max: 50, // 50 uploads por ventana
-      message: {
-        error: 'Demasiadas subidas de archivos',
-        message: 'Has excedido el límite de subidas. Intenta nuevamente en 15 minutos.',
-        retryAfter: '15 minutos'
-      },
       standardHeaders: true,
       legacyHeaders: false,
+      // ✅ CORREGIDO: Usar handler en lugar de message
+      handler: (req, res) => {
+        logger.warn('Rate limit de uploads excedido', {
+          ip: req.ip,
+          userEmail: req.user?.email,
+          userAgent: req.headers['user-agent']?.substring(0, 100),
+          timestamp: new Date().toISOString()
+        });
+        
+        res.status(429).json({
+          error: 'Demasiadas subidas de archivos',
+          message: 'Has excedido el límite de subidas. Intenta nuevamente en 15 minutos.',
+          retryAfter: Math.ceil(15 * 60), // 15 minutos en segundos
+          timestamp: new Date().toISOString()
+        });
+      }
     });
 
     // Configuración de multer para memoria
