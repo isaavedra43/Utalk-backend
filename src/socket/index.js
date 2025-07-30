@@ -43,19 +43,31 @@ class SocketManager {
       pingInterval: 25000,
       maxHttpBufferSize: 1e6, // 1MB
       allowEIO3: true, // Compatibilidad
+      // NUEVO: Configuración mejorada para reconexión
+      connectTimeout: 45000,
+      upgradeTimeout: 10000,
+      allowUpgrades: true,
+      perMessageDeflate: false, // Mejor rendimiento
+      // NUEVO: Configuración para reconexión automática
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     this.connectedUsers = new Map(); // email -> socket.id
     this.userRoles = new Map(); // email -> role
     this.conversationUsers = new Map(); // conversationId -> Set(emails)
 
-    // NUEVO: Rate limiting para prevenir spam
+    // NUEVO: Rate limiting para prevenir spam (AJUSTADO PARA SER MÁS PERMISIVO)
     this.eventRateLimits = new Map();
     this.rateLimitConfig = {
-      'typing-start': 1000, // 1 segundo
-      'typing-stop': 1000,
-      'join-conversation': 5000, // 5 segundos
-      'status-change': 10000, // 10 segundos
+      'typing-start': 500, // 0.5 segundos (más permisivo)
+      'typing-stop': 500,
+      'join-conversation': 1000, // 1 segundo (más permisivo)
+      'status-change': 2000, // 2 segundos (más permisivo)
+      'new-message': 100, // 0.1 segundos para mensajes
+      'message-notification': 100, // 0.1 segundos para notificaciones
     };
 
     this.setupMiddleware();

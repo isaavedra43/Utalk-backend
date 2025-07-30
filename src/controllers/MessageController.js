@@ -288,18 +288,39 @@ class MessageController {
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.emitNewMessage(conversationId, message);
-        
-        // Notificar a agente asignado si es diferente al remitente
-        if (conversation.assignedTo && conversation.assignedTo !== req.user.email) {
-          socketManager.io.emit('message-notification', {
-            type: 'new-message',
+        try {
+          socketManager.emitNewMessage(conversationId, message);
+          
+          // Notificar a agente asignado si es diferente al remitente
+          if (conversation.assignedTo && conversation.assignedTo !== req.user.email) {
+            socketManager.io.emit('message-notification', {
+              type: 'new-message',
+              conversationId,
+              message: message.toJSON(),
+              targetAgent: conversation.assignedTo,
+              timestamp: new Date().toISOString()
+            });
+          }
+          
+          logger.info('[BACKEND][SOCKET][EMITIDO] Mensaje emitido via Socket.IO', {
+            messageId: message.id,
             conversationId,
-            message: message.toJSON(),
-            targetAgent: conversation.assignedTo,
-            timestamp: new Date().toISOString()
+            socketManagerAvailable: true,
+            connectedUsers: socketManager.getConnectedUsers().length
           });
+        } catch (socketError) {
+          logger.error('[BACKEND][SOCKET][ERROR] Error emitiendo mensaje via Socket.IO', {
+            error: socketError.message,
+            messageId: message.id,
+            conversationId
+          });
+          // Continuar aunque falle Socket.IO
         }
+      } else {
+        logger.warn('[BACKEND][SOCKET][NO_DISPONIBLE] SocketManager no disponible', {
+          messageId: message.id,
+          conversationId
+        });
       }
 
       logger.info('Mensaje creado en conversación', {
@@ -693,19 +714,40 @@ class MessageController {
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.emitNewMessage(conversation.id, message);
-        
-        // Notificación especial para mensajes entrantes
-        socketManager.io.emit('incoming-message-notification', {
-          type: 'incoming-message',
-          conversationId: conversation.id,
-          message: message.toJSON(),
-          customer: {
-            phone: phoneValidation.normalized,
-            name: conversation.contact?.name || phoneValidation.normalized
-          },
-          assignedTo: conversation.assignedTo,
-          timestamp: new Date().toISOString()
+        try {
+          socketManager.emitNewMessage(conversation.id, message);
+          
+          // Notificación especial para mensajes entrantes
+          socketManager.io.emit('incoming-message-notification', {
+            type: 'incoming-message',
+            conversationId: conversation.id,
+            message: message.toJSON(),
+            customer: {
+              phone: phoneValidation.normalized,
+              name: conversation.contact?.name || phoneValidation.normalized
+            },
+            assignedTo: conversation.assignedTo,
+            timestamp: new Date().toISOString()
+          });
+          
+          logger.info('[BACKEND][WEBHOOK][SOCKET][EMITIDO] Mensaje entrante emitido via Socket.IO', {
+            messageId: message.id,
+            conversationId: conversation.id,
+            socketManagerAvailable: true,
+            connectedUsers: socketManager.getConnectedUsers().length
+          });
+        } catch (socketError) {
+          logger.error('[BACKEND][WEBHOOK][SOCKET][ERROR] Error emitiendo mensaje entrante via Socket.IO', {
+            error: socketError.message,
+            messageId: message.id,
+            conversationId: conversation.id
+          });
+          // Continuar aunque falle Socket.IO
+        }
+      } else {
+        logger.warn('[BACKEND][WEBHOOK][SOCKET][NO_DISPONIBLE] SocketManager no disponible para mensaje entrante', {
+          messageId: message.id,
+          conversationId: conversation.id
         });
       }
 

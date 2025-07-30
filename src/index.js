@@ -98,8 +98,10 @@ const server = app.listen(PORT, () => {
 const SocketManager = require('./socket');
 const socketManager = new SocketManager(server);
 
-global.socketManager = socketManager;
+// Hacer SocketManager disponible en la app
 app.set('socketManager', socketManager);
+
+logger.info('SocketManager inicializado y disponible en la app');
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection', { reason, promise });
