@@ -47,7 +47,7 @@ router.get('/stats',
 router.get('/:campaignId',
   authMiddleware,
   requireReadAccess,
-  CampaignController.get,
+  CampaignController.getById,
 );
 
 /**

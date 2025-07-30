@@ -42,16 +42,6 @@ router.get('/search',
 );
 
 /**
- * @route GET /api/knowledge/categories
- * @desc Obtener categorías disponibles
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/categories',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  KnowledgeController.getCategories,
-);
-
-/**
  * @route GET /api/knowledge/:knowledgeId
  * @desc Obtener documento específico
  * @access Private (Admin, Agent, Viewer)

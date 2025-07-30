@@ -30,19 +30,9 @@ router.post('/',
 );
 
 /**
- * @route GET /api/contacts/search
- * @desc Buscar contactos por texto
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/search',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  ContactController.search,
-);
-
-/**
  * @route GET /api/contacts/export
  * @desc Exportar contactos a CSV
- * @access Private (Admin, Agent, Viewer)
+ * @access Private (Agent+)
  */
 router.get('/export',
   authMiddleware,
@@ -51,12 +41,25 @@ router.get('/export',
 );
 
 /**
+ * @route GET /api/contacts/search
+ * @desc Buscar contactos
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/search',
+  authMiddleware,
+  requireReadAccess,
+  validate(schemas.contact.search, 'query'),
+  ContactController.search,
+);
+
+/**
  * @route GET /api/contacts/tags
- * @desc Obtener todos los tags disponibles
+ * @desc Obtener todos los tags de contactos
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/tags',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   ContactController.getTags,
 );
 
@@ -68,7 +71,7 @@ router.get('/tags',
 router.get('/:contactId',
   authMiddleware,
   requireReadAccess,
-  ContactController.get,
+  ContactController.getById,
 );
 
 /**
@@ -95,26 +98,6 @@ router.delete('/:contactId',
 );
 
 /**
- * @route POST /api/contacts/:id/tags
- * @desc Agregar tags a un contacto
- * @access Private (Agent, Admin)
- */
-router.post('/:id/tags',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
-  ContactController.addTags,
-);
-
-/**
- * @route DELETE /api/contacts/:id/tags
- * @desc Remover tags de un contacto
- * @access Private (Agent, Admin)
- */
-router.delete('/:id/tags',
-  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
-  ContactController.removeTags,
-);
-
-/**
  * @route POST /api/contacts/import
  * @desc Importar contactos desde CSV
  * @access Private (Agent+)
@@ -126,6 +109,28 @@ router.post('/import',
   ContactController.import,
 );
 
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const contactRoutes = require('./routes/contacts');
+/**
+ * @route POST /api/contacts/:contactId/tags
+ * @desc Agregar tags a contacto
+ * @access Private (Agent+)
+ */
+router.post('/:contactId/tags',
+  authMiddleware,
+  requireWriteAccess,
+  validate(schemas.contact.addTags),
+  ContactController.addTags,
+);
+
+/**
+ * @route DELETE /api/contacts/:contactId/tags
+ * @desc Remover tags de contacto
+ * @access Private (Agent+)
+ */
+router.delete('/:contactId/tags',
+  authMiddleware,
+  requireWriteAccess,
+  validate(schemas.contact.removeTags),
+  ContactController.removeTags,
+);
+
 module.exports = router;

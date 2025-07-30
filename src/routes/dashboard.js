@@ -27,25 +27,14 @@ router.get('/messages/stats',
 );
 
 /**
- * @route GET /api/dashboard/conversations/stats
- * @desc Estadísticas de conversaciones
+ * @route GET /api/dashboard/contacts/stats
+ * @desc Estadísticas de contactos
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/conversations/stats',
+router.get('/contacts/stats',
   authMiddleware,
   requireReadAccess,
-  DashboardController.getConversationStats,
-);
-
-/**
- * @route GET /api/dashboard/agents/performance
- * @desc Rendimiento de agentes
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/agents/performance',
-  authMiddleware,
-  requireReadAccess,
-  DashboardController.getAgentPerformance,
+  DashboardController.getContactStats,
 );
 
 /**
@@ -54,40 +43,42 @@ router.get('/agents/performance',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/campaigns/stats',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   DashboardController.getCampaignStats,
 );
 
 /**
- * @route GET /api/dashboard/activity
+ * @route GET /api/dashboard/recent-activity
  * @desc Actividad reciente
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/activity',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+router.get('/recent-activity',
+  authMiddleware,
+  requireReadAccess,
   DashboardController.getRecentActivity,
 );
 
 /**
- * @route GET /api/dashboard/export
+ * @route GET /api/dashboard/export-report
  * @desc Exportar reporte del dashboard
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/export',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+router.get('/export-report',
+  authMiddleware,
+  requireReadAccess,
   DashboardController.exportReport,
 );
 
 /**
  * @route GET /api/dashboard/performance
- * @desc Métricas de performance
+ * @desc Métricas de rendimiento
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/performance',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
+  authMiddleware,
+  requireReadAccess,
   DashboardController.getPerformanceMetrics,
 );
 
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const dashboardRoutes = require('./routes/dashboard');
 module.exports = router;
