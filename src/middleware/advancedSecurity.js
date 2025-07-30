@@ -96,7 +96,8 @@ class AdvancedSecurity {
     return rateLimit({
       ...config,
       skip: (req) => this.shouldSkipRateLimit(req),
-      onLimitReached: (req, res, options) => this.handleRateLimitReached(req, res, options, endpointType),
+      // ✅ CORREGIDO: Usar handler en lugar de onLimitReached
+      handler: (req, res) => this.handleRateLimitReached(req, res, options, endpointType),
       keyGenerator: (req) => this.generateRateLimitKey(req),
     });
   }
@@ -217,12 +218,22 @@ class AdvancedSecurity {
       ...config,
       skip: (req) => this.shouldSkipRateLimit(req),
       keyGenerator: (req) => this.generateRateLimitKey(req),
-      onLimitReached: (req, res, options) => {
+      // ✅ CORREGIDO: Usar handler en lugar de onLimitReached
+      handler: (req, res, options) => {
         logger.info('Desaceleración aplicada', {
           ip: req.ip,
           user: req.user?.id,
           delay: options.delay,
           endpoint: req.originalUrl,
+          timestamp: new Date().toISOString()
+        });
+        
+        // ✅ RESPONDER con información de desaceleración
+        res.status(429).json({
+          error: 'Too many requests',
+          message: 'Tu velocidad de requests ha sido reducida temporalmente.',
+          retryAfter: Math.ceil(options.delay / 1000),
+          timestamp: new Date().toISOString()
         });
       },
     });

@@ -80,11 +80,23 @@ const globalRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  onLimitReached: (req) => {
+  // ✅ CORREGIDO: Usar el nuevo sistema de handlers de v7
+  handler: (req, res) => {
+    // ✅ NUEVO: Log de rate limit excedido usando el nuevo sistema
     logger.security('rate_limit_exceeded', {
       ip: req.ip,
       userAgent: req.headers['user-agent']?.substring(0, 100),
-      path: req.path
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString()
+    });
+    
+    // ✅ RESPONDER con el mensaje de error estándar
+    res.status(429).json({
+      error: 'Too many requests',
+      message: 'Rate limit exceeded. Please try again later.',
+      retryAfter: Math.ceil(15 * 60), // 15 minutos en segundos
+      timestamp: new Date().toISOString()
     });
   }
 });

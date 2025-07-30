@@ -7,15 +7,12 @@ const logger = require('../utils/logger');
  * Rate limiting configurado por endpoint
  */
 const createRateLimit = (endpoint) => {
-  const config = rateLimitConfig[endpoint] || rateLimitConfig.default;
-
   return rateLimit({
-    windowMs: config.windowMs,
-    max: config.max,
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100, // máximo 100 requests por ventana
     message: {
-      error: 'Demasiadas solicitudes',
-      message: 'Has excedido el límite de solicitudes. Intenta de nuevo más tarde.',
-      retryAfter: Math.ceil(config.windowMs / 1000),
+      error: 'Rate limit exceeded',
+      message: `Demasiadas solicitudes para ${endpoint}. Intenta nuevamente en 15 minutos.`,
     },
     standardHeaders: true,
     legacyHeaders: false,
@@ -26,12 +23,21 @@ const createRateLimit = (endpoint) => {
       }
       return false;
     },
-    onLimitReached: (req, _res, _options) => {
+    // ✅ CORREGIDO: Usar handler en lugar de onLimitReached
+    handler: (req, res) => {
       logger.warn('Rate limit alcanzado', {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         endpoint: req.originalUrl,
         user: req.user?.uid,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.status(429).json({
+        error: 'Rate limit exceeded',
+        message: `Demasiadas solicitudes para ${endpoint}. Intenta nuevamente en 15 minutos.`,
+        retryAfter: Math.ceil(15 * 60),
+        timestamp: new Date().toISOString()
       });
     },
   });
