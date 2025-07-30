@@ -1,6 +1,5 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
-const { Storage } = require('@google-cloud/storage');
 const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid');
 const sharp = require('sharp');
@@ -12,9 +11,6 @@ const AudioProcessor = require('./AudioProcessor');
  */
 class MediaService {
   constructor() {
-    this.storage = new Storage();
-    this.bucket = admin.storage().bucket();
-    
     // Configuración de tipos de archivo permitidos
     this.allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     this.allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/avi'];
@@ -27,6 +23,29 @@ class MediaService {
     this.maxVideoSize = 100 * 1024 * 1024; // 100MB
     this.maxAudioSize = 50 * 1024 * 1024; // 50MB
     this.maxDocumentSize = 25 * 1024 * 1024; // 25MB
+  }
+
+  /**
+   * Obtener bucket de Firebase Storage de forma segura
+   */
+  getBucket() {
+    try {
+      if (!admin.apps.length) {
+        throw new Error('Firebase Admin SDK no inicializado');
+      }
+      return admin.storage().bucket();
+    } catch (error) {
+      logger.error('Error obteniendo bucket de Firebase Storage:', error);
+      // Retornar mock para desarrollo
+      return {
+        file: () => ({
+          save: () => Promise.reject(new Error('Storage no disponible')),
+          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
+          delete: () => Promise.reject(new Error('Storage no disponible')),
+          exists: () => Promise.resolve([false])
+        })
+      };
+    }
   }
 
   /**
@@ -63,7 +82,7 @@ class MediaService {
       const conversationId = messageId.split('_')[0] || 'unknown';
 
       let processedFile;
-      
+
       switch (category) {
         case 'audio':
           processedFile = await this.processAudioFile(buffer, fileId, conversationId, contentType);
@@ -83,17 +102,23 @@ class MediaService {
         originalUrl: mediaUrl,
         category,
         size: contentLength,
-        sizeFormatted: this.formatFileSize(contentLength),
-        messageId,
-        mediaIndex,
-        downloadedAt: new Date().toISOString(),
         ...processedFile
       };
 
-      logger.info('Media procesada exitosamente:', { fileId, category, size: contentLength });
+      logger.info('Media procesada exitosamente:', {
+        fileId,
+        category,
+        size: this.formatFileSize(contentLength)
+      });
+
       return result;
+
     } catch (error) {
-      logger.error('Error procesando media:', error);
+      logger.error('Error procesando media desde webhook:', {
+        mediaUrl,
+        messageId,
+        error: error.message
+      });
       throw error;
     }
   }
@@ -103,86 +128,80 @@ class MediaService {
    */
   async processAudioFile(buffer, fileId, conversationId, contentType) {
     try {
-      const originalFilename = `${fileId}_original.${this.getFileExtension(contentType)}`;
-      
-      // Usar AudioProcessor para procesar el audio
-      const audioResult = await AudioProcessor.processAudio(buffer, originalFilename, conversationId);
-      
-      return {
-        storagePath: audioResult.storagePath,
-        signedUrl: audioResult.signedUrl,
-        contentType: 'audio/mpeg', // Siempre MP3 después del procesamiento
-        metadata: audioResult.metadata,
-        processed: true
-      };
-    } catch (error) {
-      logger.error('Error procesando archivo de audio:', error);
-      throw error;
-    }
-  }
+      const processor = new AudioProcessor();
+      const processedAudio = await processor.processAudio(buffer, fileId, contentType);
 
-  /**
-   * Procesar archivo de imagen con optimización
-   */
-  async processImageFile(buffer, fileId, conversationId, contentType) {
-    try {
-      const extension = this.getFileExtension(contentType);
-      const filename = `${fileId}.${extension}`;
-      const storagePath = `images/${conversationId}/${filename}`;
+      const storagePath = `audio/${conversationId}/${fileId}.mp3`;
+      const bucket = this.getBucket();
+      const file = bucket.file(storagePath);
 
-      // Optimizar imagen con Sharp
-      let processedBuffer = buffer;
-      let finalContentType = contentType;
-
-      if (contentType.startsWith('image/')) {
-        const sharpImage = sharp(buffer);
-        const metadata = await sharpImage.metadata();
-        
-        // Redimensionar si es muy grande
-        if (metadata.width > 1920 || metadata.height > 1920) {
-          processedBuffer = await sharpImage
-            .resize(1920, 1920, { fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 85, progressive: true })
-            .toBuffer();
-          finalContentType = 'image/jpeg';
-        } else if (contentType === 'image/jpeg') {
-          processedBuffer = await sharpImage
-            .jpeg({ quality: 90, progressive: true })
-            .toBuffer();
-        }
-      }
-
-      // Subir a Firebase Storage
-      const file = this.bucket.file(storagePath);
-      await file.save(processedBuffer, {
+      await file.save(processedAudio.buffer, {
         metadata: {
-          contentType: finalContentType,
+          contentType: 'audio/mp3',
           metadata: {
-            originalContentType: contentType,
-            conversationId: conversationId,
+            originalFormat: contentType,
             processedAt: new Date().toISOString(),
-            fileId: fileId
+            duration: processedAudio.metadata.duration,
+            bitrate: processedAudio.metadata.bitrate
           }
         }
       });
 
-      // Generar URL firmada
       const [signedUrl] = await file.getSignedUrl({
         action: 'read',
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
       return {
-        storagePath,
-        signedUrl,
-        contentType: finalContentType,
-        size: processedBuffer.length,
+        storageUrl: `gs://${bucket.name}/${storagePath}`,
+        publicUrl: signedUrl,
+        metadata: processedAudio.metadata
+      };
+    } catch (error) {
+      logger.error('Error procesando audio:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Procesar archivo de imagen
+   */
+  async processImageFile(buffer, fileId, conversationId, contentType) {
+    try {
+      // Optimizar imagen con Sharp
+      const optimizedBuffer = await sharp(buffer)
+        .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+
+      const storagePath = `images/${conversationId}/${fileId}.jpg`;
+      const bucket = this.getBucket();
+      const file = bucket.file(storagePath);
+
+      await file.save(optimizedBuffer, {
         metadata: {
-          dimensions: await this.getImageDimensions(processedBuffer),
-          optimized: processedBuffer.length < buffer.length,
-          originalSize: buffer.length
-        },
-        processed: true
+          contentType: 'image/jpeg',
+          metadata: {
+            originalFormat: contentType,
+            processedAt: new Date().toISOString(),
+            optimized: true
+          }
+        }
+      });
+
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+      });
+
+      return {
+        storageUrl: `gs://${bucket.name}/${storagePath}`,
+        publicUrl: signedUrl,
+        metadata: {
+          originalSize: buffer.length,
+          optimizedSize: optimizedBuffer.length,
+          compression: ((buffer.length - optimizedBuffer.length) / buffer.length * 100).toFixed(1) + '%'
+        }
       };
     } catch (error) {
       logger.error('Error procesando imagen:', error);
@@ -191,40 +210,36 @@ class MediaService {
   }
 
   /**
-   * Procesar archivo genérico (video, documento)
+   * Procesar archivo genérico
    */
   async processGenericFile(buffer, fileId, conversationId, category, contentType) {
     try {
       const extension = this.getFileExtension(contentType);
-      const filename = `${fileId}.${extension}`;
-      const storagePath = `${category}/${conversationId}/${filename}`;
+      const storagePath = `${category}/${conversationId}/${fileId}.${extension}`;
+      const bucket = this.getBucket();
+      const file = bucket.file(storagePath);
 
-      // Subir directamente a Firebase Storage
-      const file = this.bucket.file(storagePath);
       await file.save(buffer, {
         metadata: {
           contentType,
           metadata: {
-            conversationId: conversationId,
-            uploadedAt: new Date().toISOString(),
-            fileId: fileId,
-            category: category
+            processedAt: new Date().toISOString(),
+            category
           }
         }
       });
 
-      // Generar URL firmada
       const [signedUrl] = await file.getSignedUrl({
         action: 'read',
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
       return {
-        storagePath,
-        signedUrl,
-        contentType,
-        size: buffer.length,
-        processed: true
+        storageUrl: `gs://${bucket.name}/${storagePath}`,
+        publicUrl: signedUrl,
+        metadata: {
+          originalSize: buffer.length
+        }
       };
     } catch (error) {
       logger.error('Error procesando archivo genérico:', error);
@@ -237,13 +252,13 @@ class MediaService {
    */
   validateFile(file) {
     const { buffer, mimetype, size } = file;
-    
+
     if (!buffer || !mimetype || !size) {
       return { valid: false, error: 'Datos de archivo incompletos' };
     }
 
     const category = this.getFileCategory(mimetype);
-    
+
     if (category === 'unknown') {
       return { valid: false, error: `Tipo de archivo no permitido: ${mimetype}` };
     }
@@ -349,7 +364,7 @@ class MediaService {
    */
   async deleteFile(storagePath) {
     try {
-      const file = this.bucket.file(storagePath);
+      const file = this.getBucket().file(storagePath);
       await file.delete();
       logger.info('Archivo eliminado de Firebase Storage:', { storagePath });
       return true;
@@ -364,7 +379,7 @@ class MediaService {
    */
   async getSignedUrl(storagePath, expirationHours = 24) {
     try {
-      const file = this.bucket.file(storagePath);
+      const file = this.getBucket().file(storagePath);
       const [signedUrl] = await file.getSignedUrl({
         action: 'read',
         expires: Date.now() + (expirationHours * 60 * 60 * 1000)

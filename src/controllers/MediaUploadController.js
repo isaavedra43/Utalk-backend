@@ -1,12 +1,14 @@
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
-const storageConfig = require('../config/storage');
+const getStorageConfig = require('../config/storage');
 const audioProcessor = require('../services/AudioProcessor');
 const Conversation = require('../models/Conversation');
 const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
 const sharp = require('sharp');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const admin = require('firebase-admin');
 
 /**
  * CONTROLADOR DE SUBIDA DE MEDIA
@@ -15,413 +17,434 @@ const path = require('path');
 class MediaUploadController {
 
   /**
-   * CONFIGURACIÓN DE MULTER PARA MEMORIA
+   * Controlador para subida y gestión de archivos multimedia
    */
-  static getMulterConfig() {
-    return multer({
+  constructor() {
+    // Rate limiting para uploads
+    this.uploadLimit = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutos
+      max: 50, // 50 uploads por ventana
+      message: {
+        error: 'Demasiadas subidas de archivos',
+        message: 'Has excedido el límite de subidas. Intenta nuevamente en 15 minutos.',
+        retryAfter: '15 minutos'
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+
+    // Configuración de multer para memoria
+    this.multerConfig = multer({
       storage: multer.memoryStorage(),
       limits: {
-        fileSize: 100 * 1024 * 1024, // 100MB límite global
-        files: 5, // Máximo 5 archivos por request
+        fileSize: 100 * 1024 * 1024, // 100MB máximo
+        files: 1
       },
       fileFilter: (req, file, cb) => {
-        try {
-          const validation = storageConfig.validateFile(file);
-          if (validation.valid) {
-            cb(null, true);
-          } else {
-            cb(new ApiError('INVALID_FILE', validation.error, 'Verifica el tipo y tamaño del archivo', 400), false);
-          }
-        } catch (error) {
-          logger.error('Error en fileFilter:', error);
-          cb(new ApiError('FILE_VALIDATION_ERROR', 'Error validando archivo', 'Intenta nuevamente', 500), false);
+        const storage = getStorageConfig();
+        const validation = storage.validateFile(file);
+        
+        if (validation.valid) {
+          cb(null, true);
+        } else {
+          cb(new Error(validation.error), false);
         }
       }
     });
   }
 
   /**
-   * RATE LIMITING ESPECÍFICO PARA UPLOADS
+   * Obtener configuración de rate limiting
    */
-  static getUploadRateLimit() {
-    return rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 50, // 50 uploads por ventana
-      message: {
-        error: 'UPLOAD_RATE_LIMIT',
-        message: 'Demasiadas subidas de archivos. Intenta en 15 minutos.',
-      },
-      standardHeaders: true,
-      legacyHeaders: false,
-    });
+  getUploadRateLimit() {
+    return this.uploadLimit;
+  }
+
+  /**
+   * Obtener configuración de multer
+   */
+  getMulterConfig() {
+    return this.multerConfig;
   }
 
   /**
    * ENDPOINT PRINCIPAL: POST /api/media/upload
    */
-  static async uploadMedia(req, res, next) {
-    const startTime = Date.now();
-    
+  async uploadMedia(req, res) {
     try {
+      if (!req.file) {
+        return ResponseHandler.error(res, new ApiError(
+          'NO_FILE',
+          'No se recibió ningún archivo',
+          'Incluye un archivo en el campo "file" del formulario',
+          400
+        ));
+      }
+
       const { conversationId } = req.body;
-      const file = req.file;
-
-      // 🔍 VALIDACIONES BÁSICAS
-      if (!file) {
-        throw new ApiError('NO_FILE', 'No se recibió ningún archivo', 'Selecciona un archivo para subir', 400);
-      }
-
       if (!conversationId) {
-        throw new ApiError('NO_CONVERSATION', 'conversationId es requerido', 'Especifica la conversación', 400);
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_CONVERSATION_ID',
+          'ID de conversación requerido',
+          'Incluye el conversationId en el cuerpo de la petición',
+          400
+        ));
       }
 
-      logger.info('📁 Iniciando subida de archivo', {
-        filename: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype,
-        conversationId,
-        userEmail: req.user.email
-      });
+      const storage = getStorageConfig();
+      const file = req.file;
+      const userEmail = req.user.email;
 
-      // 🔒 VALIDAR PERMISOS DE CONVERSACIÓN
-      const conversation = await Conversation.getById(conversationId);
-      if (!conversation) {
-        throw new ApiError('CONVERSATION_NOT_FOUND', 'Conversación no encontrada', 'Verifica el ID de conversación', 404);
-      }
-
-      // Verificar que el usuario sea participante de la conversación
-      const isParticipant = conversation.participants.includes(req.user.email) || 
-                           conversation.assignedTo === req.user.email ||
-                           req.user.role === 'admin' || 
-                           req.user.role === 'superadmin';
-
-      if (!isParticipant) {
-        throw new ApiError('ACCESS_DENIED', 'Sin permisos para subir archivos a esta conversación', 'Solo los participantes pueden subir archivos', 403);
-      }
-
-      // VALIDAR ARCHIVO
-      const validation = storageConfig.validateFile(file);
+      // Validar archivo
+      const validation = storage.validateFile(file);
       if (!validation.valid) {
-        throw new ApiError('INVALID_FILE', validation.error, 'Verifica el tipo y tamaño del archivo', 400);
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_FILE',
+          validation.error,
+          'Verifica que el archivo tenga un formato válido y no exceda el tamaño máximo',
+          400
+        ));
       }
 
-      // PROCESAR ARCHIVO SEGÚN TIPO
-      const processedFile = await MediaUploadController.processFileByType(file, validation.category);
-
-      // GENERAR PATH SEGURO EN FIREBASE
-      const storagePath = storageConfig.generateSecurePath(validation.category, conversationId, file.originalname);
-
-      // PREPARAR METADATOS
-      const uploadMetadata = {
-        contentType: file.mimetype,
-        uploadedBy: req.user.email,
-        conversationId,
-        category: validation.category,
-        originalName: file.originalname,
-        originalSize: file.size,
-        processedSize: processedFile.buffer.length,
-        processed: processedFile.processed || false,
-        ...processedFile.metadata
-      };
-
-      // SUBIR A FIREBASE STORAGE
-      const firebaseFile = await storageConfig.uploadFile(processedFile.buffer, storagePath, uploadMetadata);
-
-      // GENERAR URL FIRMADA
-      const signedUrlData = await storageConfig.generateSignedUrl(storagePath);
-
-      // RESPUESTA AL FRONTEND
-      const responseData = {
-        mediaUrl: signedUrlData.url,
-        fileId: path.basename(storagePath, path.extname(storagePath)),
-        category: validation.category,
-        size: storageConfig.formatFileSize(processedFile.buffer.length),
-        sizeBytes: processedFile.buffer.length,
-        originalName: file.originalname,
-        storagePath: storagePath,
-        expiresAt: signedUrlData.expiresAt,
-        metadata: processedFile.metadata || {},
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: req.user.email
-      };
-
-      const processingTime = Date.now() - startTime;
-
-      logger.info('Archivo subido exitosamente a Firebase Storage', {
-        filename: file.originalname,
-        category: validation.category,
-        size: responseData.size,
-        storagePath,
-        processingTime: `${processingTime}ms`,
-        userEmail: req.user.email
-      });
-
-      return ResponseHandler.success(res, responseData, 'Archivo subido exitosamente', 201);
-
-    } catch (error) {
-      const processingTime = Date.now() - startTime;
+      const category = validation.category;
+      const fileId = uuidv4();
       
-      logger.error('Error subiendo archivo', {
-        error: error.message,
-        stack: error.stack,
-        filename: req.file?.originalname,
-        userEmail: req.user?.email,
-        conversationId: req.body?.conversationId,
-        processingTime: `${processingTime}ms`
-      });
-
-      return ResponseHandler.error(res, error);
-    }
-  }
-
-  /**
-   * PROCESAR ARCHIVO SEGÚN TIPO
-   */
-  static async processFileByType(file, category) {
-    try {
+      // Procesar según el tipo de archivo
+      let processedFile;
+      
       switch (category) {
         case 'audio':
-          return await MediaUploadController.processAudio(file);
-        
+          processedFile = await this.processAudioUpload(file, fileId, conversationId, userEmail);
+          break;
         case 'image':
-          return await MediaUploadController.processImage(file);
-        
+          processedFile = await this.processImageUpload(file, fileId, conversationId, userEmail);
+          break;
         case 'video':
-          return await MediaUploadController.processVideo(file);
-        
         case 'document':
-          return await MediaUploadController.processDocument(file);
-        
         default:
-          return {
-            buffer: file.buffer,
-            processed: false,
-            metadata: {
-              originalSize: file.size,
-              originalMimeType: file.mimetype
-            }
-          };
+          processedFile = await this.processGenericUpload(file, fileId, conversationId, category, userEmail);
+          break;
       }
-    } catch (error) {
-      logger.error('Error procesando archivo por tipo:', error);
-      // En caso de error, devolver archivo original
-      return {
-        buffer: file.buffer,
-        processed: false,
-        metadata: {
-          originalSize: file.size,
-          originalMimeType: file.mimetype,
-          processingError: error.message
-        }
+
+      // Verificar compatibilidad con WhatsApp para Twilio
+      const isWhatsAppCompatible = this.isWhatsAppCompatible(file.mimetype, file.size);
+
+      const result = {
+        mediaUrl: processedFile.signedUrl,
+        fileId,
+        category,
+        size: storage.formatFileSize(file.size),
+        sizeBytes: file.size,
+        originalName: file.originalname,
+        storagePath: processedFile.storagePath,
+        expiresAt: processedFile.expiresAt,
+        metadata: processedFile.metadata || {},
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: userEmail,
+        whatsAppCompatible: isWhatsAppCompatible
       };
+
+      logger.info('Archivo subido exitosamente', {
+        fileId,
+        category,
+        size: file.size,
+        userEmail,
+        conversationId
+      });
+
+      return ResponseHandler.success(res, result, 'Archivo subido exitosamente');
+
+    } catch (error) {
+      logger.error('Error subiendo archivo:', {
+        error: error.message,
+        userEmail: req.user?.email,
+        fileSize: req.file?.size,
+        mimetype: req.file?.mimetype
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'UPLOAD_FAILED',
+        'Error subiendo archivo',
+        'Intenta nuevamente o contacta soporte si el problema persiste',
+        500,
+        { originalError: error.message }
+      ));
     }
   }
 
   /**
-   * PROCESAR AUDIO
+   * Procesar archivo de audio
    */
-  static async processAudio(file) {
+  async processAudioUpload(file, fileId, conversationId, userEmail) {
     try {
-      const result = await audioProcessor.processAudio(file.buffer, file.originalname);
+      const processor = new AudioProcessor();
+      const processedAudio = await processor.processAudio(file.buffer, fileId, file.mimetype);
       
-      return {
-        buffer: result.processedBuffer,
-        processed: result.metadata.processed,
+      const storagePath = `audio/${conversationId}/${fileId}.mp3`;
+      const bucket = admin.storage().bucket();
+      const firebaseFile = bucket.file(storagePath);
+
+      await firebaseFile.save(processedAudio.buffer, {
         metadata: {
-          ...result.metadata,
-          originalMimeType: file.mimetype,
-          // Agregar campos específicos para audio
-          type: 'audio',
-          isPlayable: true
+          contentType: 'audio/mp3',
+          metadata: {
+            originalFormat: file.mimetype,
+            originalName: file.originalname,
+            processedAt: new Date().toISOString(),
+            uploadedBy: userEmail,
+            duration: processedAudio.metadata.duration,
+            bitrate: processedAudio.metadata.bitrate
+          }
         }
+      });
+
+      const [signedUrl] = await firebaseFile.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+      });
+
+      return {
+        storagePath,
+        signedUrl,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        metadata: processedAudio.metadata
       };
     } catch (error) {
-      logger.error('Error procesando audio:', error);
-      return {
-        buffer: file.buffer,
-        processed: false,
-        metadata: {
-          originalSize: file.size,
-          originalMimeType: file.mimetype,
-          type: 'audio',
-          processingError: error.message
-        }
-      };
+      logger.error('Error procesando audio upload:', error);
+      throw error;
     }
   }
 
   /**
-   * PROCESAR IMAGEN
+   * Procesar archivo de imagen
    */
-  static async processImage(file) {
+  async processImageUpload(file, fileId, conversationId, userEmail) {
     try {
-      // Procesar imagen con Sharp para optimización
-      const imageBuffer = await sharp(file.buffer)
-        .resize(1920, 1080, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .jpeg({
-          quality: 85,
-          progressive: true
-        })
+      // Optimizar imagen con Sharp
+      const optimizedBuffer = await sharp(file.buffer)
+        .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
         .toBuffer();
 
-      // Extraer metadatos
-      const metadata = await sharp(file.buffer).metadata();
+      const storagePath = `images/${conversationId}/${fileId}.jpg`;
+      const bucket = admin.storage().bucket();
+      const firebaseFile = bucket.file(storagePath);
+
+      await firebaseFile.save(optimizedBuffer, {
+        metadata: {
+          contentType: 'image/jpeg',
+          metadata: {
+            originalFormat: file.mimetype,
+            originalName: file.originalname,
+            processedAt: new Date().toISOString(),
+            uploadedBy: userEmail,
+            optimized: true
+          }
+        }
+      });
+
+      const [signedUrl] = await firebaseFile.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+      });
 
       return {
-        buffer: imageBuffer,
-        processed: true,
+        storagePath,
+        signedUrl,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         metadata: {
-          originalSize: file.size,
-          processedSize: imageBuffer.length,
-          originalMimeType: file.mimetype,
-          type: 'image',
-          width: metadata.width,
-          height: metadata.height,
-          format: metadata.format,
-          optimized: true
+          originalSize: file.buffer.length,
+          optimizedSize: optimizedBuffer.length,
+          compression: ((file.buffer.length - optimizedBuffer.length) / file.buffer.length * 100).toFixed(1) + '%'
         }
       };
     } catch (error) {
-      logger.error('Error procesando imagen:', error);
-      return {
-        buffer: file.buffer,
-        processed: false,
-        metadata: {
-          originalSize: file.size,
-          originalMimeType: file.mimetype,
-          type: 'image',
-          processingError: error.message
-        }
-      };
+      logger.error('Error procesando imagen upload:', error);
+      throw error;
     }
   }
 
   /**
-   * PROCESAR VIDEO
+   * Procesar archivo genérico
    */
-  static async processVideo(file) {
-    // Implementar procesamiento de video con ffmpeg
-    return {
-      buffer: file.buffer,
-      processed: false,
-      metadata: {
-        originalSize: file.size,
-        originalMimeType: file.mimetype,
-        type: 'video',
-        note: 'Procesamiento de video pendiente de implementación'
-      }
-    };
+  async processGenericUpload(file, fileId, conversationId, category, userEmail) {
+    try {
+      const extension = path.extname(file.originalname).toLowerCase() || '.bin';
+      const storagePath = `${category}/${conversationId}/${fileId}${extension}`;
+      const bucket = admin.storage().bucket();
+      const firebaseFile = bucket.file(storagePath);
+
+      await firebaseFile.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+          metadata: {
+            originalName: file.originalname,
+            processedAt: new Date().toISOString(),
+            uploadedBy: userEmail,
+            category
+          }
+        }
+      });
+
+      const [signedUrl] = await firebaseFile.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+      });
+
+      return {
+        storagePath,
+        signedUrl,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        metadata: {
+          originalSize: file.buffer.length
+        }
+      };
+    } catch (error) {
+      logger.error('Error procesando archivo genérico:', error);
+      throw error;
+    }
   }
 
   /**
-   * PROCESAR DOCUMENTO
+   * Verificar compatibilidad con WhatsApp
    */
-  static async processDocument(file) {
-    return {
-      buffer: file.buffer,
-      processed: false,
-      metadata: {
-        originalSize: file.size,
-        originalMimeType: file.mimetype,
-        type: 'document',
-        isDownloadable: true
-      }
+  isWhatsAppCompatible(mimetype, size) {
+    const whatsappLimits = {
+      'image/jpeg': 5 * 1024 * 1024,   // 5MB
+      'image/png': 5 * 1024 * 1024,    // 5MB
+      'video/mp4': 16 * 1024 * 1024,   // 16MB
+      'audio/mpeg': 16 * 1024 * 1024,  // 16MB
+      'audio/ogg': 16 * 1024 * 1024,   // 16MB (WhatsApp voice notes)
+      'application/pdf': 100 * 1024 * 1024 // 100MB
     };
+
+    return whatsappLimits.hasOwnProperty(mimetype) && size <= whatsappLimits[mimetype];
   }
 
   /**
-   * OBTENER INFORMACIÓN DE ARCHIVO
+   * Obtener información de archivo
    */
-  static async getFileInfo(req, res, next) {
+  async getFileInfo(req, res) {
     try {
       const { fileId } = req.params;
       
-      // Implementar obtención de info desde Firebase Storage
-      // Por ahora retornar placeholder
-      
-      logger.info('Solicitando información de archivo', {
-        fileId,
-        userEmail: req.user.email
+      if (!fileId) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE_ID',
+          'ID de archivo requerido',
+          'Especifica el ID del archivo en la URL',
+          400
+        ));
+      }
+
+      // Buscar archivo en Firebase Storage
+      const bucket = admin.storage().bucket();
+      const [files] = await bucket.getFiles({
+        prefix: ``,
+        delimiter: '/'
       });
 
-      return ResponseHandler.success(res, {
-        fileId,
-        message: 'Información de archivo - por implementar'
+      // Buscar archivo que contenga el fileId
+      const file = files.find(f => f.name.includes(fileId));
+      
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND',
+          'Archivo no encontrado',
+          'El archivo especificado no existe o fue eliminado',
+          404
+        ));
+      }
+
+      const [metadata] = await file.getMetadata();
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
+
+      const result = {
+        fileId,
+        name: file.name,
+        size: parseInt(metadata.size),
+        contentType: metadata.contentType,
+        created: metadata.timeCreated,
+        updated: metadata.updated,
+        signedUrl,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        metadata: metadata.metadata || {}
+      };
+
+      return ResponseHandler.success(res, result, 'Información de archivo obtenida');
 
     } catch (error) {
       logger.error('Error obteniendo información de archivo:', error);
-      return ResponseHandler.error(res, error);
+      return ResponseHandler.error(res, new ApiError(
+        'FILE_INFO_ERROR',
+        'Error obteniendo información del archivo',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
     }
   }
 
   /**
-   * VERIFICAR COMPATIBILIDAD CON WHATSAPP
+   * Eliminar archivo
    */
-  static isWhatsAppCompatible(category, metadata = {}) {
-    const whatsAppLimits = {
-      image: {
-        maxSize: 5 * 1024 * 1024, // 5MB
-        allowedTypes: ['image/jpeg', 'image/png']
-      },
-      video: {
-        maxSize: 16 * 1024 * 1024, // 16MB
-        allowedTypes: ['video/mp4', 'video/3gp']
-      },
-      audio: {
-        maxSize: 16 * 1024 * 1024, // 16MB
-        allowedTypes: ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg']
-      },
-      document: {
-        maxSize: 100 * 1024 * 1024, // 100MB
-        allowedTypes: ['application/pdf']
-      }
-    };
-
-    const limits = whatsAppLimits[category];
-    if (!limits) return false;
-
-    // Verificar tamaño
-    if (metadata.sizeBytes && metadata.sizeBytes > limits.maxSize) {
-      return false;
-    }
-
-    // Verificar tipo MIME
-    if (metadata.originalMimeType && !limits.allowedTypes.includes(metadata.originalMimeType)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * ELIMINAR ARCHIVO
-   */
-  static async deleteFile(req, res, next) {
+  async deleteFile(req, res) {
     try {
       const { fileId } = req.params;
       
-      // Implementar eliminación desde Firebase Storage
-      // Verificar permisos del usuario
-      
-      logger.info('Solicitando eliminación de archivo', {
-        fileId,
-        userEmail: req.user.email
+      if (!fileId) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE_ID',
+          'ID de archivo requerido',
+          'Especifica el ID del archivo en la URL',
+          400
+        ));
+      }
+
+      // Buscar y eliminar archivo en Firebase Storage
+      const bucket = admin.storage().bucket();
+      const [files] = await bucket.getFiles({
+        prefix: ``,
+        delimiter: '/'
       });
 
-      return ResponseHandler.success(res, {
+      const file = files.find(f => f.name.includes(fileId));
+      
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND',
+          'Archivo no encontrado',
+          'El archivo especificado no existe o ya fue eliminado',
+          404
+        ));
+      }
+
+      await file.delete();
+
+      logger.info('Archivo eliminado exitosamente', {
         fileId,
-        message: 'Archivo eliminado - por implementar'
+        fileName: file.name,
+        deletedBy: req.user.email
       });
+
+      return ResponseHandler.success(res, { 
+        fileId,
+        deleted: true,
+        deletedAt: new Date().toISOString() 
+      }, 'Archivo eliminado exitosamente');
 
     } catch (error) {
       logger.error('Error eliminando archivo:', error);
-      return ResponseHandler.error(res, error);
+      return ResponseHandler.error(res, new ApiError(
+        'DELETE_ERROR',
+        'Error eliminando archivo',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
     }
   }
 }
 
-module.exports = MediaUploadController; 
+module.exports = new MediaUploadController(); 

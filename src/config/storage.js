@@ -1,4 +1,3 @@
-const { Storage } = require('@google-cloud/storage');
 const admin = require('firebase-admin');
 const path = require('path');
 const logger = require('../utils/logger');
@@ -10,15 +9,14 @@ const logger = require('../utils/logger');
 class StorageConfig {
   constructor() {
     try {
-      // INICIALIZAR FIREBASE STORAGE
-      this.storage = new Storage({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        keyFilename: process.env.FIREBASE_SERVICE_ACCOUNT_KEY, // Opcional si se usa default credentials
-      });
+      // VERIFICAR QUE FIREBASE ADMIN ESTÉ INICIALIZADO
+      if (!admin.apps.length) {
+        throw new Error('Firebase Admin SDK debe estar inicializado antes de configurar Storage');
+      }
 
-      // BUCKET PRINCIPAL
-      this.bucketName = process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`;
-      this.bucket = this.storage.bucket(this.bucketName);
+      // OBTENER BUCKET DESDE FIREBASE ADMIN SDK
+      this.bucket = admin.storage().bucket();
+      this.bucketName = this.bucket.name;
 
       // CONFIGURACIÓN DE ARCHIVOS
       this.config = {
@@ -43,13 +41,40 @@ class StorageConfig {
       };
 
       logger.info('Firebase Storage configurado correctamente', {
-        bucketName: this.bucketName,
-        projectId: process.env.FIREBASE_PROJECT_ID
+        bucketName: this.bucketName
       });
 
     } catch (error) {
-      logger.error('Error configurando Firebase Storage:', error);
-      throw error;
+      logger.error('Error configurando Firebase Storage:', error.message);
+      
+      // CREAR MOCK PARA DESARROLLO SIN FIREBASE
+      this.bucket = {
+        file: () => ({
+          save: () => Promise.reject(new Error('Firebase Storage no configurado')),
+          getSignedUrl: () => Promise.reject(new Error('Firebase Storage no configurado')),
+          delete: () => Promise.reject(new Error('Firebase Storage no configurado')),
+          exists: () => Promise.resolve([false])
+        })
+      };
+      this.bucketName = 'mock-bucket';
+      
+      this.config = {
+        maxSizes: {
+          image: 10 * 1024 * 1024,
+          video: 100 * 1024 * 1024,
+          audio: 50 * 1024 * 1024,
+          document: 25 * 1024 * 1024,
+        },
+        allowedMimeTypes: {
+          image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+          video: ['video/mp4', 'video/webm', 'video/ogg', 'video/avi'],
+          audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'],
+          document: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+        },
+        signedUrlExpiration: 24 * 60 * 60 * 1000,
+      };
+      
+      logger.warn('Firebase Storage en modo mock - configurar credenciales para producción');
     }
   }
 
@@ -195,5 +220,14 @@ class StorageConfig {
   }
 }
 
-// EXPORTAR INSTANCIA SINGLETON
-module.exports = new StorageConfig(); 
+// EXPORTAR FUNCIÓN LAZY PARA EVITAR PROBLEMAS DE INICIALIZACIÓN
+let storageInstance = null;
+
+function getStorageConfig() {
+  if (!storageInstance) {
+    storageInstance = new StorageConfig();
+  }
+  return storageInstance;
+}
+
+module.exports = getStorageConfig; 
