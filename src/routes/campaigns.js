@@ -82,7 +82,7 @@ router.delete('/:campaignId',
 router.post('/:campaignId/start',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.start,
+  CampaignController.sendCampaign,
 );
 
 /**
@@ -93,7 +93,7 @@ router.post('/:campaignId/start',
 router.post('/:campaignId/pause',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.pause,
+  CampaignController.pauseCampaign,
 );
 
 /**
@@ -104,18 +104,19 @@ router.post('/:campaignId/pause',
 router.post('/:campaignId/resume',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.resume,
+  CampaignController.resumeCampaign,
 );
 
-/**
- * @route POST /api/campaigns/:campaignId/stop
- * @desc Detener campaña
- * @access Private (Agent, Admin)
- */
-router.post('/:campaignId/stop',
-  authMiddleware,
-  requireWriteAccess,
-  CampaignController.stop,
-);
+// TODO: Implementar stop en CampaignController
+// /**
+//  * @route POST /api/campaigns/:campaignId/stop
+//  * @desc Detener campaña
+//  * @access Private (Agent, Admin)
+//  */
+// router.post('/:campaignId/stop',
+//   authMiddleware,
+//   requireWriteAccess,
+//   CampaignController.stop,
+// );
 
 module.exports = router;

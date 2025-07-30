@@ -28,17 +28,18 @@ router.post('/invite',
   TeamController.invite,
 );
 
-/**
- * @route PUT /api/team/:userId/role
- * @desc Cambiar rol de miembro
- * @access Private (Admin)
- */
-router.put('/:userId/role',
-  authMiddleware,
-  requireAdmin,
-  validate(schemas.team.changeRole),
-  TeamController.changeRole,
-);
+// TODO: Implementar changeRole en TeamController
+// /**
+//  * @route PUT /api/team/:userId/role
+//  * @desc Cambiar rol de miembro
+//  * @access Private (Admin)
+//  */
+// router.put('/:userId/role',
+//   authMiddleware,
+//   requireAdmin,
+//   validate(schemas.team.changeRole),
+//   TeamController.changeRole,
+// );
 
 /**
  * @route PUT /api/team/:userId/deactivate
@@ -70,7 +71,7 @@ router.put('/:userId/activate',
 router.delete('/:userId',
   authMiddleware,
   requireAdmin,
-  TeamController.remove,
+  TeamController.delete,
 );
 
 /**
