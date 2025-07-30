@@ -31,7 +31,9 @@ function loggingMiddleware(req, res, next) {
     warn: (message, data = {}) => logger.warn(message, data, context),
     error: (message, data = {}) => logger.error(message, data, context),
     debug: (message, data = {}) => logger.debug(message, data, context),
-    success: (message, data = {}) => logger.success(message, data, context)
+    success: (message, data = {}) => logger.success(message, data, context),
+    // ✅ AGREGADO: Función timing para medir duración de operaciones
+    timing: (label, startTime, data = {}) => logger.timing(label, startTime, data, context)
   };
 
   // Llamar al método de request del logger

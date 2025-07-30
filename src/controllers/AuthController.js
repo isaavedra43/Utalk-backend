@@ -618,9 +618,10 @@ class AuthController {
       });
 
       const responseTime = Date.now() - startTime;
-      req.logger.timing('token_validation', startTime, {
+      req.logger.auth('token_validation_success', {
         email: user.email,
         role: user.role,
+        responseTime: `${responseTime}ms`,
         successful: true
       });
 
