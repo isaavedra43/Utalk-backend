@@ -390,6 +390,11 @@ class Message {
       content: this.content,
       mediaUrl: this.mediaUrl,
       
+      // NUEVO: Campos planos para Socket.IO
+      senderIdentifier: this.senderIdentifier,
+      recipientIdentifier: this.recipientIdentifier,
+      
+      // Mantener estructura anidada para compatibilidad
       sender: {
         identifier: this.senderIdentifier,
         type: this.isPhone(this.senderIdentifier) ? 'customer' : 'agent',

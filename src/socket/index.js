@@ -62,12 +62,12 @@ class SocketManager {
     // NUEVO: Rate limiting para prevenir spam (AJUSTADO PARA SER MÁS PERMISIVO)
     this.eventRateLimits = new Map();
     this.rateLimitConfig = {
-      'typing-start': 500, // 0.5 segundos (más permisivo)
-      'typing-stop': 500,
-      'join-conversation': 1000, // 1 segundo (más permisivo)
-      'status-change': 2000, // 2 segundos (más permisivo)
-      'new-message': 100, // 0.1 segundos para mensajes
-      'message-notification': 100, // 0.1 segundos para notificaciones
+      'typing-start': 200, // 0.2 segundos (muy permisivo)
+      'typing-stop': 200,
+      'join-conversation': 500, // 0.5 segundos (muy permisivo)
+      'status-change': 1000, // 1 segundo (muy permisivo)
+      'new-message': 50, // 0.05 segundos para mensajes (muy permisivo)
+      'message-notification': 50, // 0.05 segundos para notificaciones (muy permisivo)
     };
 
     this.setupMiddleware();
@@ -510,15 +510,64 @@ class SocketManager {
     // ASEGURAR estructura canónica del mensaje
     const canonicalMessage = message.toJSON ? message.toJSON() : message;
 
-    // VALIDACIÓN: Verificar estructura mínima requerida (EMAIL-FIRST)
-    if (!canonicalMessage.id || !canonicalMessage.senderIdentifier || !canonicalMessage.recipientIdentifier) {
+    // NUEVO: Validación más permisiva y logging detallado
+    const hasRequiredFields = canonicalMessage.id && 
+                             (canonicalMessage.senderIdentifier || canonicalMessage.sender) &&
+                             (canonicalMessage.recipientIdentifier || canonicalMessage.recipient);
+
+    if (!hasRequiredFields) {
       logger.warn('Mensaje con estructura incompleta para Socket.IO', {
         conversationId,
         messageId: canonicalMessage.id,
         hasSenderIdentifier: !!canonicalMessage.senderIdentifier,
         hasRecipientIdentifier: !!canonicalMessage.recipientIdentifier,
+        hasSender: !!canonicalMessage.sender,
+        hasRecipient: !!canonicalMessage.recipient,
         hasDirection: !!canonicalMessage.direction,
+        messageKeys: Object.keys(canonicalMessage),
       });
+      
+      // NUEVO: Intentar reparar la estructura si es posible
+      if (canonicalMessage.id) {
+        // Si al menos tenemos el ID, intentar emitir con estructura mínima
+        const minimalMessage = {
+          id: canonicalMessage.id,
+          conversationId: conversationId,
+          content: canonicalMessage.content || '',
+          type: canonicalMessage.type || 'text',
+          direction: canonicalMessage.direction || 'outbound',
+          timestamp: canonicalMessage.timestamp || new Date().toISOString(),
+          sender: canonicalMessage.sender || canonicalMessage.senderIdentifier || 'unknown',
+          recipient: canonicalMessage.recipient || canonicalMessage.recipientIdentifier || 'unknown',
+        };
+        
+        logger.info('Intentando emitir con estructura mínima reparada', {
+          messageId: minimalMessage.id,
+          conversationId,
+        });
+        
+        const eventData = {
+          type: 'new-message',
+          conversationId,
+          message: minimalMessage,
+          timestamp: Date.now(),
+        };
+
+        // EMISIÓN: A usuarios en la conversación específica
+        const conversationRoom = `conversation-${conversationId}`;
+        this.io.to(conversationRoom).emit('new-message', eventData);
+
+        // EMISIÓN: Notificación a admins
+        this.io.to('role-admin').emit('message-notification', eventData);
+
+        logger.info('Mensaje emitido con estructura reparada via Socket.IO', {
+          conversationId,
+          messageId: minimalMessage.id,
+          usersInConversation: this.conversationUsers.get(conversationId)?.size || 0,
+        });
+        
+        return;
+      }
     }
 
     const eventData = {
