@@ -53,21 +53,25 @@ class SocketManager {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      // NUEVO: Configuración adicional para estabilidad
+      forceNew: false,
+      timeout: 20000,
+      autoConnect: true,
     });
 
     this.connectedUsers = new Map(); // email -> socket.id
     this.userRoles = new Map(); // email -> role
     this.conversationUsers = new Map(); // conversationId -> Set(emails)
 
-    // NUEVO: Rate limiting para prevenir spam (AJUSTADO PARA SER MÁS PERMISIVO)
+    // NUEVO: Rate limiting para prevenir spam (EXTREMADAMENTE PERMISIVO)
     this.eventRateLimits = new Map();
     this.rateLimitConfig = {
-      'typing-start': 200, // 0.2 segundos (muy permisivo)
-      'typing-stop': 200,
-      'join-conversation': 500, // 0.5 segundos (muy permisivo)
-      'status-change': 1000, // 1 segundo (muy permisivo)
-      'new-message': 50, // 0.05 segundos para mensajes (muy permisivo)
-      'message-notification': 50, // 0.05 segundos para notificaciones (muy permisivo)
+      'typing-start': 100, // 0.1 segundos (extremadamente permisivo)
+      'typing-stop': 100,
+      'join-conversation': 200, // 0.2 segundos (extremadamente permisivo)
+      'status-change': 500, // 0.5 segundos (extremadamente permisivo)
+      'new-message': 10, // 0.01 segundos para mensajes (extremadamente permisivo)
+      'message-notification': 10, // 0.01 segundos para notificaciones (extremadamente permisivo)
     };
 
     this.setupMiddleware();
@@ -481,7 +485,7 @@ class SocketManager {
   }
 
   /**
-   * EMITIR NUEVO MENSAJE (EMAIL-FIRST)
+   * EMITIR NUEVO MENSAJE (EMAIL-FIRST) - MEJORADO
    */
   emitNewMessage(conversationIdOrMessage, messageData = null) {
     let conversationId, message;
@@ -510,70 +514,47 @@ class SocketManager {
     // ASEGURAR estructura canónica del mensaje
     const canonicalMessage = message.toJSON ? message.toJSON() : message;
 
-    // NUEVO: Validación más permisiva y logging detallado
-    const hasRequiredFields = canonicalMessage.id && 
-                             (canonicalMessage.senderIdentifier || canonicalMessage.sender) &&
-                             (canonicalMessage.recipientIdentifier || canonicalMessage.recipient);
-
-    if (!hasRequiredFields) {
-      logger.warn('Mensaje con estructura incompleta para Socket.IO', {
-        conversationId,
-        messageId: canonicalMessage.id,
-        hasSenderIdentifier: !!canonicalMessage.senderIdentifier,
-        hasRecipientIdentifier: !!canonicalMessage.recipientIdentifier,
-        hasSender: !!canonicalMessage.sender,
-        hasRecipient: !!canonicalMessage.recipient,
-        hasDirection: !!canonicalMessage.direction,
-        messageKeys: Object.keys(canonicalMessage),
-      });
+    // NUEVO: Garantizar estructura completa y válida
+    const completeMessage = {
+      id: canonicalMessage.id || message.id,
+      conversationId: conversationId,
+      content: canonicalMessage.content || message.content || '',
+      type: canonicalMessage.type || message.type || 'text',
+      direction: canonicalMessage.direction || message.direction || 'outbound',
+      timestamp: canonicalMessage.timestamp || message.timestamp || new Date().toISOString(),
       
-      // NUEVO: Intentar reparar la estructura si es posible
-      if (canonicalMessage.id) {
-        // Si al menos tenemos el ID, intentar emitir con estructura mínima
-        const minimalMessage = {
-          id: canonicalMessage.id,
-          conversationId: conversationId,
-          content: canonicalMessage.content || '',
-          type: canonicalMessage.type || 'text',
-          direction: canonicalMessage.direction || 'outbound',
-          timestamp: canonicalMessage.timestamp || new Date().toISOString(),
-          sender: canonicalMessage.sender || canonicalMessage.senderIdentifier || 'unknown',
-          recipient: canonicalMessage.recipient || canonicalMessage.recipientIdentifier || 'unknown',
-        };
-        
-        logger.info('Intentando emitir con estructura mínima reparada', {
-          messageId: minimalMessage.id,
-          conversationId,
-        });
-        
-        const eventData = {
-          type: 'new-message',
-          conversationId,
-          message: minimalMessage,
-          timestamp: Date.now(),
-        };
+      // Campos planos para compatibilidad
+      senderIdentifier: canonicalMessage.senderIdentifier || message.senderIdentifier || canonicalMessage.sender?.identifier || 'unknown',
+      recipientIdentifier: canonicalMessage.recipientIdentifier || message.recipientIdentifier || canonicalMessage.recipient?.identifier || 'unknown',
+      
+      // Estructura anidada para compatibilidad
+      sender: {
+        identifier: canonicalMessage.senderIdentifier || message.senderIdentifier || canonicalMessage.sender?.identifier || 'unknown',
+        type: canonicalMessage.sender?.type || 'agent'
+      },
+      recipient: {
+        identifier: canonicalMessage.recipientIdentifier || message.recipientIdentifier || canonicalMessage.recipient?.identifier || 'unknown',
+        type: canonicalMessage.recipient?.type || 'customer'
+      },
+      
+      // Campos adicionales
+      status: canonicalMessage.status || message.status || 'sent',
+      mediaUrl: canonicalMessage.mediaUrl || message.mediaUrl || null,
+      metadata: canonicalMessage.metadata || message.metadata || {},
+    };
 
-        // EMISIÓN: A usuarios en la conversación específica
-        const conversationRoom = `conversation-${conversationId}`;
-        this.io.to(conversationRoom).emit('new-message', eventData);
-
-        // EMISIÓN: Notificación a admins
-        this.io.to('role-admin').emit('message-notification', eventData);
-
-        logger.info('Mensaje emitido con estructura reparada via Socket.IO', {
-          conversationId,
-          messageId: minimalMessage.id,
-          usersInConversation: this.conversationUsers.get(conversationId)?.size || 0,
-        });
-        
-        return;
-      }
-    }
+    logger.info('Emitiendo mensaje con estructura completa', {
+      messageId: completeMessage.id,
+      conversationId,
+      hasContent: !!completeMessage.content,
+      hasSender: !!completeMessage.senderIdentifier,
+      hasRecipient: !!completeMessage.recipientIdentifier,
+    });
 
     const eventData = {
       type: 'new-message',
       conversationId,
-      message: canonicalMessage, // Usar estructura canónica
+      message: completeMessage,
       timestamp: Date.now(),
     };
 
@@ -585,18 +566,18 @@ class SocketManager {
     this.io.to('role-admin').emit('message-notification', eventData);
 
     // EMISIÓN: A agentes asignados (si hay assignedTo en el mensaje o conversación)
-    if (canonicalMessage.assignedTo || message.assignedTo) {
-      const assignedUserEmail = canonicalMessage.assignedTo || message.assignedTo;
+    if (completeMessage.assignedTo || message.assignedTo) {
+      const assignedUserEmail = completeMessage.assignedTo || message.assignedTo;
       const assignedSocketId = this.connectedUsers.get(assignedUserEmail);
       if (assignedSocketId) {
         this.io.to(assignedSocketId).emit('assigned-message-notification', eventData);
       }
     }
 
-    logger.info('Mensaje emitido via Socket.IO', {
+    logger.info('Mensaje emitido exitosamente via Socket.IO', {
       conversationId,
-      messageId: canonicalMessage.id,
-      senderIdentifier: canonicalMessage.senderIdentifier,
+      messageId: completeMessage.id,
+      senderIdentifier: completeMessage.senderIdentifier,
       usersInConversation: this.conversationUsers.get(conversationId)?.size || 0,
     });
   }

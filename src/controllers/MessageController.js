@@ -289,6 +289,20 @@ class MessageController {
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
         try {
+          // NUEVO: Logging detallado antes de emitir
+          logger.info('[BACKEND][SOCKET][PRE-EMIT] Preparando emisión de mensaje', {
+            messageId: message.id,
+            conversationId,
+            socketManagerAvailable: true,
+            connectedUsers: socketManager.getConnectedUsers().length,
+            messageStructure: {
+              hasId: !!message.id,
+              hasContent: !!message.content,
+              hasSender: !!message.senderIdentifier,
+              hasRecipient: !!message.recipientIdentifier,
+            }
+          });
+          
           socketManager.emitNewMessage(conversationId, message);
           
           // Notificar a agente asignado si es diferente al remitente
@@ -302,15 +316,17 @@ class MessageController {
             });
           }
           
-          logger.info('[BACKEND][SOCKET][EMITIDO] Mensaje emitido via Socket.IO', {
+          logger.info('[BACKEND][SOCKET][EMITIDO] Mensaje emitido exitosamente via Socket.IO', {
             messageId: message.id,
             conversationId,
             socketManagerAvailable: true,
-            connectedUsers: socketManager.getConnectedUsers().length
+            connectedUsers: socketManager.getConnectedUsers().length,
+            status: 'success'
           });
         } catch (socketError) {
           logger.error('[BACKEND][SOCKET][ERROR] Error emitiendo mensaje via Socket.IO', {
             error: socketError.message,
+            stack: socketError.stack,
             messageId: message.id,
             conversationId
           });
@@ -715,6 +731,20 @@ class MessageController {
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
         try {
+          // NUEVO: Logging detallado antes de emitir mensaje entrante
+          logger.info('[BACKEND][WEBHOOK][SOCKET][PRE-EMIT] Preparando emisión de mensaje entrante', {
+            messageId: message.id,
+            conversationId: conversation.id,
+            socketManagerAvailable: true,
+            connectedUsers: socketManager.getConnectedUsers().length,
+            messageStructure: {
+              hasId: !!message.id,
+              hasContent: !!message.content,
+              hasSender: !!message.senderIdentifier,
+              hasRecipient: !!message.recipientIdentifier,
+            }
+          });
+          
           socketManager.emitNewMessage(conversation.id, message);
           
           // Notificación especial para mensajes entrantes
@@ -730,15 +760,17 @@ class MessageController {
             timestamp: new Date().toISOString()
           });
           
-          logger.info('[BACKEND][WEBHOOK][SOCKET][EMITIDO] Mensaje entrante emitido via Socket.IO', {
+          logger.info('[BACKEND][WEBHOOK][SOCKET][EMITIDO] Mensaje entrante emitido exitosamente via Socket.IO', {
             messageId: message.id,
             conversationId: conversation.id,
             socketManagerAvailable: true,
-            connectedUsers: socketManager.getConnectedUsers().length
+            connectedUsers: socketManager.getConnectedUsers().length,
+            status: 'success'
           });
         } catch (socketError) {
           logger.error('[BACKEND][WEBHOOK][SOCKET][ERROR] Error emitiendo mensaje entrante via Socket.IO', {
             error: socketError.message,
+            stack: socketError.stack,
             messageId: message.id,
             conversationId: conversation.id
           });
