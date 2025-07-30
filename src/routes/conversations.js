@@ -189,15 +189,16 @@ router.post('/:conversationId/typing',
   ConversationController.indicateTyping,
 );
 
-/**
- * @route DELETE /api/conversations/:conversationId
- * @desc Eliminar conversación (soft delete)
- * @access Private (Admin only)
- */
-router.delete('/:conversationId',
-  authMiddleware,
-  requireWriteAccess,
-  ConversationController.deleteConversation,
-);
+// TODO: Implementar deleteConversation en ConversationController
+// /**
+//  * @route DELETE /api/conversations/:conversationId
+//  * @desc Eliminar conversación (soft delete)
+//  * @access Private (Admin only)
+//  */
+// router.delete('/:conversationId',
+//   authMiddleware,
+//   requireWriteAccess,
+//   ConversationController.deleteConversation,
+// );
 
 module.exports = router;

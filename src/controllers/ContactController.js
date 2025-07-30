@@ -497,6 +497,13 @@ class ContactController {
 
     return results;
   }
+
+  /**
+   * Middleware de upload para archivos CSV
+   */
+  static uploadMiddleware() {
+    return upload.single('csvFile');
+  }
 }
 
 module.exports = ContactController;

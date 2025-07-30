@@ -9,39 +9,10 @@ const { ResponseHandler, ApiError } = require('../utils/responseHandler');
  * Controlador de gestión de conocimiento con Firebase Storage
  */
 class KnowledgeController {
-  constructor() {
-    // No inicializar bucket aquí para evitar errores
-
-    // Configuración de multer para memoria
-    this.upload = multer({
-      storage: multer.memoryStorage(),
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
-      },
-      fileFilter: (req, file, cb) => {
-        // Permitir solo documentos
-        const allowedMimes = [
-          'application/pdf',
-          'text/plain',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'text/markdown',
-          'application/json'
-        ];
-
-        if (allowedMimes.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(new Error('Tipo de archivo no permitido'), false);
-        }
-      }
-    });
-  }
-
   /**
-   * Obtener bucket de forma segura
+   * Obtener bucket de Firebase Storage de forma segura
    */
-  getBucket() {
+  static getBucket() {
     try {
       if (!admin.apps.length) {
         throw new Error('Firebase Admin SDK no inicializado');
@@ -53,16 +24,17 @@ class KnowledgeController {
         file: () => ({
           save: () => Promise.reject(new Error('Storage no disponible')),
           getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
-          delete: () => Promise.reject(new Error('Storage no disponible'))
+          delete: () => Promise.reject(new Error('Storage no disponible')),
+          exists: () => Promise.resolve([false])
         })
       };
     }
   }
 
   /**
-   * Listar elementos de conocimiento
+   * 📚 LISTAR documentos de conocimiento
    */
-  async listKnowledge(req, res) {
+  static async listKnowledge(req, res, next) {
     try {
       const { 
         category, 
@@ -99,9 +71,9 @@ class KnowledgeController {
   }
 
   /**
-   * Crear nuevo elemento de conocimiento
+   * 📚 CREAR nuevo elemento de conocimiento
    */
-  async createKnowledge(req, res) {
+  static async createKnowledge(req, res, next) {
     try {
       const { title, content, category, tags = [], isPublic = false } = req.body;
       const userEmail = req.user.email;
@@ -110,7 +82,7 @@ class KnowledgeController {
       
       // Si hay archivo adjunto, subirlo a Firebase Storage
       if (req.file) {
-        attachmentUrl = await this.uploadFileToStorage(req.file, 'knowledge');
+        attachmentUrl = await KnowledgeController.uploadFileToStorage(req.file, 'knowledge');
       }
 
       const knowledgeData = {
@@ -151,9 +123,9 @@ class KnowledgeController {
   }
 
   /**
-   * Buscar en base de conocimiento
+   * 🔍 BUSCAR en base de conocimiento
    */
-  async searchKnowledge(req, res) {
+  static async searchKnowledge(req, res, next) {
     try {
       const { q: query, category, limit = 10 } = req.query;
 
@@ -189,9 +161,9 @@ class KnowledgeController {
   }
 
   /**
-   * Obtener categorías disponibles
+   * 📚 OBTENER categorías disponibles
    */
-  async getCategories(req, res) {
+  static async getCategories(req, res, next) {
     try {
       const categories = await Knowledge.getCategories();
       
@@ -212,9 +184,9 @@ class KnowledgeController {
   }
 
   /**
-   * Obtener elemento específico de conocimiento
+   * 📚 OBTENER elemento específico de conocimiento
    */
-  async getKnowledge(req, res) {
+  static async getKnowledge(req, res, next) {
     try {
       const { id } = req.params;
       
@@ -246,9 +218,9 @@ class KnowledgeController {
   }
 
   /**
-   * Actualizar elemento de conocimiento
+   * 📝 ACTUALIZAR elemento de conocimiento
    */
-  async updateKnowledge(req, res) {
+  static async updateKnowledge(req, res, next) {
     try {
       const { id } = req.params;
       const updates = req.body;
@@ -277,11 +249,11 @@ class KnowledgeController {
 
       // Si hay nuevo archivo, subirlo
       if (req.file) {
-        updates.attachmentUrl = await this.uploadFileToStorage(req.file, 'knowledge');
+        updates.attachmentUrl = await KnowledgeController.uploadFileToStorage(req.file, 'knowledge');
         
         // Eliminar archivo anterior si existe
         if (knowledge.attachmentUrl) {
-          await this.deleteFileFromStorage(knowledge.attachmentUrl);
+          await KnowledgeController.deleteFileFromStorage(knowledge.attachmentUrl);
         }
       }
 
@@ -307,9 +279,9 @@ class KnowledgeController {
   }
 
   /**
-   * Eliminar elemento de conocimiento
+   * 🗑️ ELIMINAR elemento de conocimiento
    */
-  async deleteKnowledge(req, res) {
+  static async deleteKnowledge(req, res, next) {
     try {
       const { id } = req.params;
       const userEmail = req.user.email;
@@ -337,7 +309,7 @@ class KnowledgeController {
 
       // Eliminar archivo adjunto si existe
       if (knowledge.attachmentUrl) {
-        await this.deleteFileFromStorage(knowledge.attachmentUrl);
+        await KnowledgeController.deleteFileFromStorage(knowledge.attachmentUrl);
       }
 
       await Knowledge.delete(id);
@@ -359,9 +331,9 @@ class KnowledgeController {
   }
 
   /**
-   * Publicar elemento de conocimiento
+   * 🔄 PUBLICAR elemento de conocimiento
    */
-  async publishKnowledge(req, res) {
+  static async publishKnowledge(req, res, next) {
     try {
       const { id } = req.params;
       const userEmail = req.user.email;
@@ -401,9 +373,9 @@ class KnowledgeController {
   }
 
   /**
-   * Despublicar elemento de conocimiento
+   * 🚫 DESPUBLICAR elemento de conocimiento
    */
-  async unpublishKnowledge(req, res) {
+  static async unpublishKnowledge(req, res, next) {
     try {
       const { id } = req.params;
 
@@ -441,16 +413,16 @@ class KnowledgeController {
   }
 
   /**
-   * Subir archivo a Firebase Storage
+   * 📤 Subir archivo a Firebase Storage
    */
-  async uploadFileToStorage(file, folder = 'knowledge') {
+  static async uploadFileToStorage(file, folder = 'knowledge') {
     try {
       const fileId = uuidv4();
       const extension = file.originalname.split('.').pop();
       const filename = `${fileId}.${extension}`;
       const storagePath = `${folder}/${filename}`;
 
-      const bucket = this.getBucket();
+      const bucket = KnowledgeController.getBucket();
       const fileRef = bucket.file(storagePath);
       
       await fileRef.save(file.buffer, {
@@ -484,9 +456,9 @@ class KnowledgeController {
   }
 
   /**
-   * Eliminar archivo de Firebase Storage
+   * 🗑️ Eliminar archivo de Firebase Storage
    */
-  async deleteFileFromStorage(fileUrl) {
+  static async deleteFileFromStorage(fileUrl) {
     try {
       // Extraer path del storage desde la URL
       const urlParts = fileUrl.split('/');
@@ -496,7 +468,7 @@ class KnowledgeController {
         const encodedPath = urlParts[pathIndex].split('?')[0];
         const storagePath = decodeURIComponent(encodedPath);
         
-        const bucket = this.getBucket();
+        const bucket = KnowledgeController.getBucket();
         const fileRef = bucket.file(storagePath);
         await fileRef.delete();
         
@@ -511,9 +483,31 @@ class KnowledgeController {
   /**
    * Middleware para subida de archivos
    */
-  uploadMiddleware() {
-    return this.upload.single('attachment');
+  static uploadMiddleware() {
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+      fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain',
+          'image/jpeg',
+          'image/png',
+          'image/gif'
+        ];
+        
+        if (allowedTypes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Tipo de archivo no permitido'));
+        }
+      }
+    });
+    
+    return upload.single('attachment');
   }
 }
 
-module.exports = new KnowledgeController();
+module.exports = KnowledgeController;

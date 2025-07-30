@@ -28,16 +28,17 @@ router.post('/',
   CampaignController.create,
 );
 
-/**
- * @route GET /api/campaigns/stats
- * @desc Obtener estadísticas de campañas
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/stats',
-  authMiddleware,
-  requireReadAccess,
-  CampaignController.getStats,
-);
+// TODO: Implementar getStats en CampaignController
+// /**
+//  * @route GET /api/campaigns/stats
+//  * @desc Obtener estadísticas de campañas
+//  * @access Private (Admin, Agent, Viewer)
+//  */
+// router.get('/stats',
+//   authMiddleware,
+//   requireReadAccess,
+//   CampaignController.getStats,
+// );
 
 /**
  * @route GET /api/campaigns/:campaignId
