@@ -377,18 +377,33 @@ class User {
   async updateLastLogin() {
     try {
       const docId = this.email.replace(/[.#$[\]]/g, '_');
-      await firestore.collection('users').doc(docId).update({
+      const userRef = firestore.collection('users').doc(docId);
+      
+      // ✅ VERIFICAR si el documento existe antes de actualizar
+      const doc = await userRef.get();
+      
+      if (!doc.exists) {
+        logger.warn('⚠️ No se encontró el documento de usuario para actualizar el último login. Puede que el usuario haya sido eliminado o el email sea incorrecto.', { 
+          email: this.email,
+          docId: docId 
+        });
+        return; // No proceder con la actualización si el documento no existe
+      }
+
+      await userRef.update({
         lastLoginAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
       this.lastLoginAt = Timestamp.now();
       
-      logger.info('Último login actualizado', { email: this.email });
+      logger.info('✅ Último login actualizado para usuario', { email: this.email });
     } catch (error) {
-      logger.error('Error actualizando último login', {
+      logger.error('💥 Error actualizando último login', {
         email: this.email,
         error: error.message,
       });
+      // No lanzar error para no bloquear el login
     }
   }
 

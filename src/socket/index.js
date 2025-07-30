@@ -66,12 +66,12 @@ class SocketManager {
     // NUEVO: Rate limiting para prevenir spam (EXTREMADAMENTE PERMISIVO)
     this.eventRateLimits = new Map();
     this.rateLimitConfig = {
-      'typing-start': 100, // 0.1 segundos (extremadamente permisivo)
-      'typing-stop': 100,
-      'join-conversation': 200, // 0.2 segundos (extremadamente permisivo)
-      'status-change': 500, // 0.5 segundos (extremadamente permisivo)
-      'new-message': 10, // 0.01 segundos para mensajes (extremadamente permisivo)
-      'message-notification': 10, // 0.01 segundos para notificaciones (extremadamente permisivo)
+      'typing-start': 10, // 0.01 segundos (casi sin límite)
+      'typing-stop': 10,
+      'join-conversation': 5, // 0.005 segundos (casi sin límite)
+      'status-change': 50, // 0.05 segundos (casi sin límite)
+      'new-message': 1, // 0.001 segundos para mensajes (casi sin límite)
+      'message-notification': 1, // 0.001 segundos para notificaciones (casi sin límite)
     };
 
     this.setupMiddleware();
