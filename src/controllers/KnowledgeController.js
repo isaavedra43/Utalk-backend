@@ -1,491 +1,498 @@
 const Knowledge = require('../models/Knowledge');
 const logger = require('../utils/logger');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { Storage } = require('@google-cloud/storage');
+const admin = require('firebase-admin');
+const { v4: uuidv4 } = require('uuid');
+const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 
-// Configuración de multer para subida de archivos
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = process.env.UPLOAD_PATH || './uploads';
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024, // 10MB
-  },
-  fileFilter: (req, file, cb) => {
-    // Permitir documentos, imágenes y videos
-    const allowedTypes = /pdf|doc|docx|txt|jpg|jpeg|png|gif|mp4|avi|mov/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Tipo de archivo no permitido'));
-    }
-  },
-});
-
+/**
+ * Controlador de gestión de conocimiento con Firebase Storage
+ */
 class KnowledgeController {
+  constructor() {
+    this.storage = new Storage();
+    this.bucket = admin.storage().bucket();
+    
+    // Configuración de multer para memoria
+    this.upload = multer({
+      storage: multer.memoryStorage(),
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+      },
+      fileFilter: (req, file, cb) => {
+        // Permitir solo documentos
+        const allowedMimes = [
+          'application/pdf',
+          'text/plain',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/markdown',
+          'application/json'
+        ];
+        
+        if (allowedMimes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Tipo de archivo no permitido'), false);
+        }
+      }
+    });
+  }
+
   /**
-   * Listar documentos de conocimiento
+   * Listar elementos de conocimiento
    */
-  static async list (req, res, next) {
+  async listKnowledge(req, res) {
     try {
-      const {
-        page = 1,
-        limit = 20,
-        category,
-        type,
-        isPublic,
-        isPinned,
-        tags,
-        search,
+      const { 
+        category, 
+        status = 'published', 
+        search, 
+        page = 1, 
+        limit = 20 
       } = req.query;
 
-      const createdBy = req.user.role === 'admin' ? null : req.user.id;
+      const filters = { status };
+      if (category) filters.category = category;
+      if (search) filters.search = search;
 
-      let documents;
-      if (search) {
-        documents = await Knowledge.search(search, {
-          isPublic: req.user.role !== 'admin' ? true : isPublic,
-          category,
-        });
-      } else {
-        documents = await Knowledge.list({
-          limit: parseInt(limit),
-          category,
-          type,
-          isPublic: req.user.role !== 'admin' ? true : isPublic,
-          isPinned: isPinned === 'true' ? true : isPinned === 'false' ? false : null,
-          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
-          createdBy,
-        });
-      }
-
-      logger.info('Documentos de conocimiento listados', {
-        userId: req.user.id,
-        count: documents.length,
-        filters: { category, type, isPublic, search },
+      const result = await Knowledge.list(filters, {
+        page: parseInt(page),
+        limit: parseInt(limit)
       });
 
-      res.json({
-        documents: documents.map(doc => doc.toJSON()),
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: documents.length,
-        },
-      });
+      return ResponseHandler.successPaginated(
+        res, 
+        result.data, 
+        result.pagination,
+        'Lista de conocimiento obtenida exitosamente'
+      );
     } catch (error) {
-      logger.error('Error al listar documentos:', error);
-      next(error);
+      logger.error('Error listando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_LIST_ERROR',
+        'Error obteniendo lista de conocimiento',
+        'Intenta nuevamente',
+        500
+      ));
     }
   }
 
   /**
-   * Crear nuevo documento
+   * Crear nuevo elemento de conocimiento
    */
-  static async create (req, res, next) {
+  async createKnowledge(req, res) {
     try {
-      const documentData = {
-        ...req.body,
-        createdBy: req.user.id,
-        lastModifiedBy: req.user.id,
-      };
+      const { title, content, category, tags = [], isPublic = false } = req.body;
+      const userEmail = req.user.email;
 
-      // Manejar tags como array
-      if (typeof documentData.tags === 'string') {
-        documentData.tags = documentData.tags.split(',').map(tag => tag.trim());
+      let attachmentUrl = null;
+      
+      // Si hay archivo adjunto, subirlo a Firebase Storage
+      if (req.file) {
+        attachmentUrl = await this.uploadFileToStorage(req.file, 'knowledge');
       }
 
-      const document = await Knowledge.create(documentData);
-
-      logger.info('Documento de conocimiento creado', {
-        documentId: document.id,
-        title: document.title,
-        category: document.category,
-        createdBy: req.user.id,
-      });
-
-      res.status(201).json({
-        message: 'Documento creado exitosamente',
-        document: document.toJSON(),
-      });
-    } catch (error) {
-      logger.error('Error al crear documento:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Obtener documento por ID
-   */
-  static async getById (req, res, next) {
-    try {
-      const { id } = req.params;
-      const document = await Knowledge.getById(id);
-
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-          message: `No se encontró un documento con ID ${id}`,
-        });
-      }
-
-      // Verificar permisos de lectura
-      if (!document.isPublic && req.user.role !== 'admin' && document.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para ver este documento',
-        });
-      }
-
-      // Incrementar contador de vistas
-      await document.incrementViews();
-
-      // Obtener artículos relacionados
-      const relatedArticles = await document.getRelatedArticles();
-
-      res.json({
-        document: {
-          ...document.toJSON(),
-          relatedArticles: relatedArticles.map(article => article.toJSON()),
-        },
-      });
-    } catch (error) {
-      logger.error('Error al obtener documento:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Actualizar documento
-   */
-  static async update (req, res, next) {
-    try {
-      const { id } = req.params;
-      const updates = {
-        ...req.body,
-        lastModifiedBy: req.user.id,
-      };
-
-      const document = await Knowledge.getById(id);
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-          message: `No se encontró un documento con ID ${id}`,
-        });
-      }
-
-      // Verificar permisos (solo admin o creador)
-      if (req.user.role !== 'admin' && document.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para modificar este documento',
-        });
-      }
-
-      // Manejar tags como array
-      if (updates.tags && typeof updates.tags === 'string') {
-        updates.tags = updates.tags.split(',').map(tag => tag.trim());
-      }
-
-      await document.update(updates);
-
-      logger.info('Documento actualizado', {
-        documentId: document.id,
-        updatedBy: req.user.id,
-        fields: Object.keys(updates),
-      });
-
-      res.json({
-        message: 'Documento actualizado exitosamente',
-        document: document.toJSON(),
-      });
-    } catch (error) {
-      logger.error('Error al actualizar documento:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Eliminar documento
-   */
-  static async delete (req, res, next) {
-    try {
-      const { id } = req.params;
-
-      const document = await Knowledge.getById(id);
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-          message: `No se encontró un documento con ID ${id}`,
-        });
-      }
-
-      // Verificar permisos (solo admin o creador)
-      if (req.user.role !== 'admin' && document.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para eliminar este documento',
-        });
-      }
-
-      await document.delete();
-
-      logger.info('Documento eliminado', {
-        documentId: document.id,
-        deletedBy: req.user.id,
-      });
-
-      res.json({
-        message: 'Documento eliminado exitosamente',
-      });
-    } catch (error) {
-      logger.error('Error al eliminar documento:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Buscar en la base de conocimiento
-   */
-  static async search (req, res, next) {
-    try {
-      const { q: searchTerm, category, limit = 20 } = req.query;
-
-      if (!searchTerm) {
-        return res.status(400).json({
-          error: 'Parámetro requerido',
-          message: 'El parámetro de búsqueda "q" es requerido',
-        });
-      }
-
-      const documents = await Knowledge.search(searchTerm, {
-        isPublic: req.user.role !== 'admin' ? true : null,
+      const knowledgeData = {
+        title,
+        content,
         category,
+        tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
+        isPublic,
+        attachmentUrl,
+        authorEmail: userEmail,
+        status: 'draft',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const knowledge = await Knowledge.create(knowledgeData);
+
+      logger.info('Conocimiento creado exitosamente:', {
+        id: knowledge.id,
+        title: knowledge.title,
+        authorEmail: userEmail
       });
 
-      res.json({
-        documents: documents.slice(0, parseInt(limit)).map(doc => doc.toJSON()),
-        total: documents.length,
-        searchTerm,
-      });
+      return ResponseHandler.success(
+        res,
+        knowledge,
+        'Elemento de conocimiento creado exitosamente'
+      );
     } catch (error) {
-      logger.error('Error al buscar documentos:', error);
-      next(error);
+      logger.error('Error creando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_CREATE_ERROR',
+        'Error creando elemento de conocimiento',
+        'Verifica los datos e intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * Buscar en base de conocimiento
+   */
+  async searchKnowledge(req, res) {
+    try {
+      const { q: query, category, limit = 10 } = req.query;
+
+      if (!query || query.trim().length < 2) {
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_SEARCH_QUERY',
+          'La consulta de búsqueda debe tener al menos 2 caracteres',
+          'Proporciona una consulta más específica',
+          400
+        ));
+      }
+
+      const results = await Knowledge.search(query.trim(), {
+        category,
+        limit: parseInt(limit),
+        status: 'published'
+      });
+
+      return ResponseHandler.success(
+        res,
+        results,
+        `Encontrados ${results.length} resultados para "${query}"`
+      );
+    } catch (error) {
+      logger.error('Error buscando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_SEARCH_ERROR',
+        'Error realizando búsqueda',
+        'Intenta con términos diferentes',
+        500
+      ));
     }
   }
 
   /**
    * Obtener categorías disponibles
    */
-  static async getCategories (req, res, next) {
+  async getCategories(req, res) {
     try {
       const categories = await Knowledge.getCategories();
-
-      res.json({
+      
+      return ResponseHandler.success(
+        res,
         categories,
-        total: categories.length,
-      });
+        'Categorías obtenidas exitosamente'
+      );
     } catch (error) {
-      logger.error('Error al obtener categorías:', error);
-      next(error);
+      logger.error('Error obteniendo categorías:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'CATEGORIES_ERROR',
+        'Error obteniendo categorías',
+        'Intenta nuevamente',
+        500
+      ));
     }
   }
 
   /**
-   * Publicar documento
+   * Obtener elemento específico de conocimiento
    */
-  static async publish (req, res, next) {
+  async getKnowledge(req, res) {
+    try {
+      const { id } = req.params;
+      
+      const knowledge = await Knowledge.getById(id);
+      
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Elemento de conocimiento no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
+      }
+
+      return ResponseHandler.success(
+        res,
+        knowledge,
+        'Elemento de conocimiento obtenido exitosamente'
+      );
+    } catch (error) {
+      logger.error('Error obteniendo conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_GET_ERROR',
+        'Error obteniendo elemento de conocimiento',
+        'Intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * Actualizar elemento de conocimiento
+   */
+  async updateKnowledge(req, res) {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const userEmail = req.user.email;
+
+      const knowledge = await Knowledge.getById(id);
+      
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Elemento de conocimiento no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
+      }
+
+      // Verificar permisos
+      if (knowledge.authorEmail !== userEmail && !req.user.permissions.includes('manage_knowledge')) {
+        return ResponseHandler.error(res, new ApiError(
+          'INSUFFICIENT_PERMISSIONS',
+          'No tienes permisos para editar este elemento',
+          'Contacta al administrador',
+          403
+        ));
+      }
+
+      // Si hay nuevo archivo, subirlo
+      if (req.file) {
+        updates.attachmentUrl = await this.uploadFileToStorage(req.file, 'knowledge');
+        
+        // Eliminar archivo anterior si existe
+        if (knowledge.attachmentUrl) {
+          await this.deleteFileFromStorage(knowledge.attachmentUrl);
+        }
+      }
+
+      updates.updatedAt = new Date();
+      updates.updatedBy = userEmail;
+
+      const updatedKnowledge = await Knowledge.update(id, updates);
+
+      return ResponseHandler.success(
+        res,
+        updatedKnowledge,
+        'Elemento de conocimiento actualizado exitosamente'
+      );
+    } catch (error) {
+      logger.error('Error actualizando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_UPDATE_ERROR',
+        'Error actualizando elemento de conocimiento',
+        'Intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * Eliminar elemento de conocimiento
+   */
+  async deleteKnowledge(req, res) {
+    try {
+      const { id } = req.params;
+      const userEmail = req.user.email;
+
+      const knowledge = await Knowledge.getById(id);
+      
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Elemento de conocimiento no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
+      }
+
+      // Verificar permisos
+      if (knowledge.authorEmail !== userEmail && !req.user.permissions.includes('manage_knowledge')) {
+        return ResponseHandler.error(res, new ApiError(
+          'INSUFFICIENT_PERMISSIONS',
+          'No tienes permisos para eliminar este elemento',
+          'Contacta al administrador',
+          403
+        ));
+      }
+
+      // Eliminar archivo adjunto si existe
+      if (knowledge.attachmentUrl) {
+        await this.deleteFileFromStorage(knowledge.attachmentUrl);
+      }
+
+      await Knowledge.delete(id);
+
+      return ResponseHandler.success(
+        res,
+        { id },
+        'Elemento de conocimiento eliminado exitosamente'
+      );
+    } catch (error) {
+      logger.error('Error eliminando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_DELETE_ERROR',
+        'Error eliminando elemento de conocimiento',
+        'Intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * Publicar elemento de conocimiento
+   */
+  async publishKnowledge(req, res) {
+    try {
+      const { id } = req.params;
+      const userEmail = req.user.email;
+
+      const knowledge = await Knowledge.getById(id);
+      
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Elemento de conocimiento no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
+      }
+
+      const updatedKnowledge = await Knowledge.update(id, {
+        status: 'published',
+        publishedAt: new Date(),
+        publishedBy: userEmail,
+        updatedAt: new Date()
+      });
+
+      return ResponseHandler.success(
+        res,
+        updatedKnowledge,
+        'Elemento de conocimiento publicado exitosamente'
+      );
+    } catch (error) {
+      logger.error('Error publicando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_PUBLISH_ERROR',
+        'Error publicando elemento de conocimiento',
+        'Intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * Despublicar elemento de conocimiento
+   */
+  async unpublishKnowledge(req, res) {
     try {
       const { id } = req.params;
 
-      const document = await Knowledge.getById(id);
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-        });
+      const knowledge = await Knowledge.getById(id);
+      
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Elemento de conocimiento no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
       }
 
-      // Solo admins pueden publicar
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden publicar documentos',
-        });
-      }
-
-      await document.publish();
-
-      logger.info('Documento publicado', {
-        documentId: document.id,
-        publishedBy: req.user.id,
+      const updatedKnowledge = await Knowledge.update(id, {
+        status: 'draft',
+        unpublishedAt: new Date(),
+        updatedAt: new Date()
       });
 
-      res.json({
-        message: 'Documento publicado exitosamente',
-        document: document.toJSON(),
-      });
+      return ResponseHandler.success(
+        res,
+        updatedKnowledge,
+        'Elemento de conocimiento despublicado exitosamente'
+      );
     } catch (error) {
-      logger.error('Error al publicar documento:', error);
-      next(error);
+      logger.error('Error despublicando conocimiento:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'KNOWLEDGE_UNPUBLISH_ERROR',
+        'Error despublicando elemento de conocimiento',
+        'Intenta nuevamente',
+        500
+      ));
     }
   }
 
   /**
-   * Despublicar documento
+   * Subir archivo a Firebase Storage
    */
-  static async unpublish (req, res, next) {
+  async uploadFileToStorage(file, folder = 'knowledge') {
     try {
-      const { id } = req.params;
+      const fileId = uuidv4();
+      const extension = file.originalname.split('.').pop();
+      const filename = `${fileId}.${extension}`;
+      const storagePath = `${folder}/${filename}`;
 
-      const document = await Knowledge.getById(id);
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-        });
-      }
-
-      // Solo admins pueden despublicar
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden despublicar documentos',
-        });
-      }
-
-      await document.unpublish();
-
-      logger.info('Documento despublicado', {
-        documentId: document.id,
-        unpublishedBy: req.user.id,
+      const fileRef = this.bucket.file(storagePath);
+      
+      await fileRef.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+          metadata: {
+            originalName: file.originalname,
+            uploadedAt: new Date().toISOString(),
+            fileId: fileId
+          }
+        }
       });
 
-      res.json({
-        message: 'Documento despublicado exitosamente',
-        document: document.toJSON(),
+      // Generar URL firmada
+      const [signedUrl] = await fileRef.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 365 * 24 * 60 * 60 * 1000 // 1 año
       });
+
+      logger.info('Archivo subido a Firebase Storage:', {
+        originalName: file.originalname,
+        storagePath,
+        size: file.size
+      });
+
+      return signedUrl;
     } catch (error) {
-      logger.error('Error al despublicar documento:', error);
-      next(error);
+      logger.error('Error subiendo archivo a Firebase Storage:', error);
+      throw error;
     }
   }
 
   /**
-   * Votar documento como útil
+   * Eliminar archivo de Firebase Storage
    */
-  static async voteHelpful (req, res, next) {
+  async deleteFileFromStorage(fileUrl) {
     try {
-      const { id } = req.params;
-
-      const document = await Knowledge.getById(id);
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-        });
+      // Extraer path del storage desde la URL
+      const urlParts = fileUrl.split('/');
+      const pathIndex = urlParts.findIndex(part => part === 'o') + 1;
+      
+      if (pathIndex > 0 && pathIndex < urlParts.length) {
+        const encodedPath = urlParts[pathIndex].split('?')[0];
+        const storagePath = decodeURIComponent(encodedPath);
+        
+        const fileRef = this.bucket.file(storagePath);
+        await fileRef.delete();
+        
+        logger.info('Archivo eliminado de Firebase Storage:', { storagePath });
       }
-
-      await document.voteHelpful();
-
-      res.json({
-        message: 'Voto registrado exitosamente',
-        stats: document.getStats(),
-      });
     } catch (error) {
-      logger.error('Error al votar documento:', error);
-      next(error);
+      logger.warn('Error eliminando archivo de Firebase Storage:', error);
+      // No lanzar error para no bloquear otras operaciones
     }
   }
 
   /**
-   * Votar documento como no útil
+   * Middleware para subida de archivos
    */
-  static async voteNotHelpful (req, res, next) {
-    try {
-      const { id } = req.params;
-
-      const document = await Knowledge.getById(id);
-      if (!document) {
-        return res.status(404).json({
-          error: 'Documento no encontrado',
-        });
-      }
-
-      await document.voteNotHelpful();
-
-      res.json({
-        message: 'Voto registrado exitosamente',
-        stats: document.getStats(),
-      });
-    } catch (error) {
-      logger.error('Error al votar documento:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Subir archivo adjunto
-   */
-  static async uploadFile (req, res, next) {
-    const uploadHandler = upload.single('file');
-
-    uploadHandler(req, res, async (err) => {
-      if (err) {
-        return res.status(400).json({
-          error: 'Error de archivo',
-          message: typeof err.message === 'string' ? err.message : '(no message)',
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({
-          error: 'Archivo requerido',
-          message: 'Debes subir un archivo',
-        });
-      }
-
-      try {
-        const fileInfo = {
-          fileName: req.file.originalname,
-          fileUrl: `/uploads/${req.file.filename}`,
-          fileSize: req.file.size,
-          mimeType: req.file.mimetype,
-          uploadedBy: req.user.id,
-          uploadedAt: new Date(),
-        };
-
-        logger.info('Archivo subido para conocimiento', {
-          fileName: fileInfo.fileName,
-          fileSize: fileInfo.fileSize,
-          uploadedBy: req.user.id,
-        });
-
-        res.json({
-          message: 'Archivo subido exitosamente',
-          file: fileInfo,
-        });
-      } catch (error) {
-        // Limpiar archivo en caso de error
-        fs.unlinkSync(req.file.path);
-        logger.error('Error al procesar archivo:', error);
-        next(error);
-      }
-    });
+  uploadMiddleware() {
+    return this.upload.single('attachment');
   }
 }
 
-module.exports = KnowledgeController;
+module.exports = new KnowledgeController();

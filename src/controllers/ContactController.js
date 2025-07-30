@@ -3,12 +3,25 @@ const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
 const csvParser = require('csv-parser');
 const multer = require('multer');
-const fs = require('fs');
+const { Storage } = require('@google-cloud/storage');
+const admin = require('firebase-admin');
+const { v4: uuidv4 } = require('uuid');
+const { ResponseHandler, ApiError } = require('../utils/responseHandler');
+const { Readable } = require('stream');
 
-// Configuración de multer para subida de archivos
+/**
+ * Controlador de contactos con Firebase Storage para archivos CSV
+ */
 const upload = multer({
-  dest: 'uploads/',
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos CSV'));
+    }
+  }
 });
 
 class ContactController {
@@ -24,29 +37,28 @@ class ContactController {
         tags,
       } = req.query;
 
-      const userId = req.user.role === 'admin' ? null : req.user.id;
+      const userEmail = req.user.email;
 
       const contacts = await Contact.list({
         limit: parseInt(limit),
+        page: parseInt(page),
         search,
         tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
-        userId,
+        userEmail: req.user.role === 'admin' ? null : userEmail,
       });
 
       logger.info('Contactos listados', {
-        userId: req.user.id,
-        count: contacts.length,
+        userEmail,
+        count: contacts.data.length,
         filters: { search, tags },
       });
 
-      res.json({
-        contacts: contacts.map(contact => contact.toJSON()),
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: contacts.length,
-        },
-      });
+      return ResponseHandler.successPaginated(
+        res,
+        contacts.data,
+        contacts.pagination,
+        'Lista de contactos obtenida exitosamente'
+      );
     } catch (error) {
       logger.error('Error al listar contactos:', error);
       next(error);
@@ -60,32 +72,121 @@ class ContactController {
     try {
       const contactData = {
         ...req.body,
-        userId: req.user.id,
+        createdBy: req.user.email,
+        lastModifiedBy: req.user.email,
       };
 
-      // Verificar que no exista un contacto con el mismo teléfono
-      const existingContact = await Contact.getByPhone(contactData.phone);
-      if (existingContact && existingContact.isActive) {
-        return res.status(400).json({
-          error: 'Contacto ya existe',
-          message: `Ya existe un contacto activo con el teléfono ${contactData.phone}`,
-        });
+      // Manejar tags como array
+      if (typeof contactData.tags === 'string') {
+        contactData.tags = contactData.tags.split(',').map(tag => tag.trim());
       }
 
       const contact = await Contact.create(contactData);
 
       logger.info('Contacto creado', {
         contactId: contact.id,
-        phone: contact.phone,
-        createdBy: req.user.id,
+        name: contact.name,
+        createdBy: req.user.email,
       });
 
-      res.status(201).json({
-        message: 'Contacto creado exitosamente',
-        contact: contact.toJSON(),
-      });
+      return ResponseHandler.success(
+        res,
+        contact,
+        'Contacto creado exitosamente'
+      );
     } catch (error) {
       logger.error('Error al crear contacto:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Buscar contactos
+   */
+  static async search (req, res, next) {
+    try {
+      const { q: searchTerm, limit = 20 } = req.query;
+
+      if (!searchTerm) {
+        return ResponseHandler.error(res, new ApiError(
+          'SEARCH_TERM_REQUIRED',
+          'El término de búsqueda es requerido',
+          'Proporciona un término de búsqueda válido',
+          400
+        ));
+      }
+
+      const contacts = await Contact.search(searchTerm, { limit: parseInt(limit) });
+
+      return ResponseHandler.success(
+        res,
+        contacts,
+        `Encontrados ${contacts.length} contactos para "${searchTerm}"`
+      );
+    } catch (error) {
+      logger.error('Error al buscar contactos:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Exportar contactos a CSV
+   */
+  static async export (req, res, next) {
+    try {
+      const { format = 'csv', tags, search } = req.query;
+
+      if (format !== 'csv') {
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_FORMAT',
+          'Formato de exportación no válido',
+          'Solo se admite formato CSV',
+          400
+        ));
+      }
+
+      const contacts = await Contact.list({
+        tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
+        search,
+        userEmail: req.user.role === 'admin' ? null : req.user.email,
+        exportMode: true,
+      });
+
+      const fields = ['name', 'email', 'phone', 'company', 'position', 'tags', 'notes'];
+      const opts = { fields };
+      const parser = new Parser(opts);
+
+      const csv = parser.parse(contacts.data);
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="contactos_${Date.now()}.csv"`);
+      res.send(csv);
+
+      logger.info('Contactos exportados', {
+        userEmail: req.user.email,
+        count: contacts.data.length,
+        format,
+      });
+    } catch (error) {
+      logger.error('Error al exportar contactos:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener todas las etiquetas disponibles
+   */
+  static async getTags (req, res, next) {
+    try {
+      const tags = await Contact.getAllTags();
+
+      return ResponseHandler.success(
+        res,
+        tags,
+        'Etiquetas obtenidas exitosamente'
+      );
+    } catch (error) {
+      logger.error('Error al obtener tags:', error);
       next(error);
     }
   }
@@ -99,23 +200,19 @@ class ContactController {
       const contact = await Contact.getById(id);
 
       if (!contact) {
-        return res.status(404).json({
-          error: 'Contacto no encontrado',
-          message: `No se encontró un contacto con ID ${id}`,
-        });
+        return ResponseHandler.error(res, new ApiError(
+          'CONTACT_NOT_FOUND',
+          'Contacto no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
       }
 
-      // Verificar permisos (solo admin o propietario)
-      if (req.user.role !== 'admin' && contact.userId !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para ver este contacto',
-        });
-      }
-
-      res.json({
-        contact: contact.toJSON(),
-      });
+      return ResponseHandler.success(
+        res,
+        contact,
+        'Contacto obtenido exitosamente'
+      );
     } catch (error) {
       logger.error('Error al obtener contacto:', error);
       next(error);
@@ -128,47 +225,36 @@ class ContactController {
   static async update (req, res, next) {
     try {
       const { id } = req.params;
-      const updates = req.body;
+      const updates = {
+        ...req.body,
+        lastModifiedBy: req.user.email,
+      };
 
-      const contact = await Contact.getById(id);
+      if (updates.tags && typeof updates.tags === 'string') {
+        updates.tags = updates.tags.split(',').map(tag => tag.trim());
+      }
+
+      const contact = await Contact.update(id, updates);
+
       if (!contact) {
-        return res.status(404).json({
-          error: 'Contacto no encontrado',
-          message: `No se encontró un contacto con ID ${id}`,
-        });
+        return ResponseHandler.error(res, new ApiError(
+          'CONTACT_NOT_FOUND',
+          'Contacto no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
       }
-
-      // Verificar permisos
-      if (req.user.role !== 'admin' && contact.userId !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para modificar este contacto',
-        });
-      }
-
-      // Si se actualiza el teléfono, verificar que no exista otro contacto
-      if (updates.phone && updates.phone !== contact.phone) {
-        const existingContact = await Contact.getByPhone(updates.phone);
-        if (existingContact && existingContact.id !== contact.id) {
-          return res.status(400).json({
-            error: 'Teléfono ya existe',
-            message: `Ya existe otro contacto con el teléfono ${updates.phone}`,
-          });
-        }
-      }
-
-      await contact.update(updates);
 
       logger.info('Contacto actualizado', {
         contactId: contact.id,
-        updatedBy: req.user.id,
-        fields: Object.keys(updates),
+        updatedBy: req.user.email,
       });
 
-      res.json({
-        message: 'Contacto actualizado exitosamente',
-        contact: contact.toJSON(),
-      });
+      return ResponseHandler.success(
+        res,
+        contact,
+        'Contacto actualizado exitosamente'
+      );
     } catch (error) {
       logger.error('Error al actualizar contacto:', error);
       next(error);
@@ -176,38 +262,33 @@ class ContactController {
   }
 
   /**
-   * Eliminar contacto (soft delete)
+   * Eliminar contacto
    */
   static async delete (req, res, next) {
     try {
       const { id } = req.params;
 
-      const contact = await Contact.getById(id);
-      if (!contact) {
-        return res.status(404).json({
-          error: 'Contacto no encontrado',
-          message: `No se encontró un contacto con ID ${id}`,
-        });
-      }
+      const deleted = await Contact.delete(id);
 
-      // Verificar permisos
-      if (req.user.role !== 'admin' && contact.userId !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para eliminar este contacto',
-        });
+      if (!deleted) {
+        return ResponseHandler.error(res, new ApiError(
+          'CONTACT_NOT_FOUND',
+          'Contacto no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
       }
-
-      await contact.delete();
 
       logger.info('Contacto eliminado', {
-        contactId: contact.id,
-        deletedBy: req.user.id,
+        contactId: id,
+        deletedBy: req.user.email,
       });
 
-      res.json({
-        message: 'Contacto eliminado exitosamente',
-      });
+      return ResponseHandler.success(
+        res,
+        { id },
+        'Contacto eliminado exitosamente'
+      );
     } catch (error) {
       logger.error('Error al eliminar contacto:', error);
       next(error);
@@ -215,84 +296,38 @@ class ContactController {
   }
 
   /**
-   * Buscar contactos por texto
-   */
-  static async search (req, res, next) {
-    try {
-      const { q: searchTerm, limit = 20 } = req.query;
-
-      if (!searchTerm) {
-        return res.status(400).json({
-          error: 'Parámetro requerido',
-          message: 'El parámetro de búsqueda "q" es requerido',
-        });
-      }
-
-      const userId = req.user.role === 'admin' ? null : req.user.id;
-      const contacts = await Contact.search(searchTerm, userId);
-
-      res.json({
-        contacts: contacts.slice(0, parseInt(limit)).map(contact => contact.toJSON()),
-        total: contacts.length,
-      });
-    } catch (error) {
-      logger.error('Error al buscar contactos:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Obtener todos los tags disponibles
-   */
-  static async getTags (req, res, next) {
-    try {
-      const userId = req.user.role === 'admin' ? null : req.user.id;
-      const contacts = await Contact.list({ userId });
-
-      const allTags = contacts.reduce((tags, contact) => {
-        return [...tags, ...contact.tags];
-      }, []);
-
-      const uniqueTags = [...new Set(allTags)].sort();
-
-      res.json({
-        tags: uniqueTags,
-        total: uniqueTags.length,
-      });
-    } catch (error) {
-      logger.error('Error al obtener tags:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Agregar tags a un contacto
+   * Agregar etiquetas a contacto
    */
   static async addTags (req, res, next) {
     try {
       const { id } = req.params;
       const { tags } = req.body;
 
-      if (!Array.isArray(tags) || tags.length === 0) {
-        return res.status(400).json({
-          error: 'Tags inválidos',
-          message: 'Debes proporcionar un array de tags',
-        });
+      if (!tags || !Array.isArray(tags)) {
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_TAGS',
+          'Las etiquetas deben ser un array',
+          'Proporciona un array de etiquetas válido',
+          400
+        ));
       }
 
-      const contact = await Contact.getById(id);
+      const contact = await Contact.addTags(id, tags);
+
       if (!contact) {
-        return res.status(404).json({
-          error: 'Contacto no encontrado',
-        });
+        return ResponseHandler.error(res, new ApiError(
+          'CONTACT_NOT_FOUND',
+          'Contacto no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
       }
 
-      await contact.addTags(tags);
-
-      res.json({
-        message: 'Tags agregados exitosamente',
-        contact: contact.toJSON(),
-      });
+      return ResponseHandler.success(
+        res,
+        contact,
+        'Etiquetas agregadas exitosamente'
+      );
     } catch (error) {
       logger.error('Error al agregar tags:', error);
       next(error);
@@ -300,26 +335,38 @@ class ContactController {
   }
 
   /**
-   * Remover tags de un contacto
+   * Remover etiquetas de contacto
    */
   static async removeTags (req, res, next) {
     try {
       const { id } = req.params;
       const { tags } = req.body;
 
-      const contact = await Contact.getById(id);
-      if (!contact) {
-        return res.status(404).json({
-          error: 'Contacto no encontrado',
-        });
+      if (!tags || !Array.isArray(tags)) {
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_TAGS',
+          'Las etiquetas deben ser un array',
+          'Proporciona un array de etiquetas válido',
+          400
+        ));
       }
 
-      await contact.removeTags(tags);
+      const contact = await Contact.removeTags(id, tags);
 
-      res.json({
-        message: 'Tags removidos exitosamente',
-        contact: contact.toJSON(),
-      });
+      if (!contact) {
+        return ResponseHandler.error(res, new ApiError(
+          'CONTACT_NOT_FOUND',
+          'Contacto no encontrado',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
+      }
+
+      return ResponseHandler.success(
+        res,
+        contact,
+        'Etiquetas removidas exitosamente'
+      );
     } catch (error) {
       logger.error('Error al remover tags:', error);
       next(error);
@@ -327,132 +374,131 @@ class ContactController {
   }
 
   /**
-   * Exportar contactos a CSV
+   * Importar contactos desde archivo CSV
    */
-  static async exportCSV (req, res, next) {
-    try {
-      const userId = req.user.role === 'admin' ? null : req.user.id;
-      const contacts = await Contact.exportToCSV(userId);
-
-      const fields = ['id', 'name', 'phone', 'email', 'tags', 'totalMessages', 'createdAt', 'lastContactAt'];
-      const opts = { fields };
-      const parser = new Parser(opts);
-      const csv = parser.parse(contacts);
-
-      res.header('Content-Type', 'text/csv');
-      res.attachment('contactos.csv');
-      res.send(csv);
-
-      logger.info('Contactos exportados', {
-        userId: req.user.id,
-        count: contacts.length,
-      });
-    } catch (error) {
-      logger.error('Error al exportar contactos:', error);
-      next(error);
-    }
-  }
-
-  /**
-   * Importar contactos desde CSV
-   */
-  static async importCSV (req, res, next) {
-    const uploadHandler = upload.single('file');
+  static async import (req, res, next) {
+    const uploadHandler = upload.single('csvFile');
 
     uploadHandler(req, res, async (err) => {
       if (err) {
-        return res.status(400).json({
-          error: 'Error de archivo',
-          message: typeof err.message === 'string' ? err.message : '(no message)',
-        });
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_UPLOAD_ERROR',
+          'Error al subir archivo',
+          err.message,
+          400
+        ));
       }
 
       if (!req.file) {
-        return res.status(400).json({
-          error: 'Archivo requerido',
-          message: 'Debes subir un archivo CSV',
-        });
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_REQUIRED',
+          'Archivo CSV requerido',
+          'Sube un archivo CSV válido',
+          400
+        ));
       }
 
       try {
-        const results = {
-          imported: 0,
-          errors: [],
-          duplicates: 0,
-        };
+        const results = await ContactController.processCsvFromBuffer(req.file.buffer);
+        const importResults = await ContactController.importContactsData(results, req.user.email);
 
-        const contacts = [];
-
-        // Leer y procesar CSV
-        await new Promise((resolve, reject) => {
-          fs.createReadStream(req.file.path)
-            .pipe(csvParser())
-            .on('data', (data) => contacts.push(data))
-            .on('end', resolve)
-            .on('error', reject);
+        logger.info('Importación de contactos completada', {
+          userEmail: req.user.email,
+          totalProcessed: importResults.totalProcessed,
+          successful: importResults.successful,
+          errors: importResults.errors.length,
         });
 
-        // Procesar cada contacto
-        for (const [index, row] of contacts.entries()) {
-          try {
-            const { name, phone, email, tags } = row;
-
-            if (!name || !phone) {
-              results.errors.push({
-                row: index + 1,
-                error: 'Nombre y teléfono son requeridos',
-              });
-              continue;
-            }
-
-            // Verificar duplicado
-            const existing = await Contact.getByPhone(phone);
-            if (existing) {
-              results.duplicates++;
-              continue;
-            }
-
-            // Crear contacto
-            await Contact.create({
-              name,
-              phone,
-              email: email || null,
-              tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-              userId: req.user.id,
-            });
-
-            results.imported++;
-          } catch (error) {
-            results.errors.push({
-              row: index + 1,
-              error: error.message,
-            });
-          }
-        }
-
-        // Limpiar archivo temporal
-        fs.unlinkSync(req.file.path);
-
-        logger.info('Contactos importados', {
-          userId: req.user.id,
-          imported: results.imported,
-          errors: results.errors.length,
-          duplicates: results.duplicates,
-        });
-
-        res.json({
-          message: 'Importación completada',
-          results,
-        });
+        return ResponseHandler.success(
+          res,
+          importResults,
+          'Importación de contactos completada'
+        );
       } catch (error) {
-        // Limpiar archivo en caso de error
-        if (req.file) {
-          fs.unlinkSync(req.file.path);
-        }
         logger.error('Error al importar contactos:', error);
-        next(error);
+        return ResponseHandler.error(res, new ApiError(
+          'IMPORT_ERROR',
+          'Error procesando archivo CSV',
+          error.message,
+          500
+        ));
       }
     });
+  }
+
+  /**
+   * Procesar CSV desde buffer en memoria
+   */
+  static async processCsvFromBuffer(buffer) {
+    return new Promise((resolve, reject) => {
+      const results = [];
+      const stream = new Readable();
+      stream.push(buffer);
+      stream.push(null);
+
+      stream
+        .pipe(csvParser())
+        .on('data', (data) => results.push(data))
+        .on('end', () => resolve(results))
+        .on('error', (error) => reject(error));
+    });
+  }
+
+  /**
+   * Importar datos de contactos procesados
+   */
+  static async importContactsData(csvData, userEmail) {
+    const results = {
+      totalProcessed: csvData.length,
+      successful: 0,
+      errors: [],
+    };
+
+    for (let i = 0; i < csvData.length; i++) {
+      try {
+        const row = csvData[i];
+        
+        // Validar campos requeridos
+        if (!row.name || !row.email) {
+          results.errors.push({
+            row: i + 1,
+            error: 'Nombre y email son requeridos',
+            data: row,
+          });
+          continue;
+        }
+
+        // Procesar tags si existen
+        let tags = [];
+        if (row.tags) {
+          tags = row.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+        }
+
+        const contactData = {
+          name: row.name.trim(),
+          email: row.email.trim().toLowerCase(),
+          phone: row.phone ? row.phone.trim() : null,
+          company: row.company ? row.company.trim() : null,
+          position: row.position ? row.position.trim() : null,
+          notes: row.notes ? row.notes.trim() : null,
+          tags,
+          createdBy: userEmail,
+          lastModifiedBy: userEmail,
+          source: 'import',
+        };
+
+        await Contact.create(contactData);
+        results.successful++;
+      } catch (error) {
+        results.errors.push({
+          row: i + 1,
+          error: error.message,
+          data: csvData[i],
+        });
+      }
+    }
+
+    return results;
   }
 }
 
