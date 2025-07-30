@@ -13,71 +13,50 @@ class AuthController {
     try {
       const { email, password } = req.body;
 
-      logger.info('🔐 Intento de login con Firestore', {
+      // ✅ NUEVO: Log de intento de login
+      req.logger.auth('login_attempt', {
         email,
-        hasPassword: !!password,
         ip: req.ip,
-        userAgent: req.get('User-Agent'),
+        userAgent: req.headers['user-agent']?.substring(0, 100)
       });
 
-      // VALIDACIÓN: Email y password requeridos
+      // Validación de entrada
       if (!email || !password) {
-        logger.warn('Login fallido: Datos faltantes', { 
-          email: email || 'FALTANTE',
-          hasPassword: !!password,
-          ip: req.ip 
+        req.logger.auth('login_failed', {
+          reason: 'missing_credentials',
+          email: email || 'not_provided',
+          hasPassword: !!password
         });
-        
+
         return res.status(400).json({
-          error: 'Datos requeridos',
+          error: 'Credenciales incompletas',
           message: 'Email y contraseña son requeridos',
           code: 'MISSING_CREDENTIALS',
         });
       }
 
-      // BUSCAR usuario en Firestore
-      logger.info('🔍 Buscando usuario en Firestore...', { email });
+      // ✅ NUEVO: Log de validación de contraseña
+      req.logger.database('query_started', {
+        operation: 'user_validation',
+        email
+      });
+
+      // Validar credenciales
+      const isValidPassword = await User.validatePassword(email, password);
       
-      const user = await User.getByEmail(email);
-      
-      if (!user) {
-        logger.warn('Login fallido: Usuario no encontrado', { 
+      if (!isValidPassword) {
+        req.logger.auth('login_failed', {
+          reason: 'invalid_credentials',
           email,
-          ip: req.ip 
+          ip: req.ip
         });
 
-        return res.status(401).json({
-          error: 'Credenciales inválidas',
-          message: 'Email o contraseña incorrectos',
-          code: 'INVALID_CREDENTIALS',
-        });
-      }
-
-      // VERIFICAR que el usuario esté activo
-      if (!user.isActive) {
-        logger.warn('Login denegado: Usuario inactivo', {
-          email: user.email,
-          name: user.name,
+        req.logger.security('suspicious_activity', {
+          type: 'failed_login',
+          email,
           ip: req.ip,
+          userAgent: req.headers['user-agent']?.substring(0, 100)
         });
-
-        return res.status(403).json({
-          error: 'Usuario inactivo',
-          message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
-          code: 'USER_INACTIVE',
-        });
-      }
-
-      // 🚨 VALIDAR contraseña en texto plano (SOLO PRUEBAS)
-      logger.info('🔐 Validando contraseña en texto plano...', { email });
-      
-      const isPasswordValid = await User.validatePassword(email, password);
-      
-      if (!isPasswordValid) {
-        logger.warn('Login fallido: Contraseña incorrecta', { 
-            email,
-          ip: req.ip 
-          });
 
         return res.status(401).json({
           error: 'Credenciales inválidas',
@@ -86,15 +65,27 @@ class AuthController {
           });
         }
 
+      // ✅ NUEVO: Log de usuario obtenido
+      const user = await User.getByEmail(email);
+      req.logger.database('document_read', {
+        operation: 'user_by_email',
+        email,
+        found: !!user
+      });
+
       // ACTUALIZAR último login
       await user.updateLastLogin();
+      req.logger.database('document_updated', {
+        operation: 'last_login_update',
+        email
+      });
 
       // GENERAR JWT INTERNO
       const jwtSecret = process.env.JWT_SECRET;
       const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
 
       if (!jwtSecret) {
-        logger.error('💥 JWT_SECRET no configurado');
+        req.logger.error('💥 JWT_SECRET no configurado');
         return res.status(500).json({
           error: 'Error de configuración',
           message: 'Servidor mal configurado',
@@ -111,21 +102,27 @@ class AuthController {
       };
 
       // ✅ GENERACIÓN DEL JWT CON CLAIMS DE SEGURIDAD
-      // IMPORTANTE: issuer y audience deben coincidir con la validación en auth.js
       const token = jwt.sign(tokenPayload, jwtSecret, { 
         expiresIn: jwtExpiresIn,
         issuer: 'utalk-backend',      // Debe coincidir con auth.js:55
         audience: 'utalk-frontend',   // Debe coincidir con auth.js:56
       });
 
+      // ✅ NUEVO: Log de token generado
+      req.logger.auth('token_generated', {
+        email: user.email,
+        role: user.role,
+        expiresIn: jwtExpiresIn
+      });
+
       // LOGIN EXITOSO
-      logger.info('🎉 LOGIN EXITOSO con Firestore', {
+      req.logger.auth('login_success', {
         email: user.email,
         name: user.name,
         role: user.role,
         department: user.department,
         ip: req.ip,
-        timestamp: new Date().toISOString(),
+        userAgent: req.headers['user-agent']?.substring(0, 100)
       });
 
       // RESPUESTA ESTÁNDAR (EMAIL-FIRST)
@@ -136,12 +133,11 @@ class AuthController {
         user: user.toJSON(),
       });
     } catch (error) {
-      logger.error('💥 Error crítico en login', {
+      req.logger.error('💥 Error crítico en login', {
         email: req.body?.email,
         error: error.message,
-        stack: error.stack,
-        ip: req.ip,
-        timestamp: new Date().toISOString(),
+        stack: error.stack?.split('\n').slice(0, 3),
+        ip: req.ip
       });
       next(error);
     }
@@ -154,22 +150,18 @@ class AuthController {
     try {
       const email = req.user?.email;
 
-      logger.info('🚪 Logout iniciado', {
+      req.logger.auth('logout', {
         email,
         ip: req.ip,
+        userAgent: req.headers['user-agent']?.substring(0, 100)
       });
-
-      // En sistema con JWT, el logout es principalmente del lado del cliente
-      // El token se invalida cuando expira o el cliente lo descarta
-
-      logger.info('Logout completado', { email });
 
       res.json({
         success: true,
         message: 'Logout exitoso',
       });
     } catch (error) {
-      logger.error('Error en logout', {
+      req.logger.error('Error en logout', {
         error: error.message,
         email: req.user?.email,
       });
@@ -453,12 +445,11 @@ class AuthController {
       const authHeader = req.headers.authorization;
       
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        logger.warn('Validación de token fallida: Header ausente', {
+        req.logger.auth('token_missing', {
           hasAuthHeader: !!authHeader,
           headerFormat: authHeader ? authHeader.substring(0, 20) + '...' : 'none',
-          userAgent: req.get('User-Agent'),
-          ip: req.ip,
-          endpoint: '/api/auth/validate-token'
+          userAgent: req.get('User-Agent')?.substring(0, 50),
+          ip: req.ip
         });
 
         return ResponseHandler.error(res, new ApiError(
@@ -473,7 +464,8 @@ class AuthController {
       const token = authHeader.split(' ')[1];
 
       if (!token || token === 'null' || token === 'undefined') {
-        logger.warn('Validación de token fallida: Token vacío', {
+        req.logger.auth('token_invalid', {
+          reason: 'empty_token',
           tokenExists: !!token,
           tokenValue: token,
           ip: req.ip
@@ -492,8 +484,9 @@ class AuthController {
       try {
         decodedToken = jwt.verify(token, process.env.JWT_SECRET);
         
-        logger.info('Token JWT verificado exitosamente', {
+        req.logger.auth('token_validated', {
           email: decodedToken.email,
+          role: decodedToken.role,
           iat: decodedToken.iat ? new Date(decodedToken.iat * 1000).toISOString() : 'unknown',
           exp: decodedToken.exp ? new Date(decodedToken.exp * 1000).toISOString() : 'unknown',
           ip: req.ip
@@ -519,12 +512,12 @@ class AuthController {
           suggestion = 'Espera a que el token se active o solicita uno nuevo';
         }
 
-        logger.warn('Validación JWT fallida', {
+        req.logger.auth('token_invalid', {
           error: jwtError.name,
           message: jwtError.message,
           tokenPreview: token.substring(0, 20) + '...',
           ip: req.ip,
-          userAgent: req.get('User-Agent')
+          userAgent: req.get('User-Agent')?.substring(0, 50)
         });
 
         return ResponseHandler.error(res, new ApiError(
@@ -541,7 +534,8 @@ class AuthController {
 
       // 📧 VALIDAR QUE EL TOKEN TENGA EMAIL
       if (!decodedToken.email) {
-        logger.error('Token sin email', {
+        req.logger.auth('token_invalid', {
+          reason: 'missing_email_claim',
           tokenPayload: decodedToken,
           ip: req.ip
         });
@@ -555,10 +549,15 @@ class AuthController {
       }
 
       // 👤 BUSCAR USUARIO EN FIRESTORE
+      req.logger.database('query_started', {
+        operation: 'user_by_email_for_validation',
+        email: decodedToken.email
+      });
+
       const user = await User.getByEmail(decodedToken.email);
 
       if (!user) {
-        logger.warn('Usuario no encontrado durante validación de token', {
+        req.logger.auth('user_not_found', {
           email: decodedToken.email,
           tokenAge: decodedToken.iat ? Math.floor((Date.now() / 1000) - decodedToken.iat) : 'unknown',
           ip: req.ip
@@ -575,7 +574,7 @@ class AuthController {
 
       // 🔒 VERIFICAR QUE EL USUARIO ESTÉ ACTIVO
       if (!user.isActive) {
-        logger.warn('Usuario inactivo intentando validar token', {
+        req.logger.auth('user_inactive', {
           email: user.email,
           isActive: user.isActive,
           role: user.role,
@@ -611,19 +610,18 @@ class AuthController {
         try {
           await user.updateLastActivity();
         } catch (activityError) {
-          logger.error('Error actualizando última actividad', {
+          req.logger.error('Error actualizando última actividad', {
             email: user.email,
             error: activityError.message
           });
         }
       });
 
-      logger.info('Token validado exitosamente', {
+      const responseTime = Date.now() - startTime;
+      req.logger.timing('token_validation', startTime, {
         email: user.email,
         role: user.role,
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        responseTime: Date.now() - startTime + 'ms'
+        successful: true
       });
 
       return ResponseHandler.success(res, {
@@ -633,12 +631,13 @@ class AuthController {
       }, 'Token válido - sesión activa');
 
     } catch (error) {
-      logger.error('Error interno validando token', {
+      const responseTime = Date.now() - startTime;
+      req.logger.error('Error interno validando token', {
         error: error.message,
-        stack: error.stack,
+        stack: error.stack?.split('\n').slice(0, 3),
         ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        responseTime: Date.now() - startTime + 'ms'
+        userAgent: req.get('User-Agent')?.substring(0, 50),
+        responseTime: responseTime + 'ms'
       });
 
       return ResponseHandler.error(res, new ApiError(

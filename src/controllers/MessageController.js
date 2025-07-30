@@ -56,14 +56,43 @@ class MessageController {
         order = 'desc'
       } = req.query;
 
+      // ✅ NUEVO: Log de inicio de búsqueda
+      req.logger.message('search_executed', {
+        conversationId,
+        filters: {
+          limit: Math.min(parseInt(limit), 100),
+          direction,
+          status,
+          type,
+          hasDateRange: !!(startDate && endDate)
+        },
+        userEmail: req.user.email
+      });
+
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
+      req.logger.database('query_started', {
+        operation: 'conversation_exists_check',
+        conversationId
+      });
+
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
+        req.logger.database('document_not_found', {
+          operation: 'conversation_by_id',
+          conversationId
+        });
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
 
       // 🔒 VALIDAR PERMISOS DE ACCESO
       if (req.user.role === 'viewer' && conversation.assignedTo !== req.user.email) {
+        req.logger.security('unauthorized_access', {
+          operation: 'view_messages',
+          conversationId,
+          userEmail: req.user.email,
+          userRole: req.user.role,
+          conversationAssignedTo: conversation.assignedTo
+        });
         throw CommonErrors.USER_NOT_AUTHORIZED('ver mensajes de esta conversación', conversationId);
       }
 
@@ -80,15 +109,21 @@ class MessageController {
         order
       };
 
-      logger.info('Obteniendo mensajes de conversación', {
+      req.logger.database('query_started', {
+        operation: 'messages_by_conversation',
         conversationId,
-        userEmail: req.user.email,
-        filters: searchOptions,
-        ip: req.ip
+        searchOptions
       });
 
       // 📊 EJECUTAR BÚSQUEDA
       const result = await Message.getByConversation(conversationId, searchOptions);
+
+      req.logger.message('search_completed', {
+        conversationId,
+        messagesFound: result.messages.length,
+        hasNextPage: !!result.pagination.nextCursor,
+        userEmail: req.user.email
+      });
 
       // 📤 RESPUESTA ESTÁNDAR CON PAGINACIÓN
       return ResponseHandler.successPaginated(
@@ -98,29 +133,20 @@ class MessageController {
         `${result.messages.length} mensajes encontrados`,
         200
       );
-
     } catch (error) {
-      logger.error('Error obteniendo mensajes', {
-        error: error.message,
-        stack: error.stack,
+      req.logger.error('Error obteniendo mensajes', {
         conversationId: req.params.conversationId,
-        userEmail: req.user?.email
+        error: error.message,
+        userEmail: req.user?.email,
+        stack: error.stack?.split('\n').slice(0, 3)
       });
-      return ResponseHandler.error(res, error);
+      next(error);
     }
   }
 
   /**
-   * ➕ POST /api/conversations/:conversationId/messages
-   * Crea/envía mensaje en una conversación específica
-   * 
-   * BODY:
-   * - content: texto del mensaje (opcional si hay mediaUrl)
-   * - type: text|media (default: text)
-   * - mediaUrl: URL del archivo multimedia de Firebase Storage (opcional)
-   * - fileMetadata: metadatos del archivo subido (opcional)
-   * - replyToMessageId: ID del mensaje al que responde (opcional)
-   * - metadata: objeto con datos adicionales (opcional)
+   * 📝 POST /api/conversations/:conversationId/messages
+   * Crear nuevo mensaje en una conversación específica
    */
   static async createMessageInConversation(req, res, next) {
     try {
@@ -135,19 +161,49 @@ class MessageController {
         metadata = {} 
       } = req.body;
 
+      // ✅ NUEVO: Log de inicio de creación
+      req.logger.message('processing_started', {
+        conversationId,
+        messageId: messageId || 'auto-generated',
+        type,
+        hasContent: !!content,
+        hasMedia: !!mediaUrl,
+        senderEmail: req.user.email
+      });
+
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
+      req.logger.database('query_started', {
+        operation: 'conversation_validation',
+        conversationId
+      });
+
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
+        req.logger.database('document_not_found', {
+          operation: 'conversation_by_id_for_message',
+          conversationId
+        });
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
 
       // 🔒 VALIDAR PERMISOS DE ESCRITURA
       if (req.user.role === 'viewer') {
+        req.logger.security('unauthorized_access', {
+          operation: 'create_message',
+          conversationId,
+          userEmail: req.user.email,
+          userRole: req.user.role
+        });
         throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes', conversationId);
       }
 
       // VALIDAR QUE HAY CONTENIDO O MEDIA
       if (!content && !mediaUrl) {
+        req.logger.message('validation_failed', {
+          reason: 'missing_content_and_media',
+          conversationId,
+          senderEmail: req.user.email
+        });
         throw new ApiError('MISSING_CONTENT', 'Debes proporcionar contenido o un archivo multimedia', 'Agrega texto o sube un archivo', 400);
       }
 
@@ -156,7 +212,7 @@ class MessageController {
       if (!finalMessageId) {
         // Generar UUID si el frontend no lo envía
         finalMessageId = uuidv4();
-        logger.info('MessageId generado automáticamente', {
+        req.logger.message('id_generated', {
           conversationId,
           generatedMessageId: finalMessageId,
           senderEmail: req.user.email
@@ -169,8 +225,19 @@ class MessageController {
                                   mediaUrl.includes('storage.googleapis.com');
         
         if (!isValidFirebaseUrl) {
+          req.logger.media('invalid_format', {
+            reason: 'non_firebase_storage_url',
+            providedUrl: mediaUrl.substring(0, 100),
+            conversationId
+          });
           throw new ApiError('INVALID_MEDIA_URL', 'URL de media inválida', 'Usa solo URLs de Firebase Storage', 400);
         }
+
+        req.logger.media('url_validated', {
+          mediaUrl: mediaUrl.substring(0, 100) + '...',
+          conversationId,
+          messageId: finalMessageId
+        });
       }
 
       // 📝 PREPARAR DATOS DEL MENSAJE
@@ -207,6 +274,13 @@ class MessageController {
       if (type === 'text' && !mediaUrl) {
         // Enviar mensaje de texto
         try {
+          req.logger.twilio('message_sending', {
+            conversationId,
+            messageId: finalMessageId,
+            recipientPhone: conversation.customerPhone,
+            contentLength: content?.length || 0
+          });
+
           const twilioService = getTwilioService();
           const sentMessage = await twilioService.sendWhatsAppMessage(
             conversation.customerPhone,
@@ -215,11 +289,20 @@ class MessageController {
           // ✅ MANTENER EL UUID DEL FRONTEND COMO ID PRINCIPAL
           messageData.metadata.twilioSid = sentMessage.sid;
           messageData.metadata.sentViaWhatsApp = true;
-        } catch (twilioError) {
-          logger.error('Error enviando mensaje por Twilio', {
+
+          req.logger.twilio('message_sent', {
             conversationId,
+            messageId: finalMessageId,
+            twilioSid: sentMessage.sid,
+            recipientPhone: conversation.customerPhone
+          });
+
+        } catch (twilioError) {
+          req.logger.twilio('message_failed', {
+            conversationId,
+            messageId: finalMessageId,
             error: twilioError.message,
-            userEmail: req.user.email
+            recipientPhone: conversation.customerPhone
           });
           
           // Continuar guardando el mensaje aunque Twilio falle
@@ -229,12 +312,23 @@ class MessageController {
       } else if (mediaUrl) {
         // MENSAJE CON ARCHIVO MULTIMEDIA
         try {
+          req.logger.media('whatsapp_compatibility_check', {
+            category: fileMetadata.category,
+            conversationId,
+            messageId: finalMessageId
+          });
+
           const twilioService = getTwilioService();
           
           // Determinar si el archivo es válido para WhatsApp
           const isWhatsAppCompatible = MediaUploadController.isWhatsAppCompatible(fileMetadata.category, fileMetadata);
           
           if (isWhatsAppCompatible) {
+            req.logger.media('whatsapp_compatible', {
+              category: fileMetadata.category,
+              messageId: finalMessageId
+            });
+
             // Enviar con media a través de Twilio
             const sentMessage = await twilioService.sendWhatsAppMessage(
               conversation.customerPhone,
@@ -244,21 +338,30 @@ class MessageController {
             // ✅ MANTENER EL UUID DEL FRONTEND COMO ID PRINCIPAL
             messageData.metadata.twilioSid = sentMessage.sid;
             messageData.metadata.sentViaWhatsApp = true;
+
+            req.logger.twilio('media_sent', {
+              conversationId,
+              messageId: finalMessageId,
+              twilioSid: sentMessage.sid,
+              mediaType: fileMetadata.category
+            });
+
           } else {
             // Solo guardar en base de datos (no enviar por WhatsApp)
             messageData.metadata.sentViaWhatsApp = false;
             messageData.metadata.reason = 'Tipo de archivo no compatible con WhatsApp';
-            logger.info('Archivo no compatible con WhatsApp, solo guardando localmente', {
-              conversationId,
+            
+            req.logger.media('whatsapp_incompatible', {
               category: fileMetadata.category,
-              filename: fileMetadata.originalName
+              messageId: finalMessageId,
+              reason: 'file_type_not_supported'
             });
           }
         } catch (twilioError) {
-          logger.error('Error enviando archivo por Twilio', {
+          req.logger.twilio('media_failed', {
             conversationId,
+            messageId: finalMessageId,
             error: twilioError.message,
-            userEmail: req.user.email,
             mediaUrl: mediaUrl.substring(0, 100) + '...'
           });
           
@@ -268,7 +371,7 @@ class MessageController {
       }
 
       // 💾 GUARDAR EN BASE DE DATOS
-      logger.info('[BACKEND][MESSAGES][GUARDANDO] Intentando guardar mensaje', {
+      req.logger.message('creating', {
         messageId: messageData.id,
         conversationId,
         senderEmail: req.user.email,
@@ -279,21 +382,20 @@ class MessageController {
 
       const message = await Message.create(messageData);
 
-      logger.info('[BACKEND][MESSAGES][GUARDADO] Mensaje guardado exitosamente', {
+      req.logger.message('created', {
         messageId: message.id,
         conversationId,
-        status: 'success'
+        status: 'success',
+        direction: 'outbound'
       });
 
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
         try {
-          // NUEVO: Logging detallado antes de emitir
-          logger.info('[BACKEND][SOCKET][PRE-EMIT] Preparando emisión de mensaje', {
+          req.logger.socket('message_emitting', {
             messageId: message.id,
             conversationId,
-            socketManagerAvailable: true,
             connectedUsers: socketManager.getConnectedUsers().length,
             messageStructure: {
               hasId: !!message.id,
@@ -316,50 +418,51 @@ class MessageController {
             });
           }
           
-          logger.info('[BACKEND][SOCKET][EMITIDO] Mensaje emitido exitosamente via Socket.IO', {
+          req.logger.socket('message_emitted', {
             messageId: message.id,
             conversationId,
-            socketManagerAvailable: true,
             connectedUsers: socketManager.getConnectedUsers().length,
             status: 'success'
           });
+
         } catch (socketError) {
-          logger.error('[BACKEND][SOCKET][ERROR] Error emitiendo mensaje via Socket.IO', {
+          req.logger.socket('message_emit_failed', {
             error: socketError.message,
-            stack: socketError.stack,
             messageId: message.id,
-            conversationId
+            conversationId,
+            stack: socketError.stack?.split('\n').slice(0, 3)
           });
           // Continuar aunque falle Socket.IO
         }
       } else {
-        logger.warn('[BACKEND][SOCKET][NO_DISPONIBLE] SocketManager no disponible', {
+        req.logger.socket('manager_unavailable', {
           messageId: message.id,
-          conversationId
+          conversationId,
+          operation: 'message_emit'
         });
       }
 
-      logger.info('Mensaje creado en conversación', {
+      req.logger.message('processing_completed', {
         messageId: message.id,
         conversationId,
         type: messageData.type,
         senderEmail: req.user.email,
         recipientPhone: conversation.customerPhone,
         hasMedia: !!mediaUrl,
-        mediaCategory: fileMetadata.category || null
+        mediaCategory: fileMetadata.category || null,
+        successful: true
       });
 
-      return ResponseHandler.created(res, message.toJSON(), 'Mensaje enviado exitosamente');
-
+      // 📤 RESPUESTA EXITOSA
+      return ResponseHandler.success(res, message.toJSON(), 'Mensaje creado exitosamente', 201);
     } catch (error) {
-      logger.error('Error creando mensaje en conversación', {
+      req.logger.error('Error creando mensaje en conversación', {
+        conversationId: req.params?.conversationId,
         error: error.message,
-        stack: error.stack,
-        conversationId: req.params.conversationId,
-        userEmail: req.user?.email,
-        body: req.body
+        senderEmail: req.user?.email,
+        stack: error.stack?.split('\n').slice(0, 3)
       });
-      return ResponseHandler.error(res, error);
+      next(error);
     }
   }
 
