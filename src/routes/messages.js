@@ -2,6 +2,7 @@ const express = require('express');
 const { validate, schemas } = require('../utils/validation');
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const MessageController = require('../controllers/MessageController');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
