@@ -38,7 +38,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // ✅ Verificar JWT interno con JWT_SECRET
+    // Verificar JWT interno con JWT_SECRET
     const jwtSecret = process.env.JWT_SECRET;
     
     if (!jwtSecret) {
@@ -71,7 +71,7 @@ const authMiddleware = async (req, res, next) => {
         errorCode = 'TOKEN_NOT_ACTIVE';
       }
 
-      logger.warn('❌ JWT inválido', {
+      logger.warn('JWT inválido', {
         error: jwtError.message,
         name: jwtError.name,
         ip: req.ip,
@@ -85,11 +85,11 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // ✅ OBTENER usuario completo desde Firestore usando email del token
+    // OBTENER usuario completo desde Firestore usando email del token
     const email = decodedToken.email;
     
     if (!email) {
-      logger.error('❌ Token sin email', {
+      logger.error('Token sin email', {
         tokenPayload: decodedToken,
         ip: req.ip,
       });
@@ -103,7 +103,7 @@ const authMiddleware = async (req, res, next) => {
     const userFromDb = await User.getByEmail(email);
 
     if (!userFromDb) {
-      logger.error('❌ Usuario del token no encontrado en Firestore', {
+      logger.error('Usuario del token no encontrado en Firestore', {
         email,
         ip: req.ip,
       });
@@ -114,9 +114,9 @@ const authMiddleware = async (req, res, next) => {
       });
     }
     
-    // ✅ VERIFICACIÓN DE ESTADO: Asegurarse que el usuario esté activo
+    // VERIFICACIÓN DE ESTADO: Asegurarse que el usuario esté activo
     if (!userFromDb.isActive) {
-      logger.warn('❌ Intento de acceso de usuario inactivo', {
+      logger.warn('Intento de acceso de usuario inactivo', {
         email: userFromDb.email,
         name: userFromDb.name,
         ip: req.ip,
@@ -128,10 +128,10 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // ✅ Adjuntar la instancia completa del usuario de Firestore a la petición
+    // Adjuntar la instancia completa del usuario de Firestore a la petición
     req.user = userFromDb;
 
-    logger.info('✅ Usuario autenticado correctamente', {
+    logger.info('Usuario autenticado correctamente', {
       email: req.user.email,
       name: req.user.name,
       role: req.user.role,

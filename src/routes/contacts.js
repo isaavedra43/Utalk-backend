@@ -11,7 +11,7 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess para viewers, agents, admins
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess para viewers, agents, admins
   validate(schemas.contact.list, 'query'),
   ContactController.list,
 );
@@ -22,7 +22,7 @@ router.get('/',
  * @access Private (Agent+)
  */
 router.post('/',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess (solo agent, admin)
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess (solo agent, admin)
   validate(schemas.contact.create),
   ContactController.create,
 );
@@ -33,7 +33,7 @@ router.post('/',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/search',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   ContactController.search,
 );
 
@@ -43,7 +43,7 @@ router.get('/search',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/export',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   ContactController.exportCSV,
 );
 
@@ -53,7 +53,7 @@ router.get('/export',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/tags',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   ContactController.getTags,
 );
 
@@ -63,7 +63,7 @@ router.get('/tags',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   ContactController.getById,
 );
 
@@ -73,7 +73,7 @@ router.get('/:id',
  * @access Private (Agent, Admin)
  */
 router.put('/:id',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   validate(schemas.contact.update),
   ContactController.update,
 );
@@ -84,7 +84,7 @@ router.put('/:id',
  * @access Private (Agent, Admin)
  */
 router.delete('/:id',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   ContactController.delete,
 );
 
@@ -94,7 +94,7 @@ router.delete('/:id',
  * @access Private (Agent, Admin)
  */
 router.post('/:id/tags',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   ContactController.addTags,
 );
 
@@ -104,7 +104,7 @@ router.post('/:id/tags',
  * @access Private (Agent, Admin)
  */
 router.delete('/:id/tags',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   ContactController.removeTags,
 );
 
@@ -114,7 +114,7 @@ router.delete('/:id/tags',
  * @access Private (Agent, Admin)
  */
 router.post('/import',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   ContactController.importCSV,
 );
 

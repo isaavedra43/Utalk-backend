@@ -10,7 +10,7 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/metrics',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.getMetrics,
 );
 
@@ -20,7 +20,7 @@ router.get('/metrics',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/messages/stats',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.getMessageStats,
 );
 
@@ -30,7 +30,7 @@ router.get('/messages/stats',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/contacts/stats',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.getContactStats,
 );
 
@@ -40,7 +40,7 @@ router.get('/contacts/stats',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/campaigns/stats',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.getCampaignStats,
 );
 
@@ -50,7 +50,7 @@ router.get('/campaigns/stats',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/activity',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.getRecentActivity,
 );
 
@@ -60,7 +60,7 @@ router.get('/activity',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/export',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.exportReport,
 );
 
@@ -70,7 +70,7 @@ router.get('/export',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/performance',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   DashboardController.getPerformanceMetrics,
 );
 

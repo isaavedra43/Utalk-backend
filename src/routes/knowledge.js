@@ -11,7 +11,7 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   KnowledgeController.list,
 );
 
@@ -21,7 +21,7 @@ router.get('/',
  * @access Private (Agent, Admin)
  */
 router.post('/',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess para permitir agents
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess para permitir agents
   validate(schemas.knowledge.create),
   KnowledgeController.create,
 );
@@ -32,7 +32,7 @@ router.post('/',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/search',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   KnowledgeController.search,
 );
 
@@ -42,7 +42,7 @@ router.get('/search',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/categories',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   KnowledgeController.getCategories,
 );
 
@@ -52,7 +52,7 @@ router.get('/categories',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   KnowledgeController.getById,
 );
 

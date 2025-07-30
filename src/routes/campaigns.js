@@ -11,7 +11,7 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // ✅ CORREGIDO: Cambiado a requireReadAccess para incluir viewers
+  requireReadAccess, // CORREGIDO: Cambiado a requireReadAccess para incluir viewers
   CampaignController.list,
 );
 
@@ -21,7 +21,7 @@ router.get('/',
  * @access Private (Agent, Admin)
  */
 router.post('/',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   validate(schemas.campaign.create),
   CampaignController.create,
 );
@@ -32,7 +32,7 @@ router.post('/',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id',
-  requireReadAccess, // ✅ CORREGIDO: Cambiado a requireReadAccess
+  requireReadAccess, // CORREGIDO: Cambiado a requireReadAccess
   CampaignController.getById,
 );
 
@@ -42,7 +42,7 @@ router.get('/:id',
  * @access Private (Agent, Admin)
  */
 router.put('/:id',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   validate(schemas.campaign.update),
   CampaignController.update,
 );
@@ -53,7 +53,7 @@ router.put('/:id',
  * @access Private (Admin)
  */
 router.delete('/:id',
-  requireAdmin, // ✅ CORRECTO: Mantener requireAdmin para operación crítica
+  requireAdmin, // CORRECTO: Mantener requireAdmin para operación crítica
   CampaignController.delete,
 );
 
@@ -63,7 +63,7 @@ router.delete('/:id',
  * @access Private (Agent, Admin)
  */
 router.post('/:id/send',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   CampaignController.sendCampaign,
 );
 
@@ -73,7 +73,7 @@ router.post('/:id/send',
  * @access Private (Agent, Admin)
  */
 router.post('/:id/pause',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   CampaignController.pauseCampaign,
 );
 
@@ -83,7 +83,7 @@ router.post('/:id/pause',
  * @access Private (Agent, Admin)
  */
 router.post('/:id/resume',
-  requireWriteAccess, // ✅ CORREGIDO: Cambiado a requireWriteAccess
+  requireWriteAccess, // CORREGIDO: Cambiado a requireWriteAccess
   CampaignController.resumeCampaign,
 );
 
@@ -93,7 +93,7 @@ router.post('/:id/resume',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id/report',
-  requireReadAccess, // ✅ CORREGIDO: Cambiado a requireReadAccess
+  requireReadAccess, // CORREGIDO: Cambiado a requireReadAccess
   CampaignController.getReport,
 );
 

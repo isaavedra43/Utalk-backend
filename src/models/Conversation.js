@@ -9,32 +9,32 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Conversation {
   constructor (data) {
-    // ✅ ID: Usar UUIDv4 si no se proporciona uno. EMAIL-FIRST.
+    // ID: Usar UUIDv4 si no se proporciona uno. EMAIL-FIRST.
     this.id = data.id || uuidv4();
 
-    // ✅ PARTICIPANTS: Array de emails de usuarios internos y/o teléfonos de externos.
+    // PARTICIPANTS: Array de emails de usuarios internos y/o teléfonos de externos.
     this.participants = data.participants || [];
 
-    // ✅ CUSTOMER: Identificador del cliente externo.
+    // CUSTOMER: Identificador del cliente externo.
     this.customerPhone = this.validateCustomerPhone(data.customerPhone);
 
-    // ✅ DEPRECATED: agentPhone se elimina, se usa assignedTo (EMAIL).
+    // DEPRECATED: agentPhone se elimina, se usa assignedTo (EMAIL).
     // this.agentPhone = data.agentPhone;
 
-    // ✅ CONTACT: Info del cliente.
+    // CONTACT: Info del cliente.
     this.contact = data.contact || { id: this.customerPhone, name: this.customerPhone };
 
-    // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
+    // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
     this.lastMessage = data.lastMessage || null;
     this.lastMessageId = data.lastMessageId || null;
     this.lastMessageAt = data.lastMessageAt || null;
     this.unreadCount = data.unreadCount || 0;
     this.messageCount = data.messageCount || 0;
     this.status = data.status || 'open';
-    this.priority = data.priority || 'normal'; // ✅ NUEVO: Prioridad
-    this.tags = data.tags || []; // ✅ NUEVO: Etiquetas
+    this.priority = data.priority || 'normal'; // NUEVO: Prioridad
+    this.tags = data.tags || []; // NUEVO: Etiquetas
     
-    // ✅ ASSIGNED_TO: EMAIL del agente asignado. La única fuente de verdad.
+    // ASSIGNED_TO: EMAIL del agente asignado. La única fuente de verdad.
     this.assignedTo = data.assignedTo || null;
     this.assignedToName = data.assignedToName || null;
     
@@ -43,7 +43,7 @@ class Conversation {
   }
 
   /**
-   * ✅ Valida y normaliza el teléfono del cliente.
+   * Valida y normaliza el teléfono del cliente.
    */
   validateCustomerPhone(phone) {
     if (!phone) {
@@ -68,12 +68,12 @@ class Conversation {
   static ensureParticipantsArray(customerPhone, agentEmail = null, existingParticipants = []) {
     const participants = [...existingParticipants];
     
-    // ✅ AGREGAR TELÉFONO DEL CLIENTE (si no existe)
+    // AGREGAR TELÉFONO DEL CLIENTE (si no existe)
     if (customerPhone && !participants.includes(customerPhone)) {
       participants.push(customerPhone);
     }
     
-    // ✅ AGREGAR EMAIL DEL AGENTE (si no existe)
+    // AGREGAR EMAIL DEL AGENTE (si no existe)
     if (agentEmail && !participants.includes(agentEmail)) {
       participants.push(agentEmail);
     }
@@ -113,7 +113,7 @@ class Conversation {
   }
 
   /**
-   * ✅ REFACTORIZADO: Crear o encontrar una conversación. EMAIL-FIRST.
+   * REFACTORIZADO: Crear o encontrar una conversación. EMAIL-FIRST.
    * Busca una conversación abierta para un `customerPhone`. Si no existe, la crea.
    */
   static async findOrCreate(customerPhone, agentEmail = null) {
@@ -145,7 +145,7 @@ class Conversation {
       customerPhone: normalizedPhone.normalized,
       participants: participants, // 🔧 CORREGIDO: Array completo con cliente y agente
       status: 'open',
-      assignedTo: agentEmail, // ✅ EMAIL del agente (puede ser null)
+      assignedTo: agentEmail, // EMAIL del agente (puede ser null)
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -156,7 +156,7 @@ class Conversation {
   }
 
   /**
-   * ✅ NUEVO: Busca una conversación abierta o pendiente por el teléfono del cliente.
+   * NUEVO: Busca una conversación abierta o pendiente por el teléfono del cliente.
    */
   static async findOpenByCustomerPhone(customerPhone) {
     const q = firestore.collection('conversations')
@@ -408,12 +408,12 @@ class Conversation {
    * Asignar a usuario
    */
   async assignTo (userEmail, userName = null) {
-    // ✅ VALIDACIÓN: userEmail debe ser un EMAIL real
+    // VALIDACIÓN: userEmail debe ser un EMAIL real
     if (!userEmail || typeof userEmail !== 'string') {
       throw new Error('userEmail debe ser un EMAIL válido');
     }
 
-    // TODO: Aquí se podría validar que el EMAIL existe en la colección users
+    // Aquí se podría validar que el EMAIL existe en la colección users
     logger.info('Asignando conversación a usuario', {
       conversationId: this.id,
       userEmail,
@@ -482,7 +482,7 @@ class Conversation {
         id: doc.id,
       }));
 
-      // ✅ CENTRALIZADO: Usar la misma lógica de cálculo que Message.getStats()
+      // CENTRALIZADO: Usar la misma lógica de cálculo que Message.getStats()
       const stats = {
         totalMessages: messages.length,
         inboundMessages: messages.filter(m => m.direction === 'inbound').length,
@@ -537,28 +537,28 @@ class Conversation {
   }
 
   /**
-   * ✅ CORREGIDO: Convertir a objeto plano para respuestas JSON
+   * CORREGIDO: Convertir a objeto plano para respuestas JSON
    * ESTRUCTURA CANÓNICA según especificación del frontend
    * assignedTo es el campo PRINCIPAL - assignedAgent solo para compatibilidad
-   * ✅ FECHAS SIEMPRE COMO STRING ISO: Utiliza safeDateToISOString
+   * FECHAS SIEMPRE COMO STRING ISO: Utiliza safeDateToISOString
    */
   toJSON () {
     try {
-      // ✅ FECHAS SIEMPRE COMO STRING ISO
+      // FECHAS SIEMPRE COMO STRING ISO
       const normalizedCreatedAt = safeDateToISOString(this.createdAt);
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
       const normalizedLastMessageAt = safeDateToISOString(this.lastMessageAt);
 
-      // ✅ PARTICIPANTS: Puede contener EMAILs y/o teléfonos.
+      // PARTICIPANTS: Puede contener EMAILs y/o teléfonos.
       const validatedParticipants = this.participants || [];
 
-      // ✅ CUSTOMER PHONE:
+      // CUSTOMER PHONE:
       const normalizedCustomerPhone = this.customerPhone;
 
-      // ✅ AGENT PHONE (DEPRECATED): Se elimina.
+      // AGENT PHONE (DEPRECATED): Se elimina.
       // const normalizedAgentPhone = null;
 
-      // ✅ Construir objeto contact según especificación
+      // Construir objeto contact según especificación
       const contact = {
         id: normalizedCustomerPhone || this.contact?.id || 'unknown',
         name: this.contact?.name || normalizedCustomerPhone || 'Cliente',
@@ -566,7 +566,7 @@ class Conversation {
         channel: 'whatsapp',
       };
 
-              // ✅ ASSIGNED_TO: Objeto con EMAIL y nombre.
+              // ASSIGNED_TO: Objeto con EMAIL y nombre.
       let assignedTo = null;
       if (this.assignedTo) {
         assignedTo = {
@@ -575,7 +575,7 @@ class Conversation {
         };
       }
 
-              // ✅ ESTRUCTURA DE RESPUESTA FINAL (EMAIL-FIRST)
+              // ESTRUCTURA DE RESPUESTA FINAL (EMAIL-FIRST)
       const result = {
         id: this.id,
         participants: validatedParticipants,
@@ -584,8 +584,8 @@ class Conversation {
         contact,
         assignedTo,
         status: this.status || 'open',
-        priority: this.priority || 'normal', // ✅ NUEVO: Prioridad
-        tags: this.tags || [], // ✅ NUEVO: Etiquetas
+        priority: this.priority || 'normal', // NUEVO: Prioridad
+        tags: this.tags || [], // NUEVO: Etiquetas
         unreadCount: this.unreadCount || 0,
         messageCount: this.messageCount || 0,
         lastMessage: this.lastMessage || null,
@@ -611,7 +611,7 @@ class Conversation {
       return result;
 
     } catch (error) {
-      // ✅ SAFETY NET: Nunca fallar la serialización
+      // SAFETY NET: Nunca fallar la serialización
       logger.error('Error crítico en Conversation.toJSON()', {
         conversationId: this.id,
         error: error.message,
@@ -700,7 +700,7 @@ class Conversation {
   }
 
   /**
-   * ✅ Marcar toda la conversación como leída por un usuario
+   * Marcar toda la conversación como leída por un usuario
    */
   async markAllAsRead(userEmail) {
     const messagesSnapshot = await firestore
@@ -845,7 +845,7 @@ class Conversation {
       sortOrder = 'desc'
     } = options;
 
-    // ✅ Lógica de consulta principal
+    // Lógica de consulta principal
     // Si se especifica `fetchForUser`, se obtienen las conversaciones de ese usuario Y las no asignadas.
     if (assignedTo !== undefined) {
       logger.info('🚀 Ejecutando consulta combinada: (asignadas a usuario + no asignadas)', { fetchForUser: assignedTo });
@@ -904,7 +904,7 @@ class Conversation {
       };
     }
 
-    // ✅ Lógica de consulta específica (cuando no es la vista general)
+    // Lógica de consulta específica (cuando no es la vista general)
     logger.info('🚀 Ejecutando consulta específica (no combinada)');
     let query = firestore.collection('conversations');
 

@@ -35,13 +35,13 @@ function normalizePhoneNumber (phone) {
     return null;
   }
 
-  // ✅ REMOVER PREFIJO WHATSAPP SI EXISTE
+  // REMOVER PREFIJO WHATSAPP SI EXISTE
   let normalized = phone.replace(/^whatsapp:/, '');
 
   // Remover espacios, guiones, paréntesis y otros caracteres
   normalized = normalized.replace(/[\s\-()]/g, '');
 
-  // ✅ VALIDACIÓN ESTRICTA: Rechazar números muy cortos antes de procesar
+  // VALIDACIÓN ESTRICTA: Rechazar números muy cortos antes de procesar
   const digitsOnly = normalized.replace(/\D/g, '');
   if (digitsOnly.length < 7) {
     return null; // Rechazar números con menos de 7 dígitos

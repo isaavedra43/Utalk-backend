@@ -22,6 +22,7 @@ const { getTwilioService } = require('../services/TwilioService');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
 const { validateAndNormalizePhone } = require('../utils/phoneValidation');
+const MediaUploadController = require('../controllers/MediaUploadController');
 
 class MessageController {
   /**
@@ -113,16 +114,24 @@ class MessageController {
    * Crea/envía mensaje en una conversación específica
    * 
    * BODY:
-   * - content: texto del mensaje (requerido)
-   * - type: text|image|audio|video|document (default: text)
-   * - mediaUrl: URL del archivo multimedia (opcional)
+   * - content: texto del mensaje (opcional si hay mediaUrl)
+   * - type: text|media (default: text)
+   * - mediaUrl: URL del archivo multimedia de Firebase Storage (opcional)
+   * - fileMetadata: metadatos del archivo subido (opcional)
    * - replyToMessageId: ID del mensaje al que responde (opcional)
    * - metadata: objeto con datos adicionales (opcional)
    */
   static async createMessageInConversation(req, res, next) {
     try {
       const { conversationId } = req.params;
-      const { content, type = 'text', mediaUrl = null, replyToMessageId = null, metadata = {} } = req.body;
+      const { 
+        content, 
+        type = 'text', 
+        mediaUrl = null, 
+        fileMetadata = {},
+        replyToMessageId = null, 
+        metadata = {} 
+      } = req.body;
 
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
       const conversation = await Conversation.getById(conversationId);
@@ -135,11 +144,26 @@ class MessageController {
         throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes', conversationId);
       }
 
+      // VALIDAR QUE HAY CONTENIDO O MEDIA
+      if (!content && !mediaUrl) {
+        throw new ApiError('MISSING_CONTENT', 'Debes proporcionar contenido o un archivo multimedia', 'Agrega texto o sube un archivo', 400);
+      }
+
+      // VALIDAR URL DE FIREBASE STORAGE SI EXISTE
+      if (mediaUrl) {
+        const isValidFirebaseUrl = mediaUrl.includes('firebasestorage.googleapis.com') || 
+                                  mediaUrl.includes('storage.googleapis.com');
+        
+        if (!isValidFirebaseUrl) {
+          throw new ApiError('INVALID_MEDIA_URL', 'URL de media inválida', 'Usa solo URLs de Firebase Storage', 400);
+        }
+      }
+
       // 📝 PREPARAR DATOS DEL MENSAJE
       const messageData = {
         conversationId,
-        content,
-        type,
+        content: content || null,
+        type: mediaUrl ? 'media' : 'text',
         mediaUrl,
         senderIdentifier: req.user.email,
         recipientIdentifier: conversation.customerPhone,
@@ -149,12 +173,24 @@ class MessageController {
         metadata: {
           ...metadata,
           sentBy: req.user.email,
-          sentAt: new Date().toISOString()
+          sentAt: new Date().toISOString(),
+          // AGREGAR METADATOS DE ARCHIVO SI EXISTE
+          ...(mediaUrl && fileMetadata && {
+            fileInfo: {
+              category: fileMetadata.category,
+              size: fileMetadata.size,
+              originalName: fileMetadata.originalName,
+              duration: fileMetadata.duration,
+              transcription: fileMetadata.transcription,
+              ...fileMetadata
+            }
+          })
         }
       };
 
-      // 📤 ENVIAR A TRAVÉS DE TWILIO SI ES TEXTO
+      // 📤 ENVIAR A TRAVÉS DE TWILIO
       if (type === 'text' && !mediaUrl) {
+        // Enviar mensaje de texto
         try {
           const twilioService = getTwilioService();
           const sentMessage = await twilioService.sendWhatsAppMessage(
@@ -171,6 +207,45 @@ class MessageController {
           });
           
           // Continuar guardando el mensaje aunque Twilio falle
+          messageData.status = 'failed';
+          messageData.metadata.failureReason = twilioError.message;
+        }
+      } else if (mediaUrl) {
+        // MENSAJE CON ARCHIVO MULTIMEDIA
+        try {
+          const twilioService = getTwilioService();
+          
+          // Determinar si el archivo es válido para WhatsApp
+          const isWhatsAppCompatible = MediaUploadController.isWhatsAppCompatible(fileMetadata.category, fileMetadata);
+          
+          if (isWhatsAppCompatible) {
+            // Enviar con media a través de Twilio
+            const sentMessage = await twilioService.sendWhatsAppMessage(
+              conversation.customerPhone,
+              content || `📎 ${fileMetadata.originalName || 'Archivo adjunto'}`,
+              mediaUrl
+            );
+            messageData.id = sentMessage.sid;
+            messageData.metadata.twilioSid = sentMessage.sid;
+            messageData.metadata.sentViaWhatsApp = true;
+          } else {
+            // Solo guardar en base de datos (no enviar por WhatsApp)
+            messageData.metadata.sentViaWhatsApp = false;
+            messageData.metadata.reason = 'Tipo de archivo no compatible con WhatsApp';
+            logger.info('Archivo no compatible con WhatsApp, solo guardando localmente', {
+              conversationId,
+              category: fileMetadata.category,
+              filename: fileMetadata.originalName
+            });
+          }
+        } catch (twilioError) {
+          logger.error('Error enviando archivo por Twilio', {
+            conversationId,
+            error: twilioError.message,
+            userEmail: req.user.email,
+            mediaUrl: mediaUrl.substring(0, 100) + '...'
+          });
+          
           messageData.status = 'failed';
           messageData.metadata.failureReason = twilioError.message;
         }
@@ -198,11 +273,12 @@ class MessageController {
 
       logger.info('Mensaje creado en conversación', {
         messageId: message.id,
-          conversationId,
-        type,
+        conversationId,
+        type: messageData.type,
         senderEmail: req.user.email,
         recipientPhone: conversation.customerPhone,
-        hasMedia: !!mediaUrl
+        hasMedia: !!mediaUrl,
+        mediaCategory: fileMetadata.category || null
       });
 
       return ResponseHandler.created(res, message.toJSON(), 'Mensaje enviado exitosamente');
@@ -360,7 +436,7 @@ class MessageController {
   }
 
   /**
-   * ✅ PUT /api/conversations/:conversationId/messages/:messageId/read
+   * PUT /api/conversations/:conversationId/messages/:messageId/read
    * Marca un mensaje específico como leído por el usuario actual
    */
   static async markMessageAsRead(req, res, next) {
@@ -515,7 +591,7 @@ class MessageController {
           body: req.body
         });
         
-        // ✅ RESPONDER 200 OK SIEMPRE A TWILIO
+        // RESPONDER 200 OK SIEMPRE A TWILIO
         return ResponseHandler.success(res, {
           status: 'warning',
           message: 'Datos incompletos procesados',
@@ -596,7 +672,7 @@ class MessageController {
         processTime: Date.now() - startTime
       });
 
-      // ✅ RESPUESTA EXITOSA A TWILIO
+      // RESPUESTA EXITOSA A TWILIO
       return ResponseHandler.success(res, {
         status: 'success',
         message: 'Mensaje procesado exitosamente',
@@ -606,8 +682,8 @@ class MessageController {
       }, 'Mensaje procesado exitosamente', 200);
 
     } catch (error) {
-      // ❌ ERROR CRÍTICO: Log pero responder 200 OK
-      console.error('❌ WEBHOOK - Error crítico:', {
+      // ERROR CRÍTICO: Log pero responder 200 OK
+      console.error('WEBHOOK - Error crítico:', {
         error: error.message,
         stack: error.stack.split('\n')[0],
         body: req.body,
@@ -621,7 +697,7 @@ class MessageController {
         processTime: Date.now() - startTime
       });
 
-      // ✅ RESPONDER SIEMPRE 200 OK A TWILIO
+      // RESPONDER SIEMPRE 200 OK A TWILIO
       return ResponseHandler.success(res, {
         status: 'error_handled',
         message: 'Error procesado, reintento no requerido',

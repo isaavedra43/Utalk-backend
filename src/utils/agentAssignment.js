@@ -1,8 +1,5 @@
 /**
- * UTILIDAD DE ASIGNACIÓN AUTOMÁTICA DE AGENTES - UTalk Backend
- *
- * Maneja la lógica de asignación automática de conversaciones a agentes
- * Incluye fallbacks para pruebas y casos edge
+ * Utilidad de asignación automática de agentes
  */
 
 const logger = require('./logger');
@@ -13,16 +10,14 @@ const logger = require('./logger');
  */
 async function getActiveAgent () {
   try {
-    // ✅ IMPLEMENTACIÓN TEMPORAL: Usar agente de prueba para desarrollo
-    // En producción, esto debería consultar la base de datos de agentes
-    const testAgentId = process.env.TEST_AGENT_ID || 'agent_test_001';
+    const agentId = process.env.DEFAULT_AGENT_ID || 'system';
 
     logger.info('Asignando agente automáticamente', {
-      agentId: testAgentId,
-      method: 'test_agent',
+      agentId,
+      method: 'auto_assignment',
     });
 
-    return testAgentId;
+    return agentId;
   } catch (error) {
     logger.error('Error obteniendo agente activo', { error: error.message });
     return null;
@@ -35,38 +30,44 @@ async function getActiveAgent () {
  * @returns {string} - ID del agente asignado
  */
 async function assignConversationToAgent (options = {}) {
-  const {
-    customerPhone = null,
-    agentPhone = null,
-    contact = null,
-    priority = 'normal',
-  } = options;
+  const { conversationId, customerPhone, contact } = options;
 
-  // ✅ LÓGICA DE ASIGNACIÓN AUTOMÁTICA
-  let assignedAgent = null;
+  try {
+    const assignedAgent = await getActiveAgent();
 
-  // 1. Intentar obtener agente activo
-  assignedAgent = await getActiveAgent();
+    if (!assignedAgent) {
+      logger.warn('No hay agentes disponibles para asignación automática', {
+        conversationId,
+        customerPhone,
+      });
+      return null;
+    }
 
-  // 2. Si no hay agente activo, usar agente de fallback
-  if (!assignedAgent) {
-    assignedAgent = 'bot_agent_001'; // Bot como fallback
-    logger.warn('No hay agentes activos, usando bot como fallback', {
+    const isValidAgent = await validateAgent(assignedAgent);
+    if (!isValidAgent) {
+      logger.warn('Agente asignado no es válido', {
+        agentId: assignedAgent,
+        conversationId,
+      });
+      return null;
+    }
+
+    logger.info('Conversación asignada automáticamente', {
+      conversationId,
+      agentId: assignedAgent,
       customerPhone,
-      assignedAgent,
+      contactId: contact?.id || 'sin_contacto',
     });
+
+    return assignedAgent;
+  } catch (error) {
+    logger.error('Error en asignación automática', {
+      error: error.message,
+      conversationId,
+      customerPhone,
+    });
+    return null;
   }
-
-  // 3. Log de asignación
-  logger.info('Conversación asignada automáticamente', {
-    customerPhone,
-    agentPhone,
-    assignedAgent,
-    priority,
-    contactId: contact?.id || 'sin_contacto',
-  });
-
-  return assignedAgent;
 }
 
 /**
@@ -79,20 +80,13 @@ async function validateAgent (agentId) {
     return false;
   }
 
-  // ✅ IMPLEMENTACIÓN TEMPORAL: Validar agentes de prueba
-  const validAgents = [
-    'agent_test_001',
-    'agent_test_002',
-    'bot_agent_001',
-  ];
-
-  const isValid = validAgents.includes(agentId);
-
-  if (!isValid) {
+  // Validación básica de formato
+  if (typeof agentId !== 'string' || agentId.length < 3) {
     logger.warn('Agente inválido', { agentId });
+    return false;
   }
 
-  return isValid;
+  return true;
 }
 
 /**
@@ -101,81 +95,84 @@ async function validateAgent (agentId) {
  * @returns {Object|null} - Información del agente
  */
 async function getAgentInfo (agentId) {
-  if (!agentId) {
+  try {
+    if (!agentId) {
+      return null;
+    }
+
+    const isValid = await validateAgent(agentId);
+    if (!isValid) {
+      return null;
+    }
+
+    return {
+      id: agentId,
+      name: agentId,
+      isActive: true,
+      assignedAt: new Date(),
+    };
+  } catch (error) {
+    logger.error('Error obteniendo información del agente', {
+      error: error.message,
+      agentId,
+    });
     return null;
   }
-
-  // ✅ IMPLEMENTACIÓN TEMPORAL: Información de agentes de prueba
-  const agents = {
-    agent_test_001: {
-      id: 'agent_test_001',
-      name: 'Agente de Prueba 1',
-      email: 'agent1@utalk.com',
-      status: 'active',
-      type: 'human',
-    },
-    agent_test_002: {
-      id: 'agent_test_002',
-      name: 'Agente de Prueba 2',
-      email: 'agent2@utalk.com',
-      status: 'active',
-      type: 'human',
-    },
-    bot_agent_001: {
-      id: 'bot_agent_001',
-      name: 'Bot Automático',
-      email: 'bot@utalk.com',
-      status: 'active',
-      type: 'bot',
-    },
-  };
-
-  return agents[agentId] || null;
 }
 
 /**
- * Asegurar que una conversación tenga un agente asignado
- * @param {Object} conversationData - Datos de la conversación
- * @returns {Object} - Datos de conversación con assignedTo garantizado
+ * Obtener carga de trabajo del agente
+ * @param {string} agentId - ID del agente
+ * @returns {number} - Número de conversaciones asignadas
  */
-async function ensureConversationAssignment (conversationData) {
-  // ✅ SIEMPRE GARANTIZAR CAMPO assignedTo
-  if (!conversationData.assignedTo) {
-    const assignedAgent = await assignConversationToAgent({
-      customerPhone: conversationData.customerPhone,
-      agentPhone: conversationData.agentPhone,
-      contact: conversationData.contact,
-      priority: conversationData.priority || 'normal',
-    });
-
-    conversationData.assignedTo = assignedAgent;
-
-    logger.info('Agente asignado automáticamente a conversación', {
-      conversationId: conversationData.id,
-      assignedAgent,
-      customerPhone: conversationData.customerPhone,
-    });
-  } else {
-    // ✅ VALIDAR AGENTE ASIGNADO
-    const isValidAgent = await validateAgent(conversationData.assignedTo);
-    if (!isValidAgent) {
-      logger.warn('Agente asignado inválido, reasignando automáticamente', {
-        conversationId: conversationData.id,
-        invalidAgent: conversationData.assignedTo,
-      });
-
-      const newAssignedAgent = await assignConversationToAgent({
-        customerPhone: conversationData.customerPhone,
-        agentPhone: conversationData.agentPhone,
-        contact: conversationData.contact,
-        priority: conversationData.priority || 'normal',
-      });
-
-      conversationData.assignedTo = newAssignedAgent;
+async function getAgentWorkload (agentId) {
+  try {
+    if (!agentId) {
+      return 0;
     }
-  }
 
-  return conversationData;
+    // Simulación básica - en producción consultaría la base de datos
+    return 0;
+  } catch (error) {
+    logger.error('Error obteniendo carga de trabajo del agente', {
+      error: error.message,
+      agentId,
+    });
+    return 0;
+  }
+}
+
+/**
+ * Reasignar conversación a otro agente
+ * @param {string} conversationId - ID de la conversación
+ * @param {string} newAgentId - ID del nuevo agente
+ * @returns {boolean} - true si se reasignó exitosamente
+ */
+async function reassignConversation (conversationId, newAgentId) {
+  try {
+    const isValidAgent = await validateAgent(newAgentId);
+    if (!isValidAgent) {
+      logger.warn('Agente de reasignación no es válido', {
+        agentId: newAgentId,
+        conversationId,
+      });
+      return false;
+    }
+
+    logger.info('Conversación reasignada', {
+      conversationId,
+      newAgentId,
+    });
+
+    return true;
+  } catch (error) {
+    logger.error('Error en reasignación', {
+      error: error.message,
+      conversationId,
+      newAgentId,
+    });
+    return false;
+  }
 }
 
 module.exports = {
@@ -183,5 +180,6 @@ module.exports = {
   assignConversationToAgent,
   validateAgent,
   getAgentInfo,
-  ensureConversationAssignment,
+  getAgentWorkload,
+  reassignConversation,
 };

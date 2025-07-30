@@ -3,13 +3,46 @@ const path = require('path');
 const fs = require('fs').promises;
 const { authMiddleware } = require('../middleware/auth');
 const MediaService = require('../services/MediaService');
+const MediaUploadController = require('../controllers/MediaUploadController');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
 /**
+ * POST /api/media/upload
+ * @desc Subir archivo multimedia a Firebase Storage
+ * @access Private - Requiere autenticación
+ */
+router.post('/upload', 
+  authMiddleware,
+  MediaUploadController.getUploadRateLimit(),
+  MediaUploadController.getMulterConfig().single('file'),
+  MediaUploadController.uploadMedia
+);
+
+/**
+ * GET /api/media/file/:fileId
+ * @desc Obtener información de un archivo
+ * @access Private
+ */
+router.get('/file/:fileId', 
+  authMiddleware,
+  MediaUploadController.getFileInfo
+);
+
+/**
+ * DELETE /api/media/file/:fileId
+ * @desc Eliminar archivo de Firebase Storage
+ * @access Private
+ */
+router.delete('/file/:fileId',
+  authMiddleware, 
+  MediaUploadController.deleteFile
+);
+
+/**
  * @route GET /media/:category/:filename
- * @desc Servir archivo multimedia con autenticación
+ * @desc Servir archivo multimedia con autenticación (LEGACY - para compatibilidad)
  * @access Private
  */
 router.get('/:category/:filename', authMiddleware, async (req, res) => {

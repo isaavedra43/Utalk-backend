@@ -20,9 +20,9 @@ class AuthController {
         userAgent: req.get('User-Agent'),
       });
 
-      // ✅ VALIDACIÓN: Email y password requeridos
+      // VALIDACIÓN: Email y password requeridos
       if (!email || !password) {
-        logger.warn('❌ Login fallido: Datos faltantes', { 
+        logger.warn('Login fallido: Datos faltantes', { 
           email: email || 'FALTANTE',
           hasPassword: !!password,
           ip: req.ip 
@@ -35,13 +35,13 @@ class AuthController {
         });
       }
 
-      // ✅ BUSCAR usuario en Firestore
+      // BUSCAR usuario en Firestore
       logger.info('🔍 Buscando usuario en Firestore...', { email });
       
       const user = await User.getByEmail(email);
       
       if (!user) {
-        logger.warn('❌ Login fallido: Usuario no encontrado', { 
+        logger.warn('Login fallido: Usuario no encontrado', { 
           email,
           ip: req.ip 
         });
@@ -53,9 +53,9 @@ class AuthController {
         });
       }
 
-      // ✅ VERIFICAR que el usuario esté activo
+      // VERIFICAR que el usuario esté activo
       if (!user.isActive) {
-        logger.warn('❌ Login denegado: Usuario inactivo', {
+        logger.warn('Login denegado: Usuario inactivo', {
           email: user.email,
           name: user.name,
           ip: req.ip,
@@ -74,7 +74,7 @@ class AuthController {
       const isPasswordValid = await User.validatePassword(email, password);
       
       if (!isPasswordValid) {
-        logger.warn('❌ Login fallido: Contraseña incorrecta', { 
+        logger.warn('Login fallido: Contraseña incorrecta', { 
             email,
           ip: req.ip 
           });
@@ -86,10 +86,10 @@ class AuthController {
           });
         }
 
-      // ✅ ACTUALIZAR último login
+      // ACTUALIZAR último login
       await user.updateLastLogin();
 
-      // ✅ GENERAR JWT INTERNO
+      // GENERAR JWT INTERNO
       const jwtSecret = process.env.JWT_SECRET;
       const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
 
@@ -115,7 +115,7 @@ class AuthController {
         audience: 'utalk-frontend',
       });
 
-      // ✅ LOGIN EXITOSO
+      // LOGIN EXITOSO
       logger.info('🎉 LOGIN EXITOSO con Firestore', {
         email: user.email,
         name: user.name,
@@ -125,7 +125,7 @@ class AuthController {
         timestamp: new Date().toISOString(),
       });
 
-      // ✅ RESPUESTA ESTÁNDAR (EMAIL-FIRST)
+      // RESPUESTA ESTÁNDAR (EMAIL-FIRST)
       res.json({
         success: true,
         message: 'Login exitoso',
@@ -159,14 +159,14 @@ class AuthController {
       // En sistema con JWT, el logout es principalmente del lado del cliente
       // El token se invalida cuando expira o el cliente lo descarta
 
-      logger.info('✅ Logout completado', { email });
+      logger.info('Logout completado', { email });
 
       res.json({
         success: true,
         message: 'Logout exitoso',
       });
     } catch (error) {
-      logger.error('❌ Error en logout', {
+      logger.error('Error en logout', {
         error: error.message,
         email: req.user?.email,
       });
@@ -203,7 +203,7 @@ class AuthController {
         });
       }
 
-      logger.info('✅ Perfil obtenido correctamente', {
+      logger.info('Perfil obtenido correctamente', {
         email: user.email,
         name: user.name,
         role: user.role,
@@ -214,7 +214,7 @@ class AuthController {
         user: user.toJSON(),
       });
     } catch (error) {
-      logger.error('❌ Error obteniendo perfil', {
+      logger.error('Error obteniendo perfil', {
         error: error.message,
         email: req.user?.email,
       });
@@ -251,7 +251,7 @@ class AuthController {
         });
       }
 
-      // ✅ Preparar actualizaciones permitidas (NO incluir email como actualizable)
+      // Preparar actualizaciones permitidas (NO incluir email como actualizable)
       const allowedUpdates = {};
       if (name !== undefined) allowedUpdates.name = name;
       if (phone !== undefined) allowedUpdates.phone = phone;
@@ -267,7 +267,7 @@ class AuthController {
 
       await user.update(allowedUpdates);
 
-      logger.info('✅ Perfil actualizado exitosamente', {
+      logger.info('Perfil actualizado exitosamente', {
         email,
         updatedFields: Object.keys(allowedUpdates),
       });
@@ -278,7 +278,7 @@ class AuthController {
         user: user.toJSON(),
       });
     } catch (error) {
-      logger.error('❌ Error actualizando perfil', {
+      logger.error('Error actualizando perfil', {
         error: error.message,
         email: req.user?.email,
       });
@@ -323,7 +323,7 @@ class AuthController {
       const isCurrentPasswordValid = await User.validatePassword(email, currentPassword);
       
       if (!isCurrentPasswordValid) {
-        logger.warn('❌ Cambio de contraseña fallido: Contraseña actual incorrecta', { email });
+        logger.warn('Cambio de contraseña fallido: Contraseña actual incorrecta', { email });
         
         return res.status(401).json({
           error: 'Contraseña actual incorrecta',
@@ -336,14 +336,14 @@ class AuthController {
       const user = await User.getByEmail(email);
       await user.update({ password: newPassword }); // Se hasheará automáticamente en el modelo
 
-      logger.info('✅ Contraseña cambiada exitosamente', { email });
+      logger.info('Contraseña cambiada exitosamente', { email });
 
       res.json({
         success: true,
         message: 'Contraseña cambiada exitosamente',
       });
     } catch (error) {
-      logger.error('❌ Error cambiando contraseña', {
+      logger.error('Error cambiando contraseña', {
         error: error.message,
         email: req.user?.email,
       });
@@ -366,7 +366,7 @@ class AuthController {
         department,
       });
 
-      // ✅ Verificar permisos de administrador
+      // Verificar permisos de administrador
       if (!req.user?.hasRole('admin') && !req.user?.hasRole('superadmin')) {
         logger.warn('🚫 Intento de creación de usuario sin permisos', {
           adminEmail,
@@ -388,7 +388,7 @@ class AuthController {
         });
       }
 
-      // ✅ Crear usuario en Firestore
+      // Crear usuario en Firestore
       try {
       const newUser = await User.create({
         email,
@@ -399,7 +399,7 @@ class AuthController {
           isActive: true,
       });
 
-        logger.info('✅ Usuario creado completamente', {
+        logger.info('Usuario creado completamente', {
           email: newUser.email,
           name: newUser.name,
           role: newUser.role,
@@ -591,7 +591,7 @@ class AuthController {
         ));
       }
 
-      // ✅ TOKEN VÁLIDO - RESPONDER CON DATOS DEL USUARIO
+      // TOKEN VÁLIDO - RESPONDER CON DATOS DEL USUARIO
       const responseData = {
         email: user.email,
         name: user.name,

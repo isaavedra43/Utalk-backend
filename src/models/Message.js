@@ -8,28 +8,28 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Message {
   constructor (data) {
-    // ✅ ID y ConversationID (UUIDs)
+    // ID y ConversationID (UUIDs)
     if (!data.id) throw new Error('Message ID es requerido');
     if (!data.conversationId) throw new Error('conversationId (UUID) es requerido');
     this.id = data.id;
     this.conversationId = data.conversationId;
 
-    // ✅ Contenido
+    // Contenido
     if (!data.content && !data.mediaUrl) {
       throw new Error('Message debe tener content o mediaUrl');
     }
     this.content = data.content || null;
     this.mediaUrl = data.mediaUrl || null;
 
-    // ✅ EMAIL-FIRST: Identificadores de remitente y destinatario.
+    // EMAIL-FIRST: Identificadores de remitente y destinatario.
     this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
     this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
 
-    // ✅ DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
+    // DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
     // this.senderPhone = ...
     // this.recipientPhone = ...
 
-    // ✅ CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
+    // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
     this.direction = data.direction || 'inbound';
     this.type = data.type || (this.mediaUrl ? 'media' : 'text');
     this.status = data.status || 'sent';
@@ -77,7 +77,7 @@ class Message {
   }
 
   /**
-   * ✅ OPTIMIZADO: Obtener mensajes por conversación con paginación basada en cursor
+   * OPTIMIZADO: Obtener mensajes por conversación con paginación basada en cursor
    * @param {string} conversationId - ID de la conversación
    * @param {Object} options - Opciones de paginación y filtros
    * @returns {Object} - Resultado con mensajes y metadata de paginación
@@ -98,11 +98,11 @@ class Message {
       order = 'desc',
     } = options;
 
-    // ✅ VALIDACIÓN: Límites de paginación
+    // VALIDACIÓN: Límites de paginación
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
     const validatedOrder = ['asc', 'desc'].includes(order) ? order : 'desc';
 
-    // ✅ MONITOREO: Log de parámetros de consulta
+    // MONITOREO: Log de parámetros de consulta
     logger.info('Consultando mensajes por conversación', {
       conversationId,
       limit: validatedLimit,
@@ -123,7 +123,7 @@ class Message {
       .doc(conversationId)
       .collection('messages');
 
-    // ✅ APLICAR FILTROS
+    // APLICAR FILTROS
     const appliedFilters = [];
 
     if (direction) {
@@ -153,10 +153,10 @@ class Message {
       appliedFilters.push(`endDate: ${endDate}`);
     }
 
-    // ✅ ORDENAMIENTO
+    // ORDENAMIENTO
     query = query.orderBy(orderBy, validatedOrder);
 
-    // ✅ PAGINACIÓN BASADA EN CURSOR
+    // PAGINACIÓN BASADA EN CURSOR
     if (cursor) {
       try {
         const cursorData = parseCursor(cursor);
@@ -173,15 +173,15 @@ class Message {
       }
     }
 
-    // ✅ APLICAR LÍMITE
+    // APLICAR LÍMITE
     query = query.limit(validatedLimit + 1); // +1 para determinar si hay más páginas
 
-    // ✅ EJECUTAR CONSULTA
+    // EJECUTAR CONSULTA
     const startTime = Date.now();
     const snapshot = await query.get();
     const queryTime = Date.now() - startTime;
 
-    // ✅ PROCESAR RESULTADOS
+    // PROCESAR RESULTADOS
     const messages = [];
     let hasMore = false;
 
@@ -193,7 +193,7 @@ class Message {
       }
     });
 
-    // ✅ GENERAR CURSOR PARA SIGUIENTE PÁGINA
+    // GENERAR CURSOR PARA SIGUIENTE PÁGINA
     let nextCursor = null;
     if (hasMore && messages.length > 0) {
       const lastDoc = snapshot.docs[validatedLimit - 1];
@@ -204,7 +204,7 @@ class Message {
       });
     }
 
-    // ✅ MONITOREO: Log de resultados
+    // MONITOREO: Log de resultados
     logger.info('Consulta de mensajes completada', {
       conversationId,
       totalResults: messages.length,
@@ -376,7 +376,7 @@ class Message {
   }
 
   /**
-   * ✅ EMAIL-FIRST: Convertir a objeto plano para respuestas JSON
+   * EMAIL-FIRST: Convertir a objeto plano para respuestas JSON
    */
   toJSON () {
       const normalizedTimestamp = safeDateToISOString(this.timestamp);
@@ -409,7 +409,7 @@ class Message {
   }
 
   /**
-   * ✅ Marcar mensaje como leído por un usuario específico
+   * Marcar mensaje como leído por un usuario específico
    */
   async markAsReadBy(userEmail, readTimestamp = new Date()) {
     await firestore

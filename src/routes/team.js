@@ -11,7 +11,7 @@ const router = express.Router();
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   TeamController.list,
 );
 
@@ -21,7 +21,7 @@ router.get('/',
  * @access Private (Admin)
  */
 router.post('/invite',
-  requireAdmin, // ✅ CORRECTO: Solo admin puede invitar
+  requireAdmin, // CORRECTO: Solo admin puede invitar
   validate(schemas.team.invite),
   TeamController.invite,
 );
@@ -32,7 +32,7 @@ router.post('/invite',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   TeamController.getById,
 );
 
@@ -83,7 +83,7 @@ router.post('/:id/deactivate',
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:id/kpis',
-  requireReadAccess, // ✅ CORREGIDO: Agregado requireReadAccess
+  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
   TeamController.getKPIs,
 );
 

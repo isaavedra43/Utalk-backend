@@ -203,7 +203,7 @@ const validateMessageResponse = (message) => {
     throw new Error('El mensaje debe ser un objeto válido');
   }
 
-  // ✅ CAMPOS OBLIGATORIOS SEGÚN ESPECIFICACIÓN
+  // CAMPOS OBLIGATORIOS SEGÚN ESPECIFICACIÓN
   const requiredFields = [
     'id', 'content', 'timestamp', 'from', 'to',
     'direction', 'status', 'conversationId',
@@ -227,7 +227,7 @@ const validateMessageResponse = (message) => {
     throw new Error(`Status inválido: ${message.status}`);
   }
 
-  // ✅ GARANTIZAR QUE TEXT ESTÉ PRESENTE PARA COMPATIBILIDAD CON FRONTEND
+  // GARANTIZAR QUE TEXT ESTÉ PRESENTE PARA COMPATIBILIDAD CON FRONTEND
   if (!Object.prototype.hasOwnProperty.call(message, 'text')) {
     message.text = message.content || '';
   }
@@ -387,7 +387,7 @@ const schemas = {
     }),
 
     assign: Joi.object({
-      assignedTo: commonSchemas.email.required(), // ✅ EMAIL directo, no objeto
+      assignedTo: commonSchemas.email.required(), // EMAIL directo, no objeto
     }),
 
     transfer: Joi.object({
@@ -545,7 +545,7 @@ const schemas = {
 
       // ForwardedFrom field for forwarded messages
       ForwardedFrom: Joi.string().optional(),
-    }).unknown(true), // ✅ CRÍTICO: Permitir campos adicionales de Twilio
+    }).unknown(true), // CRÍTICO: Permitir campos adicionales de Twilio
 
     markRead: Joi.object({
       messageId: commonSchemas.id,

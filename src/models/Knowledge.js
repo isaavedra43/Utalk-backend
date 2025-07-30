@@ -363,7 +363,7 @@ class Knowledge {
    * Convertir a objeto plano para respuestas JSON con timestamps ISO
    */
   toJSON () {
-    // ✅ Función helper para convertir timestamps
+    // Función helper para convertir timestamps
     const toISOString = (timestamp) => {
       if (!timestamp) return '';
       if (typeof timestamp.toDate === 'function') {

@@ -70,7 +70,7 @@ class Logger {
    * Log específico para errores de Twilio
    */
   static twilioError (error, context = {}) {
-    this.error('❌ TWILIO ERROR', {
+    this.error('TWILIO ERROR', {
       twilio: true,
       error: error.message,
       code: error.code,

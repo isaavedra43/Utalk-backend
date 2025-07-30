@@ -1,10 +1,10 @@
 const { Firestore, FieldValue, Timestamp } = require('@google-cloud/firestore');
 require('dotenv').config();
 
-// ✅ RAILWAY LOGGING: Inicio de inicialización Firestore únicamente
+// RAILWAY LOGGING: Inicio de inicialización Firestore únicamente
 console.log('🔥 FIRESTORE - Iniciando configuración (SIN Firebase Auth)...');
 
-// ✅ DEBUG MODE: Mostrar variables de entorno (sin secretos)
+// DEBUG MODE: Mostrar variables de entorno (sin secretos)
 console.log('🔍 FIRESTORE - Variables de entorno detectadas:', {
   FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
   FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
@@ -31,7 +31,7 @@ const serviceAccount = {
   },
 };
 
-// ✅ VERIFICACIÓN CRÍTICA: Variables de entorno obligatorias para Firestore
+// VERIFICACIÓN CRÍTICA: Variables de entorno obligatorias para Firestore
 const requiredEnvVars = [
   'FIREBASE_PROJECT_ID',
   'FIREBASE_PRIVATE_KEY',
@@ -41,22 +41,22 @@ const requiredEnvVars = [
 console.log('🔍 FIRESTORE - Verificando variables de entorno...');
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingVars.length > 0) {
-  console.error('❌ FIRESTORE - Variables faltantes:', missingVars);
-  console.error('❌ FIRESTORE - El proyecto INTENTARÁ continuar para debugging');
-  // ✅ NO MATAR LA APP - Solo logear el problema
+  console.error('FIRESTORE - Variables faltantes:', missingVars);
+  console.error('FIRESTORE - El proyecto INTENTARÁ continuar para debugging');
+  // NO MATAR LA APP - Solo logear el problema
 }
 
-// ✅ VERIFICACIÓN ADICIONAL: Formato de private key (sin matar app)
+// VERIFICACIÓN ADICIONAL: Formato de private key (sin matar app)
 if (process.env.FIREBASE_PRIVATE_KEY && !process.env.FIREBASE_PRIVATE_KEY.includes('BEGIN PRIVATE KEY')) {
-  console.error('❌ FIRESTORE - FIREBASE_PRIVATE_KEY parece tener formato incorrecto');
-  console.error('❌ FIRESTORE - Debe incluir "-----BEGIN PRIVATE KEY-----"');
-  console.error('❌ FIRESTORE - Continuando para debugging...');
-  // ✅ NO MATAR LA APP - Solo logear el problema
+  console.error('FIRESTORE - FIREBASE_PRIVATE_KEY parece tener formato incorrecto');
+  console.error('FIRESTORE - Debe incluir "-----BEGIN PRIVATE KEY-----"');
+  console.error('FIRESTORE - Continuando para debugging...');
+  // NO MATAR LA APP - Solo logear el problema
 }
 
-console.log('✅ FIRESTORE - Variables de entorno verificadas (con warnings)');
+console.log('FIRESTORE - Variables de entorno verificadas (con warnings)');
 
-// ✅ INICIALIZACIÓN ROBUSTA CON TRY/CATCH
+// INICIALIZACIÓN ROBUSTA CON TRY/CATCH
 let firestore;
 
 try {
@@ -75,36 +75,36 @@ try {
 
   firestore = new Firestore(firestoreConfig);
 
-  console.log('✅ FIRESTORE - Cliente Firestore inicializado exitosamente');
+  console.log('FIRESTORE - Cliente Firestore inicializado exitosamente');
 
-  // ✅ TEST DE CONECTIVIDAD OPCIONAL (sin bloquear)
+  // TEST DE CONECTIVIDAD OPCIONAL (sin bloquear)
   console.log('🔍 FIRESTORE - Realizando test de conectividad...');
   firestore.collection('_health_check').limit(1).get()
     .then((snapshot) => {
-      console.log('✅ FIRESTORE - Conectividad confirmada, documentos encontrados:', snapshot.size);
+      console.log('FIRESTORE - Conectividad confirmada, documentos encontrados:', snapshot.size);
     })
     .catch((connectError) => {
       console.log('⚠️ FIRESTORE - Test de conectividad falló:', connectError.message);
       // No bloquear la inicialización por esto
     });
 } catch (initError) {
-  console.error('❌ FIRESTORE - Error crítico en inicialización:', initError.message);
-  console.error('❌ FIRESTORE - Stack trace:', initError.stack);
+  console.error('FIRESTORE - Error crítico en inicialización:', initError.message);
+  console.error('FIRESTORE - Stack trace:', initError.stack);
 
   // Mostrar información específica del error
   if (initError.message.includes('private_key')) {
-    console.error('❌ FIRESTORE - Problema con FIREBASE_PRIVATE_KEY - verificar formato y escapes');
+    console.error('FIRESTORE - Problema con FIREBASE_PRIVATE_KEY - verificar formato y escapes');
   }
   if (initError.message.includes('client_email')) {
-    console.error('❌ FIRESTORE - Problema con FIREBASE_CLIENT_EMAIL - verificar service account');
+    console.error('FIRESTORE - Problema con FIREBASE_CLIENT_EMAIL - verificar service account');
   }
   if (initError.message.includes('project_id')) {
-    console.error('❌ FIRESTORE - Problema con FIREBASE_PROJECT_ID - verificar proyecto');
+    console.error('FIRESTORE - Problema con FIREBASE_PROJECT_ID - verificar proyecto');
   }
 
-  console.error('❌ FIRESTORE - Creando instancia MOCK para debugging');
+  console.error('FIRESTORE - Creando instancia MOCK para debugging');
 
-  // ✅ CREAR MOCK PARA QUE LA APP NO CRASHEE
+  // CREAR MOCK PARA QUE LA APP NO CRASHEE
   firestore = {
     collection: () => ({
       limit: () => ({
@@ -135,7 +135,7 @@ try {
 
 console.log('🎉 FIRESTORE - Configuración completada (con o sin errores)');
 
-// ✅ EXPORTAR SOLO FIRESTORE (NO más Firebase Auth)
+// EXPORTAR SOLO FIRESTORE (NO más Firebase Auth)
 module.exports = {
   firestore,
   FieldValue,

@@ -127,7 +127,7 @@ class MediaService {
         category,
       });
 
-      console.log('✅ MEDIA GUARDADA:', {
+      console.log('MEDIA GUARDADA:', {
         fileId,
         publicUrl,
         category,
@@ -136,7 +136,7 @@ class MediaService {
 
       return mediaInfo;
     } catch (error) {
-      console.error('❌ ERROR PROCESANDO MEDIA:', {
+      console.error('ERROR PROCESANDO MEDIA:', {
         error: error.message,
         mediaUrl: mediaUrl?.substring(0, 100) + '...',
         messageId,

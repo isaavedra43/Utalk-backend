@@ -273,7 +273,7 @@ class Campaign {
    * Convertir a objeto plano para respuestas JSON con timestamps ISO
    */
   toJSON () {
-    // ✅ Convertir timestamps a formato ISO string
+    // Convertir timestamps a formato ISO string
     let createdAtISO = '';
     if (this.createdAt && typeof this.createdAt.toDate === 'function') {
       createdAtISO = this.createdAt.toDate().toISOString();

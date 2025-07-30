@@ -6,7 +6,7 @@ const User = require('../models/User');
 
 class SocketManager {
   constructor (server) {
-    // ✅ CONFIGURACIÓN MEJORADA DE SOCKET.IO CON CORS ESPECÍFICO
+    // CONFIGURACIÓN MEJORADA DE SOCKET.IO CON CORS ESPECÍFICO
     const corsOrigins = process.env.FRONTEND_URL 
       ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
       : ['http://localhost:3000', 'https://localhost:3000'];
@@ -14,10 +14,10 @@ class SocketManager {
     this.io = new Server(server, {
       cors: {
         origin: (origin, callback) => {
-          // ✅ PERMITIR CONEXIONES SIN ORIGIN (como apps móviles)
+          // PERMITIR CONEXIONES SIN ORIGIN (como apps móviles)
           if (!origin) return callback(null, true);
           
-          // ✅ VERIFICAR ORÍGENES PERMITIDOS
+          // VERIFICAR ORÍGENES PERMITIDOS
           const allowedOrigins = [
             ...corsOrigins,
             'http://localhost:3000',
@@ -49,7 +49,7 @@ class SocketManager {
     this.userRoles = new Map(); // email -> role
     this.conversationUsers = new Map(); // conversationId -> Set(emails)
 
-    // ✅ NUEVO: Rate limiting para prevenir spam
+    // NUEVO: Rate limiting para prevenir spam
     this.eventRateLimits = new Map();
     this.rateLimitConfig = {
       'typing-start': 1000, // 1 segundo
@@ -61,7 +61,7 @@ class SocketManager {
     this.setupMiddleware();
     this.setupEventHandlers();
 
-    // ✅ NUEVO: Limpieza periódica de rate limits
+    // NUEVO: Limpieza periódica de rate limits
     setInterval(() => this.cleanupRateLimits(), 300000); // 5 minutos
 
     logger.info('Socket.IO server inicializado con configuración EMAIL-FIRST', {
@@ -74,12 +74,12 @@ class SocketManager {
   }
 
   /**
-   * ✅ MIDDLEWARE DE AUTENTICACIÓN JWT INTERNO (NO más Firebase Auth)
+   * MIDDLEWARE DE AUTENTICACIÓN JWT INTERNO (NO más Firebase Auth)
    */
   setupMiddleware() {
     this.io.use(async (socket, next) => {
       try {
-        // ✅ EXTRAER TOKEN JWT del handshake
+        // EXTRAER TOKEN JWT del handshake
         const token = socket.handshake.auth?.token || 
                      socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
@@ -91,7 +91,7 @@ class SocketManager {
           return next(new Error('Token JWT requerido para conectar'));
         }
 
-        // ✅ VERIFICAR JWT INTERNO con JWT_SECRET
+        // VERIFICAR JWT INTERNO con JWT_SECRET
         const jwtSecret = process.env.JWT_SECRET;
         if (!jwtSecret) {
           logger.error('Socket.IO: JWT_SECRET no configurado');
@@ -113,7 +113,7 @@ class SocketManager {
           return next(new Error('Token JWT inválido o expirado'));
         }
 
-        // ✅ EXTRAER EMAIL del token (NO más UID)
+        // EXTRAER EMAIL del token (NO más UID)
         const email = decodedToken.email;
         if (!email) {
           logger.error('Socket.IO: Token sin email válido', {
@@ -123,7 +123,7 @@ class SocketManager {
           return next(new Error('Token JWT debe contener email válido'));
         }
 
-        // ✅ OBTENER USUARIO desde Firestore por EMAIL
+        // OBTENER USUARIO desde Firestore por EMAIL
         const user = await User.getByEmail(email);
         if (!user) {
           logger.error('Socket.IO: Usuario no encontrado en Firestore', {
@@ -133,7 +133,7 @@ class SocketManager {
           return next(new Error('Usuario no encontrado'));
         }
 
-        // ✅ VERIFICAR que el usuario esté activo
+        // VERIFICAR que el usuario esté activo
         if (!user.isActive) {
           logger.warn('Socket.IO: Intento de conexión de usuario inactivo', {
             email: user.email,
@@ -143,13 +143,13 @@ class SocketManager {
           return next(new Error('Usuario inactivo'));
         }
 
-        // ✅ ADJUNTAR información del usuario al socket
-        socket.email = user.email; // ✅ EMAIL como identificador principal
+        // ADJUNTAR información del usuario al socket
+        socket.email = user.email; // EMAIL como identificador principal
         socket.userRole = user.role;
         socket.displayName = user.name;
-        socket.user = user; // ✅ Usuario completo disponible
+        socket.user = user; // Usuario completo disponible
 
-        // ✅ VERIFICAR conexión duplicada por email
+        // VERIFICAR conexión duplicada por email
         const existingSocketId = this.connectedUsers.get(user.email);
         if (existingSocketId && this.io.sockets.sockets.has(existingSocketId)) {
           logger.info('Socket.IO: Desconectando sesión anterior del usuario', {
@@ -189,48 +189,48 @@ class SocketManager {
   }
 
   /**
-   * ✅ MANEJAR NUEVA CONEXIÓN (EMAIL-FIRST)
+   * MANEJAR NUEVA CONEXIÓN (EMAIL-FIRST)
    */
   handleConnection(socket) {
     const { email, userRole, displayName } = socket;
 
-    // ✅ REGISTRAR usuario conectado por EMAIL
+    // REGISTRAR usuario conectado por EMAIL
     this.connectedUsers.set(email, socket.id);
     this.userRoles.set(email, userRole);
 
     logger.info('Usuario conectado via Socket.IO', {
-      email, // ✅ EMAIL como identificador principal
+      email, // EMAIL como identificador principal
       role: userRole,
       displayName,
       socketId: socket.id,
       totalConnected: this.connectedUsers.size,
     });
 
-    // ✅ UNIR a sala general por rol
+    // UNIR a sala general por rol
     socket.join(`role-${userRole}`);
     if (userRole === 'admin' || userRole === 'superadmin') {
       socket.join('role-admin');
       socket.join('role-agent'); // Admins ven todo
     }
 
-    // ✅ CONFIGURAR eventos específicos
+    // CONFIGURAR eventos específicos
     this.setupConversationEvents(socket);
     this.setupMessageEvents(socket);
     this.setupStatusEvents(socket);
 
-    // ✅ MANEJAR desconexión
+    // MANEJAR desconexión
     socket.on('disconnect', () => {
       this.handleDisconnection(socket);
     });
 
-    // ✅ EVENTO de prueba/ping
+    // EVENTO de prueba/ping
     socket.on('ping', (callback) => {
       callback({ success: true, timestamp: Date.now() });
     });
 
-    // ✅ EMITIR confirmación de conexión
+    // EMITIR confirmación de conexión
     socket.emit('connected', {
-      email, // ✅ EMAIL como identificador
+      email, // EMAIL como identificador
       role: userRole,
       displayName,
       timestamp: Date.now(),
@@ -239,7 +239,7 @@ class SocketManager {
   }
 
   /**
-   * ✅ EVENTOS DE CONVERSACIONES (EMAIL-FIRST)
+   * EVENTOS DE CONVERSACIONES (EMAIL-FIRST)
    */
   setupConversationEvents(socket) {
     const { email, userRole } = socket;
@@ -251,32 +251,32 @@ class SocketManager {
 
       if (!isValidConversationId(conversationId)) {
         logger.warn('Socket.IO: Intento de unirse a conversación con ID inválido', {
-          email, // ✅ EMAIL como identificador
+          email, // EMAIL como identificador
           conversationId,
         });
         return callback?.({ error: 'ID de conversación inválido' });
       }
 
-      // ✅ UNIRSE a la sala de conversación
+      // UNIRSE a la sala de conversación
       socket.join(`conversation-${conversationId}`);
       
-      // ✅ REGISTRAR usuario en conversación (por EMAIL)
+      // REGISTRAR usuario en conversación (por EMAIL)
       if (!this.conversationUsers.has(conversationId)) {
         this.conversationUsers.set(conversationId, new Set());
       }
       this.conversationUsers.get(conversationId).add(email);
 
       logger.info('Usuario unido a conversación', {
-        email, // ✅ EMAIL como identificador
+        email, // EMAIL como identificador
         conversationId,
         totalInConversation: this.conversationUsers.get(conversationId).size,
       });
 
       callback?.({ success: true, conversationId });
 
-      // ✅ NOTIFICAR a otros usuarios en la conversación
+      // NOTIFICAR a otros usuarios en la conversación
       socket.to(`conversation-${conversationId}`).emit('user-joined-conversation', {
-        email, // ✅ EMAIL como identificador
+        email, // EMAIL como identificador
         displayName: socket.displayName,
         role: userRole,
         conversationId,
@@ -296,7 +296,7 @@ class SocketManager {
 
       if (isValidConversationId(conversationId)) {
         socket.to(`conversation-${conversationId}`).emit('user-typing', {
-          email, // ✅ EMAIL como identificador
+          email, // EMAIL como identificador
           displayName: socket.displayName,
           conversationId,
           isTyping: true,
@@ -313,7 +313,7 @@ class SocketManager {
 
       if (isValidConversationId(conversationId)) {
         socket.to(`conversation-${conversationId}`).emit('user-typing', {
-          email, // ✅ EMAIL como identificador
+          email, // EMAIL como identificador
           displayName: socket.displayName,
           conversationId,
           isTyping: false,
@@ -325,7 +325,7 @@ class SocketManager {
   }
 
   /**
-   * ✅ EVENTOS DE MENSAJES (EMAIL-FIRST)
+   * EVENTOS DE MENSAJES (EMAIL-FIRST)
    */
   setupMessageEvents(socket) {
     const { email } = socket;
@@ -337,11 +337,11 @@ class SocketManager {
         return callback?.({ error: 'ID de conversación inválido' });
       }
 
-      // ✅ EMITIR evento de mensaje leído usando EMAIL
+      // EMITIR evento de mensaje leído usando EMAIL
       socket.to(`conversation-${conversationId}`).emit('message-read-by-user', {
         messageId,
         conversationId,
-        readBy: email, // ✅ EMAIL como identificador
+        readBy: email, // EMAIL como identificador
         displayName: socket.displayName,
         timestamp: Date.now(),
       });
@@ -360,11 +360,11 @@ class SocketManager {
         return callback?.({ error: 'ID de conversación inválido' });
       }
 
-      // ✅ EMITIR cambio de estado usando EMAIL
+      // EMITIR cambio de estado usando EMAIL
       this.io.to(`conversation-${conversationId}`).emit('conversation-status-changed', {
         conversationId,
         newStatus,
-        changedBy: email, // ✅ EMAIL como identificador
+        changedBy: email, // EMAIL como identificador
         displayName: socket.displayName,
         timestamp: Date.now(),
       });
@@ -374,7 +374,7 @@ class SocketManager {
   }
 
   /**
-   * ✅ EVENTOS DE ESTADO (EMAIL-FIRST)
+   * EVENTOS DE ESTADO (EMAIL-FIRST)
    */
   setupStatusEvents(socket) {
     const { email } = socket;
@@ -385,9 +385,9 @@ class SocketManager {
         return callback?.({ error: 'Estado inválido' });
       }
 
-      // ✅ EMITIR cambio de estado usando EMAIL
+      // EMITIR cambio de estado usando EMAIL
       socket.broadcast.emit('user-status-changed', {
-        email, // ✅ EMAIL como identificador
+        email, // EMAIL como identificador
         displayName: socket.displayName,
         status,
         timestamp: Date.now(),
@@ -398,29 +398,29 @@ class SocketManager {
   }
 
   /**
-   * ✅ MANEJAR DESCONEXIÓN (EMAIL-FIRST)
+   * MANEJAR DESCONEXIÓN (EMAIL-FIRST)
    */
   handleDisconnection(socket) {
     const { email, displayName } = socket;
 
-    // ✅ REMOVER de usuarios conectados por EMAIL
+    // REMOVER de usuarios conectados por EMAIL
     this.connectedUsers.delete(email);
     this.userRoles.delete(email);
 
-    // ✅ REMOVER de todas las conversaciones
+    // REMOVER de todas las conversaciones
     for (const [conversationId, users] of this.conversationUsers.entries()) {
       if (users.has(email)) {
         users.delete(email);
         
-        // ✅ NOTIFICAR salida de conversación usando EMAIL
+        // NOTIFICAR salida de conversación usando EMAIL
         socket.to(`conversation-${conversationId}`).emit('user-left-conversation', {
-          email, // ✅ EMAIL como identificador
+          email, // EMAIL como identificador
           displayName,
           conversationId,
           timestamp: Date.now(),
         });
 
-        // ✅ LIMPIAR conversación vacía
+        // LIMPIAR conversación vacía
         if (users.size === 0) {
           this.conversationUsers.delete(conversationId);
         }
@@ -428,15 +428,15 @@ class SocketManager {
     }
 
     logger.info('Usuario desconectado de Socket.IO', {
-      email, // ✅ EMAIL como identificador
+      email, // EMAIL como identificador
       displayName,
       socketId: socket.id,
       totalConnected: this.connectedUsers.size,
     });
 
-    // ✅ EMITIR estado offline usando EMAIL
+    // EMITIR estado offline usando EMAIL
     socket.broadcast.emit('user-status-changed', {
-      email, // ✅ EMAIL como identificador
+      email, // EMAIL como identificador
       displayName,
       status: 'offline',
       timestamp: Date.now(),
@@ -444,7 +444,7 @@ class SocketManager {
   }
 
   /**
-   * ✅ SALIR DE CONVERSACIÓN (EMAIL-FIRST)
+   * SALIR DE CONVERSACIÓN (EMAIL-FIRST)
    */
   leaveConversation(socket, conversationId) {
     const { email, displayName } = socket;
@@ -454,9 +454,9 @@ class SocketManager {
     if (this.conversationUsers.has(conversationId)) {
       this.conversationUsers.get(conversationId).delete(email);
 
-      // ✅ NOTIFICAR salida usando EMAIL
+      // NOTIFICAR salida usando EMAIL
       socket.to(`conversation-${conversationId}`).emit('user-left-conversation', {
-        email, // ✅ EMAIL como identificador
+        email, // EMAIL como identificador
         displayName,
         conversationId,
         timestamp: Date.now(),
@@ -469,7 +469,7 @@ class SocketManager {
   }
 
   /**
-   * ✅ EMITIR NUEVO MENSAJE (EMAIL-FIRST)
+   * EMITIR NUEVO MENSAJE (EMAIL-FIRST)
    */
   emitNewMessage(conversationIdOrMessage, messageData = null) {
     let conversationId, message;
@@ -495,10 +495,10 @@ class SocketManager {
       return;
     }
 
-    // ✅ ASEGURAR estructura canónica del mensaje
+    // ASEGURAR estructura canónica del mensaje
     const canonicalMessage = message.toJSON ? message.toJSON() : message;
 
-    // ✅ VALIDACIÓN: Verificar estructura mínima requerida (EMAIL-FIRST)
+    // VALIDACIÓN: Verificar estructura mínima requerida (EMAIL-FIRST)
     if (!canonicalMessage.id || !canonicalMessage.senderIdentifier || !canonicalMessage.recipientIdentifier) {
       logger.warn('Mensaje con estructura incompleta para Socket.IO', {
         conversationId,
@@ -512,18 +512,18 @@ class SocketManager {
     const eventData = {
       type: 'new-message',
       conversationId,
-      message: canonicalMessage, // ✅ Usar estructura canónica
+      message: canonicalMessage, // Usar estructura canónica
       timestamp: Date.now(),
     };
 
-    // ✅ EMISIÓN: A usuarios en la conversación específica
+    // EMISIÓN: A usuarios en la conversación específica
     const conversationRoom = `conversation-${conversationId}`;
     this.io.to(conversationRoom).emit('new-message', eventData);
 
-    // ✅ EMISIÓN: Notificación a admins (incluso si no están en la conversación)
+    // EMISIÓN: Notificación a admins (incluso si no están en la conversación)
     this.io.to('role-admin').emit('message-notification', eventData);
 
-    // ✅ EMISIÓN: A agentes asignados (si hay assignedTo en el mensaje o conversación)
+    // EMISIÓN: A agentes asignados (si hay assignedTo en el mensaje o conversación)
     if (canonicalMessage.assignedTo || message.assignedTo) {
       const assignedUserEmail = canonicalMessage.assignedTo || message.assignedTo;
       const assignedSocketId = this.connectedUsers.get(assignedUserEmail);
@@ -595,7 +595,7 @@ class SocketManager {
   }
 
   /**
-   * ✅ OBTENER USUARIOS CONECTADOS (EMAIL-FIRST)
+   * OBTENER USUARIOS CONECTADOS (EMAIL-FIRST)
    */
   getConnectedUsers() {
     const users = [];
@@ -603,7 +603,7 @@ class SocketManager {
       const socket = this.io.sockets.sockets.get(socketId);
       if (socket) {
         users.push({
-          email, // ✅ EMAIL como identificador
+          email, // EMAIL como identificador
           displayName: socket.displayName,
           role: socket.userRole,
           socketId,

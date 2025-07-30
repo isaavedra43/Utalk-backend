@@ -762,7 +762,7 @@ class ConversationController {
   }
 
   /**
-   * ✅ PUT /api/conversations/:conversationId/read-all
+   * PUT /api/conversations/:conversationId/read-all
    * Marca toda la conversación como leída por el usuario actual
    */
   static async markConversationAsRead(req, res, next) {

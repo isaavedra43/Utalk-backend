@@ -13,7 +13,7 @@ function generateConversationId (phone1, phone2) {
     throw new Error('Se requieren ambos números de teléfono para generar conversationId');
   }
 
-  // ✅ NORMALIZAR NÚMEROS usando la función de phoneValidation
+  // NORMALIZAR NÚMEROS usando la función de phoneValidation
   const { validateAndNormalizePhone } = require('./phoneValidation');
 
   const phone1Validation = validateAndNormalizePhone(phone1);

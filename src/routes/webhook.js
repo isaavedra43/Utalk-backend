@@ -18,7 +18,7 @@ router.post('/', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // ✅ RAILWAY LOGGING: Log visible en Railway console
+    // RAILWAY LOGGING: Log visible en Railway console
     console.log('🔗 WEBHOOK TWILIO - Mensaje recibido', {
       timestamp: new Date().toISOString(),
       from: req.body.From,
@@ -40,7 +40,7 @@ router.post('/', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    // ✅ VALIDACIÓN FLEXIBLE CON JOI: Usar schema preparado para Twilio
+    // VALIDACIÓN FLEXIBLE CON JOI: Usar schema preparado para Twilio
     const webhookData = req.body;
 
     // Validación con Joi (flexible para campos adicionales de Twilio)
@@ -72,8 +72,8 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // ✅ VALIDACIÓN EXITOSA: Procesar con datos validados
-    console.log('✅ WEBHOOK - Validación exitosa, procesando mensaje', {
+    // VALIDACIÓN EXITOSA: Procesar con datos validados
+    console.log('WEBHOOK - Validación exitosa, procesando mensaje', {
       from: value.From,
       to: value.To,
       messageSid: value.MessageSid,
@@ -84,22 +84,22 @@ router.post('/', async (req, res) => {
     // Llamar al controlador para procesar el mensaje
     await MessageController.handleWebhookSafe(req, res);
   } catch (error) {
-    // ❌ ERROR CRÍTICO: Log visible en Railway + responder 200 OK
-    console.error('❌ WEBHOOK - Error crítico (respondiendo 200 OK):', {
+    // ERROR CRÍTICO: Log visible en Railway + responder 200 OK
+    console.error('WEBHOOK - Error crítico (respondiendo 200 OK):', {
       error: error.message,
       stack: error.stack.split('\n')[0], // Solo primera línea del stack
       webhookData: req.body,
       processTime: Date.now() - startTime,
     });
 
-    logger.error('❌ Error crítico en webhook pero respondiendo 200 OK', {
+    logger.error('Error crítico en webhook pero respondiendo 200 OK', {
       error: error.message,
       stack: error.stack,
       webhookData: req.body,
       processTime: Date.now() - startTime,
     });
 
-    // ✅ RESPONDER SIEMPRE 200 OK A TWILIO
+    // RESPONDER SIEMPRE 200 OK A TWILIO
     res.status(200).json({
       status: 'error_handled',
       message: 'Error procesado, reintento no requerido',

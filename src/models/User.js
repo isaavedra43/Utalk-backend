@@ -6,13 +6,13 @@ const bcrypt = require('bcryptjs');
 
 class User {
   constructor(data) {
-    // ✅ EMAIL como identificador principal (NO más UID)
+    // EMAIL como identificador principal (NO más UID)
     this.email = data.email;
     this.password = data.password; // Hash de bcrypt
     this.name = data.name || data.displayName;
     this.phone = data.phone || null;
     
-    // ✅ Metadata y permisos de Firestore únicamente
+    // Metadata y permisos de Firestore únicamente
     this.role = data.role || 'viewer';
     this.permissions = data.permissions || [];
     this.department = data.department || null;
@@ -24,11 +24,11 @@ class User {
       timezone: 'America/Mexico_City',
     };
     
-    // ✅ Timestamps
+    // Timestamps
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
     
-    // ✅ Datos de rendimiento
+    // Datos de rendimiento
     this.performance = data.performance || null;
   }
 
@@ -69,7 +69,7 @@ class User {
   }
 
   /**
-   * ✅ OBTENER usuario por EMAIL (identificador principal)
+   * OBTENER usuario por EMAIL (identificador principal)
    */
   static async getByEmail(email) {
     try {
@@ -94,7 +94,7 @@ class User {
       const userData = usersQuery.docs[0].data();
       const user = new User(userData);
 
-      logger.info('✅ Usuario encontrado', {
+      logger.info('Usuario encontrado', {
         email: user.email,
         role: user.role,
         name: user.name,
@@ -102,7 +102,7 @@ class User {
 
       return user;
     } catch (error) {
-      logger.error('❌ Error obteniendo usuario por email', {
+      logger.error('Error obteniendo usuario por email', {
         email,
         error: error.message,
       });
@@ -125,7 +125,7 @@ class User {
       // Obtener usuario completo
       const userData = await this.getByEmail(email);
       if (!userData) {
-        logger.warn('❌ Usuario no encontrado para validación', { email });
+        logger.warn('Usuario no encontrado para validación', { email });
         return false;
       }
 
@@ -134,12 +134,12 @@ class User {
       
       if (userData.password && userData.password === passwordInput) {
         isValid = true;
-        logger.info('✅ Contraseña válida (campo password)', { email });
+        logger.info('Contraseña válida (campo password)', { email });
       } else if (userData.passwordHash && userData.passwordHash === passwordInput) {
         isValid = true;
-        logger.info('✅ Contraseña válida (campo passwordHash)', { email });
+        logger.info('Contraseña válida (campo passwordHash)', { email });
       } else {
-        logger.warn('❌ Contraseña inválida (TEXTO PLANO)', { 
+        logger.warn('Contraseña inválida (TEXTO PLANO)', { 
           email,
           hasPassword: !!userData.password,
           hasPasswordHash: !!userData.passwordHash,
@@ -158,7 +158,7 @@ class User {
   }
 
   /**
-   * ✅ CREAR usuario nuevo
+   * CREAR usuario nuevo
    */
   static async create(userData) {
     try {
@@ -203,14 +203,14 @@ class User {
       const docId = userData.email.replace(/[.#$[\]]/g, '_'); // Firestore safe ID
       await firestore.collection('users').doc(docId).set(prepareForFirestore(newUserData));
 
-      logger.info('✅ Usuario creado exitosamente', {
+      logger.info('Usuario creado exitosamente', {
         email: userData.email,
         role: newUserData.role,
       });
 
       return new User(newUserData);
     } catch (error) {
-      logger.error('❌ Error creando usuario', {
+      logger.error('Error creando usuario', {
         email: userData.email,
         error: error.message,
       });
@@ -219,7 +219,7 @@ class User {
   }
 
   /**
-   * ✅ LISTAR usuarios con filtros
+   * LISTAR usuarios con filtros
    */
   static async list(options = {}) {
     try {
@@ -257,14 +257,14 @@ class User {
         users.push(new User(userData));
       });
 
-      logger.info('✅ Usuarios listados', {
+      logger.info('Usuarios listados', {
         count: users.length,
         filters: options,
       });
 
       return users;
     } catch (error) {
-      logger.error('❌ Error listando usuarios', {
+      logger.error('Error listando usuarios', {
         error: error.message,
         options,
       });
@@ -273,7 +273,7 @@ class User {
   }
 
   /**
-   * ✅ ACTUALIZAR usuario
+   * ACTUALIZAR usuario
    */
   async update(updates) {
     try {
@@ -306,9 +306,9 @@ class User {
       Object.assign(this, updates);
       this.updatedAt = Timestamp.now();
 
-      logger.info('✅ Usuario actualizado', { email: this.email });
+      logger.info('Usuario actualizado', { email: this.email });
     } catch (error) {
-      logger.error('❌ Error actualizando usuario', {
+      logger.error('Error actualizando usuario', {
         email: this.email,
         error: error.message,
       });
@@ -317,7 +317,7 @@ class User {
   }
 
   /**
-   * ✅ MAPEO: Encontrar email por número de teléfono
+   * MAPEO: Encontrar email por número de teléfono
    */
   static async findEmailByPhone(phone) {
     try {
@@ -355,7 +355,7 @@ class User {
       const userData = usersQuery.docs[0].data();
       const email = userData.email;
 
-      logger.info('✅ Email encontrado por teléfono', {
+      logger.info('Email encontrado por teléfono', {
         phone: normalizedPhone,
         email,
         userName: userData.name,
@@ -363,7 +363,7 @@ class User {
 
       return email;
     } catch (error) {
-      logger.error('❌ Error buscando email por teléfono', {
+      logger.error('Error buscando email por teléfono', {
         phone,
         error: error.message,
       });
@@ -372,7 +372,7 @@ class User {
   }
 
   /**
-   * ✅ ACTUALIZAR último login
+   * ACTUALIZAR último login
    */
   async updateLastLogin() {
     try {
@@ -383,9 +383,9 @@ class User {
 
       this.lastLoginAt = Timestamp.now();
       
-      logger.info('✅ Último login actualizado', { email: this.email });
+      logger.info('Último login actualizado', { email: this.email });
     } catch (error) {
-      logger.error('❌ Error actualizando último login', {
+      logger.error('Error actualizando último login', {
         email: this.email,
         error: error.message,
       });
@@ -393,11 +393,11 @@ class User {
   }
 
   /**
-   * ✅ SERIALIZACIÓN para frontend (SIN contraseña)
+   * SERIALIZACIÓN para frontend (SIN contraseña)
    */
   toJSON() {
     return {
-      email: this.email, // ✅ Identificador principal
+      email: this.email, // Identificador principal
       name: this.name,
       phone: this.phone,
       role: this.role,
@@ -414,7 +414,7 @@ class User {
   }
 
   /**
-   * ✅ VALIDAR permisos
+   * VALIDAR permisos
    */
   hasPermission(permission) {
     if (this.role === 'admin' || this.role === 'superadmin') return true;
@@ -422,14 +422,14 @@ class User {
   }
 
   /**
-   * ✅ VALIDAR rol
+   * VALIDAR rol
    */
   hasRole(role) {
     return this.role === role;
   }
 
   /**
-   * ✅ ACTIVAR usuario
+   * ACTIVAR usuario
    */
   async setActive(isActive) {
     await this.update({ isActive });

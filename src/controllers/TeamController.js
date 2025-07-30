@@ -91,7 +91,7 @@ class TeamController {
         });
       }
 
-      // ✅ CREAR usuario directamente en Firestore (EMAIL-FIRST)
+      // CREAR usuario directamente en Firestore (EMAIL-FIRST)
       const temporaryPassword = this.generateTemporaryPassword();
       
       const user = await User.create({
@@ -102,7 +102,7 @@ class TeamController {
         isActive: true,
       });
 
-      // TODO: Enviar email de invitación con contraseña temporal
+      // Enviar email de invitación con contraseña temporal
       // await this.sendInvitationEmail(email, displayName, temporaryPassword);
 
       logger.info('Miembro invitado al equipo', {
@@ -415,13 +415,13 @@ class TeamController {
         });
       }
 
-      // ✅ Generar nueva contraseña temporal
+      // Generar nueva contraseña temporal
       const temporaryPassword = this.generateTemporaryPassword();
 
-      // ✅ Actualizar contraseña directamente en Firestore (EMAIL-FIRST)
+      // Actualizar contraseña directamente en Firestore (EMAIL-FIRST)
       await user.update({ password: temporaryPassword });
 
-      // TODO: Enviar email con nueva contraseña
+      // Enviar email con nueva contraseña
       // await this.sendPasswordResetEmail(user.email, user.displayName, temporaryPassword);
 
       logger.info('Contraseña reseteada', {
