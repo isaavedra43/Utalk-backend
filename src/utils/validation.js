@@ -453,6 +453,7 @@ const schemas = {
     }).or('conversationId', 'to'), // Al menos uno de los dos debe estar presente
 
     createInConversation: Joi.object({
+      messageId: Joi.string().uuid().required(),           // ✅ AGREGAR: Validar messageId UUID
       content: Joi.string().min(1).max(4096).required(),
       type: Joi.string().valid('text', 'image', 'audio', 'video', 'document').default('text'),
       mediaUrl: commonSchemas.url.optional(),

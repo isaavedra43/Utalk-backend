@@ -125,6 +125,7 @@ class MessageController {
     try {
       const { conversationId } = req.params;
       const { 
+        messageId,          // ✅ AGREGAR: Extraer messageId del frontend
         content, 
         type = 'text', 
         mediaUrl = null, 
@@ -149,6 +150,11 @@ class MessageController {
         throw new ApiError('MISSING_CONTENT', 'Debes proporcionar contenido o un archivo multimedia', 'Agrega texto o sube un archivo', 400);
       }
 
+      // 🆔 VALIDAR messageId REQUERIDO
+      if (!messageId) {
+        throw new ApiError('MISSING_MESSAGE_ID', 'messageId es requerido', 'El frontend debe enviar un messageId UUID válido', 400);
+      }
+
       // VALIDAR URL DE FIREBASE STORAGE SI EXISTE
       if (mediaUrl) {
         const isValidFirebaseUrl = mediaUrl.includes('firebasestorage.googleapis.com') || 
@@ -161,6 +167,7 @@ class MessageController {
 
       // 📝 PREPARAR DATOS DEL MENSAJE
       const messageData = {
+        id: messageId,              // ✅ CORREGIDO: Usar messageId del frontend como id
         conversationId,
         content: content || null,
         type: mediaUrl ? 'media' : 'text',
@@ -252,7 +259,22 @@ class MessageController {
       }
 
       // 💾 GUARDAR EN BASE DE DATOS
+      logger.info('[BACKEND][MESSAGES][GUARDANDO] Intentando guardar mensaje', {
+        messageId: messageData.id,
+        conversationId,
+        senderEmail: req.user.email,
+        hasContent: !!content,
+        hasMedia: !!mediaUrl,
+        direction: 'outbound'
+      });
+
       const message = await Message.create(messageData);
+
+      logger.info('[BACKEND][MESSAGES][GUARDADO] Mensaje guardado exitosamente', {
+        messageId: message.id,
+        conversationId,
+        status: 'success'
+      });
 
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
@@ -641,8 +663,23 @@ class MessageController {
         messageData.metadata.mediaCount = parseInt(numMedia);
       }
 
-      // 💾 GUARDAR MENSAJE
+      // 💾 GUARDAR MENSAJE EN BASE DE DATOS
+      logger.info('[BACKEND][WEBHOOK][GUARDANDO] Intentando guardar mensaje de cliente', {
+        messageId: messageData.id,
+        conversationId: conversation.id,
+        fromPhone: phoneValidation.normalized,
+        hasContent: !!content,
+        hasMedia: parseInt(numMedia) > 0,
+        direction: 'inbound'
+      });
+
       const message = await Message.create(messageData);
+
+      logger.info('[BACKEND][WEBHOOK][GUARDADO] Mensaje de cliente guardado exitosamente', {
+        messageId: message.id,
+        conversationId: conversation.id,
+        status: 'success'
+      });
 
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
