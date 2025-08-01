@@ -8,9 +8,11 @@
  * - CORS seguro por entorno
  * - Middleware de autenticación
  * - Socket.IO para tiempo real
+ * - Rate Limiting persistente
+ * - Health Checks enterprise
  * - Graceful shutdown
  * 
- * @version 4.0.0 CONSOLIDATED
+ * @version 4.1.0 ENTERPRISE RESTORED
  * @author Backend Team
  */
 
@@ -27,6 +29,8 @@ const { createServer } = require('http');
 const logger = require('./utils/logger');
 const { memoryManager } = require('./utils/memoryManager');
 const { enhancedErrorHandler } = require('./middleware/enhancedErrorHandler');
+const { rateLimitManager } = require('./middleware/persistentRateLimit');
+const { getHealthCheckService } = require('./services/HealthCheckService');
 
 // Middleware personalizado
 const { authMiddleware } = require('./middleware/auth');
@@ -51,6 +55,7 @@ class ConsolidatedServer {
     this.app = express();
     this.server = null;
     this.socketManager = null;
+    this.healthService = null;
     this.isShuttingDown = false;
     
     this.PORT = process.env.PORT || 3001;
@@ -112,7 +117,7 @@ class ConsolidatedServer {
    */
   async initialize() {
     try {
-      logger.info('🚀 Iniciando servidor consolidado...', {
+      logger.info('🚀 Iniciando servidor consolidado enterprise...', {
         category: 'SERVER_STARTUP',
         nodeVersion: process.version,
         platform: process.platform,
@@ -126,30 +131,44 @@ class ConsolidatedServer {
       // 1. Inicializar gestión de memoria
       await this.initializeMemoryManagement();
 
-      // 2. Configurar middlewares básicos
+      // 2. Inicializar rate limiting
+      await this.initializeRateLimit();
+
+      // 3. Inicializar health checks
+      await this.initializeHealthChecks();
+
+      // 4. Configurar middlewares básicos
       this.setupBasicMiddleware();
 
-      // 3. Configurar rutas y middlewares de aplicación
+      // 5. Configurar rate limiting en rutas
+      this.setupRateLimiting();
+
+      // 6. Configurar rutas y middlewares de aplicación
       this.setupRoutes();
 
-      // 4. Configurar middleware global de errores
+      // 7. Configurar middleware global de errores
       this.setupErrorHandling();
 
-      // 5. Crear servidor HTTP
+      // 8. Crear servidor HTTP
       this.server = createServer(this.app);
 
-      // 6. Inicializar Socket.IO
+      // 9. Inicializar Socket.IO
       this.initializeSocketIO();
 
-      // 7. Iniciar servidor
+      // 10. Iniciar servidor
       await this.startServer();
 
-      logger.info('✅ Servidor consolidado inicializado exitosamente', {
+      // 11. Iniciar monitoreo de salud
+      await this.startHealthMonitoring();
+
+      logger.info('✅ Servidor consolidado enterprise inicializado exitosamente', {
         category: 'SERVER_SUCCESS',
         port: this.PORT,
         environment: process.env.NODE_ENV || 'development',
         features: {
           memoryManagement: true,
+          rateLimiting: true,
+          healthChecks: true,
           errorHandling: true,
           logging: true,
           socketIO: true,
@@ -219,6 +238,68 @@ class ConsolidatedServer {
   }
 
   /**
+   * 🛡️ INICIALIZAR RATE LIMITING
+   */
+  async initializeRateLimit() {
+    logger.info('🛡️ Inicializando sistema de rate limiting...', {
+      category: 'RATE_LIMIT_INIT'
+    });
+
+    try {
+      // Esperar a que el rate limit manager se inicialice
+      await new Promise((resolve) => {
+        if (rateLimitManager.isInitialized) {
+          resolve();
+        } else {
+          const checkInterval = setInterval(() => {
+            if (rateLimitManager.isInitialized) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        }
+      });
+
+      logger.info('✅ Sistema de rate limiting inicializado', {
+        category: 'RATE_LIMIT_SUCCESS',
+        store: rateLimitManager.usingRedis ? 'Redis' : 'Memory'
+      });
+
+    } catch (error) {
+      logger.error('Error inicializando rate limiting', {
+        category: 'RATE_LIMIT_ERROR',
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 🏥 INICIALIZAR HEALTH CHECKS
+   */
+  async initializeHealthChecks() {
+    logger.info('🏥 Inicializando health checks enterprise...', {
+      category: 'HEALTH_INIT'
+    });
+
+    try {
+      this.healthService = getHealthCheckService();
+      await this.healthService.initialize();
+
+      logger.info('✅ Health checks enterprise inicializados', {
+        category: 'HEALTH_SUCCESS'
+      });
+
+    } catch (error) {
+      logger.error('Error inicializando health checks', {
+        category: 'HEALTH_INIT_ERROR',
+        error: error.message
+      });
+      // No lanzar error - health checks son opcionales
+    }
+  }
+
+  /**
    * 🛡️ CONFIGURAR MIDDLEWARES BÁSICOS
    */
   setupBasicMiddleware() {
@@ -277,7 +358,7 @@ class ConsolidatedServer {
     this.app.use((req, res, next) => {
       res.set({
         'X-Request-ID': req.requestId,
-        'X-Powered-By': 'UTalk-Backend-v4.0-Consolidated',
+        'X-Powered-By': 'UTalk-Backend-v4.1-Enterprise',
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'X-XSS-Protection': '1; mode=block',
@@ -295,6 +376,30 @@ class ConsolidatedServer {
     logger.info('✅ Middlewares básicos configurados', {
       category: 'MIDDLEWARE_SUCCESS',
       trustProxy: process.env.NODE_ENV === 'production'
+    });
+  }
+
+  /**
+   * 🛡️ CONFIGURAR RATE LIMITING EN RUTAS
+   */
+  setupRateLimiting() {
+    logger.info('🛡️ Configurando rate limiting en rutas...', {
+      category: 'RATE_LIMIT_SETUP'
+    });
+
+    // Rate limiting general para todas las rutas
+    this.app.use('/api', rateLimitManager.createGeneralLimiter());
+
+    // Rate limiting específico para login
+    this.app.use('/api/auth/login', rateLimitManager.createLoginLimiter());
+
+    // Slow down para endpoints pesados
+    this.app.use('/api/media', rateLimitManager.createSlowDown());
+    this.app.use('/api/campaigns', rateLimitManager.createSlowDown());
+
+    logger.info('✅ Rate limiting configurado en rutas', {
+      category: 'RATE_LIMIT_SETUP_SUCCESS',
+      protectedRoutes: ['/api/*', '/api/auth/login', '/api/media', '/api/campaigns']
     });
   }
 
@@ -451,53 +556,58 @@ class ConsolidatedServer {
       res.status(200).json(healthData);
     });
 
-    // Health check detallado para debugging
+    // Health check detallado enterprise
     this.app.get('/health/detailed', async (req, res) => {
       try {
-        logger.info('🔍 Iniciando health check detallado', {
+        logger.info('🔍 Iniciando health check detallado enterprise', {
           category: 'HEALTH_CHECK_DETAILED',
           requestId: req.requestId
         });
 
-        // Verificar Firebase Firestore
-        const { firestore } = require('./config/firebase');
-        let firestoreStatus = 'unknown';
-        try {
-          await firestore.collection('_health_check').limit(1).get();
-          firestoreStatus = 'connected';
-        } catch (error) {
-          firestoreStatus = 'disconnected';
-        }
-
-        const os = require('os');
-        const healthData = {
-          status: 'healthy',
-          timestamp: new Date().toISOString(),
-          services: {
-            firestore: firestoreStatus,
-            memory: 'healthy',
-            process: 'healthy'
-          },
-          system: {
-            platform: os.platform(),
-            arch: os.arch(),
-            nodeVersion: process.version,
-            pid: process.pid,
-            memoryUsage: process.memoryUsage(),
-            cpuUsage: process.cpuUsage(),
-            loadAverage: os.loadavg(),
-            uptime: os.uptime()
-          },
-          environment: {
-            NODE_ENV: process.env.NODE_ENV,
-            PORT: process.env.PORT,
-            FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-            TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not_configured',
-            REDIS_URL: process.env.REDIS_URL ? 'configured' : 'not_configured'
+        if (this.healthService) {
+          const healthData = await this.healthService.performFullHealthCheck();
+          res.json(healthData);
+        } else {
+          // Fallback si health service no está disponible
+          const { firestore } = require('./config/firebase');
+          let firestoreStatus = 'unknown';
+          try {
+            await firestore.collection('_health_check').limit(1).get();
+            firestoreStatus = 'connected';
+          } catch (error) {
+            firestoreStatus = 'disconnected';
           }
-        };
 
-        res.json(healthData);
+          const os = require('os');
+          const healthData = {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            services: {
+              firestore: firestoreStatus,
+              memory: 'healthy',
+              process: 'healthy'
+            },
+            system: {
+              platform: os.platform(),
+              arch: os.arch(),
+              nodeVersion: process.version,
+              pid: process.pid,
+              memoryUsage: process.memoryUsage(),
+              cpuUsage: process.cpuUsage(),
+              loadAverage: os.loadavg(),
+              uptime: os.uptime()
+            },
+            environment: {
+              NODE_ENV: process.env.NODE_ENV,
+              PORT: process.env.PORT,
+              FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+              TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not_configured',
+              REDIS_URL: process.env.REDIS_URL ? 'configured' : 'not_configured'
+            }
+          };
+
+          res.json(healthData);
+        }
 
       } catch (error) {
         logger.error('Error en health check detallado', {
@@ -516,17 +626,29 @@ class ConsolidatedServer {
 
     // Readiness probe para Kubernetes
     this.app.get('/ready', (req, res) => {
-      const isReady = this.socketManager && memoryManager;
+      const isReady = this.socketManager && memoryManager && rateLimitManager.isInitialized;
       
       if (isReady) {
         res.status(200).json({ 
           status: 'ready',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          services: {
+            socketManager: !!this.socketManager,
+            memoryManager: !!memoryManager,
+            rateLimiting: rateLimitManager.isInitialized,
+            healthService: !!this.healthService
+          }
         });
       } else {
         res.status(503).json({ 
           status: 'not_ready',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          services: {
+            socketManager: !!this.socketManager,
+            memoryManager: !!memoryManager,
+            rateLimiting: rateLimitManager.isInitialized,
+            healthService: !!this.healthService
+          }
         });
       }
     });
@@ -540,8 +662,8 @@ class ConsolidatedServer {
       });
     });
 
-    // Métricas endpoint (protegido)
-    this.app.get('/api/internal/metrics', authMiddleware, (req, res) => {
+    // Métricas endpoint enterprise (protegido)
+    this.app.get('/api/internal/metrics', authMiddleware, async (req, res) => {
       try {
         const metrics = {
           server: {
@@ -554,6 +676,8 @@ class ConsolidatedServer {
           },
           memoryManager: memoryManager ? memoryManager.getStats() : null,
           socket: this.socketManager ? this.socketManager.getDetailedStats() : null,
+          rateLimiting: await rateLimitManager.getStats(),
+          healthService: this.healthService ? this.healthService.getDetailedMetrics() : null,
           logging: logger.getStats(),
           timestamp: new Date().toISOString()
         };
@@ -653,7 +777,7 @@ class ConsolidatedServer {
    * 🔌 INICIALIZAR SOCKET.IO
    */
   initializeSocketIO() {
-    logger.info('🔌 Inicializando Socket.IO...', {
+    logger.info('🔌 Inicializando Socket.IO enterprise...', {
       category: 'SOCKET_INIT'
     });
 
@@ -662,7 +786,7 @@ class ConsolidatedServer {
     // Hacer disponible el socket manager para otros componentes
     this.app.set('socketManager', this.socketManager);
 
-    logger.info('✅ Socket.IO inicializado', {
+    logger.info('✅ Socket.IO enterprise inicializado', {
       category: 'SOCKET_SUCCESS',
       memoryManaged: true,
       maxConnections: 50000
@@ -686,7 +810,7 @@ class ConsolidatedServer {
           return;
         }
 
-        logger.info('🎉 Servidor HTTP iniciado exitosamente', {
+        logger.info('🎉 Servidor HTTP enterprise iniciado exitosamente', {
           category: 'SERVER_STARTED',
           port: this.PORT,
           environment: process.env.NODE_ENV || 'development',
@@ -724,6 +848,22 @@ class ConsolidatedServer {
   }
 
   /**
+   * 🏥 INICIAR MONITOREO DE SALUD
+   */
+  async startHealthMonitoring() {
+    logger.info('🏥 Iniciando monitoreo de salud enterprise...', {
+      category: 'HEALTH_MONITORING_START'
+    });
+
+    // El HealthCheckService ya tiene su propio monitoreo automático
+    // Aquí podemos agregar métricas adicionales o alertas
+
+    logger.info('✅ Monitoreo de salud enterprise iniciado', {
+      category: 'HEALTH_MONITORING_SUCCESS'
+    });
+  }
+
+  /**
    * 🛑 GRACEFUL SHUTDOWN
    */
   async gracefulShutdown(signal) {
@@ -737,7 +877,7 @@ class ConsolidatedServer {
 
     this.isShuttingDown = true;
 
-    logger.info('🛑 Iniciando graceful shutdown...', {
+    logger.info('🛑 Iniciando graceful shutdown enterprise...', {
       category: 'SHUTDOWN_START',
       signal,
       uptime: process.uptime(),
@@ -787,7 +927,38 @@ class ConsolidatedServer {
         }
       }
 
-      // 3. Limpiar memory manager
+      // 3. Persistir datos de rate limiting
+      if (rateLimitManager) {
+        try {
+          await rateLimitManager.persistMemoryStore();
+          await rateLimitManager.close();
+          logger.info('✅ Rate limiting persistido y cerrado', {
+            category: 'SHUTDOWN_RATE_LIMIT_CLOSED'
+          });
+        } catch (rateLimitError) {
+          logger.error('Error cerrando rate limiting', {
+            category: 'SHUTDOWN_RATE_LIMIT_ERROR',
+            error: rateLimitError.message
+          });
+        }
+      }
+
+      // 4. Detener health checks
+      if (this.healthService) {
+        try {
+          await this.healthService.stop();
+          logger.info('✅ Health service detenido', {
+            category: 'SHUTDOWN_HEALTH_STOPPED'
+          });
+        } catch (healthError) {
+          logger.error('Error deteniendo health service', {
+            category: 'SHUTDOWN_HEALTH_ERROR',
+            error: healthError.message
+          });
+        }
+      }
+
+      // 5. Limpiar memory manager
       if (memoryManager) {
         try {
           logger.info('✅ Memory manager cleanup iniciado', {
@@ -801,7 +972,7 @@ class ConsolidatedServer {
         }
       }
 
-      // 4. Forzar garbage collection final
+      // 6. Forzar garbage collection final
       if (global.gc) {
         try {
           global.gc();
@@ -818,7 +989,7 @@ class ConsolidatedServer {
 
       const shutdownDuration = Date.now() - shutdownStartTime;
 
-      logger.info('✅ Graceful shutdown completado exitosamente', {
+      logger.info('✅ Graceful shutdown enterprise completado exitosamente', {
         category: 'SHUTDOWN_COMPLETED',
         signal,
         duration: shutdownDuration + 'ms',
