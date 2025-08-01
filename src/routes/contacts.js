@@ -3,6 +3,7 @@ const router = express.Router();
 const ContactController = require('../controllers/ContactController');
 const { validateRequest } = require('../middleware/validation');
 const { validatePhoneInBody, validateOptionalPhoneInBody } = require('../middleware/phoneValidation');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const Joi = require('joi');
 
 // Validadores específicos para contactos
