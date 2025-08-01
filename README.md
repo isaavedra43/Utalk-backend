@@ -440,7 +440,6 @@ Por favor incluye:
 
 ## 📄 Licencia
 
-Este proyecto está bajo la licencia **MIT**. Ver [LICENSE](LICENSE) para más detalles.
 
 ## 🙏 Agradecimientos
 

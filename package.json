@@ -4,8 +4,8 @@
   "description": "Backend API for UTalk messaging platform with Firebase, Twilio and WhatsApp integration",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index-simple.js",
-    "dev": "nodemon src/index-simple.js"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
   "keywords": [
     "api",

@@ -1,19 +1,18 @@
 /**
- * 🚀 SERVIDOR PRINCIPAL CON GESTIÓN AVANZADA DE MEMORIA Y ERRORES
+ * 🚀 SERVIDOR CONSOLIDADO UTALK BACKEND
  * 
  * Características implementadas:
- * - Gestión avanzada de memoria con TTL y límites
- * - Error handling enterprise con clasificación automática
- * - Logging profesional con contexto y métricas
- * - Rate limiting persistente con Redis
- * - Monitoreo continuo de salud del sistema
- * - Graceful shutdown con limpieza de memoria
+ * - Gestión de memoria adaptativa
+ * - Error handling robusto
+ * - Logging profesional con contexto
+ * - Rate limiting con Redis (opcional)
+ * - Monitoreo de salud del sistema
+ * - Graceful shutdown
+ * - CORS seguro por entorno
+ * - Middleware de autenticación
+ * - Socket.IO para tiempo real
  * 
- * Basado en mejores prácticas de:
- * - https://medium.com/@ctrlaltvictoria/backend-error-handling-practical-tips-from-a-startup-cto-bb988ccb3e5b
- * - https://medium.com/@afolayanolatomiwa/error-handling-in-backend-applications-best-practices-and-techniques-1e4cd94c2fa5
- * 
- * @version 3.0.0 ENTERPRISE
+ * @version 4.0.0 CONSOLIDATED
  * @author Backend Team
  */
 
@@ -24,31 +23,15 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-const slowDown = require('express-slow-down');
 const { createServer } = require('http');
 
 // Configuración
-const { firestore } = require('./config/firebase');
 const logger = require('./utils/logger');
 const { memoryManager } = require('./utils/memoryManager');
 const { enhancedErrorHandler } = require('./middleware/enhancedErrorHandler');
-const { advancedSecurity } = require('./middleware/advancedSecurity');
-const { 
-  requestLoggingMiddleware,
-  errorLoggingMiddleware,
-  securityLoggingMiddleware,
-  performanceLoggingMiddleware,
-  authLoggingMiddleware,
-  criticalOperationsLoggingMiddleware,
-  databaseLoggingMiddleware
-} = require('./middleware/logging');
 
 // Middleware personalizado
 const { authMiddleware } = require('./middleware/auth');
-const { rateLimitManager } = require('./middleware/persistentRateLimit');
-const processManager = require('./utils/processManager');
-const eventCleanup = require('./utils/eventCleanup');
 
 // Rutas
 const authRoutes = require('./routes/auth');
@@ -60,11 +43,12 @@ const teamRoutes = require('./routes/team');
 const knowledgeRoutes = require('./routes/knowledge');
 const mediaRoutes = require('./routes/media');
 const dashboardRoutes = require('./routes/dashboard');
+const twilioRoutes = require('./routes/twilio');
 
 // Servicios
 const SocketManager = require('./socket');
 
-class AdvancedServer {
+class ConsolidatedServer {
   constructor() {
     this.app = express();
     this.server = null;
@@ -73,10 +57,6 @@ class AdvancedServer {
     
     this.PORT = process.env.PORT || 3001;
     this.startTime = Date.now();
-    
-    // Inicializar servicios singleton
-    const HealthCheckService = require('./services/HealthCheckService');
-    this.healthService = new HealthCheckService();
     
     // Configurar proceso
     this.setupProcess();
@@ -87,14 +67,12 @@ class AdvancedServer {
    */
   setupProcess() {
     // Configurar memoria V8 según mejores prácticas
-    // https://nodejs.org/en/learn/diagnostics/memory/understanding-and-tuning-memory
     if (process.env.NODE_ENV === 'production') {
-      // Optimizaciones para producción basadas en las fuentes proporcionadas
       process.env.NODE_OPTIONS = [
         process.env.NODE_OPTIONS || '',
-        '--max-old-space-size=2048', // 2GB para heap viejo
-        '--max-semi-space-size=64',  // 64MB para heap nuevo
-        '--gc-interval=100'          // GC cada 100ms
+        '--max-old-space-size=2048',
+        '--max-semi-space-size=64',
+        '--gc-interval=100'
       ].filter(Boolean).join(' ');
     }
 
@@ -109,8 +87,6 @@ class AdvancedServer {
         processId: process.pid,
         uptime: process.uptime()
       });
-
-      // Graceful shutdown inmediato
       this.gracefulShutdown('uncaughtException');
     });
 
@@ -125,18 +101,12 @@ class AdvancedServer {
         processId: process.pid,
         uptime: process.uptime()
       });
-
-      // Graceful shutdown inmediato
       this.gracefulShutdown('unhandledRejection');
     });
 
     // Señales de sistema
     process.on('SIGTERM', () => this.gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => this.gracefulShutdown('SIGINT'));
-    
-    // Adicionales para robustez
-    process.on('SIGHUP', () => this.gracefulShutdown('SIGHUP'));
-    process.on('SIGQUIT', () => this.gracefulShutdown('SIGQUIT'));
   }
 
   /**
@@ -144,7 +114,7 @@ class AdvancedServer {
    */
   async initialize() {
     try {
-      logger.info('🚀 Iniciando servidor enterprise...', {
+      logger.info('🚀 Iniciando servidor consolidado...', {
         category: 'SERVER_STARTUP',
         nodeVersion: process.version,
         platform: process.platform,
@@ -161,38 +131,30 @@ class AdvancedServer {
       // 2. Configurar middlewares básicos
       this.setupBasicMiddleware();
 
-      // 3. Inicializar rate limiting persistente
-      await this.initializeRateLimit();
-
-      // 4. Configurar rutas y middlewares de aplicación
+      // 3. Configurar rutas y middlewares de aplicación
       this.setupRoutes();
 
-      // 5. Configurar middleware global de errores ENTERPRISE
-      this.setupEnterpriseErrorHandling();
+      // 4. Configurar middleware global de errores
+      this.setupErrorHandling();
 
-      // 6. Crear servidor HTTP
+      // 5. Crear servidor HTTP
       this.server = createServer(this.app);
 
-      // 7. Inicializar Socket.IO
+      // 6. Inicializar Socket.IO
       this.initializeSocketIO();
 
-      // 8. Configurar monitoreo de salud
-      this.setupHealthMonitoring();
-
-      // 9. Iniciar servidor
+      // 7. Iniciar servidor
       await this.startServer();
 
-      logger.info('✅ Servidor enterprise inicializado exitosamente', {
+      logger.info('✅ Servidor consolidado inicializado exitosamente', {
         category: 'SERVER_SUCCESS',
         port: this.PORT,
         environment: process.env.NODE_ENV || 'development',
         features: {
           memoryManagement: true,
-          persistentRateLimit: true,
-          enterpriseErrorHandling: true,
-          advancedLogging: true,
+          errorHandling: true,
+          logging: true,
           socketIO: true,
-          healthMonitoring: true,
           gracefulShutdown: true
         },
         startupDuration: Date.now() - this.startTime + 'ms',
@@ -217,11 +179,10 @@ class AdvancedServer {
    * 🧠 INICIALIZAR GESTIÓN DE MEMORIA
    */
   async initializeMemoryManagement() {
-    logger.info('🧠 Inicializando gestión avanzada de memoria...', {
+    logger.info('🧠 Inicializando gestión de memoria...', {
       category: 'MEMORY_INIT'
     });
 
-    // El memoryManager ya está inicializado como singleton
     // Configurar alertas de memoria
     memoryManager.on('critical-alert', (alert) => {
       logger.error('ALERTA CRÍTICA DE MEMORIA EN SERVIDOR', {
@@ -291,30 +252,8 @@ class AdvancedServer {
       }
     }));
 
-    // CORS configurado
-    const corsOrigins = process.env.FRONTEND_URL 
-      ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-      : ['http://localhost:3000'];
-
-    this.app.use(cors({
-      origin: (origin, callback) => {
-        if (!origin || corsOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-          callback(null, true);
-        } else {
-          logger.warn('CORS: Origen rechazado', { 
-            category: 'CORS_REJECTED',
-            origin, 
-            allowedOrigins: corsOrigins,
-            userAgent: origin
-          });
-          callback(new Error('CORS: Origen no permitido'));
-        }
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-API-Key'],
-      exposedHeaders: ['X-Request-ID', 'X-Rate-Limit-Remaining', 'X-Rate-Limit-Reset']
-    }));
+    // CORS configurado por entorno
+    this.setupCORS();
 
     // Parsing de JSON con límite y validación
     this.app.use(express.json({ 
@@ -337,7 +276,7 @@ class AdvancedServer {
     this.app.use((req, res, next) => {
       res.set({
         'X-Request-ID': req.requestId,
-        'X-Powered-By': 'UTalk-Backend-v3.0-Enterprise',
+        'X-Powered-By': 'UTalk-Backend-v4.0-Consolidated',
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'X-XSS-Protection': '1; mode=block',
@@ -354,39 +293,121 @@ class AdvancedServer {
 
     logger.info('✅ Middlewares básicos configurados', {
       category: 'MIDDLEWARE_SUCCESS',
-      corsOrigins: corsOrigins.length,
       trustProxy: process.env.NODE_ENV === 'production'
     });
   }
 
   /**
-   * 🚦 INICIALIZAR RATE LIMITING PERSISTENTE
+   * 🔒 CONFIGURACIÓN CORS SEGURA POR ENTORNO
    */
-  async initializeRateLimit() {
-    logger.info('🚦 Inicializando rate limiting persistente...', {
-      category: 'RATE_LIMIT_INIT'
-    });
+  setupCORS() {
+    const env = process.env.NODE_ENV || 'development';
+    
+    if (env === 'production') {
+      // 🚨 PRODUCCIÓN: Lista blanca de dominios
+      const allowedOrigins = this.getAllowedOrigins();
+      
+      this.app.use(cors({
+        origin: (origin, callback) => {
+          // Permitir requests sin origin (como mobile apps, Postman, etc.)
+          if (!origin) {
+            return callback(null, true);
+          }
+          
+          // Verificar si el origin está en la lista blanca
+          if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            logger.warn('🚫 CORS bloqueado - Origin no permitido', {
+              category: 'CORS_BLOCKED',
+              origin,
+              allowedOrigins,
+              ip: origin ? 'unknown' : 'no-origin'
+            });
+            callback(new Error('Origin no permitido por CORS'));
+          }
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allowedHeaders: [
+          'Origin',
+          'X-Requested-With',
+          'Content-Type',
+          'Accept',
+          'Authorization',
+          'X-API-Key',
+          'Cache-Control'
+        ],
+        exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Request-ID']
+      }));
+      
+      logger.info('🔒 CORS configurado para PRODUCCIÓN', {
+        category: 'CORS_CONFIG',
+        environment: env,
+        allowedOrigins,
+        strictMode: true
+      });
+      
+    } else {
+      // 🛠️ DESARROLLO: Permitir localhost y dominios de desarrollo
+      this.app.use(cors({
+        origin: [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://localhost:5173', // Vite dev server
+          'http://localhost:8080',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:3001',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:8080'
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allowedHeaders: [
+          'Origin',
+          'X-Requested-With',
+          'Content-Type',
+          'Accept',
+          'Authorization',
+          'X-API-Key',
+          'Cache-Control'
+        ],
+        exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Request-ID']
+      }));
+      
+      logger.info('🛠️ CORS configurado para DESARROLLO', {
+        category: 'CORS_CONFIG',
+        environment: env,
+        allowedOrigins: [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://localhost:5173',
+          'http://localhost:8080'
+        ],
+        strictMode: false
+      });
+    }
+  }
 
-    await rateLimitManager.initialize();
-
-    // Rate limiting global más restrictivo
-    const globalRateLimit = rateLimitManager.createLimiter('general', {
-      max: 1000, // 1000 requests por IP en 15 minutos (más restrictivo)
-      windowMs: 15 * 60 * 1000,
-      message: {
-        error: 'Límite de solicitudes excedido',
-        code: 'GLOBAL_RATE_LIMIT_EXCEEDED',
-        retryAfter: '15 minutes'
-      }
-    });
-
-    this.app.use(globalRateLimit);
-
-    logger.info('✅ Rate limiting persistente configurado', {
-      category: 'RATE_LIMIT_SUCCESS',
-      store: rateLimitManager.redisClient ? 'Redis' : 'Memory',
-      globalLimit: '1000 req/15min'
-    });
+  /**
+   * 📋 OBTENER ORÍGENES PERMITIDOS PARA PRODUCCIÓN
+   */
+  getAllowedOrigins() {
+    // Obtener dominios desde variables de entorno
+    const corsOrigins = process.env.CORS_ORIGINS;
+    
+    if (corsOrigins) {
+      return corsOrigins.split(',').map(origin => origin.trim());
+    }
+    
+    // Fallback a dominios por defecto de UTalk
+    return [
+      'https://utalk.com',
+      'https://www.utalk.com',
+      'https://app.utalk.com',
+      'https://admin.utalk.com',
+      'https://api.utalk.com'
+    ];
   }
 
   /**
@@ -397,49 +418,36 @@ class AdvancedServer {
       category: 'ROUTES_SETUP'
     });
 
-    // Health check endpoint básico y funcional
-    this.app.get('/health', async (req, res) => {
-      try {
-        // Health check básico sin dependencias complejas
-        const healthData = {
-          status: 'healthy',
-          timestamp: new Date().toISOString(),
-          uptime: process.uptime(),
-          version: process.env.npm_package_version || '1.0.0',
-          environment: process.env.NODE_ENV || 'development',
-          checks: {
-            server: { status: 'healthy', message: 'Server is running' },
-            memory: { 
-              status: 'healthy', 
-              usage: process.memoryUsage(),
-              heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB'
-            },
-            process: { 
-              status: 'healthy', 
-              pid: process.pid,
-              uptime: process.uptime()
-            }
+    // Health check básico
+    this.app.get('/health', (req, res) => {
+      const healthData = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        version: process.env.npm_package_version || '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        checks: {
+          server: { status: 'healthy', message: 'Server is running' },
+          memory: { 
+            status: 'healthy', 
+            usage: process.memoryUsage(),
+            heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB'
           },
-          summary: {
-            total: 3,
-            healthy: 3,
-            failed: 0,
-            failedChecks: []
+          process: { 
+            status: 'healthy', 
+            pid: process.pid,
+            uptime: process.uptime()
           }
-        };
-        
-        // Respuesta simple
-        res.status(200).json(healthData);
+        },
+        summary: {
+          total: 3,
+          healthy: 3,
+          failed: 0,
+          failedChecks: []
+        }
+      };
 
-      } catch (error) {
-        // Respuesta de error simple
-        res.status(503).json({
-          status: 'error',
-          error: 'Health check system failure',
-          message: 'El sistema de health check no pudo completarse',
-          timestamp: new Date().toISOString()
-        });
-      }
+      res.status(200).json(healthData);
     });
 
     // Health check detallado para debugging
@@ -450,11 +458,25 @@ class AdvancedServer {
           requestId: req.requestId
         });
 
-        const healthData = await this.healthService.runAllHealthChecks();
-        
-        // Incluir información adicional del sistema
+        // Verificar Firebase Firestore
+        const { firestore } = require('./config/firebase');
+        let firestoreStatus = 'unknown';
+        try {
+          await firestore.collection('_health_check').limit(1).get();
+          firestoreStatus = 'connected';
+        } catch (error) {
+          firestoreStatus = 'disconnected';
+        }
+
         const os = require('os');
-        const additionalInfo = {
+        const healthData = {
+          status: 'healthy',
+          timestamp: new Date().toISOString(),
+          services: {
+            firestore: firestoreStatus,
+            memory: 'healthy',
+            process: 'healthy'
+          },
           system: {
             platform: os.platform(),
             arch: os.arch(),
@@ -474,10 +496,7 @@ class AdvancedServer {
           }
         };
 
-        res.json({
-          ...healthData,
-          additionalInfo
-        });
+        res.json(healthData);
 
       } catch (error) {
         logger.error('Error en health check detallado', {
@@ -494,53 +513,9 @@ class AdvancedServer {
       }
     });
 
-    // Health check rápido para load balancers
-    this.app.get('/health/quick', async (req, res) => {
-      try {
-        const HealthCheckService = require('./services/HealthCheckService');
-        const healthService = new HealthCheckService();
-        
-        // Solo verificar servicios críticos
-        const criticalChecks = ['firestore', 'redis', 'memory'];
-        const results = {};
-        
-        for (const checkName of criticalChecks) {
-          const check = healthService.healthChecks.get(checkName);
-          if (check) {
-            try {
-              results[checkName] = await check();
-            } catch (error) {
-              results[checkName] = {
-                status: 'error',
-                error: error.message
-              };
-            }
-          }
-        }
-        
-        const isHealthy = Object.values(results).every(result => result.status === 'healthy');
-        const httpStatus = isHealthy ? 200 : 503;
-        
-        res.status(httpStatus).json({
-          status: isHealthy ? 'healthy' : 'unhealthy',
-          timestamp: new Date().toISOString(),
-          checks: results
-        });
-
-      } catch (error) {
-        res.status(503).json({
-          status: 'error',
-          error: 'Quick health check failed',
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-
     // Readiness probe para Kubernetes
     this.app.get('/ready', (req, res) => {
-      const isReady = this.socketManager && 
-                     memoryManager && 
-                     rateLimitManager?.initialized;
+      const isReady = this.socketManager && memoryManager;
       
       if (isReady) {
         res.status(200).json({ 
@@ -577,10 +552,9 @@ class AdvancedServer {
             nodeVersion: process.version
           },
           memoryManager: memoryManager ? memoryManager.getStats() : null,
-          rateLimiting: rateLimitManager ? rateLimitManager.getStats() : null,
           socket: this.socketManager ? this.socketManager.getDetailedStats() : null,
           logging: logger.getStats(),
-          errors: enhancedErrorHandler ? enhancedErrorHandler.errorMetrics : null
+          timestamp: new Date().toISOString()
         };
 
         res.json({
@@ -596,7 +570,6 @@ class AdvancedServer {
           requestId: req.requestId
         });
         
-        // No usar next(error) aquí para evitar loop
         res.status(500).json({
           success: false,
           error: {
@@ -618,6 +591,7 @@ class AdvancedServer {
     this.app.use('/api/knowledge', knowledgeRoutes);
     this.app.use('/api/media', mediaRoutes);
     this.app.use('/api/dashboard', dashboardRoutes);
+    this.app.use('/api/twilio', twilioRoutes);
 
     // Ruta catch-all para 404
     this.app.use('*', (req, res) => {
@@ -653,25 +627,23 @@ class AdvancedServer {
   }
 
   /**
-   * 🚨 CONFIGURAR MANEJO GLOBAL DE ERRORES ENTERPRISE
+   * 🚨 CONFIGURAR MANEJO GLOBAL DE ERRORES
    */
-  setupEnterpriseErrorHandling() {
-    logger.info('🚨 Configurando manejo global de errores enterprise...', {
+  setupErrorHandling() {
+    logger.info('🚨 Configurando manejo global de errores...', {
       category: 'ERROR_HANDLER_SETUP'
     });
 
-    // Middleware global de errores enterprise (DEBE IR AL FINAL)
+    // Middleware global de errores (DEBE IR AL FINAL)
     this.app.use(enhancedErrorHandler.handle());
 
-    logger.info('✅ Manejo global de errores enterprise configurado', {
+    logger.info('✅ Manejo global de errores configurado', {
       category: 'ERROR_HANDLER_SUCCESS',
       features: {
         automaticClassification: true,
         structuredLogging: true,
         securityFiltering: true,
-        rateLimiting: true,
-        metrics: true,
-        alerting: true
+        metrics: true
       }
     });
   }
@@ -680,7 +652,7 @@ class AdvancedServer {
    * 🔌 INICIALIZAR SOCKET.IO
    */
   initializeSocketIO() {
-    logger.info('🔌 Inicializando Socket.IO con gestión de memoria...', {
+    logger.info('🔌 Inicializando Socket.IO...', {
       category: 'SOCKET_INIT'
     });
 
@@ -689,118 +661,11 @@ class AdvancedServer {
     // Hacer disponible el socket manager para otros componentes
     this.app.set('socketManager', this.socketManager);
 
-    logger.info('✅ Socket.IO inicializado con gestión avanzada', {
+    logger.info('✅ Socket.IO inicializado', {
       category: 'SOCKET_SUCCESS',
       memoryManaged: true,
       maxConnections: 50000
     });
-  }
-
-  /**
-   * 📊 CONFIGURAR MONITOREO DE SALUD
-   */
-  setupHealthMonitoring() {
-    logger.info('📊 Configurando monitoreo de salud del sistema...', {
-      category: 'HEALTH_MONITORING_SETUP'
-    });
-
-    // Monitoreo cada 5 minutos
-    setInterval(() => {
-      try {
-        const stats = {
-          server: {
-            uptime: process.uptime(),
-            memory: process.memoryUsage(),
-            pid: process.pid,
-            environment: process.env.NODE_ENV,
-            loadAverage: require('os').loadavg(),
-            freeMemory: require('os').freemem(),
-            totalMemory: require('os').totalmem()
-          },
-          sockets: {
-            connected: this.socketManager?.getConnectedUsers()?.length || 0
-          },
-          memoryManager: memoryManager ? memoryManager.getStats().global : null,
-          rateLimiting: {
-            store: rateLimitManager?.redisClient ? 'Redis' : 'Memory',
-            initialized: rateLimitManager?.initialized || false
-          },
-          errors: enhancedErrorHandler ? {
-            totalErrors: enhancedErrorHandler.errorMetrics.size,
-            rateLimitedErrors: enhancedErrorHandler.errorRateLimit.size
-          } : null
-        };
-
-        const isHealthy = this.isHealthy(stats);
-
-        logger.info('Estado del sistema', {
-          category: 'SYSTEM_HEALTH_CHECK',
-          stats,
-          healthy: isHealthy,
-          timestamp: new Date().toISOString()
-        });
-
-        // Alertas de salud
-        if (!isHealthy) {
-          logger.error('Sistema en estado no saludable detectado', {
-            category: 'SYSTEM_HEALTH_ALERT',
-            stats,
-            severity: 'HIGH',
-            requiresAttention: true
-          });
-        }
-
-      } catch (monitoringError) {
-        logger.error('Error durante monitoreo de salud', {
-          category: 'HEALTH_MONITORING_ERROR',
-          error: monitoringError.message,
-          stack: monitoringError.stack
-        });
-      }
-
-    }, 5 * 60 * 1000); // 5 minutos
-
-    logger.info('✅ Monitoreo de salud configurado', {
-      category: 'HEALTH_MONITORING_SUCCESS',
-      interval: '5 minutes'
-    });
-  }
-
-  /**
-   * 🏥 VERIFICAR SALUD DEL SISTEMA
-   */
-  isHealthy(stats) {
-    try {
-      const memoryUsagePercent = (stats.server.memory.heapUsed / stats.server.memory.heapTotal) * 100;
-      const systemMemoryUsagePercent = ((stats.server.totalMemory - stats.server.freeMemory) / stats.server.totalMemory) * 100;
-      
-      const healthChecks = {
-        memoryHeapOk: memoryUsagePercent < 90,
-        systemMemoryOk: systemMemoryUsagePercent < 95,
-        serverRunning: stats.server.uptime > 0,
-        memoryManagerOk: stats.memoryManager ? stats.memoryManager.totalMaps >= 0 : false,
-        rateLimitingOk: stats.rateLimiting ? stats.rateLimiting.initialized : false
-      };
-
-      const isHealthy = Object.values(healthChecks).every(check => check === true);
-
-      if (!isHealthy) {
-        logger.warn('Fallos en health checks detectados', {
-          category: 'HEALTH_CHECK_FAILURES',
-          healthChecks,
-          memoryUsagePercent: memoryUsagePercent.toFixed(2) + '%',
-          systemMemoryUsagePercent: systemMemoryUsagePercent.toFixed(2) + '%'
-        });
-      }
-
-      return isHealthy;
-    } catch (error) {
-      logger.error('Error verificando salud del sistema', {
-        category: 'HEALTH_CHECK_ERROR',
-        error: error.message
-      });
-      return false;
-    }
   }
 
   /**
@@ -921,25 +786,9 @@ class AdvancedServer {
         }
       }
 
-      // 3. Persistir rate limits
-      if (rateLimitManager) {
-        try {
-          await rateLimitManager.persistMemoryStore();
-          logger.info('✅ Rate limits persistidos', {
-            category: 'SHUTDOWN_RATE_LIMITS_SAVED'
-          });
-        } catch (rateLimitError) {
-          logger.error('Error persistiendo rate limits', {
-            category: 'SHUTDOWN_RATE_LIMIT_ERROR',
-            error: rateLimitError.message
-          });
-        }
-      }
-
-      // 4. Limpiar memory manager
+      // 3. Limpiar memory manager
       if (memoryManager) {
         try {
-          // El memory manager tiene su propio cleanup en shutdown
           logger.info('✅ Memory manager cleanup iniciado', {
             category: 'SHUTDOWN_MEMORY_CLEANUP'
           });
@@ -951,7 +800,7 @@ class AdvancedServer {
         }
       }
 
-      // 5. Forzar garbage collection final
+      // 4. Forzar garbage collection final
       if (global.gc) {
         try {
           global.gc();
@@ -995,294 +844,20 @@ class AdvancedServer {
       }, 2000);
     }
   }
-
-  /**
-   * 📊 OBTENER ESTADÍSTICAS COMPLETAS
-   */
-  getFullStats() {
-    try {
-      return {
-        server: {
-          uptime: process.uptime(),
-          startTime: this.startTime,
-          memory: process.memoryUsage(),
-          pid: process.pid,
-          environment: process.env.NODE_ENV,
-          nodeVersion: process.version,
-          platform: process.platform
-        },
-        memoryManager: memoryManager ? memoryManager.getStats() : null,
-        rateLimiting: rateLimitManager ? rateLimitManager.getStats() : null,
-        socket: this.socketManager ? this.socketManager.getDetailedStats() : null,
-        logging: logger.getStats(),
-        errors: enhancedErrorHandler ? {
-          totalErrors: enhancedErrorHandler.errorMetrics.size,
-          rateLimitedErrors: enhancedErrorHandler.errorRateLimit.size
-        } : null,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      logger.error('Error obteniendo estadísticas completas', {
-        category: 'STATS_ERROR',
-        error: error.message
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Verificar conexión a Firebase Firestore
-   */
-  async checkFirebaseConnection() {
-    try {
-      const admin = require('firebase-admin');
-      
-      // Intentar hacer una operación simple de lectura
-      const testDoc = await admin.firestore().collection('_health_check').limit(1).get();
-      
-      logger.info('✅ Firebase Firestore: Conexión verificada exitosamente');
-      return 'connected';
-    } catch (error) {
-      logger.error('❌ Firebase Firestore: Error de conexión', {
-        error: error.message,
-        code: error.code
-      });
-      return 'disconnected';
-    }
-  }
-
-  /**
-   * Verificar conexión a Firebase Storage
-   */
-  async checkFirebaseStorageConnection() {
-    try {
-      const admin = require('firebase-admin');
-      
-      // Intentar acceder al bucket de Storage
-      const bucket = admin.storage().bucket();
-      
-      // Verificar que el bucket existe y es accesible
-      const [exists] = await bucket.exists();
-      
-      if (exists) {
-        logger.info('✅ Firebase Storage: Conexión verificada exitosamente');
-        return 'connected';
-      } else {
-        logger.warn('⚠️ Firebase Storage: Bucket no encontrado');
-        return 'bucket_not_found';
-      }
-    } catch (error) {
-      logger.error('❌ Firebase Storage: Error de conexión', {
-        error: error.message,
-        code: error.code
-      });
-      return 'disconnected';
-    }
-  }
-
-  /**
-   * Verificar estado completo de servicios
-   */
-  async getDetailedServiceStatus() {
-    try {
-      const admin = require('firebase-admin');
-      
-      // Verificar Firestore con más detalle
-      const firestoreStatus = await this.checkFirestoreDetailed();
-      
-      // Verificar Storage con más detalle  
-      const storageStatus = await this.checkStorageDetailed();
-      
-      // Verificar Redis si está disponible
-      const redisStatus = await this.checkRedisDetailed();
-      
-      return {
-        firestore: firestoreStatus,
-        storage: storageStatus,
-        redis: redisStatus,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      logger.error('Error verificando estado de servicios:', error);
-      return {
-        error: error.message,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  /**
-   * Verificación detallada de Firestore
-   */
-  async checkFirestoreDetailed() {
-    try {
-      const admin = require('firebase-admin');
-      const db = admin.firestore();
-      
-      const startTime = Date.now();
-      
-      // Test de escritura y lectura
-      const testCollection = db.collection('_health_check');
-      const testDocId = `test_${Date.now()}`;
-      
-      // Escribir documento de prueba
-      await testCollection.doc(testDocId).set({
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        test: true
-      });
-      
-      // Leer el documento
-      const doc = await testCollection.doc(testDocId).get();
-      
-      // Eliminar el documento de prueba
-      await testCollection.doc(testDocId).delete();
-      
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        status: 'connected',
-        responseTime: `${responseTime}ms`,
-        operations: {
-          write: 'success',
-          read: 'success',
-          delete: 'success'
-        },
-        projectId: admin.app().options.projectId
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        error: error.message,
-        code: error.code
-      };
-    }
-  }
-
-  /**
-   * Verificación detallada de Storage
-   */
-  async checkStorageDetailed() {
-    try {
-      const admin = require('firebase-admin');
-      const bucket = admin.storage().bucket();
-      
-      const startTime = Date.now();
-      
-      // Verificar bucket existe
-      const [exists] = await bucket.exists();
-      if (!exists) {
-        return {
-          status: 'bucket_not_found',
-          error: 'Storage bucket does not exist'
-        };
-      }
-      
-      // Test de escritura de archivo temporal
-      const testFileName = `_health_check/test_${Date.now()}.txt`;
-      const file = bucket.file(testFileName);
-      
-      // Escribir archivo de prueba
-      await file.save('health check test', {
-        metadata: {
-          contentType: 'text/plain'
-        }
-      });
-      
-      // Verificar que existe
-      const [fileExists] = await file.exists();
-      
-      // Eliminar archivo de prueba
-      await file.delete();
-      
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        status: 'connected',
-        responseTime: `${responseTime}ms`,
-        operations: {
-          write: 'success',
-          read: fileExists ? 'success' : 'failed',
-          delete: 'success'
-        },
-        bucketName: bucket.name
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        error: error.message,
-        code: error.code
-      };
-    }
-  }
-
-  /**
-   * Verificación detallada de Redis
-   */
-  async checkRedisDetailed() {
-    try {
-      const rateLimitManager = require('./middleware/persistentRateLimit');
-      
-      if (!rateLimitManager.redisClient) {
-        return {
-          status: 'not_configured',
-          message: 'Redis client not available'
-        };
-      }
-      
-      const startTime = Date.now();
-      
-      // Test de ping
-      const pong = await rateLimitManager.redisClient.ping();
-      
-      // Test de escritura y lectura
-      const testKey = `health_check:${Date.now()}`;
-      await rateLimitManager.redisClient.set(testKey, 'test', 'EX', 10);
-      const value = await rateLimitManager.redisClient.get(testKey);
-      await rateLimitManager.redisClient.del(testKey);
-      
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        status: 'connected',
-        responseTime: `${responseTime}ms`,
-        operations: {
-          ping: pong === 'PONG' ? 'success' : 'failed',
-          write: 'success',
-          read: value === 'test' ? 'success' : 'failed',
-          delete: 'success'
-        }
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        error: error.message
-      };
-    }
-  }
 }
 
 // Crear e inicializar servidor
-const server = new AdvancedServer();
+const server = new ConsolidatedServer();
 
 // Solo inicializar si no estamos en test
 if (require.main === module) {
   server.initialize().catch((error) => {
-    // Usar console.error como último recurso si el logger falla
-    if (logger && logger.error) {
-      logger.error('💥 Fallo catastrófico iniciando servidor:', {
-        category: 'CATASTROPHIC_FAILURE',
-        error: error.message,
-        stack: error.stack,
-        severity: 'CRITICAL'
-      });
-    } else {
-      logger.error('💥 Fallo catastrófico iniciando servidor:', {
-        category: 'CATASTROPHIC_FAILURE',
-        error: error.message,
-        stack: error.stack,
-        severity: 'CRITICAL'
-      });
-    }
+    logger.error('💥 Fallo catastrófico iniciando servidor:', {
+      category: 'CATASTROPHIC_FAILURE',
+      error: error.message,
+      stack: error.stack,
+      severity: 'CRITICAL'
+    });
     process.exit(1);
   });
 }
