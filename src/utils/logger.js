@@ -95,31 +95,54 @@ class AdvancedLogger {
       })
     ];
 
-    // File transports para producción
+    // File transports para producción (con manejo de errores de permisos)
     if (isProduction || process.env.ENABLE_FILE_LOGGING === 'true') {
-      const logDir = process.env.LOG_DIR || './logs';
-      
-      transports.push(
-        // Archivo para todos los logs
-        new winston.transports.File({
-          filename: path.join(logDir, 'combined.log'),
-          level: 'info',
-          format: productionFormat,
-          maxsize: 10 * 1024 * 1024, // 10MB
-          maxFiles: 5,
-          tailable: true
-        }),
+      try {
+        const logDir = process.env.LOG_DIR || './logs';
         
-        // Archivo solo para errores
-        new winston.transports.File({
-          filename: path.join(logDir, 'errors.log'),
-          level: 'error',
-          format: productionFormat,
-          maxsize: 10 * 1024 * 1024, // 10MB
-          maxFiles: 10,
-          tailable: true
-        })
-      );
+        // Verificar si podemos escribir en el directorio
+        const fs = require('fs');
+        const testFile = path.join(logDir, '.test-write');
+        
+        // Intentar crear el directorio si no existe
+        if (!fs.existsSync(logDir)) {
+          fs.mkdirSync(logDir, { recursive: true });
+        }
+        
+        // Probar escritura
+        fs.writeFileSync(testFile, 'test');
+        fs.unlinkSync(testFile);
+        
+        // Si llegamos aquí, podemos escribir archivos
+        transports.push(
+          // Archivo para todos los logs
+          new winston.transports.File({
+            filename: path.join(logDir, 'combined.log'),
+            level: 'info',
+            format: productionFormat,
+            maxsize: 10 * 1024 * 1024, // 10MB
+            maxFiles: 5,
+            tailable: true
+          }),
+          
+          // Archivo solo para errores
+          new winston.transports.File({
+            filename: path.join(logDir, 'errors.log'),
+            level: 'error',
+            format: productionFormat,
+            maxsize: 10 * 1024 * 1024, // 10MB
+            maxFiles: 10,
+            tailable: true
+          })
+        );
+        
+        console.log('✅ File logging habilitado en:', logDir);
+        
+      } catch (error) {
+        // Si no podemos escribir archivos, solo usar console
+        console.warn('⚠️ No se pudo habilitar file logging (permisos insuficientes):', error.message);
+        console.log('ℹ️ Continuando solo con console logging...');
+      }
     }
 
     // Crear logger principal
