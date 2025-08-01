@@ -5,12 +5,10 @@
  * - Gestión de memoria adaptativa
  * - Error handling robusto
  * - Logging profesional con contexto
- * - Rate limiting con Redis (opcional)
- * - Monitoreo de salud del sistema
- * - Graceful shutdown
  * - CORS seguro por entorno
  * - Middleware de autenticación
  * - Socket.IO para tiempo real
+ * - Graceful shutdown
  * 
  * @version 4.0.0 CONSOLIDATED
  * @author Backend Team
@@ -228,9 +226,6 @@ class ConsolidatedServer {
       category: 'MIDDLEWARE_SETUP'
     });
 
-    // Request tracking middleware (DEBE IR PRIMERO)
-    this.app.use(logger.createRequestTrackingMiddleware());
-
     // Helmet para seguridad HTTP
     this.app.use(helmet({
       contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
@@ -271,6 +266,12 @@ class ConsolidatedServer {
       limit: '10mb',
       parameterLimit: 20
     }));
+
+    // Logging middleware simple
+    this.app.use((req, res, next) => {
+      req.requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      next();
+    });
 
     // Headers de seguridad adicionales
     this.app.use((req, res, next) => {
