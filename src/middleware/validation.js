@@ -100,17 +100,7 @@ function validateRequest(schema = {}, options = {}) {
       if (sanitizedData.params) req.params = sanitizedData.params;
       if (sanitizedData.headers) req.headers = { ...req.headers, ...sanitizedData.headers };
 
-      // Log de validación exitosa (solo en desarrollo)
-      if (process.env.NODE_ENV === 'development') {
-        logger.debug('Validación de request exitosa', {
-          endpoint: req.originalUrl,
-          method: req.method,
-          userId: req.user?.id,
-          bodyKeys: Object.keys(req.body || {}),
-          queryKeys: Object.keys(req.query || {}),
-          paramsKeys: Object.keys(req.params || {})
-        });
-      }
+      // Log removido para reducir ruido en producción
 
       next();
 

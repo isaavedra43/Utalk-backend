@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
+const { getAccessTokenConfig } = require('../config/jwt');
 
 /**
  * Middleware de autenticación con JWT INTERNO
@@ -38,10 +39,10 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // Verificar JWT interno con JWT_SECRET
-    const jwtSecret = process.env.JWT_SECRET;
+    // Verificar JWT interno con configuración centralizada
+    const jwtConfig = getAccessTokenConfig();
     
-    if (!jwtSecret) {
+    if (!jwtConfig.secret) {
       logger.error('💥 JWT_SECRET no configurado en servidor');
       return res.status(500).json({
         error: 'Error de configuración del servidor',
@@ -52,9 +53,9 @@ const authMiddleware = async (req, res, next) => {
 
     let decodedToken;
     try {
-      decodedToken = jwt.verify(token, jwtSecret, {
-        issuer: 'utalk-backend',
-        audience: 'utalk-frontend',
+      decodedToken = jwt.verify(token, jwtConfig.secret, {
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
       });
       
       // ✅ VALIDACIÓN ADICIONAL DE CLAIMS CRÍTICOS

@@ -259,8 +259,8 @@ class MessageService {
 
       if (mediaUrl) {
         try {
-          // Procesar y guardar permanentemente
-          const processedInfo = await this.processWebhookMedia(
+          // Procesar y guardar permanentemente usando FileService
+          const processedInfo = await this.processIndividualWebhookMedia(
             mediaUrl,
             webhookData.MessageSid,
             i,
@@ -291,6 +291,62 @@ class MessageService {
       primaryType,
       count: mediaUrls.length,
     };
+  }
+
+  /**
+   * Procesar media individual de webhook usando FileService
+   */
+  static async processIndividualWebhookMedia (mediaUrl, messageSid, index) {
+    try {
+      logger.info('Procesando media individual de webhook', {
+        mediaUrl,
+        messageSid,
+        index
+      });
+
+      // Descargar el archivo desde la URL de Twilio
+      const response = await fetch(mediaUrl);
+      if (!response.ok) {
+        throw new Error(`Error descargando media: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get('content-type');
+      
+      // Determinar categoría basada en content-type
+      let category = 'document';
+      if (contentType.startsWith('image/')) category = 'image';
+      else if (contentType.startsWith('video/')) category = 'video';
+      else if (contentType.startsWith('audio/')) category = 'audio';
+
+      // Crear datos del archivo para FileService
+      const fileData = {
+        buffer: Buffer.from(buffer),
+        originalName: `webhook-media-${messageSid}-${index}`,
+        mimetype: contentType,
+        size: buffer.byteLength,
+        conversationId: null, // Se asignará después
+        userId: null,
+        uploadedBy: 'webhook',
+        tags: ['webhook', 'twilio']
+      };
+
+      // Usar FileService para procesar el archivo
+      const fileService = new FileService();
+      const processedFile = await fileService.uploadFile(fileData);
+
+      return {
+        fileId: processedFile.id,
+        category,
+        url: processedFile.url,
+        size: processedFile.size,
+        mimetype: contentType
+      };
+
+    } catch (error) {
+      logger.error('Error procesando media individual:', error);
+      throw error;
+    }
   }
 
   /**

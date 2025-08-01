@@ -2,6 +2,7 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const { logger } = require('../utils/logger');
+const { getRefreshTokenConfig } = require('../config/jwt');
 
 /**
  * 🔄 MODELO DE REFRESH TOKENS
@@ -398,6 +399,7 @@ class RefreshToken {
    * Generar nuevo refresh token
    */
   static async generate(userEmail, userId, deviceInfo = {}) {
+    const refreshConfig = getRefreshTokenConfig();
     const token = jwt.sign(
       {
         type: 'refresh',
@@ -407,15 +409,15 @@ class RefreshToken {
         deviceId: deviceInfo.deviceId || uuidv4(),
         iat: Math.floor(Date.now() / 1000)
       },
-      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      refreshConfig.secret,
       {
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-        issuer: 'utalk-backend',
-        audience: 'utalk-frontend'
+        expiresIn: refreshConfig.expiresIn,
+        issuer: refreshConfig.issuer,
+        audience: refreshConfig.audience
       }
     );
 
-    const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+    const expiresIn = refreshConfig.expiresIn;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 días por defecto
 

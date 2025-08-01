@@ -61,7 +61,7 @@ class EnhancedErrorHandler {
       defaultTTL: 24 * 60 * 60 * 1000, // 24 horas
       onEviction: (key, metrics, reason) => {
         if (reason !== 'expired') {
-          logger.debug('Métricas de error eliminadas', { key, reason });
+          // Log removido para reducir ruido en producción
         }
       }
     });
@@ -126,13 +126,7 @@ class EnhancedErrorHandler {
         this.executePostErrorTriggers(error, errorContext, errorClassification);
         
         // Log de performance del error handler
-        logger.debug('Error handler completado', {
-          category: 'ERROR_HANDLER_PERFORMANCE',
-          duration: Date.now() - startTime + 'ms',
-          errorType: errorClassification.type,
-          statusCode: errorResponse.statusCode,
-          requestId: req.requestId
-        });
+        // Log removido para reducir ruido en producción
         
       } catch (handlerError) {
         // Error crítico en el propio handler
@@ -520,9 +514,7 @@ class EnhancedErrorHandler {
    */
   resetHourlyMetrics() {
     // Las métricas se auto-limpian por TTL, pero podemos forzar reset si es necesario
-    logger.debug('Reset de métricas de error completado', {
-      category: 'ERROR_METRICS_RESET'
-    });
+    // Log removido para reducir ruido en producción
   }
 
   // MÉTODOS DE DETECCIÓN DE TIPOS DE ERROR
@@ -735,11 +727,7 @@ class EnhancedErrorHandler {
 
   sendToMonitoring(error, context, classification) {
     // Aquí se enviarían métricas a servicios como Datadog, New Relic, etc.
-    logger.debug('Métricas de error enviadas a monitoring', {
-      category: 'ERROR_MONITORING',
-      type: classification.type,
-      severity: classification.severity
-    });
+    // Log removido para reducir ruido en producción
   }
 
   sendRateLimitedErrorResponse(res, req) {

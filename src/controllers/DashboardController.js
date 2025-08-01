@@ -118,11 +118,7 @@ class EnterpriseDashboardController {
             cacheKey
           });
         } else {
-          logger.debug('Cache HIT for dashboard metrics', {
-            category: 'DASHBOARD_CACHE_HIT',
-            userId: req.user.id,
-            period
-          });
+          // Log removido para reducir ruido en producción
         }
 
       res.json(metrics);

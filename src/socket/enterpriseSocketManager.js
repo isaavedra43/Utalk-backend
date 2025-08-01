@@ -30,6 +30,7 @@ const Message = require('../models/Message');
 const { memoryManager } = require('../utils/memoryManager');
 const logger = require('../utils/logger');
 const { asyncWrapper, externalServiceWrapper } = require('../utils/errorWrapper');
+const { getAccessTokenConfig } = require('../config/jwt');
 
 // Event definitions con metadata
 const SOCKET_EVENTS = {
@@ -213,12 +214,7 @@ class EnterpriseSocketManager {
       maxEntries: 200000,
       defaultTTL: 6 * 60 * 60 * 1000, // 6 hours
       onEviction: (email, role, reason) => {
-        logger.debug('User role evicted from cache', {
-          category: 'SOCKET_ROLE_CACHE',
-          email: email?.substring(0, 20) + '...',
-          role,
-          reason
-        });
+        // Log removido para reducir ruido en producción
       }
     });
 
@@ -227,9 +223,7 @@ class EnterpriseSocketManager {
       maxEntries: 1000000,
       defaultTTL: 30 * 60 * 1000, // 30 minutes
       onEviction: (key, timestamp, reason) => {
-        if (reason !== 'expired') {
-          logger.debug('Rate limit entry evicted', { key, reason });
-        }
+        // Log removido para reducir ruido en producción
       }
     });
 
@@ -368,8 +362,8 @@ class EnterpriseSocketManager {
         }
 
         // Verify JWT token
-        const jwtSecret = process.env.JWT_SECRET;
-        if (!jwtSecret) {
+        const jwtConfig = getAccessTokenConfig();
+        if (!jwtConfig.secret) {
           logger.error('Socket.IO: JWT_SECRET not configured', {
             category: 'SOCKET_AUTH_CONFIG_ERROR',
             severity: 'CRITICAL'
@@ -379,9 +373,9 @@ class EnterpriseSocketManager {
 
         let decodedToken;
         try {
-          decodedToken = jwt.verify(token, jwtSecret, {
-            issuer: 'utalk-backend',
-            audience: 'utalk-frontend',
+          decodedToken = jwt.verify(token, jwtConfig.secret, {
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
             clockTolerance: 60 // 60 seconds clock tolerance
           });
         } catch (jwtError) {
@@ -609,12 +603,7 @@ class EnterpriseSocketManager {
         socket.join('role-agent'); // Admins see everything
       }
 
-      logger.debug('User joined role-based rooms', {
-        category: 'SOCKET_ROOM_JOIN',
-        email: userEmail.substring(0, 20) + '...',
-        role: userRole,
-        rooms: [`role-${userRole}`]
-      });
+      // Log removido para reducir ruido en producción
 
     } catch (error) {
       logger.error('Error joining role-based rooms', {

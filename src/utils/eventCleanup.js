@@ -41,11 +41,7 @@ class EventCleanup {
           // Verificar límite de llamadas
           if (callCount >= maxCalls) {
             this.removeListener(emitter, event, wrappedHandler);
-            logger.debug('Listener removido por límite de llamadas', {
-              event,
-              callCount,
-              maxCalls
-            });
+            // Log removido para reducir ruido en producción
           }
 
           // Ejecutar handler original
@@ -65,10 +61,7 @@ class EventCleanup {
       if (timeout) {
         const timeoutId = setTimeout(() => {
           this.removeListener(emitter, event, wrappedHandler);
-          logger.debug('Listener removido por timeout', {
-            event,
-            timeout
-          });
+          // Log removido para reducir ruido en producción
         }, timeout);
 
         // Guardar referencia del timeout
@@ -97,11 +90,7 @@ class EventCleanup {
       this.stats.totalListeners++;
       this.stats.activeListeners++;
 
-      logger.debug('Listener agregado con cleanup', {
-        event,
-        emitter: emitter.constructor.name,
-        totalListeners: this.stats.activeListeners
-      });
+      // Log removido para reducir ruido en producción
 
       return wrappedHandler;
 
@@ -156,11 +145,7 @@ class EventCleanup {
       this.stats.cleanedListeners++;
       this.stats.activeListeners--;
 
-      logger.debug('Listener removido exitosamente', {
-        event,
-        emitter: emitter.constructor.name,
-        activeListeners: this.stats.activeListeners
-      });
+      // Log removido para reducir ruido en producción
 
       return true;
 
@@ -182,9 +167,7 @@ class EventCleanup {
     try {
       const emitterListeners = this.listeners.get(emitter);
       if (!emitterListeners) {
-        logger.debug('No hay listeners para limpiar', {
-          emitter: emitter.constructor.name
-        });
+        // Log removido para reducir ruido en producción
         return 0;
       }
 

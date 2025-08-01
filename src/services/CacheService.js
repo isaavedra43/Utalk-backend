@@ -200,13 +200,7 @@ class EnterpriseCacheService {
 
         this.metrics.sets++;
         
-        logger.debug('Cache SET successful', {
-          category: 'CACHE_SET',
-          key: cacheKey,
-          ttl,
-          size: JSON.stringify(value).length,
-          compressed: this.compressionEnabled
-        });
+        // Log removido para reducir ruido en producción
 
         return true;
       } catch (error) {
@@ -251,19 +245,13 @@ class EnterpriseCacheService {
           this.metrics.hits++;
           const decompressedValue = this.decompress(value);
           
-          logger.debug('Cache HIT', {
-            category: 'CACHE_HIT',
-            key: cacheKey
-          });
+          // Log removido para reducir ruido en producción
 
           return decompressedValue;
         } else {
           this.metrics.misses++;
           
-          logger.debug('Cache MISS', {
-            category: 'CACHE_MISS',
-            key: cacheKey
-          });
+          // Log removido para reducir ruido en producción
 
           return null;
         }
@@ -298,10 +286,7 @@ class EnterpriseCacheService {
 
         this.metrics.deletes++;
         
-        logger.debug('Cache DELETE successful', {
-          category: 'CACHE_DELETE',
-          key: cacheKey
-        });
+        // Log removido para reducir ruido en producción
 
         return true;
       } catch (error) {
@@ -445,11 +430,7 @@ class EnterpriseCacheService {
       }
 
       if (cleanedCount > 0) {
-        logger.debug('Local cache cleanup completed', {
-          category: 'CACHE_LOCAL_CLEANUP',
-          cleanedCount,
-          remainingKeys: this.localCache.size
-        });
+        // Log removido para reducir ruido en producción
       }
     }, 5 * 60 * 1000); // 5 minutos
   }

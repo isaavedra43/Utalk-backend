@@ -133,7 +133,10 @@ class AdvancedLogger {
 
     // Manejar errores del logger
     this.winston.on('error', (error) => {
-      console.error('Error en Winston logger:', error);
+      // Fallback seguro: solo en desarrollo
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error en Winston logger:', error);
+      }
     });
   }
 
@@ -400,11 +403,14 @@ class AdvancedLogger {
     // En un sistema real, aquí se enviarían notificaciones
     // a Slack, email, PagerDuty, etc.
     
-    console.error('🚨 ALERTA CRÍTICA:', {
-      message,
-      context,
-      timestamp: new Date().toISOString()
-    });
+    // Fallback seguro: solo en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.error('🚨 ALERTA CRÍTICA:', {
+        message,
+        context,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     // Guardar alerta en archivo especial
     if (process.env.ENABLE_ALERT_FILE === 'true') {

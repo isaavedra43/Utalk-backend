@@ -14,17 +14,7 @@ logger.info('📞 TWILIO - Iniciando configuración...', {
 const requiredVars = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER'];
 const missingVars = requiredVars.filter(envVar => !process.env[envVar]);
 
-logger.debug('🔍 TWILIO - Variables de entorno detectadas', {
-  category: 'TWILIO_CONFIG',
-  hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
-  hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN,
-  hasWhatsappNumber: !!process.env.TWILIO_WHATSAPP_NUMBER,
-  hasWebhookSecret: !!process.env.WEBHOOK_SECRET,
-  accountSidFormat: process.env.TWILIO_ACCOUNT_SID ? 
-    (process.env.TWILIO_ACCOUNT_SID.startsWith('AC') ? 'valid' : 'invalid') : 'missing',
-  whatsappFormat: process.env.TWILIO_WHATSAPP_NUMBER ? 
-    (process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:') ? 'valid' : 'invalid') : 'missing'
-});
+// Log removido para reducir ruido en producción
 
 let client = null;
 let twilioConfig = null;
@@ -104,9 +94,7 @@ try {
   });
 
   // Test de conectividad (opcional, no bloquea la inicialización)
-  logger.debug('🔍 TWILIO - Realizando test de conectividad...', {
-    category: 'TWILIO_CONNECTIVITY_TEST'
-  });
+  // Log removido para reducir ruido en producción
 
   client.api.accounts(process.env.TWILIO_ACCOUNT_SID)
     .fetch()

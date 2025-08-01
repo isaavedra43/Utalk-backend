@@ -4,8 +4,8 @@
 
 /**
  * Genera un conversationId único y consistente para dos números de teléfono
- * @param {string} phone1 - Primer número de teléfono
- * @param {string} phone2 - Segundo número de teléfono
+ * @param {string} phone1 - Primer número de teléfono (ya validado)
+ * @param {string} phone2 - Segundo número de teléfono (ya validado)
  * @returns {string} - conversationId único y consistente
  */
 function generateConversationId (phone1, phone2) {
@@ -13,22 +13,9 @@ function generateConversationId (phone1, phone2) {
     throw new Error('Se requieren ambos números de teléfono para generar conversationId');
   }
 
-  // NORMALIZAR NÚMEROS usando la función de phoneValidation
-  const { validateAndNormalizePhone } = require('./phoneValidation');
-
-  const phone1Validation = validateAndNormalizePhone(phone1);
-  const phone2Validation = validateAndNormalizePhone(phone2);
-
-  if (!phone1Validation.isValid) {
-    throw new Error(`Primer número inválido: ${phone1Validation.error}`);
-  }
-
-  if (!phone2Validation.isValid) {
-    throw new Error(`Segundo número inválido: ${phone2Validation.error}`);
-  }
-
-  const normalized1 = phone1Validation.normalized.replace(/[^\d]/g, '');
-  const normalized2 = phone2Validation.normalized.replace(/[^\d]/g, '');
+  // Los números ya deben estar validados por el middleware
+  const normalized1 = phone1.replace(/[^\d]/g, '');
+  const normalized2 = phone2.replace(/[^\d]/g, '');
 
   // Validar que los números tengan formato válido
   if (normalized1.length < 10 || normalized2.length < 10) {

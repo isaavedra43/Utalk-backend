@@ -71,9 +71,7 @@ try {
   });
 
   // Test de conectividad
-  logger.debug('🔥 FIREBASE - Realizando test de conectividad...', {
-    category: 'FIREBASE_CONNECTIVITY_TEST'
-  });
+      // Log removido para reducir ruido en producción
 
   // Test async de Firestore
   firestore.collection('_health_check').doc('test').set({ 

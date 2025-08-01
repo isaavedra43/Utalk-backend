@@ -55,10 +55,6 @@ class ConversationController {
         query: req.query
       });
 
-      // ✅ NUEVO: Debug logging exhaustivo
-      logger.logObject('req.user', req.user, 'get_conversations_start');
-      logger.logObject('req.query', req.query, 'get_conversations_start');
-
       const { page = 1, limit = 50, status, search } = req.query;
       const userEmail = req.user.email;
 
@@ -66,35 +62,16 @@ class ConversationController {
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
-      req.logger.debug('get_conversations_params', {
-        pageNum,
-        limitNum,
-        status,
-        search,
-        userEmail
-      });
-
-      // ✅ NUEVO: Debug logging para parámetros
-      logger.logObject('pagination_params', { pageNum, limitNum, status, search, userEmail }, 'after_validation');
-
       // Construir query base
       let query = firestore.collection('conversations');
-
-      // ✅ NUEVO: Debug logging para query inicial
-      logger.logObject('initial_query', query, 'before_filters');
 
       // Aplicar filtros
       if (status && status !== 'all') {
         query = query.where('status', '==', status);
-        req.logger.debug('applied_status_filter', { status });
       }
 
       // Filtro por participante
       query = query.where('participants', 'array-contains', userEmail);
-      req.logger.debug('applied_participant_filter', { userEmail });
-
-      // ✅ NUEVO: Debug logging para query con filtros
-      logger.logObject('filtered_query', query, 'after_filters');
 
       // Ordenar por última actividad
       query = query.orderBy('lastMessageAt', 'desc');
@@ -105,15 +82,6 @@ class ConversationController {
         query = query.offset(offset);
       }
       query = query.limit(limitNum);
-
-      req.logger.debug('final_query_params', {
-        offset,
-        limit: limitNum,
-        orderBy: 'lastMessageAt desc'
-      });
-
-      // ✅ NUEVO: Debug logging para query final
-      logger.logObject('final_query', query, 'before_execution');
 
       // Ejecutar query
       req.logger.database('executing_conversations_query', {
@@ -126,24 +94,14 @@ class ConversationController {
 
       const snapshot = await query.get();
 
-      // ✅ NUEVO: Debug logging para snapshot
-      logger.logObject('firestore_snapshot', snapshot, 'after_query_execution');
-      logger.logArray('snapshot.docs', snapshot.docs, 'after_query_execution');
-
       req.logger.database('conversations_query_executed', {
         docsCount: snapshot.docs.length,
         isEmpty: snapshot.empty,
         userEmail
       });
 
-      // ✅ NUEVO: Validación exhaustiva del snapshot
-      logger.validateArrayAccess('snapshot.docs', snapshot.docs, 'before_processing');
-
       // Procesar conversaciones
       const conversations = [];
-      
-      // ✅ NUEVO: Debug logging antes del procesamiento
-      logger.logArray('conversations_before_processing', conversations, 'initial_empty_array');
 
       for (const doc of snapshot.docs) {
         try {
@@ -188,35 +146,17 @@ class ConversationController {
             error: docError.message,
             stack: docError.stack
           });
-
-          // ✅ NUEVO: Debug logging del error
-          logger.logObject('doc_processing_error', {
-            docId: doc.id,
-            error: docError.message,
-            docData: doc.data()
-          }, 'doc_processing_error');
           
           continue;
         }
       }
 
-      // ✅ NUEVO: Validación final exhaustiva
-      logger.validateArrayAccess('final_conversations', conversations, 'before_response');
-      logger.logConversationData(conversations, 'final_processed_conversations');
-
       // Aplicar filtro de búsqueda si existe
       let filteredConversations = conversations;
       if (search && search.trim()) {
         const searchTerm = search.toLowerCase().trim();
-        
-        // ✅ NUEVO: Debug logging antes del filtro de búsqueda
-        logger.logArray('before_search_filter', filteredConversations, 'before_search');
-        logger.validateArrayAccess('filteredConversations', filteredConversations, 'before_search_filter');
 
         filteredConversations = conversations.filter(conv => {
-          // ✅ NUEVO: Debug logging para cada conversación en el filtro
-          logger.logObject('conversation_for_search', conv, `search_filter_${conv.id}`);
-
           try {
             const matchesContact = conv.contact?.name?.toLowerCase().includes(searchTerm) ||
                                   conv.contact?.identifier?.toLowerCase().includes(searchTerm);
@@ -235,30 +175,10 @@ class ConversationController {
               conv
             });
 
-            // ✅ NUEVO: Debug logging del error de filtro
-            logger.logObject('search_filter_error', {
-              conversationId: conv.id,
-              error: filterError.message,
-              conv
-            }, 'search_filter_error');
-
             return false;
           }
         });
-
-        // ✅ NUEVO: Debug logging después del filtro de búsqueda
-        logger.logArray('after_search_filter', filteredConversations, 'after_search');
-        logger.validateArrayAccess('filteredConversations_after_search', filteredConversations, 'after_search_filter');
-
-        req.logger.debug('search_filter_applied', {
-          searchTerm,
-          originalCount: conversations.length,
-          filteredCount: filteredConversations.length
-        });
       }
-
-      // ✅ NUEVO: Validación final antes de respuesta
-      logger.validateArrayAccess('final_filtered_conversations', filteredConversations, 'before_final_response');
 
       const responseTime = Date.now() - startTime;
 
@@ -271,9 +191,6 @@ class ConversationController {
         hasSearchFilter: !!search,
         searchTerm: search || null
       });
-
-      // ✅ NUEVO: Debug logging de la respuesta final
-      logger.logApiResponse('/conversations', filteredConversations, 'final_response');
 
       ResponseHandler.success(res, filteredConversations, 'Conversaciones obtenidas exitosamente', {
         page: pageNum,

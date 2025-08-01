@@ -157,7 +157,7 @@ class AdvancedMemoryManager extends EventEmitter {
         totalCleaned += cleaned;
         
         if (cleaned > 0) {
-          logger.debug(`Limpieza en '${name}': ${cleaned} entradas eliminadas`);
+          // Log removido para reducir ruido en producción
         }
       } catch (error) {
         logger.error(`Error en limpieza de '${name}'`, {
@@ -265,11 +265,7 @@ class AdvancedMemoryManager extends EventEmitter {
    * 🎯 HANDLERS POR DEFECTO
    */
   defaultEvictionHandler(key, value, reason, mapName) {
-    logger.debug(`Entrada eliminada de '${mapName}'`, {
-      key: typeof key === 'string' ? key.substring(0, 50) : key,
-      reason,
-      timestamp: new Date().toISOString()
-    });
+    // Log removido para reducir ruido en producción
   }
   
   defaultWarningHandler(message, data, mapName) {
@@ -297,7 +293,7 @@ class AdvancedMemoryManager extends EventEmitter {
       for (const [name, managedMap] of this.managedMaps.entries()) {
         try {
           managedMap.destroy();
-          logger.debug(`ManagedMap '${name}' destruido en shutdown`);
+          // Log removido para reducir ruido en producción
         } catch (error) {
           logger.error(`Error destruyendo '${name}' en shutdown`, error);
         }

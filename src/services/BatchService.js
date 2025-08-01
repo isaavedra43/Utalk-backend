@@ -93,10 +93,7 @@ class EnterpriseBatchService {
 
     this.activeBatches.set(id, batchOperation);
     
-    logger.debug('Batch operation created', {
-      category: 'BATCH_CREATE',
-      batchId: id
-    });
+    // Log removido para reducir ruido en producción
 
     return batchOperation;
   }
@@ -141,13 +138,7 @@ class EnterpriseBatchService {
         timestamp: Date.now()
       });
 
-      logger.debug('Operation added to batch', {
-        category: 'BATCH_ADD_OPERATION',
-        batchId: batchOperation.id,
-        operationType,
-        collection,
-        docId
-      });
+      // Log removido para reducir ruido en producción
 
       return batchOp;
     } catch (error) {

@@ -281,10 +281,7 @@ class PersistentRateLimit {
     }
     
     if (cleaned > 0) {
-      logger.debug('🧹 Rate limits limpiados de memoria', {
-        cleaned,
-        remaining: this.memoryStore.size
-      });
+      // Log removido para reducir ruido en producción
     }
   }
 
@@ -305,10 +302,7 @@ class PersistentRateLimit {
         'utf8'
       );
       
-      logger.debug('💾 Rate limits persistidos a archivo', {
-        file: this.persistenceFile,
-        entries: Object.keys(dataToSave).length
-      });
+      // Log removido para reducir ruido en producción
 
     } catch (error) {
       logger.error('Error persistiendo rate limits', {

@@ -3,6 +3,7 @@ const slowDown = require('express-slow-down');
 const jwt = require('jsonwebtoken');
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
+const { getAccessTokenConfig } = require('../config/jwt');
 
 /**
  * Middleware de seguridad avanzado con detección de amenazas
@@ -546,7 +547,8 @@ class AdvancedSecurity {
         const token = authHeader.substring(7);
 
         // Verificar token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const jwtConfig = getAccessTokenConfig();
+        const decoded = jwt.verify(token, jwtConfig.secret);
 
         // Validaciones adicionales
         const validation = await this.validateTokenClaims(decoded, req);
@@ -640,12 +642,12 @@ class AdvancedSecurity {
     }
 
     // Verificar emisor (opcional)
-    if (process.env.JWT_ISSUER && decoded.iss !== process.env.JWT_ISSUER) {
+    if (jwtConfig.issuer && decoded.iss !== jwtConfig.issuer) {
       return { valid: false, reason: 'Emisor inválido' };
     }
 
     // Verificar audiencia (opcional)
-    if (process.env.JWT_AUDIENCE && decoded.aud !== process.env.JWT_AUDIENCE) {
+    if (jwtConfig.audience && decoded.aud !== jwtConfig.audience) {
       return { valid: false, reason: 'Audiencia inválida' };
     }
 

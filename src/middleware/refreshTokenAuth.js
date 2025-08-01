@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const RefreshToken = require('../models/RefreshToken');
 const User = require('../models/User');
 const { logger } = require('../utils/logger');
+const { getAccessTokenConfig, getRefreshTokenConfig } = require('../config/jwt');
 
 /**
  * 🔄 MIDDLEWARE DE AUTENTICACIÓN CON REFRESH TOKENS
@@ -69,9 +70,10 @@ class RefreshTokenAuth {
    */
   static async validateAccessToken(token, req) {
     try {
-      const decodedToken = jwt.verify(token, process.env.JWT_SECRET, {
-        issuer: 'utalk-backend',
-        audience: 'utalk-frontend',
+      const jwtConfig = getAccessTokenConfig();
+      const decodedToken = jwt.verify(token, jwtConfig.secret, {
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
       });
 
       // Verificar que sea un access token
@@ -190,12 +192,13 @@ class RefreshTokenAuth {
 
       // Verificar JWT del refresh token
       try {
+        const refreshConfig = getRefreshTokenConfig();
         jwt.verify(
           refreshToken, 
-          process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+          refreshConfig.secret,
           {
-            issuer: 'utalk-backend',
-            audience: 'utalk-frontend'
+            issuer: refreshConfig.issuer,
+            audience: refreshConfig.audience
           }
         );
       } catch (jwtError) {
@@ -223,6 +226,7 @@ class RefreshTokenAuth {
       }
 
       // Generar nuevo access token
+      const accessConfig = getAccessTokenConfig();
       const newAccessToken = jwt.sign(
         {
           email: user.email,
@@ -231,11 +235,11 @@ class RefreshTokenAuth {
           type: 'access',
           iat: Math.floor(Date.now() / 1000),
         },
-        process.env.JWT_SECRET,
+        accessConfig.secret,
         {
-          expiresIn: process.env.JWT_EXPIRES_IN || '15m',
-          issuer: 'utalk-backend',
-          audience: 'utalk-frontend',
+          expiresIn: accessConfig.expiresIn,
+          issuer: accessConfig.issuer,
+          audience: accessConfig.audience,
         }
       );
 
@@ -274,7 +278,7 @@ class RefreshTokenAuth {
       // Agregar headers con nuevos tokens
       res.set({
         'X-New-Access-Token': newAccessToken,
-        'X-Access-Token-Expires-In': process.env.JWT_EXPIRES_IN || '15m'
+        'X-Access-Token-Expires-In': accessConfig.expiresIn
       });
 
       if (newRefreshToken) {
@@ -373,9 +377,10 @@ class RefreshTokenAuth {
       const token = authHeader.substring(7);
       
       try {
-        const decodedToken = jwt.verify(token, process.env.JWT_SECRET, {
-          issuer: 'utalk-backend',
-          audience: 'utalk-frontend',
+        const jwtConfig = getAccessTokenConfig();
+        const decodedToken = jwt.verify(token, jwtConfig.secret, {
+          issuer: jwtConfig.issuer,
+          audience: jwtConfig.audience,
         });
 
         const now = Math.floor(Date.now() / 1000);

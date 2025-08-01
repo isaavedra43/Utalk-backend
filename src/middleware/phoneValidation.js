@@ -43,12 +43,7 @@ function validatePhoneInBody(fieldName = 'phone') {
       req.body[fieldName] = validation.normalized;
       req.validatedPhone = validation;
 
-      logger.debug('Validación de teléfono exitosa', {
-        field: fieldName,
-        original: phone,
-        normalized: validation.normalized,
-        endpoint: req.originalUrl
-      });
+      // Log removido para reducir ruido en producción
 
       next();
 
@@ -96,12 +91,7 @@ function validatePhoneInQuery(fieldName = 'phone') {
       req.query[fieldName] = validation.normalized;
       req.validatedPhone = validation;
 
-      logger.debug('Validación de teléfono en query exitosa', {
-        field: fieldName,
-        original: phone,
-        normalized: validation.normalized,
-        endpoint: req.originalUrl
-      });
+      // Log removido para reducir ruido en producción
 
       next();
 
@@ -149,12 +139,7 @@ function validatePhoneInParams(fieldName = 'phone') {
       req.params[fieldName] = validation.normalized;
       req.validatedPhone = validation;
 
-      logger.debug('Validación de teléfono en params exitosa', {
-        field: fieldName,
-        original: phone,
-        normalized: validation.normalized,
-        endpoint: req.originalUrl
-      });
+      // Log removido para reducir ruido en producción
 
       next();
 
@@ -209,10 +194,7 @@ function validateMultiplePhonesInBody(phoneFields = ['phone', 'customerPhone', '
 
       req.validatedPhones = validations;
 
-      logger.debug('Validación de múltiples teléfonos exitosa', {
-        fields: Object.keys(validations),
-        endpoint: req.originalUrl
-      });
+      // Log removido para reducir ruido en producción
 
       next();
 
@@ -252,12 +234,7 @@ function validateOptionalPhoneInBody(fieldName = 'phone') {
         req.body[fieldName] = validation.normalized;
         req.validatedPhone = validation;
 
-        logger.debug('Validación de teléfono opcional exitosa', {
-          field: fieldName,
-          original: phone,
-          normalized: validation.normalized,
-          endpoint: req.originalUrl
-        });
+        // Log removido para reducir ruido en producción
       }
 
       next();

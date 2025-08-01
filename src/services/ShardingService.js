@@ -549,11 +549,7 @@ class EnterpriseShardingService {
           });
         }
 
-        logger.debug('Migration batch completed', {
-          category: 'SHARDING_MIGRATION_BATCH',
-          migratedCount,
-          totalCount
-        });
+        // Log removido para reducir ruido en producción
       }
 
       this.metrics.dataMigrated += migratedCount;

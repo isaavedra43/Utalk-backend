@@ -71,10 +71,7 @@ class ProcessManager {
       this.stats.totalListeners++;
       this.stats.activeListeners++;
 
-      logger.debug('Process listener agregado', {
-        event,
-        totalListeners: this.stats.activeListeners
-      });
+      // Log removido para reducir ruido en producción
 
       return wrappedHandler;
 
@@ -100,11 +97,7 @@ class ProcessManager {
         this.stats.activeListeners--;
       }
 
-      logger.debug('Process listener removido', {
-        event,
-        removed,
-        activeListeners: this.stats.activeListeners
-      });
+      // Log removido para reducir ruido en producción
 
       return removed;
 

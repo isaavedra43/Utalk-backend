@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 const { v4: uuidv4 } = require('uuid');
+const { getAccessTokenConfig, getRefreshTokenConfig, validateJwtConfig } = require('../config/jwt');
 
 class AuthController {
   /**
@@ -83,10 +84,9 @@ class AuthController {
       });
 
       // 🔄 GENERAR ACCESS TOKEN (corto - 15 minutos)
-      const jwtSecret = process.env.JWT_SECRET;
-      const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '15m'; // Reducido a 15 minutos
+      const jwtConfig = getAccessTokenConfig();
 
-      if (!jwtSecret) {
+      if (!jwtConfig.secret) {
         req.logger.error('💥 JWT_SECRET no configurado');
         return res.status(500).json({
           error: 'Error de configuración',
@@ -105,10 +105,10 @@ class AuthController {
       };
 
       // ✅ GENERACIÓN DEL ACCESS TOKEN
-      const accessToken = jwt.sign(accessTokenPayload, jwtSecret, { 
-        expiresIn: jwtExpiresIn,
-        issuer: 'utalk-backend',
-        audience: 'utalk-frontend',
+      const accessToken = jwt.sign(accessTokenPayload, jwtConfig.secret, { 
+        expiresIn: jwtConfig.expiresIn,
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
       });
 
       // 🔄 GENERAR REFRESH TOKEN (largo - 7 días)
@@ -273,8 +273,7 @@ class AuthController {
       }
 
       // 🔄 GENERAR NUEVO ACCESS TOKEN
-      const jwtSecret = process.env.JWT_SECRET;
-      const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '15m';
+      const jwtConfig = getAccessTokenConfig();
 
       const newAccessTokenPayload = {
         email: user.email,
@@ -284,10 +283,10 @@ class AuthController {
         iat: Math.floor(Date.now() / 1000),
       };
 
-      const newAccessToken = jwt.sign(newAccessTokenPayload, jwtSecret, {
-        expiresIn: jwtExpiresIn,
-        issuer: 'utalk-backend',
-        audience: 'utalk-frontend',
+      const newAccessToken = jwt.sign(newAccessTokenPayload, jwtConfig.secret, {
+        expiresIn: jwtConfig.expiresIn,
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
       });
 
       // 🔄 ACTUALIZAR REFRESH TOKEN (incrementar contador de usos)
@@ -333,7 +332,7 @@ class AuthController {
         success: true,
         message: 'Token renovado exitosamente',
         accessToken: newAccessToken,
-        expiresIn: jwtExpiresIn,
+        expiresIn: jwtConfig.expiresIn,
         user: user.toJSON()
       };
 
@@ -465,7 +464,8 @@ class AuthController {
       // 🔐 VERIFICAR JWT
       let decodedToken;
       try {
-        decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+        const jwtConfig = getAccessTokenConfig();
+        decodedToken = jwt.verify(token, jwtConfig.secret);
         
         req.logger.auth('token_validated', {
           email: decodedToken.email,

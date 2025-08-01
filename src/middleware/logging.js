@@ -291,14 +291,7 @@ function databaseLoggingMiddleware(req, res, next) {
     },
     
     debug: (operation, data) => {
-      logger.debug('🔍 Debug de operación', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
+      // Log removido para reducir ruido en producción
     }
   };
 
