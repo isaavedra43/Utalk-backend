@@ -12,7 +12,7 @@ const express = require('express');
 const router = express.Router();
 const EnterpriseDashboardController = require('../controllers/DashboardController');
 const { authMiddleware } = require('../middleware/auth');
-const { requireRole } = require('../middleware/authorization');
+const { requireRole } = require('../middleware/auth');
 const logger = require('../utils/logger');
 
 /**

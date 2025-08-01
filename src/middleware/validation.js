@@ -396,11 +396,22 @@ function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+/**
+ * Validar array de mensajes
+ */
+function validateMessagesArrayResponse(messages) {
+  if (!Array.isArray(messages)) {
+    throw new Error('Messages debe ser un array');
+  }
+  return messages.filter(msg => msg && typeof msg === 'object' && msg.id);
+}
+
 module.exports = {
   validateRequest,
   validateFile,
   validateId,
   validatePagination,
   validateSearch,
-  formatFileSize
+  formatFileSize,
+  validateMessagesArrayResponse
 }; 
