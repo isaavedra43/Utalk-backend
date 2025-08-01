@@ -1,135 +1,127 @@
 const express = require('express');
-const { validate, schemas } = require('../utils/validation');
-const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
-const MessageController = require('../controllers/MessageController');
-const logger = require('../utils/logger');
-
 const router = express.Router();
+const MessageController = require('../controllers/MessageController');
+const { validateRequest } = require('../middleware/validation');
+const { validatePhoneInBody, validateMultiplePhonesInBody } = require('../middleware/phoneValidation');
+const Joi = require('joi');
+
+// Validadores específicos para mensajes
+const messageValidators = {
+  validateCreateInConversation: validateRequest({
+    body: Joi.object({
+      content: Joi.string().min(1).max(4096).required(),
+      type: Joi.string().valid('text', 'image', 'audio', 'video', 'document').default('text'),
+      replyToMessageId: Joi.string().uuid().optional(),
+      metadata: Joi.object().optional()
+    })
+  }),
+
+  validateSend: validateRequest({
+    body: Joi.object({
+      conversationId: Joi.string().uuid().optional(),
+      to: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).optional(),
+      content: Joi.string().min(1).max(4096).required(),
+      type: Joi.string().valid('text', 'image', 'audio', 'video', 'document').default('text'),
+      attachments: Joi.array().items(Joi.object({
+        url: Joi.string().uri().required(),
+        type: Joi.string().required(),
+        name: Joi.string().optional()
+      })).max(10).optional()
+    })
+  }),
+
+  validateMarkRead: validateRequest({
+    body: Joi.object({
+      readAt: Joi.date().iso().default(() => new Date().toISOString())
+    })
+  }),
+
+  validateWebhook: validateRequest({
+    body: Joi.object({
+      From: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      To: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      Body: Joi.string().optional(),
+      MessageSid: Joi.string().required(),
+      NumMedia: Joi.string().optional(),
+      MediaUrl0: Joi.string().uri().optional(),
+      MediaContentType0: Joi.string().optional()
+    })
+  })
+};
+const { validateId } = require('../middleware/validation');
 
 /**
- * @route   POST /api/messages/send
- * @desc    Enviar un mensaje de WhatsApp saliente (EMAIL-FIRST)
- * @access  Private (Admin, Agent only)
- * @body    { conversationId: (UUID), content: "..." }
+ * @route GET /api/conversations/:conversationId/messages
+ * @desc Listar mensajes de una conversación
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/conversations/:conversationId/messages',
+  authMiddleware,
+  requireReadAccess,
+  validateId('conversationId'),
+  MessageController.getByConversation
+);
+
+/**
+ * @route POST /api/conversations/:conversationId/messages
+ * @desc Crear mensaje en conversación
+ * @access Private (Agent, Admin)
+ */
+router.post('/conversations/:conversationId/messages',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('conversationId'),
+  messageValidators.validateCreateInConversation,
+  MessageController.createMessageInConversation
+);
+
+/**
+ * @route PUT /api/conversations/:conversationId/messages/:messageId/read
+ * @desc Marcar mensaje como leído
+ * @access Private (Agent, Admin)
+ */
+router.put('/conversations/:conversationId/messages/:messageId/read',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('conversationId'),
+  validateId('messageId'),
+  messageValidators.validateMarkRead,
+  MessageController.markAsRead
+);
+
+/**
+ * @route DELETE /api/conversations/:conversationId/messages/:messageId
+ * @desc Eliminar mensaje
+ * @access Private (Agent, Admin)
+ */
+router.delete('/conversations/:conversationId/messages/:messageId',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('conversationId'),
+  validateId('messageId'),
+  MessageController.delete
+);
+
+/**
+ * @route POST /api/messages/send
+ * @desc Enviar mensaje independiente
+ * @access Private (Agent, Admin)
  */
 router.post('/send',
   authMiddleware,
   requireWriteAccess,
-  validate(schemas.message.send),
-  MessageController.sendMessage,
+  messageValidators.validateSend,
+  MessageController.sendMessage
 );
 
 /**
  * @route POST /api/messages/webhook
- * @desc Webhook PÚBLICO para recibir mensajes de Twilio WhatsApp
- * @access Public (SIN autenticación - Twilio accede directamente)
+ * @desc Webhook de Twilio para mensajes entrantes
+ * @access Public (Twilio)
  */
-router.post('/webhook', async (req, res) => {
-  const startTime = Date.now();
-  
-  try {
-    // RAILWAY LOGGING: Log visible en Railway console
-    console.log('🔗 WEBHOOK TWILIO - Mensaje recibido', {
-      timestamp: new Date().toISOString(),
-      from: req.body.From,
-      to: req.body.To,
-      messageSid: req.body.MessageSid,
-      userAgent: req.headers['user-agent'],
-      contentType: req.headers['content-type'],
-    });
-
-    // Log detallado para debugging
-    logger.info('🔗 Webhook Twilio recibido', {
-      method: req.method,
-      headers: {
-        'content-type': req.headers['content-type'],
-        'x-twilio-signature': req.headers['x-twilio-signature'] ? 'presente' : 'ausente',
-        'user-agent': req.headers['user-agent'],
-      },
-      body: req.body,
-      timestamp: new Date().toISOString(),
-    });
-
-    // VALIDACIÓN FLEXIBLE CON JOI: Usar schema preparado para Twilio
-    const webhookData = req.body;
-
-    // Validación con Joi (flexible para campos adicionales de Twilio)
-    const { error, value } = schemas.message.webhook.validate(webhookData, {
-      allowUnknown: true, // Permitir campos no definidos
-      stripUnknown: false, // No eliminar campos extra
-      abortEarly: false, // Obtener todos los errores
-    });
-
-    if (error) {
-      // ⚠️ VALIDACIÓN FALLÓ: Log error pero responder 200 OK
-      console.log('⚠️ WEBHOOK - Validación falló pero procesando', {
-        errors: error.details.map(d => ({ field: d.path, message: d.message })),
-        receivedFields: Object.keys(webhookData),
-      });
-
-      logger.warn('⚠️ Webhook validación falló pero respondiendo 200 OK', {
-        validationErrors: error.details,
-        receivedFields: Object.keys(webhookData),
-        webhookData,
-      });
-
-      // IMPORTANTE: Responder 200 incluso con errores de validación
-      return res.status(200).json({
-        status: 'validation_warning',
-        message: 'Webhook recibido con advertencias de validación',
-        warnings: error.details.map(d => d.message),
-        processTime: Date.now() - startTime,
-      });
-    }
-
-    // VALIDACIÓN EXITOSA: Procesar con datos validados
-    console.log('WEBHOOK - Validación exitosa, procesando mensaje', {
-      from: value.From,
-      to: value.To,
-      messageSid: value.MessageSid,
-      hasBody: !!value.Body,
-      numMedia: value.NumMedia || 0,
-    });
-
-    // Llamar al controlador para procesar el mensaje
-    await MessageController.handleWebhookSafe(req, res);
-  } catch (error) {
-    // ERROR CRÍTICO: Log visible en Railway + responder 200 OK
-    console.error('WEBHOOK - Error crítico (respondiendo 200 OK):', {
-      error: error.message,
-      stack: error.stack.split('\n')[0], // Solo primera línea del stack
-      webhookData: req.body,
-      processTime: Date.now() - startTime,
-    });
-
-    logger.error('Error crítico en webhook pero respondiendo 200 OK', {
-      error: error.message,
-      stack: error.stack,
-      webhookData: req.body,
-      processTime: Date.now() - startTime,
-    });
-
-    // RESPONDER SIEMPRE 200 OK A TWILIO
-    res.status(200).json({
-      status: 'error_handled',
-      message: 'Error procesado, reintento no requerido',
-      error: error.message,
-      processTime: Date.now() - startTime,
-    });
-  }
-});
-
-/**
- * @route GET /api/messages/webhook
- * @desc Verificación del webhook para Twilio (webhook verification)
- * @access Public
- */
-router.get('/webhook', (req, res) => {
-  console.log('🔍 WEBHOOK - Verificación Twilio');
-  logger.info('🔍 Verificación webhook Twilio', { query: req.query });
-
-  // Respuesta simple para verificación
-  res.status(200).send('Webhook endpoint activo y funcionando');
-});
+router.post('/webhook',
+  messageValidators.validateWebhook,
+  MessageController.webhook
+);
 
 module.exports = router;

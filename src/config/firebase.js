@@ -1,81 +1,138 @@
-const admin = require('firebase-admin');
-require('dotenv').config();
+/**
+ * 🔥 CONFIGURACIÓN FIREBASE CON MANEJO ROBUSTO DE ERRORES
+ */
 
-let firestore;
-let FieldValue;
-let Timestamp;
+const admin = require('firebase-admin');
+const logger = require('../utils/logger');
+
+let firestore = null;
+let storage = null;
 
 try {
-  const serviceAccount = {
-    type: process.env.FIREBASE_TYPE || 'service_account',
-    project_id: process.env.FIREBASE_PROJECT_ID,
-    private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    client_id: process.env.FIREBASE_CLIENT_ID,
-    auth_uri: process.env.FIREBASE_AUTH_URI || 'https://accounts.google.com/o/oauth2/auth',
-    token_uri: process.env.FIREBASE_TOKEN_URI || 'https://oauth2.googleapis.com/token',
-    auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL || 'https://www.googleapis.com/oauth2/v1/certs',
-    client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
-  };
+  logger.info('🔥 FIREBASE - Iniciando configuración...', {
+    category: 'FIREBASE_INIT',
+    environment: process.env.NODE_ENV,
+    serviceAccountConfigured: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+  });
 
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET
-    });
+  // Validar configuración
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
   }
 
-  firestore = admin.firestore();
-  FieldValue = admin.firestore.FieldValue;
-  Timestamp = admin.firestore.Timestamp;
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  } catch (parseError) {
+    logger.error('FIREBASE - Error parseando service account key', {
+      category: 'FIREBASE_CONFIG_ERROR',
+      error: parseError.message,
+      severity: 'CRITICAL'
+    });
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY tiene formato JSON inválido');
+  }
 
-  console.log('Firebase Admin SDK initialized successfully');
+  // Validar campos requeridos del service account
+  const requiredFields = ['project_id', 'private_key', 'client_email'];
+  const missingFields = requiredFields.filter(field => !serviceAccount[field]);
+  
+  if (missingFields.length > 0) {
+    logger.error('FIREBASE - Campos faltantes en service account', {
+      category: 'FIREBASE_CONFIG_ERROR',
+      missingFields,
+      severity: 'CRITICAL'
+    });
+    throw new Error(`Campos faltantes en service account: ${missingFields.join(', ')}`);
+  }
+
+  // Inicializar Firebase Admin SDK
+  const app = admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: serviceAccount.project_id,
+    storageBucket: `${serviceAccount.project_id}.appspot.com`
+  });
+
+  // Inicializar servicios
+  firestore = admin.firestore();
+  storage = admin.storage();
+
+  // Configurar Firestore settings
+  firestore.settings({
+    timestampsInSnapshots: true,
+    ignoreUndefinedProperties: true
+  });
+
+  logger.info('🔥 FIREBASE - Admin SDK inicializado exitosamente', {
+    category: 'FIREBASE_SUCCESS',
+    projectId: serviceAccount.project_id,
+    firestoreAvailable: !!firestore,
+    storageAvailable: !!storage,
+    appName: app.name
+  });
+
+  // Test de conectividad
+  logger.debug('🔥 FIREBASE - Realizando test de conectividad...', {
+    category: 'FIREBASE_CONNECTIVITY_TEST'
+  });
+
+  // Test async de Firestore
+  firestore.collection('_health_check').doc('test').set({ 
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    test: true 
+  }, { merge: true })
+    .then(() => {
+      logger.info('FIREBASE - Test de conectividad Firestore exitoso', {
+        category: 'FIREBASE_CONNECTIVITY',
+        service: 'firestore',
+        testSuccessful: true
+      });
+    })
+    .catch((connectError) => {
+      logger.warn('FIREBASE - Test de conectividad Firestore falló', {
+        category: 'FIREBASE_CONNECTIVITY',
+        service: 'firestore',
+        error: connectError.message,
+        severity: 'MEDIUM'
+      });
+    });
 
 } catch (error) {
-  console.error('Error initializing Firebase:', error.message);
-  
-  // Create mock for development
-  firestore = {
-    collection: () => ({
-      limit: () => ({
-        get: () => Promise.reject(new Error('Firestore not initialized')),
-      }),
-      add: () => Promise.reject(new Error('Firestore not initialized')),
-      doc: () => ({
-        get: () => Promise.reject(new Error('Firestore not initialized')),
-        set: () => Promise.reject(new Error('Firestore not initialized')),
-        update: () => Promise.reject(new Error('Firestore not initialized')),
-        delete: () => Promise.reject(new Error('Firestore not initialized')),
-      }),
-      where: () => ({
-        limit: () => ({
-          get: () => Promise.reject(new Error('Firestore not initialized')),
-        }),
-        where: () => ({
-          limit: () => ({
-            get: () => Promise.reject(new Error('Firestore not initialized')),
-          }),
-        }),
-      }),
-    }),
+  logger.error('🔥 FIREBASE - Error crítico en inicialización', {
+    category: 'FIREBASE_CRITICAL_ERROR',
+    error: error.message,
+    stack: error.stack,
+    severity: 'CRITICAL',
+    requiresAttention: true,
+    impact: 'Aplicación no puede continuar sin Firebase'
+  });
+
+  // Análisis específico del error
+  const errorAnalysis = {
+    isServiceAccountIssue: error.message.includes('FIREBASE_SERVICE_ACCOUNT_KEY'),
+    isJSONParseIssue: error.message.includes('JSON'),
+    isMissingFieldsIssue: error.message.includes('Campos faltantes'),
+    isCredentialIssue: error.message.includes('credential'),
+    isNetworkIssue: error.message.includes('network') || error.message.includes('timeout')
   };
 
-  FieldValue = {
-    serverTimestamp: () => new Date(),
-    arrayUnion: (...elements) => elements,
-    arrayRemove: (...elements) => elements,
-  };
+  logger.error('FIREBASE - Análisis detallado del error', {
+    category: 'FIREBASE_ERROR_ANALYSIS',
+    ...errorAnalysis,
+    recommendations: {
+      serviceAccount: errorAnalysis.isServiceAccountIssue ? 'Configurar FIREBASE_SERVICE_ACCOUNT_KEY' : null,
+      jsonFormat: errorAnalysis.isJSONParseIssue ? 'Verificar formato JSON válido' : null,
+      missingFields: errorAnalysis.isMissingFieldsIssue ? 'Verificar service account completo' : null,
+      credentials: errorAnalysis.isCredentialIssue ? 'Regenerar service account desde Firebase Console' : null,
+      network: errorAnalysis.isNetworkIssue ? 'Verificar conectividad a Firebase' : null
+    }
+  });
 
-  Timestamp = {
-    now: () => new Date(),
-    fromDate: (date) => date,
-  };
+  // Firebase es crítico, no podemos crear mocks útiles
+  throw error;
 }
 
 module.exports = {
   firestore,
-  FieldValue,
-  Timestamp,
+  storage,
   admin
 };

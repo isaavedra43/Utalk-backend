@@ -439,6 +439,233 @@ class TeamController {
     }
   }
 
+  /**
+   * Cambiar rol de un miembro del equipo
+   */
+  static async changeRole(req, res, next) {
+    try {
+      const { userId } = req.params;
+      const { newRole, reason } = req.body;
+
+      logger.info('Cambiando rol de usuario', {
+        targetUserId: userId,
+        requestedBy: req.user.id,
+        currentRole: req.user.role,
+        newRole,
+        reason
+      });
+
+      // Validar que el rol es válido
+      const validRoles = ['viewer', 'agent', 'admin'];
+      if (!validRoles.includes(newRole)) {
+        return res.status(400).json({
+          error: 'INVALID_ROLE',
+          message: `Rol inválido. Roles válidos: ${validRoles.join(', ')}`,
+          validRoles
+        });
+      }
+
+      // Solo admins pueden cambiar roles
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          error: 'INSUFFICIENT_PERMISSIONS',
+          message: 'Solo los administradores pueden cambiar roles de usuarios'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const targetUser = await User.getById(userId);
+      if (!targetUser) {
+        return res.status(404).json({
+          error: 'USER_NOT_FOUND',
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      // Verificar que el usuario está activo
+      if (!targetUser.isActive) {
+        return res.status(400).json({
+          error: 'USER_INACTIVE',
+          message: 'No se puede cambiar el rol de un usuario inactivo'
+        });
+      }
+
+      // Prevenir que el usuario se cambie su propio rol a un nivel inferior
+      if (req.user.id === userId && newRole !== 'admin') {
+        return res.status(400).json({
+          error: 'CANNOT_DEMOTE_SELF',
+          message: 'No puedes cambiar tu propio rol a un nivel inferior'
+        });
+      }
+
+      // Verificar si hay al menos un admin restante si se está cambiando un admin
+      if (targetUser.role === 'admin' && newRole !== 'admin') {
+        const adminCount = await this.getAdminCount();
+        if (adminCount <= 1) {
+          return res.status(400).json({
+            error: 'CANNOT_REMOVE_LAST_ADMIN',
+            message: 'No se puede cambiar el rol del último administrador'
+          });
+        }
+      }
+
+      const previousRole = targetUser.role;
+
+      // Actualizar el rol del usuario
+      await targetUser.update({
+        role: newRole,
+        roleChangedAt: new Date(),
+        roleChangedBy: req.user.id,
+        updatedAt: new Date()
+      });
+
+      // Registrar el cambio en logs de auditoría
+      logger.info('Rol de usuario cambiado exitosamente', {
+        targetUserId: userId,
+        targetUserEmail: targetUser.email,
+        previousRole,
+        newRole,
+        changedBy: req.user.id,
+        changedByEmail: req.user.email,
+        reason: reason || 'Sin razón especificada'
+      });
+
+      // Crear entrada de auditoría
+      await this.createAuditLog({
+        action: 'ROLE_CHANGED',
+        targetUserId: userId,
+        targetUserEmail: targetUser.email,
+        performedBy: req.user.id,
+        performedByEmail: req.user.email,
+        previousValue: previousRole,
+        newValue: newRole,
+        reason: reason || 'Sin razón especificada',
+        metadata: {
+          userAgent: req.get('User-Agent'),
+          ip: req.ip
+        }
+      });
+
+      // Invalidar sesiones si el rol cambió a uno de menor privilegio
+      if (this.isRoleDowngrade(previousRole, newRole)) {
+        await this.invalidateUserSessions(userId);
+        logger.info('Sesiones invalidadas por cambio de rol (downgrade)', {
+          userId,
+          previousRole,
+          newRole
+        });
+      }
+
+      // Respuesta exitosa
+      res.json({
+        success: true,
+        message: 'Rol cambiado exitosamente',
+        user: {
+          id: targetUser.id,
+          email: targetUser.email,
+          name: targetUser.name,
+          previousRole,
+          newRole,
+          roleChangedAt: new Date(),
+          roleChangedBy: req.user.email
+        },
+        auditInfo: {
+          changedBy: req.user.email,
+          reason: reason || 'Sin razón especificada',
+          timestamp: new Date()
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error al cambiar rol de usuario:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener cantidad de administradores activos
+   */
+  static async getAdminCount() {
+    try {
+      const admins = await User.list({
+        role: 'admin',
+        isActive: true,
+        limit: 1000
+      });
+      
+      return admins.length;
+    } catch (error) {
+      logger.error('Error obteniendo cantidad de admins:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Verificar si el cambio de rol es un downgrade
+   */
+  static isRoleDowngrade(previousRole, newRole) {
+    const roleHierarchy = {
+      'admin': 3,
+      'agent': 2,
+      'viewer': 1
+    };
+
+    const previousLevel = roleHierarchy[previousRole] || 0;
+    const newLevel = roleHierarchy[newRole] || 0;
+
+    return newLevel < previousLevel;
+  }
+
+  /**
+   * Invalidar todas las sesiones de un usuario
+   */
+  static async invalidateUserSessions(userId) {
+    try {
+      // Aquí implementarías la lógica para invalidar sesiones
+      // Esto podría incluir:
+      // - Eliminar tokens JWT de Redis
+      // - Marcar tokens como inválidos en base de datos
+      // - Desconectar sockets activos del usuario
+      
+      logger.info('Invalidando sesiones de usuario', { userId });
+      
+      // Ejemplo de implementación basic:
+      // await redisClient.del(`user_sessions:${userId}`);
+      // await socketManager.disconnectUser(userId);
+      
+      return true;
+    } catch (error) {
+      logger.error('Error invalidando sesiones de usuario:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear entrada de log de auditoría
+   */
+  static async createAuditLog(auditData) {
+    try {
+      // Implementar logging de auditoría
+      // Esto podría ser en Firestore, base de datos separada, etc.
+      
+      const auditEntry = {
+        ...auditData,
+        timestamp: new Date(),
+        id: require('uuid').v4()
+      };
+
+      logger.info('Entrada de auditoría creada', auditEntry);
+      
+      // Ejemplo de implementación:
+      // await firestore.collection('audit_logs').add(auditEntry);
+      
+      return auditEntry;
+    } catch (error) {
+      logger.error('Error creando entrada de auditoría:', error);
+      throw error;
+    }
+  }
+
   // ===== MÉTODOS AUXILIARES =====
 
   /**

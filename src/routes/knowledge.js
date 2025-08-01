@@ -1,103 +1,182 @@
 const express = require('express');
-const { validate, schemas } = require('../utils/validation');
-const { authMiddleware, requireAdmin, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
-const KnowledgeController = require('../controllers/KnowledgeController');
-
 const router = express.Router();
+const KnowledgeController = require('../controllers/KnowledgeController');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validation');
+const Joi = require('joi');
+
+// Validadores específicos para knowledge
+const knowledgeValidators = {
+  validateCreate: validateRequest({
+    body: Joi.object({
+      title: Joi.string().min(1).max(200).required(),
+      content: Joi.string().min(1).max(50000).required(),
+      category: Joi.string().max(50).pattern(/^[a-zA-Z0-9_-]+$/).default('general'),
+      tags: Joi.array().items(Joi.string().max(50)).max(20).default([]),
+      type: Joi.string().valid('article', 'faq', 'video', 'document').default('article'),
+      isPublic: Joi.boolean().default(true),
+      isPinned: Joi.boolean().default(false),
+      fileUrl: Joi.string().uri().optional(),
+      fileName: Joi.string().max(255).optional()
+    })
+  }),
+
+  validateUpdate: validateRequest({
+    body: Joi.object({
+      title: Joi.string().min(1).max(200),
+      content: Joi.string().min(1).max(50000),
+      category: Joi.string().max(50).pattern(/^[a-zA-Z0-9_-]+$/),
+      tags: Joi.array().items(Joi.string().max(50)).max(20),
+      type: Joi.string().valid('article', 'faq', 'video', 'document'),
+      isPublic: Joi.boolean(),
+      isPinned: Joi.boolean(),
+      fileUrl: Joi.string().uri(),
+      fileName: Joi.string().max(255)
+    })
+  }),
+
+  validateSearch: validateRequest({
+    query: Joi.object({
+      q: Joi.string().min(1).max(200).required(),
+      category: Joi.string().max(50).pattern(/^[a-zA-Z0-9_-]+$/),
+      type: Joi.string().valid('article', 'faq', 'video', 'document'),
+      limit: Joi.number().min(1).max(100).default(20)
+    })
+  }),
+
+  validateVote: validateRequest({
+    body: Joi.object({
+      helpful: Joi.boolean().required()
+    })
+  }),
+
+  validateRate: validateRequest({
+    body: Joi.object({
+      rating: Joi.number().min(1).max(5).required()
+    })
+  })
+};
 
 /**
  * @route GET /api/knowledge
- * @desc Listar documentos de la base de conocimiento
+ * @desc Listar artículos de conocimiento
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
   authMiddleware,
   requireReadAccess,
-  KnowledgeController.listKnowledge,
-);
-
-/**
- * @route POST /api/knowledge
- * @desc Crear nuevo documento
- * @access Private (Agent, Admin)
- */
-router.post('/',
-  authMiddleware,
-  requireWriteAccess,
-  KnowledgeController.uploadMiddleware(),
-  validate(schemas.knowledge.create),
-  KnowledgeController.createKnowledge,
+  KnowledgeController.list
 );
 
 /**
  * @route GET /api/knowledge/search
- * @desc Buscar en la base de conocimiento
+ * @desc Buscar en base de conocimiento
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/search',
   authMiddleware,
   requireReadAccess,
-  validate(schemas.knowledge.search, 'query'),
-  KnowledgeController.searchKnowledge,
+  knowledgeValidators.validateSearch,
+  KnowledgeController.search
 );
 
 /**
  * @route GET /api/knowledge/:knowledgeId
- * @desc Obtener documento específico
+ * @desc Obtener artículo por ID
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/:knowledgeId',
   authMiddleware,
   requireReadAccess,
-  KnowledgeController.getKnowledge,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  KnowledgeController.getById
+);
+
+/**
+ * @route POST /api/knowledge
+ * @desc Crear nuevo artículo
+ * @access Private (Admin)
+ */
+router.post('/',
+  authMiddleware,
+  requireWriteAccess,
+  knowledgeValidators.validateCreate,
+  KnowledgeController.create
 );
 
 /**
  * @route PUT /api/knowledge/:knowledgeId
- * @desc Actualizar documento
- * @access Private (Agent, Admin)
+ * @desc Actualizar artículo
+ * @access Private (Admin)
  */
 router.put('/:knowledgeId',
   authMiddleware,
   requireWriteAccess,
-  KnowledgeController.uploadMiddleware(),
-  validate(schemas.knowledge.update),
-  KnowledgeController.updateKnowledge,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  knowledgeValidators.validateUpdate,
+  KnowledgeController.update
 );
 
 /**
  * @route DELETE /api/knowledge/:knowledgeId
- * @desc Eliminar documento
- * @access Private (Agent, Admin)
+ * @desc Eliminar artículo
+ * @access Private (Admin)
  */
 router.delete('/:knowledgeId',
   authMiddleware,
   requireWriteAccess,
-  KnowledgeController.deleteKnowledge,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  KnowledgeController.delete
 );
 
 /**
  * @route PUT /api/knowledge/:knowledgeId/publish
- * @desc Publicar documento
+ * @desc Publicar artículo
  * @access Private (Admin)
  */
 router.put('/:knowledgeId/publish',
   authMiddleware,
-  requireAdmin,
-  KnowledgeController.publishKnowledge,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  KnowledgeController.publish
 );
 
 /**
  * @route PUT /api/knowledge/:knowledgeId/unpublish
- * @desc Despublicar documento
+ * @desc Despublicar artículo
  * @access Private (Admin)
  */
 router.put('/:knowledgeId/unpublish',
   authMiddleware,
-  requireAdmin,
-  KnowledgeController.unpublishKnowledge,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  KnowledgeController.unpublish
 );
 
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const knowledgeRoutes = require('./routes/knowledge');
+/**
+ * @route POST /api/knowledge/:knowledgeId/vote
+ * @desc Votar artículo
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.post('/:knowledgeId/vote',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  knowledgeValidators.validateVote,
+  KnowledgeController.vote
+);
+
+/**
+ * @route POST /api/knowledge/:knowledgeId/rate
+ * @desc Calificar artículo
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.post('/:knowledgeId/rate',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
+  knowledgeValidators.validateRate,
+  KnowledgeController.rate
+);
+
 module.exports = router;

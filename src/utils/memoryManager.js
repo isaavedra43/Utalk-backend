@@ -1,0 +1,634 @@
+/**
+ * 🧠 GESTOR CENTRALIZADO DE MEMORIA
+ * 
+ * Previene fugas de memoria mediante:
+ * - Límites máximos configurables
+ * - TTL (Time To Live) automático
+ * - Limpieza proactiva
+ * - Monitoreo y alertas
+ * - Compatibilidad con múltiples instancias
+ * 
+ * @version 1.0.0
+ * @author Memory Management Team
+ */
+
+const EventEmitter = require('events');
+const { performance } = require('perf_hooks');
+const logger = require('./logger');
+
+class AdvancedMemoryManager extends EventEmitter {
+  constructor(options = {}) {
+    super();
+    
+    // Configuración con valores seguros por defecto
+    this.config = {
+      // Límites globales
+      maxMapsPerInstance: options.maxMapsPerInstance || 20,
+      maxEntriesPerMap: options.maxEntriesPerMap || 10000,
+      defaultTTL: options.defaultTTL || 30 * 60 * 1000, // 30 minutos
+      
+      // Configuración de limpieza
+      cleanupInterval: options.cleanupInterval || 5 * 60 * 1000, // 5 minutos
+      memoryWarningThreshold: options.memoryWarningThreshold || 100 * 1024 * 1024, // 100MB
+      memoryCriticalThreshold: options.memoryCriticalThreshold || 200 * 1024 * 1024, // 200MB
+      
+      // Configuración para producción
+      enableMetrics: options.enableMetrics !== false,
+      enableAlerts: options.enableAlerts !== false,
+      logLevel: options.logLevel || 'info'
+    };
+    
+    // Storage de mapas gestionados
+    this.managedMaps = new Map(); // name -> ManagedMap instance
+    this.metrics = {
+      totalMaps: 0,
+      totalEntries: 0,
+      memoryUsage: 0,
+      cleanupCycles: 0,
+      alertsTriggered: 0,
+      lastCleanup: null
+    };
+    
+    // Timers para limpieza automática
+    this.cleanupTimer = null;
+    this.metricsTimer = null;
+    
+    this.initialize();
+  }
+  
+  /**
+   * 🚀 INICIALIZAR GESTOR DE MEMORIA
+   */
+  initialize() {
+    // Configurar limpieza automática
+    this.cleanupTimer = setInterval(() => {
+      this.performGlobalCleanup();
+    }, this.config.cleanupInterval);
+    
+    // Configurar monitoreo de métricas
+    if (this.config.enableMetrics) {
+      this.metricsTimer = setInterval(() => {
+        this.updateMetrics();
+        this.checkMemoryThresholds();
+      }, 60000); // Cada minuto
+    }
+    
+    // Configurar graceful shutdown
+    this.setupGracefulShutdown();
+    
+    logger.info('🧠 AdvancedMemoryManager inicializado', {
+      maxMapsPerInstance: this.config.maxMapsPerInstance,
+      maxEntriesPerMap: this.config.maxEntriesPerMap,
+      defaultTTL: this.config.defaultTTL,
+      cleanupInterval: this.config.cleanupInterval
+    });
+  }
+  
+  /**
+   * 🗺️ CREAR MAPA GESTIONADO
+   */
+  createManagedMap(name, options = {}) {
+    if (this.managedMaps.has(name)) {
+      logger.warn(`ManagedMap '${name}' ya existe, retornando existente`);
+      return this.managedMaps.get(name);
+    }
+    
+    if (this.managedMaps.size >= this.config.maxMapsPerInstance) {
+      const error = new Error(`Límite de mapas alcanzado: ${this.config.maxMapsPerInstance}`);
+      logger.error('Límite de mapas alcanzado', {
+        name,
+        currentMaps: this.managedMaps.size,
+        maxMaps: this.config.maxMapsPerInstance
+      });
+      throw error;
+    }
+    
+    const managedMap = new ManagedMap(name, {
+      maxEntries: options.maxEntries || this.config.maxEntriesPerMap,
+      defaultTTL: options.defaultTTL || this.config.defaultTTL,
+      onEviction: options.onEviction || this.defaultEvictionHandler.bind(this),
+      onWarning: options.onWarning || this.defaultWarningHandler.bind(this),
+      enableStats: options.enableStats !== false
+    });
+    
+    this.managedMaps.set(name, managedMap);
+    this.updateMetrics();
+    
+    logger.info(`ManagedMap '${name}' creado`, {
+      maxEntries: managedMap.options.maxEntries,
+      defaultTTL: managedMap.options.defaultTTL,
+      totalMaps: this.managedMaps.size
+    });
+    
+    return managedMap;
+  }
+  
+  /**
+   * 🗑️ ELIMINAR MAPA GESTIONADO
+   */
+  destroyManagedMap(name) {
+    const managedMap = this.managedMaps.get(name);
+    if (!managedMap) {
+      logger.warn(`ManagedMap '${name}' no existe`);
+      return false;
+    }
+    
+    managedMap.destroy();
+    this.managedMaps.delete(name);
+    this.updateMetrics();
+    
+    logger.info(`ManagedMap '${name}' destruido`, {
+      totalMaps: this.managedMaps.size
+    });
+    
+    return true;
+  }
+  
+  /**
+   * 🧹 LIMPIEZA GLOBAL AUTOMÁTICA
+   */
+  performGlobalCleanup() {
+    const startTime = performance.now();
+    let totalCleaned = 0;
+    
+    for (const [name, managedMap] of this.managedMaps.entries()) {
+      try {
+        const cleaned = managedMap.cleanup();
+        totalCleaned += cleaned;
+        
+        if (cleaned > 0) {
+          logger.debug(`Limpieza en '${name}': ${cleaned} entradas eliminadas`);
+        }
+      } catch (error) {
+        logger.error(`Error en limpieza de '${name}'`, {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    }
+    
+    const duration = performance.now() - startTime;
+    this.metrics.cleanupCycles++;
+    this.metrics.lastCleanup = new Date().toISOString();
+    
+    if (totalCleaned > 0 || duration > 100) {
+      logger.info('Limpieza global completada', {
+        totalCleaned,
+        duration: `${duration.toFixed(2)}ms`,
+        totalMaps: this.managedMaps.size,
+        cycle: this.metrics.cleanupCycles
+      });
+    }
+    
+    this.emit('cleanup-completed', {
+      totalCleaned,
+      duration,
+      totalMaps: this.managedMaps.size
+    });
+  }
+  
+  /**
+   * 📊 ACTUALIZAR MÉTRICAS
+   */
+  updateMetrics() {
+    let totalEntries = 0;
+    let estimatedMemory = 0;
+    
+    for (const managedMap of this.managedMaps.values()) {
+      totalEntries += managedMap.size;
+      estimatedMemory += managedMap.getEstimatedMemoryUsage();
+    }
+    
+    this.metrics.totalMaps = this.managedMaps.size;
+    this.metrics.totalEntries = totalEntries;
+    this.metrics.memoryUsage = estimatedMemory;
+    
+    // Emitir evento de métricas
+    this.emit('metrics-updated', { ...this.metrics });
+  }
+  
+  /**
+   * ⚠️ VERIFICAR UMBRALES DE MEMORIA
+   */
+  checkMemoryThresholds() {
+    const { memoryUsage } = this.metrics;
+    
+    if (memoryUsage > this.config.memoryCriticalThreshold) {
+      this.triggerCriticalAlert('CRITICAL_MEMORY_USAGE', {
+        current: memoryUsage,
+        threshold: this.config.memoryCriticalThreshold,
+        ratio: (memoryUsage / this.config.memoryCriticalThreshold).toFixed(2)
+      });
+    } else if (memoryUsage > this.config.memoryWarningThreshold) {
+      this.triggerWarningAlert('HIGH_MEMORY_USAGE', {
+        current: memoryUsage,
+        threshold: this.config.memoryWarningThreshold,
+        ratio: (memoryUsage / this.config.memoryWarningThreshold).toFixed(2)
+      });
+    }
+  }
+  
+  /**
+   * 🚨 MANEJAR ALERTAS CRÍTICAS
+   */
+  triggerCriticalAlert(type, data) {
+    this.metrics.alertsTriggered++;
+    
+    logger.error(`ALERTA CRÍTICA: ${type}`, {
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+      severity: 'CRITICAL'
+    });
+    
+    // Forzar limpieza inmediata
+    this.performGlobalCleanup();
+    
+    this.emit('critical-alert', { type, data });
+  }
+  
+  /**
+   * ⚠️ MANEJAR ALERTAS DE ADVERTENCIA
+   */
+  triggerWarningAlert(type, data) {
+    logger.warn(`ALERTA: ${type}`, {
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+      severity: 'WARNING'
+    });
+    
+    this.emit('warning-alert', { type, data });
+  }
+  
+  /**
+   * 🎯 HANDLERS POR DEFECTO
+   */
+  defaultEvictionHandler(key, value, reason, mapName) {
+    logger.debug(`Entrada eliminada de '${mapName}'`, {
+      key: typeof key === 'string' ? key.substring(0, 50) : key,
+      reason,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  defaultWarningHandler(message, data, mapName) {
+    logger.warn(`Advertencia en '${mapName}': ${message}`, data);
+  }
+  
+  /**
+   * 🛡️ CONFIGURAR GRACEFUL SHUTDOWN
+   */
+  setupGracefulShutdown() {
+    const shutdown = () => {
+      logger.info('Iniciando graceful shutdown de MemoryManager...');
+      
+      if (this.cleanupTimer) {
+        clearInterval(this.cleanupTimer);
+        this.cleanupTimer = null;
+      }
+      
+      if (this.metricsTimer) {
+        clearInterval(this.metricsTimer);
+        this.metricsTimer = null;
+      }
+      
+      // Limpiar todos los mapas
+      for (const [name, managedMap] of this.managedMaps.entries()) {
+        try {
+          managedMap.destroy();
+          logger.debug(`ManagedMap '${name}' destruido en shutdown`);
+        } catch (error) {
+          logger.error(`Error destruyendo '${name}' en shutdown`, error);
+        }
+      }
+      
+      this.managedMaps.clear();
+      
+      logger.info('MemoryManager shutdown completado');
+    };
+    
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+    process.on('uncaughtException', (error) => {
+      logger.error('UncaughtException en MemoryManager', {
+        error: error.message,
+        stack: error.stack
+      });
+      shutdown();
+    });
+  }
+  
+  /**
+   * 📊 OBTENER ESTADÍSTICAS COMPLETAS
+   */
+  getStats() {
+    const mapStats = {};
+    
+    for (const [name, managedMap] of this.managedMaps.entries()) {
+      mapStats[name] = managedMap.getStats();
+    }
+    
+    return {
+      global: {
+        ...this.metrics,
+        uptime: process.uptime(),
+        nodeMemory: process.memoryUsage(),
+        timestamp: new Date().toISOString()
+      },
+      maps: mapStats,
+      config: {
+        maxMapsPerInstance: this.config.maxMapsPerInstance,
+        maxEntriesPerMap: this.config.maxEntriesPerMap,
+        defaultTTL: this.config.defaultTTL,
+        cleanupInterval: this.config.cleanupInterval
+      }
+    };
+  }
+  
+  /**
+   * 🔍 OBTENER MAPA POR NOMBRE
+   */
+  getManagedMap(name) {
+    return this.managedMaps.get(name);
+  }
+  
+  /**
+   * 📋 LISTAR MAPAS GESTIONADOS
+   */
+  listManagedMaps() {
+    return Array.from(this.managedMaps.keys());
+  }
+}
+
+/**
+ * 🗺️ MAPA GESTIONADO CON TTL Y LÍMITES
+ */
+class ManagedMap {
+  constructor(name, options = {}) {
+    this.name = name;
+    this.options = {
+      maxEntries: options.maxEntries || 10000,
+      defaultTTL: options.defaultTTL || 30 * 60 * 1000,
+      onEviction: options.onEviction || (() => {}),
+      onWarning: options.onWarning || (() => {}),
+      enableStats: options.enableStats !== false
+    };
+    
+    this.map = new Map();
+    this.ttlMap = new Map(); // key -> expirationTime
+    this.stats = {
+      gets: 0,
+      sets: 0,
+      deletes: 0,
+      evictions: 0,
+      hits: 0,
+      misses: 0,
+      cleanups: 0,
+      created: Date.now()
+    };
+  }
+  
+  /**
+   * 📝 ESTABLECER VALOR CON TTL
+   */
+  set(key, value, ttl = null) {
+    const effectiveTTL = ttl || this.options.defaultTTL;
+    const expirationTime = Date.now() + effectiveTTL;
+    
+    // Verificar límite antes de agregar
+    if (!this.map.has(key) && this.map.size >= this.options.maxEntries) {
+      this.evictOldest();
+    }
+    
+    this.map.set(key, value);
+    this.ttlMap.set(key, expirationTime);
+    
+    if (this.options.enableStats) {
+      this.stats.sets++;
+    }
+    
+    return this;
+  }
+  
+  /**
+   * 📖 OBTENER VALOR
+   */
+  get(key) {
+    if (this.options.enableStats) {
+      this.stats.gets++;
+    }
+    
+    if (!this.map.has(key)) {
+      if (this.options.enableStats) {
+        this.stats.misses++;
+      }
+      return undefined;
+    }
+    
+    // Verificar TTL
+    const expirationTime = this.ttlMap.get(key);
+    if (expirationTime && Date.now() > expirationTime) {
+      this.delete(key, 'expired');
+      if (this.options.enableStats) {
+        this.stats.misses++;
+      }
+      return undefined;
+    }
+    
+    if (this.options.enableStats) {
+      this.stats.hits++;
+    }
+    
+    return this.map.get(key);
+  }
+  
+  /**
+   * 🗑️ ELIMINAR VALOR
+   */
+  delete(key, reason = 'manual') {
+    const existed = this.map.has(key);
+    
+    if (existed) {
+      const value = this.map.get(key);
+      this.map.delete(key);
+      this.ttlMap.delete(key);
+      
+      if (this.options.enableStats) {
+        this.stats.deletes++;
+        if (reason !== 'manual') {
+          this.stats.evictions++;
+        }
+      }
+      
+      this.options.onEviction(key, value, reason, this.name);
+    }
+    
+    return existed;
+  }
+  
+  /**
+   * 🚮 EXPULSAR MÁS ANTIGUO
+   */
+  evictOldest() {
+    if (this.map.size === 0) return;
+    
+    // Encontrar la entrada más antigua por TTL
+    let oldestKey = null;
+    let oldestTime = Infinity;
+    
+    for (const [key, expirationTime] of this.ttlMap.entries()) {
+      if (expirationTime < oldestTime) {
+        oldestTime = expirationTime;
+        oldestKey = key;
+      }
+    }
+    
+    if (oldestKey) {
+      this.delete(oldestKey, 'evicted-oldest');
+      this.options.onWarning('Entrada expulsada por límite de tamaño', {
+        key: oldestKey,
+        size: this.map.size,
+        maxEntries: this.options.maxEntries
+      }, this.name);
+    }
+  }
+  
+  /**
+   * 🧹 LIMPIAR ENTRADAS EXPIRADAS
+   */
+  cleanup() {
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const [key, expirationTime] of this.ttlMap.entries()) {
+      if (now > expirationTime) {
+        this.delete(key, 'expired');
+        cleaned++;
+      }
+    }
+    
+    if (this.options.enableStats && cleaned > 0) {
+      this.stats.cleanups++;
+    }
+    
+    return cleaned;
+  }
+  
+  /**
+   * 📏 OBTENER TAMAÑO
+   */
+  get size() {
+    return this.map.size;
+  }
+  
+  /**
+   * 🗑️ LIMPIAR TODO
+   */
+  clear() {
+    const size = this.map.size;
+    this.map.clear();
+    this.ttlMap.clear();
+    
+    if (this.options.enableStats) {
+      this.stats.deletes += size;
+    }
+    
+    return size;
+  }
+  
+  /**
+   * 🔍 VERIFICAR EXISTENCIA
+   */
+  has(key) {
+    if (!this.map.has(key)) {
+      return false;
+    }
+    
+    // Verificar TTL
+    const expirationTime = this.ttlMap.get(key);
+    if (expirationTime && Date.now() > expirationTime) {
+      this.delete(key, 'expired');
+      return false;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * 📊 OBTENER ESTADÍSTICAS
+   */
+  getStats() {
+    const hitRate = this.stats.gets > 0 ? 
+      (this.stats.hits / this.stats.gets * 100).toFixed(2) : 0;
+    
+    return {
+      ...this.stats,
+      size: this.map.size,
+      maxEntries: this.options.maxEntries,
+      hitRate: `${hitRate}%`,
+      memoryEstimate: this.getEstimatedMemoryUsage(),
+      uptime: Date.now() - this.stats.created
+    };
+  }
+  
+  /**
+   * 📈 ESTIMAR USO DE MEMORIA
+   */
+  getEstimatedMemoryUsage() {
+    // Estimación básica: 
+    // - Cada entrada en Map: ~50 bytes overhead
+    // - TTL Map: ~50 bytes overhead por entrada
+    // - Contenido: estimación promedio de 200 bytes por valor
+    
+    const overhead = this.map.size * 100; // 50 bytes * 2 maps
+    const content = this.map.size * 200; // Estimación del contenido
+    
+    return overhead + content;
+  }
+  
+  /**
+   * 🔧 DESTRUIR MAPA
+   */
+  destroy() {
+    this.clear();
+    this.options.onEviction = null;
+    this.options.onWarning = null;
+  }
+  
+  /**
+   * 🗂️ OBTENER TODAS LAS CLAVES
+   */
+  keys() {
+    // Limpiar expirados antes de retornar claves
+    this.cleanup();
+    return this.map.keys();
+  }
+  
+  /**
+   * 📄 OBTENER TODOS LOS VALORES
+   */
+  values() {
+    // Limpiar expirados antes de retornar valores
+    this.cleanup();
+    return this.map.values();
+  }
+  
+  /**
+   * 📑 OBTENER TODAS LAS ENTRADAS
+   */
+  entries() {
+    // Limpiar expirados antes de retornar entradas
+    this.cleanup();
+    return this.map.entries();
+  }
+}
+
+// Singleton para uso global
+const memoryManager = new AdvancedMemoryManager();
+
+module.exports = {
+  AdvancedMemoryManager,
+  ManagedMap,
+  memoryManager
+}; 

@@ -1,19 +1,96 @@
 const express = require('express');
-const { validate, schemas } = require('../utils/validation');
-const { authMiddleware, requireReadAccess, requireWriteAccess, requireAdmin } = require('../middleware/auth');
-const CampaignController = require('../controllers/CampaignController');
-
 const router = express.Router();
+const CampaignController = require('../controllers/CampaignController');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validation');
+const Joi = require('joi');
+
+// Validadores específicos para campañas
+const campaignValidators = {
+  validateCreate: validateRequest({
+    body: Joi.object({
+      name: Joi.string().min(1).max(200).required(),
+      status: Joi.string().valid('active', 'draft').required(),
+      description: Joi.string().max(1000).optional(),
+      targetAudience: Joi.array().items(Joi.string().max(100)).max(10).optional(),
+      scheduledAt: Joi.date().iso().optional(),
+      messageTemplate: Joi.string().min(1).max(4096).required(),
+      contactList: Joi.array().items(Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/)).min(1).optional(),
+      tags: Joi.array().items(Joi.string().max(50)).max(20).optional()
+    })
+  }),
+
+  validateUpdate: validateRequest({
+    body: Joi.object({
+      name: Joi.string().min(1).max(200).optional(),
+      status: Joi.string().valid('active', 'draft', 'paused', 'completed').optional(),
+      description: Joi.string().max(1000).optional(),
+      targetAudience: Joi.array().items(Joi.string().max(100)).max(10).optional(),
+      scheduledAt: Joi.date().iso().optional(),
+      messageTemplate: Joi.string().min(1).max(4096).optional(),
+      contactList: Joi.array().items(Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/)).min(1).optional(),
+      tags: Joi.array().items(Joi.string().max(50)).max(20).optional()
+    })
+  }),
+
+  validateSend: validateRequest({
+    body: Joi.object({
+      confirm: Joi.boolean().valid(true).required()
+    })
+  }),
+
+  validateStop: validateRequest({
+    body: Joi.object({
+      reason: Joi.string().max(500).optional(),
+      stopType: Joi.string().valid('immediate', 'after_current_batch', 'graceful').default('immediate')
+    })
+  }),
+
+  validateStats: validateRequest({
+    query: Joi.object({
+      period: Joi.string().valid('1d', '7d', '30d', '90d', '1y').default('7d'),
+      startDate: Joi.date().iso().optional(),
+      endDate: Joi.date().iso().optional(),
+      campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).optional(),
+      status: Joi.string().valid('active', 'draft', 'paused', 'completed').optional(),
+      createdBy: Joi.string().email({ minDomainSegments: 2 }).max(254).optional()
+    })
+  })
+};
 
 /**
  * @route GET /api/campaigns
- * @desc Listar campañas
+ * @desc Listar campañas con filtros y paginación
  * @access Private (Admin, Agent, Viewer)
  */
 router.get('/',
   authMiddleware,
   requireReadAccess,
-  CampaignController.list,
+  CampaignController.list
+);
+
+/**
+ * @route GET /api/campaigns/stats
+ * @desc Obtener estadísticas de campañas
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/stats',
+  authMiddleware,
+  requireReadAccess,
+  campaignValidators.validateStats,
+  CampaignController.getStats
+);
+
+/**
+ * @route GET /api/campaigns/:campaignId
+ * @desc Obtener campaña por ID
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/:campaignId',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.getById
 );
 
 /**
@@ -24,31 +101,8 @@ router.get('/',
 router.post('/',
   authMiddleware,
   requireWriteAccess,
-  validate(schemas.campaign.create),
-  CampaignController.create,
-);
-
-// TODO: Implementar getStats en CampaignController
-// /**
-//  * @route GET /api/campaigns/stats
-//  * @desc Obtener estadísticas de campañas
-//  * @access Private (Admin, Agent, Viewer)
-//  */
-// router.get('/stats',
-//   authMiddleware,
-//   requireReadAccess,
-//   CampaignController.getStats,
-// );
-
-/**
- * @route GET /api/campaigns/:campaignId
- * @desc Obtener campaña específica
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/:campaignId',
-  authMiddleware,
-  requireReadAccess,
-  CampaignController.getById,
+  campaignValidators.validateCreate,
+  CampaignController.create
 );
 
 /**
@@ -59,19 +113,21 @@ router.get('/:campaignId',
 router.put('/:campaignId',
   authMiddleware,
   requireWriteAccess,
-  validate(schemas.campaign.update),
-  CampaignController.update,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  campaignValidators.validateUpdate,
+  CampaignController.update
 );
 
 /**
  * @route DELETE /api/campaigns/:campaignId
  * @desc Eliminar campaña
- * @access Private (Agent, Admin)
+ * @access Private (Admin)
  */
 router.delete('/:campaignId',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.delete,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.delete
 );
 
 /**
@@ -82,7 +138,9 @@ router.delete('/:campaignId',
 router.post('/:campaignId/start',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.sendCampaign,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  campaignValidators.validateSend,
+  CampaignController.sendCampaign
 );
 
 /**
@@ -93,7 +151,8 @@ router.post('/:campaignId/start',
 router.post('/:campaignId/pause',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.pauseCampaign,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.pauseCampaign
 );
 
 /**
@@ -104,19 +163,21 @@ router.post('/:campaignId/pause',
 router.post('/:campaignId/resume',
   authMiddleware,
   requireWriteAccess,
-  CampaignController.resumeCampaign,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.resumeCampaign
 );
 
-// TODO: Implementar stop en CampaignController
-// /**
-//  * @route POST /api/campaigns/:campaignId/stop
-//  * @desc Detener campaña
-//  * @access Private (Agent, Admin)
-//  */
-// router.post('/:campaignId/stop',
-//   authMiddleware,
-//   requireWriteAccess,
-//   CampaignController.stop,
-// );
+/**
+ * @route POST /api/campaigns/:campaignId/stop
+ * @desc Detener campaña
+ * @access Private (Agent, Admin)
+ */
+router.post('/:campaignId/stop',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  campaignValidators.validateStop,
+  CampaignController.stopCampaign
+);
 
 module.exports = router;

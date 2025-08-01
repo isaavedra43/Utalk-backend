@@ -1,153 +1,316 @@
 /**
- * 📊 MIDDLEWARE DE LOGGING AVANZADO
+ * 📝 MIDDLEWARE DE LOGGING CENTRALIZADO
  * 
- * Integra el sistema de logs con Express y proporciona
- * funcionalidades adicionales de monitoreo
+ * Centraliza toda la lógica de logging y tracking de requests
+ * para evitar duplicación en controladores y servicios.
+ * 
+ * @version 2.0.0
+ * @author Backend Team
  */
 
 const logger = require('../utils/logger');
 
 /**
- * Middleware principal de logging para requests HTTP
+ * Middleware de logging de requests HTTP
  */
-function loggingMiddleware(req, res, next) {
-  // Crear contexto de request
-  const context = logger.createRequestContext(req);
-  req.logContext = context;
+function requestLoggingMiddleware(req, res, next) {
+  const startTime = Date.now();
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  // Hacer logger disponible en el request con contexto
-  req.logger = {
-    auth: (action, data = {}) => logger.auth(action, data, context),
-    socket: (action, data = {}) => logger.socket(action, data, context),
-    message: (action, data = {}) => logger.message(action, data, context),
-    webhook: (action, data = {}) => logger.webhook(action, data, context),
-    database: (action, data = {}) => logger.database(action, data, context),
-    media: (action, data = {}) => logger.media(action, data, context),
-    twilio: (action, data = {}) => logger.twilio(action, data, context),
-    firebase: (action, data = {}) => logger.firebase(action, data, context),
-    security: (action, data = {}) => logger.security(action, data, context),
-    performance: (action, data = {}) => logger.performance(action, data, context),
-    info: (message, data = {}) => logger.info(message, data, context),
-    warn: (message, data = {}) => logger.warn(message, data, context),
-    error: (message, data = {}) => logger.error(message, data, context),
-    debug: (message, data = {}) => logger.debug(message, data, context),
-    success: (message, data = {}) => logger.success(message, data, context),
-    // ✅ AGREGADO: Función timing para medir duración de operaciones
-    timing: (label, startTime, data = {}) => logger.timing(label, startTime, data, context)
-  };
+  // Agregar requestId al request para tracking
+  req.requestId = requestId;
+  
+  // Log del request entrante
+  logger.info('📥 Request entrante', {
+    method: req.method,
+    url: req.originalUrl,
+    userAgent: req.get('User-Agent'),
+    ip: req.ip,
+    requestId,
+    timestamp: new Date().toISOString()
+  });
 
-  // Llamar al método de request del logger
-  logger.request(req, res);
-  
+  // Interceptar el final de la respuesta
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    const statusCode = res.statusCode;
+    
+    // Log del response saliente
+    logger.info('📤 Response enviado', {
+      method: req.method,
+      url: req.originalUrl,
+      statusCode,
+      duration: `${duration}ms`,
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+
+    // Log de errores si el status code indica error
+    if (statusCode >= 400) {
+      logger.warn('⚠️ Request con error', {
+        method: req.method,
+        url: req.originalUrl,
+        statusCode,
+        duration: `${duration}ms`,
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   next();
 }
 
 /**
- * Middleware para capturar errores no manejados
+ * Middleware de logging de errores
  */
 function errorLoggingMiddleware(error, req, res, next) {
-  const context = req.logContext || {};
-  
-  logger.error('Error no manejado en request', {
+  logger.error('💥 Error en request', {
+    method: req.method,
+    url: req.originalUrl,
     error: error.message,
-    stack: error.stack?.split('\n').slice(0, 5),
-    statusCode: error.statusCode || 500,
-    url: req.url,
-    method: req.method
-  }, context);
+    stack: error.stack,
+    requestId: req.requestId,
+    timestamp: new Date().toISOString()
+  });
 
   next(error);
 }
 
 /**
- * Middleware para logs de seguridad
+ * Middleware de logging de seguridad
  */
 function securityLoggingMiddleware(req, res, next) {
-  const suspicious = [];
-  
-  // Detectar actividad sospechosa
-  if (req.headers['user-agent'] && req.headers['user-agent'].includes('bot')) {
-    suspicious.push('bot_detected');
+  // Log de intentos de acceso sospechosos
+  const suspiciousPatterns = [
+    /\.\.\//, // Path traversal
+    /<script/i, // XSS attempts
+    /union\s+select/i, // SQL injection
+    /eval\s*\(/i, // Code injection
+  ];
+
+  const userInput = JSON.stringify({
+    body: req.body,
+    query: req.query,
+    params: req.params,
+    headers: req.headers
+  });
+
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(userInput)) {
+      logger.warn('🚨 Patrón sospechoso detectado', {
+        method: req.method,
+        url: req.originalUrl,
+        ip: req.ip,
+        pattern: pattern.toString(),
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+      break;
+    }
   }
-  
-  if (req.query && Object.keys(req.query).length > 20) {
-    suspicious.push('excessive_query_params');
-  }
-  
-  if (req.headers['content-length'] && parseInt(req.headers['content-length']) > 10 * 1024 * 1024) {
-    suspicious.push('large_payload');
-  }
-  
-  if (suspicious.length > 0) {
-    logger.security('suspicious_activity', {
-      indicators: suspicious,
-      ip: req.ip,
-      userAgent: req.headers['user-agent']?.substring(0, 100)
-    }, req.logContext);
-  }
-  
+
   next();
 }
 
 /**
- * Middleware para monitorear performance
+ * Middleware de logging de performance
  */
 function performanceLoggingMiddleware(req, res, next) {
-  const startTime = Date.now();
+  const startTime = process.hrtime.bigint();
   
   res.on('finish', () => {
-    const duration = Date.now() - startTime;
+    const endTime = process.hrtime.bigint();
+    const duration = Number(endTime - startTime) / 1000000; // Convertir a milisegundos
     
-    if (duration > 5000) { // Más de 5 segundos
-      logger.performance('request_slow', {
-        duration: `${duration}ms`,
-        path: req.path,
+    // Log de requests lentos (> 1 segundo)
+    if (duration > 1000) {
+      logger.warn('🐌 Request lento detectado', {
         method: req.method,
-        statusCode: res.statusCode
-      }, req.logContext);
-    }
-    
-    if (duration > 1000) { // Más de 1 segundo
-      logger.performance('request_slow', {
-        duration: `${duration}ms`,
-        path: req.path,
-        method: req.method,
-        level: 'moderate'
-      }, req.logContext);
+        url: req.originalUrl,
+        duration: `${duration.toFixed(2)}ms`,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
     }
   });
-  
+
   next();
 }
 
 /**
- * Función para logging manual en cualquier parte del código
+ * Middleware de logging de autenticación
  */
-function createLogger(module = 'GENERAL') {
-  return {
-    auth: (action, data = {}) => logger.auth(action, { module, ...data }),
-    socket: (action, data = {}) => logger.socket(action, { module, ...data }),
-    message: (action, data = {}) => logger.message(action, { module, ...data }),
-    webhook: (action, data = {}) => logger.webhook(action, { module, ...data }),
-    database: (action, data = {}) => logger.database(action, { module, ...data }),
-    media: (action, data = {}) => logger.media(action, { module, ...data }),
-    twilio: (action, data = {}) => logger.twilio(action, { module, ...data }),
-    firebase: (action, data = {}) => logger.firebase(action, { module, ...data }),
-    security: (action, data = {}) => logger.security(action, { module, ...data }),
-    performance: (action, data = {}) => logger.performance(action, { module, ...data }),
-    info: (message, data = {}) => logger.info(message, { module, ...data }),
-    warn: (message, data = {}) => logger.warn(message, { module, ...data }),
-    error: (message, data = {}) => logger.error(message, { module, ...data }),
-    debug: (message, data = {}) => logger.debug(message, { module, ...data }),
-    success: (message, data = {}) => logger.success(message, { module, ...data }),
-    timing: (label, startTime, data = {}) => logger.timing(label, startTime, { module, ...data })
+function authLoggingMiddleware(req, res, next) {
+  // Log de intentos de login
+  if (req.path.includes('/auth/login') && req.method === 'POST') {
+    logger.info('🔐 Intento de login', {
+      email: req.body.email,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      requestId: req.requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Log de logout
+  if (req.path.includes('/auth/logout') && req.method === 'POST') {
+    logger.info('🚪 Logout de usuario', {
+      userId: req.user?.email,
+      ip: req.ip,
+      requestId: req.requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  next();
+}
+
+/**
+ * Middleware de logging de operaciones críticas
+ */
+function criticalOperationsLoggingMiddleware(req, res, next) {
+  const criticalPaths = [
+    '/api/messages/send',
+    '/api/conversations/create',
+    '/api/contacts/create',
+    '/api/files/upload',
+    '/api/twilio/webhook'
+  ];
+
+  const isCriticalPath = criticalPaths.some(path => req.path.includes(path));
+  
+  if (isCriticalPath) {
+    logger.info('🎯 Operación crítica iniciada', {
+      method: req.method,
+      url: req.originalUrl,
+      userId: req.user?.email,
+      ip: req.ip,
+      requestId: req.requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  next();
+}
+
+/**
+ * Middleware de logging de base de datos
+ */
+function databaseLoggingMiddleware(req, res, next) {
+  // Interceptar operaciones de base de datos
+  const originalQuery = req.query;
+  
+  req.logger = {
+    database: (operation, data) => {
+      logger.info('🗄️ Operación de base de datos', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    message: (operation, data) => {
+      logger.info('💬 Operación de mensajes', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    media: (operation, data) => {
+      logger.info('📁 Operación de media', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    twilio: (operation, data) => {
+      logger.info('📞 Operación de Twilio', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    socket: (operation, data) => {
+      logger.info('🔌 Operación de Socket.IO', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    security: (operation, data) => {
+      logger.warn('🛡️ Operación de seguridad', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    error: (message, data) => {
+      logger.error('❌ Error en operación', {
+        message,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    success: (operation, data) => {
+      logger.info('✅ Operación exitosa', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
+    debug: (operation, data) => {
+      logger.debug('🔍 Debug de operación', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
   };
+
+  next();
 }
 
 module.exports = {
-  loggingMiddleware,
+  requestLoggingMiddleware,
   errorLoggingMiddleware,
   securityLoggingMiddleware,
   performanceLoggingMiddleware,
-  createLogger
+  authLoggingMiddleware,
+  criticalOperationsLoggingMiddleware,
+  databaseLoggingMiddleware
 }; 

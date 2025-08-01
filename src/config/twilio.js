@@ -1,110 +1,172 @@
-const twilio = require('twilio');
-require('dotenv').config();
+/**
+ * 📞 CONFIGURACIÓN TWILIO CON LOGGING ESTRUCTURADO
+ */
 
-// RAILWAY LOGGING: Inicio de inicialización Twilio
-console.log('📞 TWILIO - Iniciando configuración...');
+const { Twilio } = require('twilio');
+const logger = require('../utils/logger');
 
-// DEBUG MODE: Mostrar variables de entorno detectadas
-console.log('🔍 TWILIO - Variables de entorno detectadas:', {
-  TWILIO_ACCOUNT_SID: !!process.env.TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN: !!process.env.TWILIO_AUTH_TOKEN,
-  TWILIO_WHATSAPP_NUMBER: !!process.env.TWILIO_WHATSAPP_NUMBER,
-  TWILIO_ACCOUNT_SID_START: process.env.TWILIO_ACCOUNT_SID ? process.env.TWILIO_ACCOUNT_SID.substring(0, 5) + '...' : 'MISSING',
-  TWILIO_WHATSAPP_NUMBER_VALUE: process.env.TWILIO_WHATSAPP_NUMBER || 'MISSING',
+logger.info('📞 TWILIO - Iniciando configuración...', {
+  category: 'TWILIO_INIT',
+  environment: process.env.NODE_ENV
 });
 
-// VERIFICACIÓN CRÍTICA: Variables de entorno obligatorias
-const requiredEnvVars = [
-  'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN',
-  'TWILIO_WHATSAPP_NUMBER',
-];
+// Verificar variables de entorno requeridas
+const requiredVars = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER'];
+const missingVars = requiredVars.filter(envVar => !process.env[envVar]);
 
-console.log('🔍 TWILIO - Verificando variables de entorno...');
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-if (missingVars.length > 0) {
-  console.error('TWILIO - Variables faltantes:', missingVars);
-  console.error('TWILIO - El webhook INTENTARÁ continuar para debugging');
-  // NO MATAR LA APP - Solo logear el problema
-}
+logger.debug('🔍 TWILIO - Variables de entorno detectadas', {
+  category: 'TWILIO_CONFIG',
+  hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
+  hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN,
+  hasWhatsappNumber: !!process.env.TWILIO_WHATSAPP_NUMBER,
+  hasWebhookSecret: !!process.env.WEBHOOK_SECRET,
+  accountSidFormat: process.env.TWILIO_ACCOUNT_SID ? 
+    (process.env.TWILIO_ACCOUNT_SID.startsWith('AC') ? 'valid' : 'invalid') : 'missing',
+  whatsappFormat: process.env.TWILIO_WHATSAPP_NUMBER ? 
+    (process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:') ? 'valid' : 'invalid') : 'missing'
+});
 
-// VALIDACIÓN ADICIONAL: Formato de variables (sin matar app)
-if (process.env.TWILIO_ACCOUNT_SID && !process.env.TWILIO_ACCOUNT_SID.startsWith('AC')) {
-  console.error('TWILIO - TWILIO_ACCOUNT_SID debe comenzar con "AC"');
-  console.error('TWILIO - Valor actual:', process.env.TWILIO_ACCOUNT_SID ? process.env.TWILIO_ACCOUNT_SID.substring(0, 10) + '...' : 'MISSING');
-  console.error('TWILIO - Continuando para debugging...');
-  // NO MATAR LA APP - Solo logear el problema
-}
-
-if (process.env.TWILIO_WHATSAPP_NUMBER && !process.env.TWILIO_WHATSAPP_NUMBER.includes('whatsapp:')) {
-  console.error('TWILIO - TWILIO_WHATSAPP_NUMBER debe tener formato "whatsapp:+1234567890"');
-  console.error('TWILIO - Valor actual:', process.env.TWILIO_WHATSAPP_NUMBER);
-  console.error('TWILIO - Continuando para debugging...');
-  // NO MATAR LA APP - Solo logear el problema
-}
-
-console.log('TWILIO - Variables de entorno verificadas (con warnings)');
-
-// INICIALIZACIÓN ROBUSTA CON TRY/CATCH
-let client, twilioConfig;
+let client = null;
+let twilioConfig = null;
 
 try {
-  console.log('📞 TWILIO - Inicializando cliente...');
+  logger.info('🔍 TWILIO - Verificando variables de entorno...', {
+    category: 'TWILIO_VALIDATION'
+  });
 
-  // Inicializar cliente de Twilio
-  client = twilio(
+  if (missingVars.length > 0) {
+    logger.error('TWILIO - Variables faltantes detectadas', {
+      category: 'TWILIO_ERROR',
+      missingVars,
+      severity: 'HIGH',
+      impact: 'Funcionalidad Twilio no disponible'
+    });
+    throw new Error(`Variables de entorno faltantes: ${missingVars.join(', ')}`);
+  }
+
+  // Validar formato de ACCOUNT_SID
+  if (!process.env.TWILIO_ACCOUNT_SID.startsWith('AC')) {
+    logger.error('TWILIO - ACCOUNT_SID formato inválido', {
+      category: 'TWILIO_ERROR',
+      expected: 'AC...',
+      received: process.env.TWILIO_ACCOUNT_SID ? 
+        process.env.TWILIO_ACCOUNT_SID.substring(0, 10) + '...' : 'MISSING',
+      severity: 'HIGH'
+    });
+    throw new Error('TWILIO_ACCOUNT_SID debe comenzar con "AC"');
+  }
+
+  // Validar formato de WhatsApp number
+  if (!process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')) {
+    logger.error('TWILIO - WhatsApp número formato inválido', {
+      category: 'TWILIO_ERROR',
+      expected: 'whatsapp:+1234567890',
+      received: process.env.TWILIO_WHATSAPP_NUMBER,
+      severity: 'HIGH'
+    });
+    throw new Error('TWILIO_WHATSAPP_NUMBER debe tener formato "whatsapp:+1234567890"');
+  }
+
+  logger.info('TWILIO - Variables de entorno validadas exitosamente', {
+    category: 'TWILIO_VALIDATION',
+    accountSidValid: true,
+    whatsappNumberValid: true
+  });
+
+  // Inicializar cliente Twilio
+  logger.info('📞 TWILIO - Inicializando cliente...', {
+    category: 'TWILIO_CLIENT_INIT'
+  });
+
+  client = new Twilio(
     process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN,
+    process.env.TWILIO_AUTH_TOKEN
   );
 
-  console.log('TWILIO - Cliente inicializado exitosamente');
-
-  // CONFIGURACIÓN COMPLETA
   twilioConfig = {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
     whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER,
-    webhookSecret: process.env.WEBHOOK_SECRET || null, // Opcional
+    webhookSecret: process.env.WEBHOOK_SECRET || null,
   };
 
-  console.log('TWILIO - Configuración completada');
-  console.log('📞 TWILIO - Número WhatsApp:', process.env.TWILIO_WHATSAPP_NUMBER);
-  console.log('📞 TWILIO - Account SID:', process.env.TWILIO_ACCOUNT_SID ? process.env.TWILIO_ACCOUNT_SID.substring(0, 10) + '...' : 'MISSING');
+  logger.info('TWILIO - Cliente inicializado exitosamente', {
+    category: 'TWILIO_SUCCESS',
+    configComplete: true
+  });
 
-  // TEST DE VALIDACIÓN OPCIONAL (sin bloquear inicialización)
-  console.log('🔍 TWILIO - Realizando test de conectividad...');
+  // Configuración completada
+  logger.info('TWILIO - Configuración completada exitosamente', {
+    category: 'TWILIO_SUCCESS',
+    whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER,
+    accountSidPrefix: process.env.TWILIO_ACCOUNT_SID.substring(0, 10) + '...',
+    webhookSecretConfigured: !!process.env.WEBHOOK_SECRET
+  });
 
-  // Test simple de validación de credenciales
-  client.api.accounts(process.env.TWILIO_ACCOUNT_SID).fetch()
+  // Test de conectividad (opcional, no bloquea la inicialización)
+  logger.debug('🔍 TWILIO - Realizando test de conectividad...', {
+    category: 'TWILIO_CONNECTIVITY_TEST'
+  });
+
+  client.api.accounts(process.env.TWILIO_ACCOUNT_SID)
+    .fetch()
     .then((account) => {
-      console.log('TWILIO - Conectividad confirmada, estado:', account.status);
+      logger.info('TWILIO - Conectividad confirmada exitosamente', {
+        category: 'TWILIO_CONNECTIVITY',
+        accountStatus: account.status,
+        testSuccessful: true
+      });
     })
     .catch((authError) => {
-      console.log('⚠️ TWILIO - Test de conectividad falló (verificar credenciales):', authError.message);
-      // No bloquear la inicialización por esto
+      logger.warn('TWILIO - Test de conectividad falló', {
+        category: 'TWILIO_CONNECTIVITY',
+        error: authError.message,
+        severity: 'MEDIUM',
+        note: 'Configuración continuará, verificar credenciales si es necesario'
+      });
     });
+
 } catch (initError) {
-  console.error('TWILIO - Error crítico en inicialización:', initError.message);
-  console.error('TWILIO - Stack trace:', initError.stack);
+  logger.error('TWILIO - Error crítico en inicialización', {
+    category: 'TWILIO_CRITICAL_ERROR',
+    error: initError.message,
+    stack: initError.stack,
+    severity: 'CRITICAL',
+    requiresAttention: true
+  });
 
-  // Mostrar información específica del error
-  if (initError.message.includes('ACCOUNT_SID')) {
-    console.error('TWILIO - Problema con TWILIO_ACCOUNT_SID - verificar formato AC...');
-  }
-  if (initError.message.includes('AUTH_TOKEN')) {
-    console.error('TWILIO - Problema con TWILIO_AUTH_TOKEN - verificar token válido');
-  }
+  // Análisis específico del error
+  const errorAnalysis = {
+    isAccountSidIssue: initError.message.includes('ACCOUNT_SID'),
+    isAuthTokenIssue: initError.message.includes('AUTH_TOKEN'),
+    isFormatIssue: initError.message.includes('formato'),
+    isMissingVarsIssue: initError.message.includes('faltantes')
+  };
 
-  console.error('TWILIO - Creando cliente MOCK para debugging');
+  logger.error('TWILIO - Análisis detallado del error', {
+    category: 'TWILIO_ERROR_ANALYSIS',
+    ...errorAnalysis,
+    recommendations: {
+      accountSid: errorAnalysis.isAccountSidIssue ? 'Verificar formato AC...' : null,
+      authToken: errorAnalysis.isAuthTokenIssue ? 'Verificar token válido' : null,
+      missingVars: errorAnalysis.isMissingVarsIssue ? 'Configurar variables de entorno' : null
+    }
+  });
+
+  logger.warn('TWILIO - Creando cliente MOCK para continuar operación', {
+    category: 'TWILIO_FALLBACK',
+    reason: 'Prevenir crash de aplicación',
+    impact: 'Funcionalidad Twilio NO estará disponible'
+  });
 
   // CREAR MOCKS PARA QUE LA APP NO CRASHEE
   client = {
     messages: {
-      create: () => Promise.reject(new Error('Twilio no inicializado')),
+      create: () => Promise.reject(new Error('Twilio no inicializado - configurar variables de entorno')),
     },
     api: {
       accounts: () => ({
-        fetch: () => Promise.reject(new Error('Twilio no inicializado')),
+        fetch: () => Promise.reject(new Error('Twilio no inicializado - configurar variables de entorno')),
       }),
     },
   };
@@ -116,10 +178,22 @@ try {
     webhookSecret: process.env.WEBHOOK_SECRET || null,
   };
 
-  console.log('⚠️ TWILIO - Mocks creados - la app continuará pero Twilio NO funcionará');
+  logger.warn('TWILIO - Mocks creados exitosamente', {
+    category: 'TWILIO_MOCK_SUCCESS',
+    mockClientCreated: true,
+    mockConfigCreated: true,
+    appWillContinue: true,
+    functionalityAvailable: false
+  });
 }
 
-console.log('🎉 TWILIO - Configuración completada (con o sin errores)');
+logger.info('🎉 TWILIO - Inicialización completada', {
+  category: 'TWILIO_COMPLETE',
+  clientAvailable: !!client,
+  configAvailable: !!twilioConfig,
+  functionalityStatus: client?.messages?.create ? 'available' : 'mock_mode',
+  timestamp: new Date().toISOString()
+});
 
 module.exports = {
   client,

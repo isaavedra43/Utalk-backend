@@ -1,9 +1,17 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { prepareForFirestore } = require('../utils/firestore');
 const logger = require('../utils/logger');
-const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const bcrypt = require('bcryptjs');
 
+/**
+ * MODELO DE USUARIO - EMAIL-FIRST
+ * 
+ * Maneja usuarios con email como identificador principal
+ * Compatible con Firestore y autenticación por email
+ * 
+ * @version 2.0.0
+ * @author Backend Team
+ */
 class User {
   constructor(data) {
     // EMAIL como identificador principal (NO más UID)
@@ -325,29 +333,20 @@ class User {
         throw new Error('Teléfono es requerido');
       }
 
-      // Normalizar teléfono
-      const phoneValidation = validateAndNormalizePhone(phone);
-      if (!phoneValidation.isValid) {
-        throw new Error(`Teléfono inválido: ${phoneValidation.error}`);
-      }
-
-      const normalizedPhone = phoneValidation.normalized;
-      
       logger.info('🔍 Buscando email por teléfono', {
-        originalPhone: phone,
-        normalizedPhone,
+        phone,
       });
 
       const usersQuery = await firestore
         .collection('users')
-        .where('phone', '==', normalizedPhone)
+        .where('phone', '==', phone)
         .where('isActive', '==', true)
         .limit(1)
         .get();
 
       if (usersQuery.empty) {
         logger.warn('⚠️ No se encontró email para el teléfono', {
-          phone: normalizedPhone,
+          phone,
         });
         return null;
       }
@@ -356,7 +355,7 @@ class User {
       const email = userData.email;
 
       logger.info('Email encontrado por teléfono', {
-        phone: normalizedPhone,
+        phone,
         email,
         userName: userData.name,
       });

@@ -1,9 +1,41 @@
 const express = require('express');
-const { validate, schemas } = require('../utils/validation');
-const { authMiddleware, requireAdmin, requireReadAccess } = require('../middleware/auth');
-const TeamController = require('../controllers/TeamController');
-
 const router = express.Router();
+const TeamController = require('../controllers/TeamController');
+const { authMiddleware, requireAdmin } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validation');
+const Joi = require('joi');
+
+// Validadores específicos para team
+const teamValidators = {
+  validateInvite: validateRequest({
+    body: Joi.object({
+      email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
+      name: Joi.string().min(1).max(100).required(),
+      role: Joi.string().valid('admin', 'agent', 'viewer').default('viewer')
+    })
+  }),
+
+  validateUpdate: validateRequest({
+    body: Joi.object({
+      name: Joi.string().min(1).max(100).optional(),
+      role: Joi.string().valid('admin', 'agent', 'viewer').optional(),
+      status: Joi.string().valid('active', 'inactive').optional()
+    })
+  }),
+
+  validateChangeRole: validateRequest({
+    body: Joi.object({
+      newRole: Joi.string().valid('admin', 'agent', 'viewer').required(),
+      reason: Joi.string().max(500).optional()
+    })
+  }),
+
+  validateResetPassword: validateRequest({
+    body: Joi.object({
+      confirm: Joi.boolean().valid(true).required()
+    })
+  })
+};
 
 /**
  * @route GET /api/team
@@ -12,8 +44,18 @@ const router = express.Router();
  */
 router.get('/',
   authMiddleware,
-  requireReadAccess,
-  TeamController.list,
+  TeamController.list
+);
+
+/**
+ * @route GET /api/team/:userId
+ * @desc Obtener miembro por ID
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/:userId',
+  authMiddleware,
+  validateRequest('userId'),
+  TeamController.getById
 );
 
 /**
@@ -24,22 +66,22 @@ router.get('/',
 router.post('/invite',
   authMiddleware,
   requireAdmin,
-  validate(schemas.team.invite),
-  TeamController.invite,
+  teamValidators.validateInvite,
+  TeamController.invite
 );
 
-// TODO: Implementar changeRole en TeamController
-// /**
-//  * @route PUT /api/team/:userId/role
-//  * @desc Cambiar rol de miembro
-//  * @access Private (Admin)
-//  */
-// router.put('/:userId/role',
-//   authMiddleware,
-//   requireAdmin,
-//   validate(schemas.team.changeRole),
-//   TeamController.changeRole,
-// );
+/**
+ * @route PUT /api/team/:userId/role
+ * @desc Cambiar rol de miembro
+ * @access Private (Admin)
+ */
+router.put('/:userId/role',
+  authMiddleware,
+  requireAdmin,
+  validateRequest('userId'),
+  teamValidators.validateChangeRole,
+  TeamController.changeRole
+);
 
 /**
  * @route PUT /api/team/:userId/deactivate
@@ -49,7 +91,8 @@ router.post('/invite',
 router.put('/:userId/deactivate',
   authMiddleware,
   requireAdmin,
-  TeamController.deactivate,
+  validateRequest('userId'),
+  TeamController.deactivate
 );
 
 /**
@@ -60,18 +103,20 @@ router.put('/:userId/deactivate',
 router.put('/:userId/activate',
   authMiddleware,
   requireAdmin,
-  TeamController.activate,
+  validateRequest('userId'),
+  TeamController.activate
 );
 
 /**
  * @route DELETE /api/team/:userId
- * @desc Eliminar miembro del equipo
+ * @desc Eliminar miembro
  * @access Private (Admin)
  */
 router.delete('/:userId',
   authMiddleware,
   requireAdmin,
-  TeamController.delete,
+  validateRequest('userId'),
+  TeamController.delete
 );
 
 /**
@@ -82,38 +127,34 @@ router.delete('/:userId',
 router.post('/:userId/reset-password',
   authMiddleware,
   requireAdmin,
-  TeamController.resetPassword,
-);
-
-/**
- * @route GET /api/team/:id
- * @desc Obtener miembro por ID
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/:id',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  TeamController.getById,
+  validateRequest('userId'),
+  teamValidators.validateResetPassword,
+  TeamController.resetPassword
 );
 
 /**
  * @route PUT /api/team/:id
- * @desc Actualizar miembro del equipo
+ * @desc Actualizar miembro
  * @access Private (Admin)
  */
 router.put('/:id',
+  authMiddleware,
   requireAdmin,
-  validate(schemas.team.update),
-  TeamController.update,
+  validateRequest('id'),
+  teamValidators.validateUpdate,
+  TeamController.update
 );
 
 /**
  * @route DELETE /api/team/:id
- * @desc Eliminar miembro del equipo
+ * @desc Eliminar miembro
  * @access Private (Admin)
  */
 router.delete('/:id',
+  authMiddleware,
   requireAdmin,
-  TeamController.delete,
+  validateRequest('id'),
+  TeamController.delete
 );
 
 /**
@@ -122,8 +163,10 @@ router.delete('/:id',
  * @access Private (Admin)
  */
 router.post('/:id/activate',
+  authMiddleware,
   requireAdmin,
-  TeamController.activate,
+  validateRequest('id'),
+  TeamController.activate
 );
 
 /**
@@ -132,18 +175,10 @@ router.post('/:id/activate',
  * @access Private (Admin)
  */
 router.post('/:id/deactivate',
+  authMiddleware,
   requireAdmin,
-  TeamController.deactivate,
-);
-
-/**
- * @route GET /api/team/:id/kpis
- * @desc Obtener KPIs de un miembro
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/:id/kpis',
-  requireReadAccess, // CORREGIDO: Agregado requireReadAccess
-  TeamController.getKPIs,
+  validateRequest('id'),
+  TeamController.deactivate
 );
 
 module.exports = router;

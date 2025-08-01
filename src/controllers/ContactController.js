@@ -1,9 +1,10 @@
 const Contact = require('../models/Contact');
+const ContactService = require('../services/ContactService');
 const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
 const csvParser = require('csv-parser');
 const multer = require('multer');
-const { ResponseHandler, ApiError } = require('../utils/responseHandler');
+const { ResponseHandler, ApiError, CommonErrors } = require('../utils/responseHandler');
 const { Readable } = require('stream');
 
 /**
@@ -21,7 +22,99 @@ const upload = multer({
   }
 });
 
+/**
+ * 📇 CONTROLADOR DE CONTACTOS
+ * 
+ * Maneja endpoints relacionados con contactos y estadísticas
+ * usando ContactService centralizado.
+ * 
+ * @version 1.0.0
+ * @author Backend Team
+ */
 class ContactController {
+
+  /**
+   * 📊 GET /api/contacts/stats
+   * Estadísticas de contactos para el usuario actual
+   */
+  static async getContactStats(req, res, next) {
+    try {
+      const { period = '30d', userId = null } = req.query;
+
+      // 🔒 CONTROL DE PERMISOS
+      let targetUserId = req.user.email;
+      if (userId && req.user.role === 'admin') {
+        targetUserId = userId;
+      } else if (userId && req.user.role !== 'admin') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver estadísticas de otros usuarios', 'contact_stats');
+      }
+
+      const filters = {
+        userId: targetUserId,
+        period
+      };
+
+      const stats = await ContactService.getContactStats(filters);
+
+      logger.info('Estadísticas de contactos obtenidas', {
+        userEmail: req.user.email,
+        targetUserId,
+        period,
+        totalContacts: stats.total,
+        activeContacts: stats.active
+      });
+
+      return ResponseHandler.success(res, stats, 'Estadísticas de contactos generadas exitosamente');
+
+    } catch (error) {
+      logger.error('Error obteniendo estadísticas de contactos', {
+        error: error.message,
+        stack: error.stack,
+        userEmail: req.user?.email,
+        query: req.query
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔍 GET /api/contacts/search
+   * Búsqueda de contactos por teléfono
+   */
+  static async searchContactByPhone(req, res, next) {
+    try {
+      const { phone } = req.query;
+
+      if (!phone) {
+        throw CommonErrors.BAD_REQUEST('Teléfono es requerido', 'contact_search');
+      }
+
+      const contact = await ContactService.findContactByPhone(phone);
+
+      if (!contact) {
+        return ResponseHandler.success(res, null, 'Contacto no encontrado', 404);
+      }
+
+      logger.info('Búsqueda de contacto completada', {
+        userEmail: req.user.email,
+        phone,
+        contactId: contact.id,
+        contactName: contact.name
+      });
+
+      return ResponseHandler.success(res, contact.toJSON(), 'Contacto encontrado exitosamente');
+
+    } catch (error) {
+      logger.error('Error buscando contacto por teléfono', {
+        error: error.message,
+        stack: error.stack,
+        userEmail: req.user?.email,
+        query: req.query
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
   /**
    * Listar contactos con filtros y paginación
    */

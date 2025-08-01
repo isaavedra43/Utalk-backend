@@ -61,7 +61,7 @@ function prepareForFirestore (obj) {
       }
     }
     if (removedFields.length > 0) {
-      console.log(`🧹 Campos removidos de Firestore: ${removedFields.join(', ')}`);
+      logger.info(`🧹 Campos removidos de Firestore: ${removedFields.join(', ')}`);
     }
   }
 

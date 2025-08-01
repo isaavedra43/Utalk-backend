@@ -2,7 +2,6 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 // const { isValidConversationId } = require('../utils/conversation'); // DEPRECATED
-const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { createCursor, parseCursor } = require('../utils/pagination');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 

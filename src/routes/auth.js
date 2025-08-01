@@ -1,62 +1,130 @@
 const express = require('express');
-const { validate, schemas } = require('../utils/validation');
-const { authMiddleware } = require('../middleware/auth');
-const AuthController = require('../controllers/AuthController');
-
 const router = express.Router();
+const AuthController = require('../controllers/AuthController');
+const { validateRequest } = require('../middleware/validation');
+const Joi = require('joi');
+
+// Validadores específicos para autenticación
+const authValidators = {
+  validateLogin: validateRequest({
+    body: Joi.object({
+      email: Joi.string().email().required(),
+      password: Joi.string().min(6).required()
+    })
+  }),
+
+  validateRegister: validateRequest({
+    body: Joi.object({
+      email: Joi.string().email().required(),
+      password: Joi.string().min(6).required(),
+      name: Joi.string().min(1).max(100).required(),
+      phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).optional(),
+      role: Joi.string().valid('admin', 'agent', 'viewer').default('viewer')
+    })
+  }),
+
+  validateRefresh: validateRequest({
+    body: Joi.object({
+      refreshToken: Joi.string().required()
+    })
+  }),
+
+  validateLogout: validateRequest({
+    body: Joi.object({
+      refreshToken: Joi.string().optional()
+    })
+  })
+};
 
 /**
  * @route POST /api/auth/login
- * @desc Login con Firebase
+ * @desc Autenticar usuario con refresh tokens
  * @access Public
  */
-router.post('/login', validate(schemas.auth.login), AuthController.login);
+router.post('/login',
+  authValidators.validateLogin,
+  AuthController.login
+);
+
+/**
+ * @route POST /api/auth/refresh
+ * @desc Renovar access token usando refresh token
+ * @access Public
+ */
+router.post('/refresh',
+  AuthController.refreshToken
+);
+
+/**
+ * @route POST /api/auth/validate-token
+ * @desc Validar token JWT (sin renovación)
+ * @access Public
+ */
+router.post('/validate-token', 
+  AuthController.validateToken
+);
 
 /**
  * @route POST /api/auth/logout
- * @desc Logout
+ * @desc Cerrar sesión e invalidar refresh tokens
  * @access Private
  */
-router.post('/logout', authMiddleware, AuthController.logout);
-
-// NOTA: En sistema UID-first, el refresh se maneja directamente en el frontend con Firebase SDK
-// No necesitamos endpoint de refresh en el backend
+router.post('/logout', 
+  AuthController.logout
+);
 
 /**
- * @route GET /api/auth/me
- * @desc Obtener información del usuario actual
- * @access Private - CRÍTICO: Requiere JWT válido
+ * @route GET /api/auth/profile
+ * @desc Obtener perfil del usuario actual
+ * @access Private
  */
-router.get('/me', authMiddleware, AuthController.getProfile);
+router.get('/profile',
+  AuthController.getProfile
+);
 
 /**
  * @route PUT /api/auth/profile
- * @desc Actualizar perfil del usuario
+ * @desc Actualizar perfil de usuario
  * @access Private
  */
-router.put('/profile', authMiddleware, AuthController.updateProfile);
+router.put('/profile', 
+  AuthController.updateProfile
+);
 
 /**
  * @route POST /api/auth/change-password
- * @desc Cambiar contraseña del usuario
+ * @desc Cambiar contraseña e invalidar todas las sesiones
  * @access Private
  */
-router.post('/change-password', authMiddleware, validate(schemas.auth.changePassword), AuthController.changePassword);
+router.post('/change-password', 
+  AuthController.changePassword
+);
 
 /**
  * @route POST /api/auth/create-user
- * @desc Crear nuevo usuario (solo administradores)
- * @access Private - Admin only
+ * @desc Crear nuevo usuario (solo admin)
+ * @access Private (Admin)
  */
-router.post('/create-user', authMiddleware, validate(schemas.auth.createUser), AuthController.createUser);
+router.post('/create-user', 
+  AuthController.createUser
+);
 
 /**
- * @route GET /api/auth/validate-token
- * @desc Validar token JWT para mantener sesión al refrescar página
- * @access Public - No requiere middleware (valida su propio token)
+ * @route GET /api/auth/sessions
+ * @desc Obtener sesiones activas del usuario
+ * @access Private
  */
-router.get('/validate-token', AuthController.validateToken);
+router.get('/sessions',
+  AuthController.getActiveSessions
+);
 
-// EXPORT PATTERN: Single router export (STANDARD for all routes)
-// USAGE: const authRoutes = require('./routes/auth');
+/**
+ * @route DELETE /api/auth/sessions/:sessionId
+ * @desc Cerrar sesión específica
+ * @access Private
+ */
+router.delete('/sessions/:sessionId',
+  AuthController.closeSession
+);
+
 module.exports = router;

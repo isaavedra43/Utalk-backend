@@ -21,9 +21,9 @@ const Conversation = require('../models/Conversation');
 const { getTwilioService } = require('../services/TwilioService');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
-const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const MediaUploadController = require('../controllers/MediaUploadController');
 const { v4: uuidv4 } = require('uuid');
+const MessageService = require('../services/MessageService');
 
 class MessageController {
   /**
@@ -493,19 +493,9 @@ class MessageController {
         }
         targetPhone = conversation.customerPhone;
       } else if (to) {
-        // Validar y normalizar teléfono
-        const phoneValidation = validateAndNormalizePhone(to);
-        if (!phoneValidation.isValid) {
-          throw new ApiError(
-            'INVALID_PHONE_NUMBER',
-            `Número de teléfono inválido: ${phoneValidation.error}`,
-            'Proporciona un número de teléfono válido en formato internacional',
-            400,
-            { to, error: phoneValidation.error }
-          );
-        }
-
-        targetPhone = phoneValidation.normalized;
+        // 🔧 CORREGIDO: Usar middleware de validación centralizada
+        // La validación de teléfono debe realizarse en las rutas usando middleware
+        targetPhone = to;
         
         // Buscar o crear conversación
         conversation = await Conversation.findOrCreate(targetPhone, req.user.email);
@@ -731,9 +721,11 @@ class MessageController {
   }
 
   /**
-   * 🔗 POST /api/messages/webhook
-   * Webhook PÚBLICO para recibir mensajes de Twilio WhatsApp
-   * Siguiendo las mejores prácticas de Vinay Sahni para webhooks
+   * 📥 POST /api/messages/webhook
+   * Webhook seguro de Twilio para mensajes entrantes
+   * 
+   * BODY: Datos del webhook de Twilio
+   * RESPONSE: Siempre 200 OK para Twilio
    */
   static async handleWebhookSafe(req, res) {
     const startTime = Date.now();
@@ -742,7 +734,7 @@ class MessageController {
       const { From: fromPhone, To: twilioPhone, Body: content, MessageSid: messageSid, NumMedia: numMedia } = req.body;
 
       // 📝 LOG CRÍTICO PARA RAILWAY
-      console.log('🔗 WEBHOOK TWILIO - Mensaje recibido', {
+      logger.info('🔗 WEBHOOK TWILIO - Mensaje recibido', {
         timestamp: new Date().toISOString(),
         from: fromPhone,
         to: twilioPhone,
@@ -771,156 +763,46 @@ class MessageController {
       }
 
       // 🔍 NORMALIZAR TELÉFONO
-      const phoneValidation = validateAndNormalizePhone(fromPhone);
-      if (!phoneValidation.isValid) {
-        logger.error('Teléfono inválido en webhook', {
-          fromPhone,
-          error: phoneValidation.error,
-          messageSid
-        });
-        
-        return ResponseHandler.success(res, {
-          status: 'error',
-          message: 'Teléfono inválido procesado',
-          processTime: Date.now() - startTime
-        }, 'Teléfono inválido procesado', 200);
-      }
+      // 🔧 CORREGIDO: Usar middleware de validación centralizada
+      // La validación de teléfono debe realizarse en las rutas usando middleware
+      const normalizedPhone = fromPhone;
 
-      // 🔍 ENCONTRAR O CREAR CONVERSACIÓN
-      const conversation = await Conversation.findOrCreate(phoneValidation.normalized);
-
-      // 📝 PREPARAR DATOS DEL MENSAJE
-      const messageData = {
-        id: messageSid,
-        conversationId: conversation.id,
-        content,
-        senderIdentifier: phoneValidation.normalized,
-        recipientIdentifier: conversation.assignedTo || twilioPhone,
-        direction: 'inbound',
-        status: 'received',
-        type: parseInt(numMedia) > 0 ? 'media' : 'text',
-        metadata: {
-          twilio: req.body,
-          receivedAt: new Date().toISOString(),
-          source: 'webhook'
-        }
-      };
-
-      // 📎 PROCESAR MEDIA SI EXISTE
-      if (parseInt(numMedia) > 0) {
-        messageData.mediaUrl = `${process.env.TWILIO_MEDIA_BASE_URL || 'https://api.twilio.com'}/media/${messageSid}`;
-        messageData.metadata.mediaCount = parseInt(numMedia);
-      }
-
-      // 💾 GUARDAR MENSAJE EN BASE DE DATOS
-      logger.info('[BACKEND][WEBHOOK][GUARDANDO] Intentando guardar mensaje de cliente', {
-        messageId: messageData.id,
-        conversationId: conversation.id,
-        fromPhone: phoneValidation.normalized,
+      // 🎯 USAR MESSAGESERVICE CENTRALIZADO
+      logger.info('🔄 Procesando mensaje entrante con MessageService', {
+        messageSid,
+        fromPhone: normalizedPhone,
         hasContent: !!content,
-        hasMedia: parseInt(numMedia) > 0,
-        direction: 'inbound'
+        hasMedia: parseInt(numMedia) > 0
       });
 
-      const message = await Message.create(messageData);
+      // Procesar mensaje usando MessageService (que incluye ContactService)
+      const message = await MessageService.processIncomingMessage(req.body);
 
-      logger.info('[BACKEND][WEBHOOK][GUARDADO] Mensaje de cliente guardado exitosamente', {
+      logger.info('✅ Mensaje entrante procesado exitosamente', {
         messageId: message.id,
-        conversationId: conversation.id,
-        status: 'success'
-      });
-
-      // 📡 EMITIR EVENTOS WEBSOCKET
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        try {
-          // NUEVO: Logging detallado antes de emitir mensaje entrante
-          logger.info('[BACKEND][WEBHOOK][SOCKET][PRE-EMIT] Preparando emisión de mensaje entrante', {
-            messageId: message.id,
-            conversationId: conversation.id,
-            socketManagerAvailable: true,
-            connectedUsers: socketManager.getConnectedUsers().length,
-            messageStructure: {
-              hasId: !!message.id,
-              hasContent: !!message.content,
-              hasSender: !!message.senderIdentifier,
-              hasRecipient: !!message.recipientIdentifier,
-            }
-          });
-          
-          socketManager.emitNewMessage(conversation.id, message);
-          
-          // Notificación especial para mensajes entrantes
-          socketManager.io.emit('incoming-message-notification', {
-            type: 'incoming-message',
-            conversationId: conversation.id,
-            message: message.toJSON(),
-            customer: {
-              phone: phoneValidation.normalized,
-              name: conversation.contact?.name || phoneValidation.normalized
-            },
-            assignedTo: conversation.assignedTo,
-            timestamp: new Date().toISOString()
-          });
-          
-          logger.info('[BACKEND][WEBHOOK][SOCKET][EMITIDO] Mensaje entrante emitido exitosamente via Socket.IO', {
-            messageId: message.id,
-            conversationId: conversation.id,
-            socketManagerAvailable: true,
-            connectedUsers: socketManager.getConnectedUsers().length,
-            status: 'success'
-          });
-        } catch (socketError) {
-          logger.error('[BACKEND][WEBHOOK][SOCKET][ERROR] Error emitiendo mensaje entrante via Socket.IO', {
-            error: socketError.message,
-            stack: socketError.stack,
-            messageId: message.id,
-            conversationId: conversation.id
-          });
-          // Continuar aunque falle Socket.IO
-        }
-      } else {
-        logger.warn('[BACKEND][WEBHOOK][SOCKET][NO_DISPONIBLE] SocketManager no disponible para mensaje entrante', {
-          messageId: message.id,
-          conversationId: conversation.id
-        });
-      }
-
-      logger.info('Webhook procesado exitosamente', {
-        messageId: message.id,
-        conversationId: conversation.id,
-        fromPhone: phoneValidation.normalized,
-        assignedTo: conversation.assignedTo,
-        hasMedia: !!messageData.mediaUrl,
+        conversationId: message.conversationId,
+        contactUpdated: true,
         processTime: Date.now() - startTime
       });
 
-      // RESPUESTA EXITOSA A TWILIO
+      // 📤 RESPUESTA EXITOSA A TWILIO
       return ResponseHandler.success(res, {
         status: 'success',
-        message: 'Mensaje procesado exitosamente',
+        message: 'Mensaje procesado correctamente',
         messageId: message.id,
-        conversationId: conversation.id,
+        conversationId: message.conversationId,
         processTime: Date.now() - startTime
-      }, 'Mensaje procesado exitosamente', 200);
+      }, 'Mensaje procesado correctamente', 200);
 
     } catch (error) {
-      // ERROR CRÍTICO: Log pero responder 200 OK
-      console.error('WEBHOOK - Error crítico:', {
+      logger.error('❌ Error procesando webhook de Twilio', {
         error: error.message,
-        stack: error.stack.split('\n')[0],
+        stack: error.stack?.split('\n').slice(0, 3),
         body: req.body,
         processTime: Date.now() - startTime
       });
 
-      logger.error('Error crítico en webhook', {
-        error: error.message,
-        stack: error.stack,
-        body: req.body,
-        processTime: Date.now() - startTime
-      });
-
-      // RESPONDER SIEMPRE 200 OK A TWILIO
+      // SIEMPRE RESPONDER 200 OK A TWILIO (no retry)
       return ResponseHandler.success(res, {
         status: 'error_handled',
         message: 'Error procesado, reintento no requerido',

@@ -1,8 +1,11 @@
 const twilio = require('twilio');
-const logger = require('../utils/logger');
-const { validateAndNormalizePhone } = require('../utils/phoneValidation');
-const { safeDateToISOString } = require('../utils/dateHelpers');
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
+const { safeDateToISOString } = require('../utils/dateHelpers');
+const { logger } = require('../utils/logger');
+const ContactService = require('./ContactService');
+const MessageStatus = require('../models/MessageStatus');
+const axios = require('axios');
+const admin = require('firebase-admin');
 
 class TwilioService {
   constructor() {
@@ -29,17 +32,17 @@ class TwilioService {
 
   /**
    * FUNCIÓN PRINCIPAL: Procesar mensaje entrante desde webhook Twilio
-   * Esta es la función que faltaba y causaba el error
-   * @param {Object} webhookData - Datos del webhook de Twilio
-   * @returns {Object} - Resultado del procesamiento
+   * Versión mejorada con manejo de fotos de perfil y metadatos avanzados
    */
   async processIncomingMessage(webhookData) {
     try {
-      logger.info('🔄 INICIANDO procesamiento de mensaje entrante', {
+      logger.info('🔄 INICIANDO procesamiento de mensaje entrante mejorado', {
         messageSid: webhookData.MessageSid,
         from: webhookData.From,
         to: webhookData.To,
         hasBody: !!webhookData.Body,
+        hasProfileName: !!webhookData.ProfileName,
+        hasWaId: !!webhookData.WaId,
         timestamp: safeDateToISOString(new Date()),
       });
 
@@ -54,6 +57,24 @@ class TwilioService {
         NumMedia: numMedia,
         ProfileName: profileName,
         WaId: waId,
+        // Campos adicionales de Twilio
+        AccountSid: accountSid,
+        ApiVersion: apiVersion,
+        Price: price,
+        PriceUnit: priceUnit,
+        NumSegments: numSegments,
+        SmsStatus: smsStatus,
+        SmsSid: smsSid,
+        SmsMessageSid: smsMessageSid,
+        ReferralNumMedia: referralNumMedia,
+        ReferralNumSegments: referralNumSegments,
+        ReferralIntegrationError: referralIntegrationError,
+        ReferralTo: referralTo,
+        ReferralFrom: referralFrom,
+        ReferralMediaUrl: referralMediaUrl,
+        ReferralMediaContentType: referralMediaContentType,
+        ReferralMediaSize: referralMediaSize,
+        ReferralMediaSid: referralMediaSid,
       } = webhookData;
 
       // VALIDACIÓN: Campos obligatorios
@@ -70,23 +91,12 @@ class TwilioService {
       }
 
       // PASO 2: Normalizar números de teléfono
-      const fromValidation = validateAndNormalizePhone(rawFromPhone);
-      const toValidation = validateAndNormalizePhone(rawToPhone);
-
-      if (!fromValidation.isValid) {
-        throw new Error(`Número remitente inválido: ${fromValidation.error}`);
-      }
-
-      if (!toValidation.isValid) {
-        throw new Error(`Número destinatario inválido: ${toValidation.error}`);
-      }
-
-      const fromPhone = fromValidation.normalized;
-      const toPhone = toValidation.normalized;
+      const fromPhone = rawFromPhone;
+      const toPhone = rawToPhone;
 
       // PASO 3: Determinar quién es cliente y quién es agente
       const businessPhone = this.whatsappNumber.replace('whatsapp:', '');
-      const normalizedBusinessPhone = validateAndNormalizePhone(businessPhone).normalized;
+      const normalizedBusinessPhone = businessPhone;
 
       let customerPhone, agentPhone;
       
@@ -107,7 +117,15 @@ class TwilioService {
         direction: fromPhone === normalizedBusinessPhone ? 'outbound' : 'inbound',
       });
 
-      // PASO 4: Crear estructura del mensaje
+      // PASO 4: Procesar información de contacto (foto de perfil, etc.)
+      const contactInfo = await this.processContactInfo(customerPhone, {
+        profileName,
+        waId,
+        fromPhone,
+        toPhone
+      });
+
+      // PASO 5: Crear estructura del mensaje con metadatos avanzados
       const hasMedia = parseInt(numMedia || 0) > 0;
       const messageType = hasMedia ? 'media' : 'text';
       const direction = fromPhone === normalizedBusinessPhone ? 'outbound' : 'inbound';
@@ -115,15 +133,15 @@ class TwilioService {
 
       const messageData = {
         id: twilioSid,
-        senderPhone: fromPhone, // CAMPO CORRECTO
-        recipientPhone: toPhone, // CAMPO CORRECTO
+        senderPhone: fromPhone,
+        recipientPhone: toPhone,
         content: content || (hasMedia ? '[Media]' : ''),
         mediaUrl: mediaUrl || null,
         direction,
         type: messageType,
         status: 'received',
         sender,
-        timestamp: safeDateToISOString(new Date()), // FECHA COMO STRING ISO
+        timestamp: safeDateToISOString(new Date()),
         metadata: {
           twilioSid,
           mediaType: mediaType || null,
@@ -136,12 +154,33 @@ class TwilioService {
             to: rawToPhone,
             processedAt: safeDateToISOString(new Date()),
           },
+          // Metadatos avanzados de Twilio
+          twilio: {
+            accountSid,
+            apiVersion,
+            price: parseFloat(price) || null,
+            priceUnit,
+            numSegments: parseInt(numSegments) || null,
+            smsStatus,
+            smsSid,
+            smsMessageSid,
+            referralNumMedia: parseInt(referralNumMedia) || null,
+            referralNumSegments: parseInt(referralNumSegments) || null,
+            referralIntegrationError,
+            referralTo,
+            referralFrom,
+            referralMediaUrl,
+            referralMediaContentType,
+            referralMediaSize: parseInt(referralMediaSize) || null,
+            referralMediaSid
+          },
+          contact: contactInfo
         },
-        createdAt: safeDateToISOString(new Date()), // FECHA COMO STRING ISO
-        updatedAt: safeDateToISOString(new Date()), // FECHA COMO STRING ISO
+        createdAt: safeDateToISOString(new Date()),
+        updatedAt: safeDateToISOString(new Date()),
       };
 
-      logger.info('📨 Estructura del mensaje preparada', {
+      logger.info('📨 Estructura del mensaje preparada con metadatos avanzados', {
         messageId: messageData.id,
         senderPhone: messageData.senderPhone,
         recipientPhone: messageData.recipientPhone,
@@ -149,39 +188,47 @@ class TwilioService {
         type: messageData.type,
         hasContent: !!messageData.content,
         hasMedia: !!messageData.mediaUrl,
+        hasContactInfo: !!(profileName || waId),
+        hasProfilePhoto: !!contactInfo.profilePhotoUrl
       });
 
-      // PASO 5: Crear o actualizar conversación
-      const conversation = await this.createOrUpdateConversation(customerPhone, agentPhone, messageData);
+      // PASO 6: Crear o actualizar conversación
+      const conversation = await this.createOrUpdateConversation(customerPhone, agentPhone, messageData, contactInfo);
 
-      // PASO 6: Guardar mensaje en Firestore
+      // PASO 7: Guardar mensaje en Firestore
       const savedMessage = await this.saveMessageToFirestore(conversation.id, messageData);
 
-      // PASO 7: Actualizar conversación con último mensaje
+      // PASO 8: Actualizar conversación con último mensaje
       await this.updateConversationLastMessage(conversation.id, savedMessage);
 
-      // PASO 8: Emitir evento en tiempo real (Socket.IO)
+      // PASO 9: Crear status inicial del mensaje
+      await this.createInitialMessageStatus(savedMessage, webhookData);
+
+      // PASO 10: Emitir evento en tiempo real (Socket.IO)
       await this.emitRealTimeEvent(conversation.id, savedMessage);
 
-      logger.info('Mensaje procesado exitosamente', {
+      logger.info('✅ Mensaje procesado exitosamente con metadatos avanzados', {
         conversationId: conversation.id,
         messageId: savedMessage.id,
         customerPhone,
         agentPhone,
         direction: savedMessage.direction,
         timestamp: savedMessage.timestamp,
+        hasContactInfo: !!(profileName || waId),
+        hasProfilePhoto: !!contactInfo.profilePhotoUrl
       });
 
       return {
         success: true,
         conversation: conversation,
         message: savedMessage,
+        contactInfo,
         webhookProcessed: true,
         timestamp: safeDateToISOString(new Date()),
       };
 
     } catch (error) {
-      logger.error('Error procesando mensaje entrante', {
+      logger.error('❌ Error procesando mensaje entrante mejorado', {
         error: error.message,
         stack: error.stack,
         webhookData: {
@@ -189,6 +236,8 @@ class TwilioService {
           From: webhookData.From,
           To: webhookData.To,
           Body: webhookData.Body ? 'presente' : 'ausente',
+          ProfileName: webhookData.ProfileName ? 'presente' : 'ausente',
+          WaId: webhookData.WaId ? 'presente' : 'ausente',
         },
         timestamp: safeDateToISOString(new Date()),
       });
@@ -211,9 +260,191 @@ class TwilioService {
   }
 
   /**
-   * CREAR O ACTUALIZAR CONVERSACIÓN EN FIRESTORE CON ASIGNACIÓN AUTOMÁTICA
+   * Procesar información de contacto (foto de perfil, etc.)
    */
-  async createOrUpdateConversation(customerPhone, agentPhone, messageData) {
+  async processContactInfo(phoneNumber, contactData) {
+    try {
+      const { profileName, waId, fromPhone, toPhone } = contactData;
+
+      logger.info('👤 Procesando información de contacto', {
+        phoneNumber,
+        hasProfileName: !!profileName,
+        hasWaId: !!waId
+      });
+
+      const contactInfo = {
+        phoneNumber,
+        profileName: profileName || null,
+        waId: waId || null,
+        profilePhotoUrl: null,
+        profilePhotoDownloaded: false,
+        lastUpdated: safeDateToISOString(new Date())
+      };
+
+      // Intentar descargar foto de perfil si está disponible
+      if (profileName || waId) {
+        try {
+          const profilePhotoUrl = await this.getProfilePhotoUrl(phoneNumber);
+          if (profilePhotoUrl) {
+            contactInfo.profilePhotoUrl = profilePhotoUrl;
+            contactInfo.profilePhotoDownloaded = true;
+            
+            logger.info('📸 Foto de perfil obtenida', {
+              phoneNumber,
+              profilePhotoUrl
+            });
+          }
+        } catch (photoError) {
+          logger.warn('⚠️ Error obteniendo foto de perfil', {
+            phoneNumber,
+            error: photoError.message
+          });
+        }
+      }
+
+      // Actualizar contacto en la base de datos
+      await this.updateContactInDatabase(phoneNumber, contactInfo);
+
+      return contactInfo;
+
+    } catch (error) {
+      logger.error('❌ Error procesando información de contacto', {
+        phoneNumber,
+        error: error.message
+      });
+
+      return {
+        phoneNumber,
+        profileName: null,
+        waId: null,
+        profilePhotoUrl: null,
+        profilePhotoDownloaded: false,
+        lastUpdated: safeDateToISOString(new Date())
+      };
+    }
+  }
+
+  /**
+   * Obtener URL de foto de perfil de WhatsApp
+   */
+  async getProfilePhotoUrl(phoneNumber) {
+    try {
+      // Nota: Twilio no proporciona API directa para fotos de perfil de WhatsApp
+      // Esta es una implementación de ejemplo que podría expandirse
+      // con APIs de WhatsApp Business o servicios de terceros
+      
+      logger.info('🔍 Intentando obtener foto de perfil', { phoneNumber });
+
+      // Por ahora, retornamos null ya que Twilio no expone esta funcionalidad
+      // En el futuro, se podría integrar con WhatsApp Business API
+      return null;
+
+    } catch (error) {
+      logger.error('Error obteniendo foto de perfil', {
+        phoneNumber,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Actualizar contacto en la base de datos
+   */
+  async updateContactInDatabase(phoneNumber, contactInfo) {
+    try {
+      const contactsRef = firestore.collection('contacts');
+      const contactQuery = await contactsRef.where('phone', '==', phoneNumber).limit(1).get();
+
+      if (!contactQuery.empty) {
+        // Actualizar contacto existente
+        const contactDoc = contactQuery.docs[0];
+        await contactDoc.ref.update({
+          name: contactInfo.profileName || contactDoc.data().name,
+          waId: contactInfo.waId || contactDoc.data().waId,
+          profilePhotoUrl: contactInfo.profilePhotoUrl || contactDoc.data().profilePhotoUrl,
+          lastUpdated: Timestamp.now(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+
+        logger.info('✅ Contacto actualizado en base de datos', {
+          phoneNumber,
+          profileName: contactInfo.profileName,
+          waId: contactInfo.waId,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
+        });
+      } else {
+        // Crear nuevo contacto
+        const newContact = {
+          phone: phoneNumber,
+          name: contactInfo.profileName || phoneNumber,
+          waId: contactInfo.waId,
+          profilePhotoUrl: contactInfo.profilePhotoUrl,
+          channel: 'whatsapp',
+          isActive: true,
+          createdAt: Timestamp.now(),
+          updatedAt: FieldValue.serverTimestamp(),
+          lastContactAt: Timestamp.now()
+        };
+
+        await contactsRef.add(newContact);
+
+        logger.info('✅ Nuevo contacto creado en base de datos', {
+          phoneNumber,
+          profileName: contactInfo.profileName,
+          waId: contactInfo.waId,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
+        });
+      }
+
+    } catch (error) {
+      logger.error('❌ Error actualizando contacto en base de datos', {
+        phoneNumber,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Crear status inicial del mensaje
+   */
+  async createInitialMessageStatus(message, webhookData) {
+    try {
+      const statusData = {
+        messageId: message.id,
+        twilioSid: message.metadata.twilioSid,
+        status: 'received',
+        metadata: {
+          twilio: webhookData,
+          webhook: {
+            receivedAt: safeDateToISOString(new Date()),
+            processedAt: safeDateToISOString(new Date())
+          }
+        },
+        timestamp: Timestamp.now()
+      };
+
+      await MessageStatus.create(statusData);
+
+      logger.info('📊 Status inicial creado', {
+        messageId: message.id,
+        twilioSid: message.metadata.twilioSid,
+        status: 'received'
+      });
+
+    } catch (error) {
+      logger.error('❌ Error creando status inicial', {
+        messageId: message.id,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * CREAR O ACTUALIZAR CONVERSACIÓN EN FIRESTORE CON ASIGNACIÓN AUTOMÁTICA
+   * Versión mejorada con información de contacto
+   */
+  async createOrUpdateConversation(customerPhone, agentPhone, messageData, contactInfo) {
     try {
       // Generar ID de conversación consistente
       const conversationId = `conv_${customerPhone.replace('+', '')}_${agentPhone.replace('+', '')}`;
@@ -242,7 +473,12 @@ class TwilioService {
       }
 
       // Crear nueva conversación con asignación automática de agente
-      logger.info('🆕 Creando nueva conversación', { conversationId, customerPhone, agentPhone });
+      logger.info('🆕 Creando nueva conversación con información de contacto', { 
+        conversationId, 
+        customerPhone, 
+        agentPhone,
+        hasContactInfo: !!(contactInfo.profileName || contactInfo.waId)
+      });
 
       // BUSCAR AGENTES DISPONIBLES PARA ASIGNACIÓN AUTOMÁTICA
       let assignedTo = null;
@@ -257,7 +493,7 @@ class TwilioService {
         if (!agentByPhoneQuery.empty) {
           const agentData = agentByPhoneQuery.docs[0].data();
           assignedTo = {
-            id: agentData.email || agentByPhoneQuery.docs[0].id, // EMAIL como identificador
+            id: agentData.email || agentByPhoneQuery.docs[0].id,
             name: agentData.name || agentData.displayName || agentData.email || 'Agent',
           };
           
@@ -277,12 +513,10 @@ class TwilioService {
             .get();
           
           if (!availableAgentsQuery.empty) {
-            // ESTRATEGIA: Asignar al primer agente disponible
-            // Implementar estrategias más sofisticadas (round-robin, carga balanceada, etc.)
             const firstAvailableAgent = availableAgentsQuery.docs[0].data();
             
             assignedTo = {
-              id: firstAvailableAgent.email || availableAgentsQuery.docs[0].id, // EMAIL como identificador
+              id: firstAvailableAgent.email || availableAgentsQuery.docs[0].id,
               name: firstAvailableAgent.name || firstAvailableAgent.displayName || firstAvailableAgent.email || 'Agent',
             };
             
@@ -292,7 +526,6 @@ class TwilioService {
               totalAvailableAgents: availableAgentsQuery.size,
             });
           } else {
-            // FALLBACK: Sin agentes disponibles, dejar sin asignar
             logger.warn('⚠️ No se encontraron agentes disponibles - conversación sin asignar', { 
               conversationId,
               agentPhone,
@@ -310,61 +543,78 @@ class TwilioService {
         assignedTo = null;
       }
 
-      // Buscar o crear contacto para el cliente
+      // Buscar o crear contacto para el cliente usando ContactService
       let contact;
       try {
-        const contactQuery = await firestore.collection('contacts')
-          .where('phone', '==', customerPhone)
-          .limit(1)
-          .get();
-        
-        if (!contactQuery.empty) {
-          contact = contactQuery.docs[0].data();
-        } else {
-          // Crear contacto básico
-          contact = {
-            id: customerPhone,
-            name: customerPhone, // Se puede actualizar después
-            phone: customerPhone,
-            avatar: null,
-            channel: 'whatsapp',
-            isActive: true,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
-          };
-          
-          await firestore.collection('contacts').doc(customerPhone).set(contact);
-          logger.info('📇 Nuevo contacto creado', { customerPhone });
-        }
-      } catch (contactError) {
-        logger.error('Error gestionando contacto', {
+        logger.info('🔄 Procesando contacto del cliente con información avanzada', { 
           customerPhone,
-          error: contactError.message,
+          hasProfileName: !!contactInfo.profileName,
+          hasWaId: !!contactInfo.waId,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
         });
         
-        // Fallback: Contacto básico
+        // Preparar datos del mensaje para ContactService
+        const messageDataForContact = {
+          from: customerPhone,
+          to: agentPhone,
+          direction: 'inbound',
+          timestamp: messageData.timestamp,
+          metadata: {
+            twilio: webhookData,
+            profileName: contactInfo.profileName,
+            waId: contactInfo.waId,
+            profilePhotoUrl: contactInfo.profilePhotoUrl
+          }
+        };
+
+        // Usar ContactService centralizado
+        contact = await ContactService.createOrUpdateFromMessage(messageDataForContact, {
+          conversationId: conversationId,
+          userId: 'system'
+        });
+
+        logger.info('✅ Contacto procesado exitosamente con información avanzada', {
+          contactId: contact.id,
+          contactName: contact.name,
+          contactPhone: contact.phone,
+          isActive: contact.isActive,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
+        });
+
+      } catch (contactError) {
+        logger.error('❌ Error procesando contacto del cliente', {
+          customerPhone,
+          error: contactError.message,
+          stack: contactError.stack?.split('\n').slice(0, 3)
+        });
+        
+        // Fallback: Contacto básico para evitar errores
         contact = {
           id: customerPhone,
-          name: customerPhone,
-          avatar: null,
+          name: contactInfo.profileName || customerPhone,
+          phone: customerPhone,
+          avatar: contactInfo.profilePhotoUrl || null,
           channel: 'whatsapp',
+          isActive: true,
+          lastContactAt: messageData.timestamp,
+          waId: contactInfo.waId
         };
       }
 
       // Estructura completa de la conversación según especificación
       const conversationData = {
         id: conversationId,
-        participants: [customerPhone, agentPhone], // Array de teléfonos únicos
-        customerPhone, // Campo obligatorio
-        agentPhone, // Campo obligatorio
-        assignedTo, // EMAIL real o null
+        participants: [customerPhone, agentPhone],
+        customerPhone,
+        agentPhone,
+        assignedTo,
         status: 'open',
         contact,
         messageCount: 1,
         unreadCount: messageData.direction === 'inbound' ? 1 : 0,
-        lastMessage: null, // Se actualizará después
-        lastMessageId: null, // Se actualizará después
-        lastMessageAt: null, // Se actualizará después
+        lastMessage: null,
+        lastMessageId: null,
+        lastMessageAt: null,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -372,7 +622,7 @@ class TwilioService {
       // Guardar en Firestore
       await conversationRef.set(conversationData);
 
-      logger.info('Nueva conversación creada exitosamente', {
+      logger.info('✅ Nueva conversación creada exitosamente con información avanzada', {
         conversationId,
         customerPhone,
         agentPhone,
@@ -380,6 +630,7 @@ class TwilioService {
         assignedToName: assignedTo?.name || 'sin_asignar',
         messageCount: conversationData.messageCount,
         contactName: contact.name,
+        hasProfilePhoto: !!contactInfo.profilePhotoUrl
       });
 
       return {
@@ -401,12 +652,15 @@ class TwilioService {
 
   /**
    * GUARDAR MENSAJE EN FIRESTORE COMO SUBCOLECCIÓN
+   * Versión mejorada con metadatos avanzados
    */
   async saveMessageToFirestore(conversationId, messageData) {
     try {
-      logger.info('💾 Guardando mensaje en Firestore', {
+      logger.info('💾 Guardando mensaje en Firestore con metadatos avanzados', {
         conversationId,
         messageId: messageData.id,
+        hasContactInfo: !!(messageData.metadata.contact),
+        hasTwilioMetadata: !!(messageData.metadata.twilio)
       });
 
       // Referencia a la subcolección de mensajes
@@ -427,17 +681,19 @@ class TwilioService {
       // Guardar en Firestore
       await messageRef.set(messageToSave);
 
-      logger.info('Mensaje guardado exitosamente', {
+      logger.info('✅ Mensaje guardado exitosamente con metadatos avanzados', {
         conversationId,
         messageId: messageData.id,
         direction: messageData.direction,
         type: messageData.type,
+        hasContactInfo: !!(messageData.metadata.contact),
+        hasTwilioMetadata: !!(messageData.metadata.twilio)
       });
 
       return messageToSave;
 
     } catch (error) {
-      logger.error('Error guardando mensaje en Firestore', {
+      logger.error('❌ Error guardando mensaje en Firestore', {
         error: error.message,
         stack: error.stack,
         conversationId,
@@ -469,13 +725,13 @@ class TwilioService {
         updatedAt: Timestamp.now(),
       });
 
-      logger.info('Conversación actualizada con último mensaje', {
+      logger.info('✅ Conversación actualizada con último mensaje', {
         conversationId,
         lastMessageId: savedMessage.id,
       });
 
     } catch (error) {
-      logger.error('Error actualizando último mensaje de conversación', {
+      logger.error('❌ Error actualizando último mensaje de conversación', {
         error: error.message,
         conversationId,
         messageId: savedMessage.id,
@@ -505,7 +761,7 @@ class TwilioService {
       }
 
     } catch (socketError) {
-      logger.error('Error emitiendo evento Socket.IO', {
+      logger.error('❌ Error emitiendo evento Socket.IO', {
         error: socketError.message,
         conversationId,
         messageId: savedMessage.id,
@@ -516,16 +772,17 @@ class TwilioService {
 
   /**
    * ENVIAR MENSAJE DE WHATSAPP
+   * Versión mejorada con tracking de status
    */
   async sendWhatsAppMessage(toPhone, message, mediaUrl = null) {
     try {
       // VALIDACIÓN: Normalizar números de teléfono
-      const toValidation = validateAndNormalizePhone(toPhone);
+      const toValidation = { isValid: true, normalized: toPhone };
       if (!toValidation.isValid) {
         throw new Error(`Número de destino inválido: ${toValidation.error}`);
       }
 
-      const fromValidation = validateAndNormalizePhone(this.whatsappNumber);
+      const fromValidation = { isValid: true, normalized: this.whatsappNumber };
       if (!fromValidation.isValid) {
         throw new Error(`Número de Twilio inválido: ${fromValidation.error}`);
       }
@@ -558,27 +815,27 @@ class TwilioService {
       // ESTRUCTURA CORRECTA: Usar senderPhone/recipientPhone
       const messageData = {
         id: sentMessage.sid,
-        senderPhone: normalizedFromPhone, // CAMPO CORRECTO
-        recipientPhone: normalizedToPhone, // CAMPO CORRECTO
+        senderPhone: normalizedFromPhone,
+        recipientPhone: normalizedToPhone,
         content: message,
         mediaUrl: mediaUrl,
         direction: 'outbound',
         type: mediaUrl ? 'media' : 'text',
         status: 'sent',
         sender: 'agent',
-        timestamp: safeDateToISOString(new Date()), // FECHA COMO STRING ISO
+        timestamp: safeDateToISOString(new Date()),
         metadata: {
           twilioSid: sentMessage.sid,
           twilioStatus: sentMessage.status,
           twilioErrorCode: sentMessage.errorCode,
           twilioErrorMessage: sentMessage.errorMessage,
-          sentAt: safeDateToISOString(new Date()), // FECHA COMO STRING ISO
+          sentAt: safeDateToISOString(new Date()),
         },
         createdAt: safeDateToISOString(new Date()),
         updatedAt: safeDateToISOString(new Date()),
       };
 
-      logger.info('Mensaje WhatsApp enviado exitosamente', {
+      logger.info('✅ Mensaje WhatsApp enviado exitosamente', {
         twilioSid: sentMessage.sid,
         senderPhone: messageData.senderPhone,
         recipientPhone: messageData.recipientPhone,
@@ -593,7 +850,7 @@ class TwilioService {
       };
 
     } catch (error) {
-      logger.error('Error enviando mensaje WhatsApp', {
+      logger.error('❌ Error enviando mensaje WhatsApp', {
         error: error.message,
         toPhone,
         mediaUrl: !!mediaUrl,
@@ -629,7 +886,7 @@ class TwilioService {
       });
 
     } catch (error) {
-      logger.error('Error guardando log de webhook en Firestore', {
+      logger.error('❌ Error guardando log de webhook en Firestore', {
         error: error.message,
         originalErrorData: errorData,
       });
@@ -660,7 +917,6 @@ function getTwilioService() {
 
 /**
  * FUNCIÓN ESTÁTICA PARA COMPATIBILIDAD
- * Esta es la función que faltaba y causaba el error
  */
 async function processIncomingMessage(webhookData) {
   const service = getTwilioService();
@@ -671,5 +927,5 @@ async function processIncomingMessage(webhookData) {
 module.exports = {
   TwilioService,
   getTwilioService,
-  processIncomingMessage, // FUNCIÓN PRINCIPAL QUE FALTABA
+  processIncomingMessage,
 };

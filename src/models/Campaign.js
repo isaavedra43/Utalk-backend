@@ -1,5 +1,6 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { prepareForFirestore } = require('../utils/firestore');
+const logger = require('../utils/logger');
 
 class Campaign {
   constructor (data) {
@@ -267,6 +268,122 @@ class Campaign {
       ...this.toJSON(),
       contactDetails: contactDetails.filter(contact => contact !== null),
     };
+  }
+
+  /**
+   * 🚀 OPTIMIZED BATCH GET CONTACT DETAILS
+   * Optimiza la obtención de detalles de contactos usando batch operations
+   */
+  static async getContactDetailsOptimized(contacts) {
+    try {
+      if (!contacts || contacts.length === 0) {
+        return [];
+      }
+
+      const BatchOptimizer = require('../services/BatchOptimizer');
+      const contactIds = contacts.map(contact => contact.id);
+      
+      const documents = await BatchOptimizer.batchGet('contacts', contactIds, {
+        batchSize: 500,
+        timeout: 30000
+      });
+
+      const contactDetails = documents
+        .filter(doc => doc.exists)
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+      logger.info('Contact details obtenidos con batch optimization', {
+        totalContacts: contacts.length,
+        successfulGets: contactDetails.length,
+        failedGets: contacts.length - contactDetails.length
+      });
+
+      return contactDetails;
+
+    } catch (error) {
+      logger.error('Error obteniendo contact details optimizados', {
+        error: error.message,
+        stack: error.stack
+      });
+      return [];
+    }
+  }
+
+  /**
+   * 📊 OPTIMIZED BATCH CAMPAIGN STATS
+   * Optimiza la obtención de estadísticas de campañas usando batch operations
+   */
+  static async getCampaignStatsOptimized(campaignIds, options = {}) {
+    try {
+      const { startDate, endDate, createdBy } = options;
+      
+      const BatchOptimizer = require('../services/BatchOptimizer');
+      
+      // Crear queries de batch para cada campaña
+      const queries = campaignIds.map(campaignId => {
+        let query = firestore.collection('campaigns').doc(campaignId);
+        return query;
+      });
+
+      const results = await BatchOptimizer.batchQuery(queries, {
+        maxConcurrent: 10,
+        timeout: 30000
+      });
+
+      // Procesar resultados
+      const stats = {
+        totalCampaigns: 0,
+        campaignsByStatus: {},
+        campaignsByType: {},
+        campaigns: {}
+      };
+
+      results.forEach((doc, index) => {
+        if (doc.exists) {
+          const campaignData = doc.data();
+          const campaignId = campaignIds[index];
+
+          stats.campaigns[campaignId] = {
+            id: campaignId,
+            ...campaignData
+          };
+
+          stats.totalCampaigns++;
+
+          // Contar por status
+          const status = campaignData.status || 'unknown';
+          stats.campaignsByStatus[status] = (stats.campaignsByStatus[status] || 0) + 1;
+
+          // Contar por tipo
+          const type = campaignData.type || 'unknown';
+          stats.campaignsByType[type] = (stats.campaignsByType[type] || 0) + 1;
+        }
+      });
+
+      logger.info('Campaign stats obtenidos con batch optimization', {
+        totalCampaigns: campaignIds.length,
+        successfulGets: stats.totalCampaigns,
+        uniqueStatuses: Object.keys(stats.campaignsByStatus).length,
+        uniqueTypes: Object.keys(stats.campaignsByType).length
+      });
+
+      return stats;
+
+    } catch (error) {
+      logger.error('Error obteniendo campaign stats optimizados', {
+        error: error.message,
+        stack: error.stack
+      });
+      return {
+        totalCampaigns: 0,
+        campaignsByStatus: {},
+        campaignsByType: {},
+        campaigns: {}
+      };
+    }
   }
 
   /**

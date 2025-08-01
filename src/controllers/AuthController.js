@@ -1,13 +1,15 @@
 const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
 const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');
+const { v4: uuidv4 } = require('uuid');
 
 class AuthController {
   /**
-   * 🔒 LOGIN CON FIRESTORE ÚNICAMENTE (EMAIL + PASSWORD)
-   * NO más JWT interno - Solo Firestore y JWT interno
+   * 🔒 LOGIN CON REFRESH TOKENS
+   * Genera access token (corto) + refresh token (largo)
    */
   static async login(req, res, next) {
     try {
@@ -80,9 +82,9 @@ class AuthController {
         email
       });
 
-      // GENERAR JWT INTERNO
+      // 🔄 GENERAR ACCESS TOKEN (corto - 15 minutos)
       const jwtSecret = process.env.JWT_SECRET;
-      const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
+      const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '15m'; // Reducido a 15 minutos
 
       if (!jwtSecret) {
         req.logger.error('💥 JWT_SECRET no configurado');
@@ -93,26 +95,40 @@ class AuthController {
         });
       }
 
-      // ✅ PAYLOAD DEL JWT - Claims que se incluyen en el token
-      const tokenPayload = {
-          email: user.email,        // Identificador principal del usuario
-          role: user.role,          // Rol para autorización
-        name: user.name,          // Nombre para UI
-        iat: Math.floor(Date.now() / 1000), // Timestamp de emisión
-      };
-
-      // ✅ GENERACIÓN DEL JWT CON CLAIMS DE SEGURIDAD
-      const token = jwt.sign(tokenPayload, jwtSecret, { 
-        expiresIn: jwtExpiresIn,
-        issuer: 'utalk-backend',      // Debe coincidir con auth.js:55
-        audience: 'utalk-frontend',   // Debe coincidir con auth.js:56
-      });
-
-      // ✅ NUEVO: Log de token generado
-      req.logger.auth('token_generated', {
+      // ✅ PAYLOAD DEL ACCESS TOKEN
+      const accessTokenPayload = {
         email: user.email,
         role: user.role,
-        expiresIn: jwtExpiresIn
+        name: user.name,
+        type: 'access',
+        iat: Math.floor(Date.now() / 1000),
+      };
+
+      // ✅ GENERACIÓN DEL ACCESS TOKEN
+      const accessToken = jwt.sign(accessTokenPayload, jwtSecret, { 
+        expiresIn: jwtExpiresIn,
+        issuer: 'utalk-backend',
+        audience: 'utalk-frontend',
+      });
+
+      // 🔄 GENERAR REFRESH TOKEN (largo - 7 días)
+      const deviceInfo = {
+        deviceId: req.headers['x-device-id'] || uuidv4(),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']?.substring(0, 200),
+        deviceType: req.headers['x-device-type'] || 'web',
+        loginAt: new Date().toISOString()
+      };
+
+      const refreshToken = await RefreshToken.generate(user.email, user.id, deviceInfo);
+
+      // ✅ NUEVO: Log de tokens generados
+      req.logger.auth('tokens_generated', {
+        email: user.email,
+        role: user.role,
+        accessTokenExpiresIn: jwtExpiresIn,
+        refreshTokenExpiresIn: '7d',
+        deviceId: deviceInfo.deviceId
       });
 
       // LOGIN EXITOSO
@@ -122,15 +138,24 @@ class AuthController {
         role: user.role,
         department: user.department,
         ip: req.ip,
-        userAgent: req.headers['user-agent']?.substring(0, 100)
+        userAgent: req.headers['user-agent']?.substring(0, 100),
+        deviceId: deviceInfo.deviceId
       });
 
-      // RESPUESTA ESTÁNDAR (EMAIL-FIRST)
+      // RESPUESTA CON AMBOS TOKENS
       res.json({
         success: true,
         message: 'Login exitoso',
-        token: token,
+        accessToken: accessToken,
+        refreshToken: refreshToken.token,
+        expiresIn: jwtExpiresIn,
+        refreshExpiresIn: '7d',
         user: user.toJSON(),
+        deviceInfo: {
+          deviceId: deviceInfo.deviceId,
+          deviceType: deviceInfo.deviceType,
+          loginAt: deviceInfo.loginAt
+        }
       });
     } catch (error) {
       req.logger.error('💥 Error crítico en login', {
@@ -144,13 +169,235 @@ class AuthController {
   }
 
   /**
-   * 🚪 LOGOUT
+   * 🔄 REFRESH TOKEN ENDPOINT
+   * Renueva access token usando refresh token válido
+   */
+  static async refreshToken(req, res, next) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        req.logger.auth('refresh_failed', {
+          reason: 'missing_refresh_token',
+          ip: req.ip
+        });
+
+        return res.status(400).json({
+          error: 'Refresh token requerido',
+          message: 'Incluye el refresh token en el cuerpo de la petición',
+          code: 'MISSING_REFRESH_TOKEN',
+        });
+      }
+
+      req.logger.auth('refresh_attempt', {
+        refreshTokenPreview: refreshToken.substring(0, 20) + '...',
+        ip: req.ip,
+        userAgent: req.headers['user-agent']?.substring(0, 100)
+      });
+
+      // 🔍 VERIFICAR REFRESH TOKEN EN BASE DE DATOS
+      const storedRefreshToken = await RefreshToken.getByToken(refreshToken);
+
+      if (!storedRefreshToken) {
+        req.logger.auth('refresh_failed', {
+          reason: 'refresh_token_not_found',
+          ip: req.ip
+        });
+
+        return res.status(401).json({
+          error: 'Refresh token inválido',
+          message: 'El refresh token no existe o ha sido invalidado',
+          code: 'INVALID_REFRESH_TOKEN',
+        });
+      }
+
+      // 🔍 VERIFICAR VALIDEZ DEL REFRESH TOKEN
+      if (!storedRefreshToken.isValid()) {
+        req.logger.auth('refresh_failed', {
+          reason: 'refresh_token_invalid',
+          tokenId: storedRefreshToken.id,
+          isActive: storedRefreshToken.isActive,
+          isExpired: storedRefreshToken.isExpired(),
+          hasExceededMaxUses: storedRefreshToken.hasExceededMaxUses(),
+          ip: req.ip
+        });
+
+        return res.status(401).json({
+          error: 'Refresh token inválido',
+          message: 'El refresh token ha expirado o ha sido invalidado',
+          code: 'REFRESH_TOKEN_INVALID',
+        });
+      }
+
+      // 🔍 VERIFICAR JWT DEL REFRESH TOKEN
+      let decodedRefreshToken;
+      try {
+        decodedRefreshToken = jwt.verify(
+          refreshToken, 
+          process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+          {
+            issuer: 'utalk-backend',
+            audience: 'utalk-frontend'
+          }
+        );
+      } catch (jwtError) {
+        req.logger.auth('refresh_failed', {
+          reason: 'refresh_token_jwt_invalid',
+          error: jwtError.message,
+          ip: req.ip
+        });
+
+        return res.status(401).json({
+          error: 'Refresh token inválido',
+          message: 'El refresh token no es válido',
+          code: 'REFRESH_TOKEN_JWT_INVALID',
+        });
+      }
+
+      // 🔍 VERIFICAR QUE EL USUARIO EXISTA
+      const user = await User.getByEmail(storedRefreshToken.userEmail);
+      if (!user || !user.isActive) {
+        req.logger.auth('refresh_failed', {
+          reason: 'user_not_found_or_inactive',
+          userEmail: storedRefreshToken.userEmail,
+          userExists: !!user,
+          userActive: user?.isActive,
+          ip: req.ip
+        });
+
+        return res.status(401).json({
+          error: 'Usuario no válido',
+          message: 'El usuario asociado al refresh token no existe o está inactivo',
+          code: 'USER_INVALID',
+        });
+      }
+
+      // 🔄 GENERAR NUEVO ACCESS TOKEN
+      const jwtSecret = process.env.JWT_SECRET;
+      const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '15m';
+
+      const newAccessTokenPayload = {
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        type: 'access',
+        iat: Math.floor(Date.now() / 1000),
+      };
+
+      const newAccessToken = jwt.sign(newAccessTokenPayload, jwtSecret, {
+        expiresIn: jwtExpiresIn,
+        issuer: 'utalk-backend',
+        audience: 'utalk-frontend',
+      });
+
+      // 🔄 ACTUALIZAR REFRESH TOKEN (incrementar contador de usos)
+      await storedRefreshToken.update({
+        usedCount: 1,
+        lastUsedAt: new Date()
+      });
+
+      // 🔄 ROTACIÓN DE REFRESH TOKEN (si se acerca al límite)
+      let newRefreshToken = null;
+      if (storedRefreshToken.usedCount >= storedRefreshToken.maxUses * 0.8) {
+        // Invalidar familia actual y generar nueva
+        await RefreshToken.invalidateFamily(storedRefreshToken.familyId);
+        
+        const deviceInfo = {
+          deviceId: storedRefreshToken.deviceId,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']?.substring(0, 200),
+          deviceType: 'web',
+          rotatedAt: new Date().toISOString()
+        };
+
+        newRefreshToken = await RefreshToken.generate(user.email, user.id, deviceInfo);
+
+        req.logger.auth('refresh_token_rotated', {
+          oldTokenId: storedRefreshToken.id,
+          newTokenId: newRefreshToken.id,
+          userEmail: user.email,
+          reason: 'approaching_max_uses'
+        });
+      }
+
+      req.logger.auth('refresh_success', {
+        userEmail: user.email,
+        oldTokenId: storedRefreshToken.id,
+        newTokenId: newRefreshToken?.id,
+        usedCount: storedRefreshToken.usedCount + 1,
+        ip: req.ip
+      });
+
+      // RESPUESTA CON NUEVO ACCESS TOKEN
+      const response = {
+        success: true,
+        message: 'Token renovado exitosamente',
+        accessToken: newAccessToken,
+        expiresIn: jwtExpiresIn,
+        user: user.toJSON()
+      };
+
+      // Incluir nuevo refresh token si se rotó
+      if (newRefreshToken) {
+        response.refreshToken = newRefreshToken.token;
+        response.refreshExpiresIn = '7d';
+        response.tokenRotated = true;
+      }
+
+      res.json(response);
+
+    } catch (error) {
+      req.logger.error('💥 Error crítico en refresh token', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        ip: req.ip
+      });
+      next(error);
+    }
+  }
+
+  /**
+   * 🚪 LOGOUT CON INVALIDACIÓN DE REFRESH TOKENS
    */
   static async logout(req, res, next) {
     try {
       const email = req.user?.email;
+      const { refreshToken, invalidateAll = false } = req.body;
 
-      req.logger.auth('logout', {
+      req.logger.auth('logout_attempt', {
+        email,
+        hasRefreshToken: !!refreshToken,
+        invalidateAll,
+        ip: req.ip,
+        userAgent: req.headers['user-agent']?.substring(0, 100)
+      });
+
+      // Invalidar refresh token específico si se proporciona
+      if (refreshToken) {
+        const storedRefreshToken = await RefreshToken.getByToken(refreshToken);
+        if (storedRefreshToken && storedRefreshToken.userEmail === email) {
+          await storedRefreshToken.invalidate();
+          
+          req.logger.auth('refresh_token_invalidated', {
+            tokenId: storedRefreshToken.id,
+            userEmail: email,
+            ip: req.ip
+          });
+        }
+      }
+
+      // Invalidar todos los refresh tokens del usuario si se solicita
+      if (invalidateAll) {
+        const invalidatedCount = await RefreshToken.invalidateAllForUser(email);
+        
+        req.logger.auth('all_refresh_tokens_invalidated', {
+          userEmail: email,
+          count: invalidatedCount,
+          ip: req.ip
+        });
+      }
+
+      req.logger.auth('logout_success', {
         email,
         ip: req.ip,
         userAgent: req.headers['user-agent']?.substring(0, 100)
@@ -159,6 +406,7 @@ class AuthController {
       res.json({
         success: true,
         message: 'Logout exitoso',
+        invalidatedTokens: invalidateAll ? 'all' : refreshToken ? 1 : 0
       });
     } catch (error) {
       req.logger.error('Error en logout', {
@@ -166,6 +414,227 @@ class AuthController {
         email: req.user?.email,
       });
       next(error);
+    }
+  }
+
+  /**
+   * 🔍 VALIDAR TOKEN (sin renovación)
+   */
+  static async validateToken(req, res) {
+    const startTime = Date.now();
+    
+    try {
+      // 🔍 EXTRAER TOKEN DEL HEADER
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        req.logger.auth('token_missing', {
+          hasAuthHeader: !!authHeader,
+          headerFormat: authHeader ? authHeader.substring(0, 20) + '...' : 'none',
+          userAgent: req.get('User-Agent')?.substring(0, 50),
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'NO_TOKEN',
+          'No se encontró token de autenticación en la petición',
+          'Incluye el header Authorization: Bearer {token} en tu petición',
+          401,
+          { headerPresent: !!authHeader }
+        ));
+      }
+
+      const token = authHeader.split(' ')[1];
+
+      if (!token || token === 'null' || token === 'undefined') {
+        req.logger.auth('token_invalid', {
+          reason: 'empty_token',
+          tokenExists: !!token,
+          tokenValue: token,
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'EMPTY_TOKEN',
+          'El token de autenticación está vacío',
+          'Proporciona un token JWT válido',
+          401
+        ));
+      }
+
+      // 🔐 VERIFICAR JWT
+      let decodedToken;
+      try {
+        decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+        
+        req.logger.auth('token_validated', {
+          email: decodedToken.email,
+          role: decodedToken.role,
+          type: decodedToken.type,
+          iat: decodedToken.iat ? new Date(decodedToken.iat * 1000).toISOString() : 'unknown',
+          exp: decodedToken.exp ? new Date(decodedToken.exp * 1000).toISOString() : 'unknown',
+          ip: req.ip
+        });
+
+      } catch (jwtError) {
+        // 🚨 DIFERENTES TIPOS DE ERRORES JWT
+        let errorCode = 'INVALID_TOKEN';
+        let errorMessage = 'El token es inválido o ha expirado';
+        let suggestion = 'Inicia sesión nuevamente para obtener un token válido';
+
+        if (jwtError.name === 'TokenExpiredError') {
+          errorCode = 'TOKEN_EXPIRED';
+          errorMessage = 'El token ha expirado';
+          suggestion = 'Usa el refresh token para renovar tu sesión';
+        } else if (jwtError.name === 'JsonWebTokenError') {
+          errorCode = 'MALFORMED_TOKEN';
+          errorMessage = 'El formato del token es inválido';
+          suggestion = 'Verifica que el token esté correctamente formateado';
+        } else if (jwtError.name === 'NotBeforeError') {
+          errorCode = 'TOKEN_NOT_ACTIVE';
+          errorMessage = 'El token aún no es válido';
+          suggestion = 'Espera a que el token se active o solicita uno nuevo';
+        }
+
+        req.logger.auth('token_invalid', {
+          error: jwtError.name,
+          message: jwtError.message,
+          tokenPreview: token.substring(0, 20) + '...',
+          ip: req.ip,
+          userAgent: req.get('User-Agent')?.substring(0, 50)
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          errorCode,
+          errorMessage,
+          suggestion,
+          401,
+          { 
+            jwtError: jwtError.name,
+            timestamp: new Date().toISOString()
+          }
+        ));
+      }
+
+      // 📧 VALIDAR QUE EL TOKEN TENGA EMAIL
+      if (!decodedToken.email) {
+        req.logger.auth('token_invalid', {
+          reason: 'missing_email_claim',
+          tokenPayload: decodedToken,
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_TOKEN_PAYLOAD',
+          'El token no contiene información de usuario válida',
+          'Inicia sesión nuevamente para obtener un token correcto',
+          401
+        ));
+      }
+
+      // 👤 BUSCAR USUARIO EN FIRESTORE
+      req.logger.database('query_started', {
+        operation: 'user_by_email_for_validation',
+        email: decodedToken.email
+      });
+
+      const user = await User.getByEmail(decodedToken.email);
+
+      if (!user) {
+        req.logger.auth('user_not_found', {
+          email: decodedToken.email,
+          tokenAge: decodedToken.iat ? Math.floor((Date.now() / 1000) - decodedToken.iat) : 'unknown',
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'USER_NOT_FOUND',
+          'El usuario asociado al token no existe',
+          'El usuario puede haber sido eliminado. Inicia sesión nuevamente',
+          401,
+          { email: decodedToken.email }
+        ));
+      }
+
+      // 🔒 VERIFICAR QUE EL USUARIO ESTÉ ACTIVO
+      if (!user.isActive) {
+        req.logger.auth('user_inactive', {
+          email: user.email,
+          isActive: user.isActive,
+          role: user.role,
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'USER_INACTIVE',
+          'Tu cuenta ha sido desactivada',
+          'Contacta al administrador para reactivar tu cuenta',
+          401,
+          { 
+            email: user.email,
+            isActive: user.isActive
+          }
+        ));
+      }
+
+      // TOKEN VÁLIDO - RESPONDER CON DATOS DEL USUARIO
+      const responseData = {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isActive: user.isActive,
+        permissions: user.permissions || [],
+        avatar: user.avatar || null,
+        lastLoginAt: user.lastLoginAt ? safeDateToISOString(user.lastLoginAt) : null,
+        createdAt: user.createdAt ? safeDateToISOString(user.createdAt) : null
+      };
+
+      // 📊 ACTUALIZAR ÚLTIMA ACTIVIDAD (opcional, sin bloquear respuesta)
+      setImmediate(async () => {
+        try {
+          await user.updateLastActivity();
+        } catch (activityError) {
+          req.logger.error('Error actualizando última actividad', {
+            email: user.email,
+            error: activityError.message
+          });
+        }
+      });
+
+      const responseTime = Date.now() - startTime;
+      req.logger.auth('token_validation_success', {
+        email: user.email,
+        role: user.role,
+        responseTime: `${responseTime}ms`,
+        successful: true
+      });
+
+      return ResponseHandler.success(res, {
+        user: responseData,
+        sessionValid: true,
+        validatedAt: new Date().toISOString()
+      }, 'Token válido - sesión activa');
+
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      req.logger.error('Error interno validando token', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        ip: req.ip,
+        userAgent: req.get('User-Agent')?.substring(0, 50),
+        responseTime: responseTime + 'ms'
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'VALIDATION_ERROR',
+        'Error interno validando el token de autenticación',
+        'Intenta nuevamente o inicia sesión si el problema persiste',
+        500,
+        { 
+          originalError: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          timestamp: new Date().toISOString()
+        }
+      ));
     }
   }
 
@@ -331,11 +800,18 @@ class AuthController {
       const user = await User.getByEmail(email);
       await user.update({ password: newPassword }); // Se hasheará automáticamente en el modelo
 
-      logger.info('Contraseña cambiada exitosamente', { email });
+      // 🔄 INVALIDAR TODOS LOS REFRESH TOKENS DEL USUARIO
+      const invalidatedCount = await RefreshToken.invalidateAllForUser(email);
+      
+      logger.info('Contraseña cambiada exitosamente', { 
+        email,
+        invalidatedTokens: invalidatedCount
+      });
 
       res.json({
         success: true,
-        message: 'Contraseña cambiada exitosamente',
+        message: 'Contraseña cambiada exitosamente. Todos los dispositivos han sido desconectados.',
+        invalidatedTokens: invalidatedCount
       });
     } catch (error) {
       logger.error('Error cambiando contraseña', {
@@ -385,14 +861,14 @@ class AuthController {
 
       // Crear usuario en Firestore
       try {
-      const newUser = await User.create({
-        email,
+        const newUser = await User.create({
+          email,
           password,
-        name,
-        role,
+          name,
+          role,
           department,
           isActive: true,
-      });
+        });
 
         logger.info('Usuario creado completamente', {
           email: newUser.email,
@@ -401,11 +877,11 @@ class AuthController {
           createdBy: adminEmail,
         });
 
-      res.status(201).json({
+        res.status(201).json({
           success: true,
-        message: 'Usuario creado exitosamente',
-        user: newUser.toJSON(),
-      });
+          message: 'Usuario creado exitosamente',
+          user: newUser.toJSON(),
+        });
       } catch (createError) {
         if (createError.message === 'Usuario ya existe') {
           return res.status(409).json({
@@ -427,230 +903,109 @@ class AuthController {
   }
 
   /**
-   * 🔍 GET /api/auth/validate-token
-   * Valida JWT existente para mantener sesión al refrescar página
-   * 
-   * Este endpoint es CRÍTICO para la experiencia de usuario:
-   * - Permite al frontend restaurar el estado de autenticación
-   * - Evita logout automático al refrescar la página
-   * - Mantiene la sesión persistente sin pedir login nuevamente
-   * 
-   * NO renueva tokens, solo valida y responde con datos del usuario
+   * 🔍 OBTENER SESIONES ACTIVAS DEL USUARIO
    */
-  static async validateToken(req, res) {
-    const startTime = Date.now();
-    
+  static async getActiveSessions(req, res, next) {
     try {
-      // 🔍 EXTRAER TOKEN DEL HEADER
-      const authHeader = req.headers.authorization;
-      
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        req.logger.auth('token_missing', {
-          hasAuthHeader: !!authHeader,
-          headerFormat: authHeader ? authHeader.substring(0, 20) + '...' : 'none',
-          userAgent: req.get('User-Agent')?.substring(0, 50),
-          ip: req.ip
-        });
+      const email = req.user?.email;
 
-        return ResponseHandler.error(res, new ApiError(
-          'NO_TOKEN',
-          'No se encontró token de autenticación en la petición',
-          'Incluye el header Authorization: Bearer {token} en tu petición',
-          401,
-          { headerPresent: !!authHeader }
-        ));
+      if (!email) {
+        return res.status(401).json({
+          error: 'Usuario no autenticado',
+          code: 'MISSING_EMAIL',
+        });
       }
 
-      const token = authHeader.split(' ')[1];
+      logger.info('🔍 Obteniendo sesiones activas', { email });
 
-      if (!token || token === 'null' || token === 'undefined') {
-        req.logger.auth('token_invalid', {
-          reason: 'empty_token',
-          tokenExists: !!token,
-          tokenValue: token,
-          ip: req.ip
-        });
+      const activeTokens = await RefreshToken.listByUser(email, { activeOnly: true });
 
-        return ResponseHandler.error(res, new ApiError(
-          'EMPTY_TOKEN',
-          'El token de autenticación está vacío',
-          'Proporciona un token JWT válido',
-          401
-        ));
-      }
+      const sessions = activeTokens.map(token => ({
+        id: token.id,
+        deviceId: token.deviceId,
+        deviceInfo: token.deviceInfo,
+        ipAddress: token.ipAddress,
+        userAgent: token.userAgent,
+        createdAt: token.createdAt?.toDate?.()?.toISOString() || token.createdAt,
+        lastUsedAt: token.lastUsedAt?.toDate?.()?.toISOString() || token.lastUsedAt,
+        usedCount: token.usedCount,
+        maxUses: token.maxUses,
+        expiresAt: token.expiresAt?.toDate?.()?.toISOString() || token.expiresAt
+      }));
 
-      // 🔐 VERIFICAR JWT
-      let decodedToken;
-      try {
-        decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-        
-        req.logger.auth('token_validated', {
-          email: decodedToken.email,
-          role: decodedToken.role,
-          iat: decodedToken.iat ? new Date(decodedToken.iat * 1000).toISOString() : 'unknown',
-          exp: decodedToken.exp ? new Date(decodedToken.exp * 1000).toISOString() : 'unknown',
-          ip: req.ip
-        });
-
-      } catch (jwtError) {
-        // 🚨 DIFERENTES TIPOS DE ERRORES JWT
-        let errorCode = 'INVALID_TOKEN';
-        let errorMessage = 'El token es inválido o ha expirado';
-        let suggestion = 'Inicia sesión nuevamente para obtener un token válido';
-
-        if (jwtError.name === 'TokenExpiredError') {
-          errorCode = 'TOKEN_EXPIRED';
-          errorMessage = 'El token ha expirado';
-          suggestion = 'Inicia sesión nuevamente para renovar tu sesión';
-        } else if (jwtError.name === 'JsonWebTokenError') {
-          errorCode = 'MALFORMED_TOKEN';
-          errorMessage = 'El formato del token es inválido';
-          suggestion = 'Verifica que el token esté correctamente formateado';
-        } else if (jwtError.name === 'NotBeforeError') {
-          errorCode = 'TOKEN_NOT_ACTIVE';
-          errorMessage = 'El token aún no es válido';
-          suggestion = 'Espera a que el token se active o solicita uno nuevo';
-        }
-
-        req.logger.auth('token_invalid', {
-          error: jwtError.name,
-          message: jwtError.message,
-          tokenPreview: token.substring(0, 20) + '...',
-          ip: req.ip,
-          userAgent: req.get('User-Agent')?.substring(0, 50)
-        });
-
-        return ResponseHandler.error(res, new ApiError(
-          errorCode,
-          errorMessage,
-          suggestion,
-          401,
-          { 
-            jwtError: jwtError.name,
-            timestamp: new Date().toISOString()
-          }
-        ));
-      }
-
-      // 📧 VALIDAR QUE EL TOKEN TENGA EMAIL
-      if (!decodedToken.email) {
-        req.logger.auth('token_invalid', {
-          reason: 'missing_email_claim',
-          tokenPayload: decodedToken,
-          ip: req.ip
-        });
-
-        return ResponseHandler.error(res, new ApiError(
-          'INVALID_TOKEN_PAYLOAD',
-          'El token no contiene información de usuario válida',
-          'Inicia sesión nuevamente para obtener un token correcto',
-          401
-        ));
-      }
-
-      // 👤 BUSCAR USUARIO EN FIRESTORE
-      req.logger.database('query_started', {
-        operation: 'user_by_email_for_validation',
-        email: decodedToken.email
+      logger.info('Sesiones activas obtenidas', {
+        email,
+        count: sessions.length
       });
 
-      const user = await User.getByEmail(decodedToken.email);
-
-      if (!user) {
-        req.logger.auth('user_not_found', {
-          email: decodedToken.email,
-          tokenAge: decodedToken.iat ? Math.floor((Date.now() / 1000) - decodedToken.iat) : 'unknown',
-          ip: req.ip
-        });
-
-        return ResponseHandler.error(res, new ApiError(
-          'USER_NOT_FOUND',
-          'El usuario asociado al token no existe',
-          'El usuario puede haber sido eliminado. Inicia sesión nuevamente',
-          401,
-          { email: decodedToken.email }
-        ));
-      }
-
-      // 🔒 VERIFICAR QUE EL USUARIO ESTÉ ACTIVO
-      if (!user.isActive) {
-        req.logger.auth('user_inactive', {
-          email: user.email,
-          isActive: user.isActive,
-          role: user.role,
-          ip: req.ip
-        });
-
-        return ResponseHandler.error(res, new ApiError(
-          'USER_INACTIVE',
-          'Tu cuenta ha sido desactivada',
-          'Contacta al administrador para reactivar tu cuenta',
-          401,
-          { 
-            email: user.email,
-            isActive: user.isActive
-          }
-        ));
-      }
-
-      // TOKEN VÁLIDO - RESPONDER CON DATOS DEL USUARIO
-      const responseData = {
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isActive: user.isActive,
-        permissions: user.permissions || [],
-        avatar: user.avatar || null,
-        lastLoginAt: user.lastLoginAt ? safeDateToISOString(user.lastLoginAt) : null,
-        createdAt: user.createdAt ? safeDateToISOString(user.createdAt) : null
-      };
-
-      // 📊 ACTUALIZAR ÚLTIMA ACTIVIDAD (opcional, sin bloquear respuesta)
-      setImmediate(async () => {
-        try {
-          await user.updateLastActivity();
-        } catch (activityError) {
-          req.logger.error('Error actualizando última actividad', {
-            email: user.email,
-            error: activityError.message
-          });
-        }
+      res.json({
+        success: true,
+        sessions,
+        count: sessions.length
       });
-
-      const responseTime = Date.now() - startTime;
-      req.logger.auth('token_validation_success', {
-        email: user.email,
-        role: user.role,
-        responseTime: `${responseTime}ms`,
-        successful: true
-      });
-
-      return ResponseHandler.success(res, {
-        user: responseData,
-        sessionValid: true,
-        validatedAt: new Date().toISOString()
-      }, 'Token válido - sesión activa');
-
     } catch (error) {
-      const responseTime = Date.now() - startTime;
-      req.logger.error('Error interno validando token', {
+      logger.error('Error obteniendo sesiones activas', {
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 3),
-        ip: req.ip,
-        userAgent: req.get('User-Agent')?.substring(0, 50),
-        responseTime: responseTime + 'ms'
+        email: req.user?.email,
+      });
+      next(error);
+    }
+  }
+
+  /**
+   * 🚫 CERRAR SESIÓN ESPECÍFICA
+   */
+  static async closeSession(req, res, next) {
+    try {
+      const email = req.user?.email;
+      const { sessionId } = req.params;
+
+      if (!email) {
+        return res.status(401).json({
+          error: 'Usuario no autenticado',
+          code: 'MISSING_EMAIL',
+        });
+      }
+
+      logger.info('🚫 Cerrando sesión específica', { 
+        email, 
+        sessionId 
       });
 
-      return ResponseHandler.error(res, new ApiError(
-        'VALIDATION_ERROR',
-        'Error interno validando el token de autenticación',
-        'Intenta nuevamente o inicia sesión si el problema persiste',
-        500,
-        { 
-          originalError: process.env.NODE_ENV === 'development' ? error.message : undefined,
-          timestamp: new Date().toISOString()
-        }
-      ));
+      const token = await RefreshToken.getById(sessionId);
+      
+      if (!token) {
+        return res.status(404).json({
+          error: 'Sesión no encontrada',
+          code: 'SESSION_NOT_FOUND',
+        });
+      }
+
+      if (token.userEmail !== email) {
+        return res.status(403).json({
+          error: 'No tienes permisos para cerrar esta sesión',
+          code: 'INSUFFICIENT_PERMISSIONS',
+        });
+      }
+
+      await token.invalidate();
+
+      logger.info('Sesión cerrada exitosamente', {
+        email,
+        sessionId
+      });
+
+      res.json({
+        success: true,
+        message: 'Sesión cerrada exitosamente'
+      });
+    } catch (error) {
+      logger.error('Error cerrando sesión', {
+        error: error.message,
+        email: req.user?.email,
+        sessionId: req.params.sessionId
+      });
+      next(error);
     }
   }
 }

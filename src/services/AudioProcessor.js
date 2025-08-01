@@ -2,6 +2,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffprobePath = require('ffprobe-static');
 const logger = require('../utils/logger');
 const admin = require('firebase-admin');
+const axios = require('axios'); // Added for OpenAI Whisper API
 
 ffmpeg.setFfprobePath(ffprobePath);
 
@@ -60,7 +61,7 @@ class AudioProcessor {
       }
 
       // Transcripción con IA (placeholder)
-      const transcription = await this.transcribeAudio(processedBuffer);
+      const transcription = await this.transcribeAudio(processedBuffer, { fileName: filename });
 
       const result = {
         buffer: processedBuffer,
@@ -213,20 +214,189 @@ class AudioProcessor {
   }
 
   /**
-   * Transcribir audio usando IA (placeholder)
+   * Transcribir audio usando OpenAI Whisper API
    */
-  async transcribeAudio(buffer) {
+  async transcribeAudio(buffer, options = {}) {
     try {
-      // TODO: Integrar con Whisper API o similar
-      // const transcription = await whisperAPI.transcribe(buffer);
-      // return transcription.text;
+      const {
+        language = 'auto',
+        model = 'whisper-1',
+        temperature = 0.2,
+        maxRetries = 3
+      } = options;
+
+      // Verificar que el buffer es válido
+      if (!buffer || !Buffer.isBuffer(buffer)) {
+        throw new Error('Buffer de audio inválido para transcripción');
+      }
+
+      // Verificar tamaño del archivo (Whisper tiene límite de 25MB)
+      const maxSize = 25 * 1024 * 1024; // 25MB
+      if (buffer.length > maxSize) {
+        logger.warn('Archivo de audio muy grande para transcripción', {
+          size: buffer.length,
+          maxSize,
+          fileName: options.fileName || 'unknown'
+        });
+        throw new Error('Archivo de audio muy grande (máximo 25MB)');
+      }
+
+      // Verificar si OpenAI API Key está configurada
+      const openaiApiKey = process.env.OPENAI_API_KEY;
+      if (!openaiApiKey) {
+        logger.warn('OpenAI API Key no configurada - transcripción deshabilitada');
+        return {
+          success: false,
+          text: null,
+          error: 'Transcripción no disponible (API Key no configurada)',
+          confidence: 0
+        };
+      }
+
+      logger.info('🎙️ Iniciando transcripción de audio con Whisper', {
+        audioSize: buffer.length,
+        language,
+        model,
+        fileName: options.fileName || 'buffer'
+      });
+
+      // Crear FormData para envío a OpenAI
+      const FormData = require('form-data');
+      const form = new FormData();
       
-      logger.info('🎙️ Transcripción de audio pendiente de implementación');
-      return null;
+      // Agregar archivo de audio
+      form.append('file', buffer, {
+        filename: options.fileName || 'audio.wav',
+        contentType: 'audio/wav'
+      });
+      
+      // Agregar parámetros
+      form.append('model', model);
+      if (language && language !== 'auto') {
+        form.append('language', language);
+      }
+      form.append('temperature', temperature.toString());
+      form.append('response_format', 'verbose_json');
+
+      // Realizar petición con reintentos
+      let lastError;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await axios.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            form,
+            {
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                ...form.getHeaders()
+              },
+              timeout: 120000, // 2 minutos timeout
+              maxContentLength: 50 * 1024 * 1024 // 50MB response limit
+            }
+          );
+
+          const transcription = response.data;
+          
+          logger.info('✅ Transcripción completada exitosamente', {
+            textLength: transcription.text ? transcription.text.length : 0,
+            language: transcription.language || 'unknown',
+            duration: transcription.duration || 'unknown',
+            attempt,
+            confidence: transcription.confidence || 'unknown'
+          });
+
+          return {
+            success: true,
+            text: transcription.text || '',
+            language: transcription.language,
+            duration: transcription.duration,
+            confidence: transcription.confidence || 0.8,
+            segments: transcription.segments || [],
+            words: transcription.words || []
+          };
+
+        } catch (error) {
+          lastError = error;
+          
+          if (error.response?.status === 429) {
+            // Rate limit - esperar antes del siguiente intento
+            const waitTime = Math.pow(2, attempt) * 1000; // Backoff exponencial
+            logger.warn(`Rate limit alcanzado, esperando ${waitTime}ms antes del intento ${attempt + 1}`, {
+              attempt,
+              maxRetries,
+              waitTime
+            });
+            
+            if (attempt < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              continue;
+            }
+          } else if (error.response?.status >= 500) {
+            // Error del servidor - reintentar
+            logger.warn(`Error del servidor OpenAI, reintentando (${attempt}/${maxRetries})`, {
+              status: error.response.status,
+              message: error.response.data?.error?.message || error.message
+            });
+            
+            if (attempt < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+              continue;
+            }
+          } else {
+            // Error no recuperable
+            break;
+          }
+        }
+      }
+
+      // Si llegamos aquí, todos los intentos fallaron
+      logger.error('❌ Error en transcripción de audio después de todos los intentos', {
+        error: lastError.response?.data || lastError.message,
+        status: lastError.response?.status,
+        attempts: maxRetries
+      });
+
+      return {
+        success: false,
+        text: null,
+        error: lastError.response?.data?.error?.message || lastError.message,
+        confidence: 0
+      };
+
     } catch (error) {
-      logger.warn('Error en transcripción:', error.message);
-      return null;
+      logger.error('❌ Error crítico en transcripción de audio', {
+        error: error.message,
+        stack: error.stack
+      });
+
+      return {
+        success: false,
+        text: null,
+        error: error.message,
+        confidence: 0
+      };
     }
+  }
+
+  /**
+   * Verificar si la transcripción está disponible
+   */
+  isTranscriptionAvailable() {
+    return !!process.env.OPENAI_API_KEY;
+  }
+
+  /**
+   * Obtener información de costos estimados para transcripción
+   */
+  getTranscriptionCostEstimate(durationSeconds) {
+    // OpenAI Whisper cobra $0.006 por minuto
+    const costPerMinute = 0.006;
+    const minutes = Math.ceil(durationSeconds / 60);
+    return {
+      estimatedCost: minutes * costPerMinute,
+      currency: 'USD',
+      minutes
+    };
   }
 }
 

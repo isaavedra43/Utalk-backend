@@ -3,7 +3,6 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 const { isValidConversationId } = require('../utils/conversation');
-const { validateAndNormalizePhone } = require('../utils/phoneValidation');
 const { ensureConversationAssignment } = require('../utils/agentAssignment');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 
@@ -16,7 +15,7 @@ class Conversation {
     this.participants = data.participants || [];
 
     // CUSTOMER: Identificador del cliente externo.
-    this.customerPhone = this.validateCustomerPhone(data.customerPhone);
+    this.customerPhone = data.customerPhone;
 
     // DEPRECATED: agentPhone se elimina, se usa assignedTo (EMAIL).
     // this.agentPhone = data.agentPhone;
@@ -51,11 +50,7 @@ class Conversation {
       // si es entre dos usuarios internos. Por ahora, lo mantenemos requerido.
       throw new Error('customerPhone es requerido.');
     }
-    const validation = validateAndNormalizePhone(phone);
-    if (!validation.isValid) {
-      throw new Error(`Teléfono del cliente inválido: ${validation.error}`);
-    }
-    return validation.normalized;
+    return phone;
   }
 
   /**
@@ -117,32 +112,32 @@ class Conversation {
    * Busca una conversación abierta para un `customerPhone`. Si no existe, la crea.
    */
   static async findOrCreate(customerPhone, agentEmail = null) {
-    const normalizedPhone = validateAndNormalizePhone(customerPhone);
-    if (!normalizedPhone.isValid) {
-      throw new Error(`Número de teléfono de cliente inválido: ${customerPhone}`);
+    const normalizedPhone = customerPhone;
+    if (!normalizedPhone) {
+      throw new Error('Número de teléfono de cliente inválido.');
     }
 
     // Buscar una conversación abierta o pendiente para este cliente.
-    const existingConversation = await this.findOpenByCustomerPhone(normalizedPhone.normalized);
+    const existingConversation = await this.findOpenByCustomerPhone(normalizedPhone);
 
     if (existingConversation) {
-      logger.info(`Conversación existente encontrada para ${normalizedPhone.normalized}`, { id: existingConversation.id });
+      logger.info(`Conversación existente encontrada para ${normalizedPhone}`, { id: existingConversation.id });
       return existingConversation;
     }
 
     // Si no existe, crear una nueva.
-    logger.info(`No se encontró conversación abierta. Creando nueva para ${normalizedPhone.normalized}`);
+    logger.info(`No se encontró conversación abierta. Creando nueva para ${normalizedPhone}`);
     const conversationId = uuidv4();
     
     // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
     const participants = Conversation.ensureParticipantsArray(
-      normalizedPhone.normalized, 
+      normalizedPhone, 
       agentEmail
     );
     
     const conversationData = {
       id: conversationId,
-      customerPhone: normalizedPhone.normalized,
+      customerPhone: normalizedPhone,
       participants: participants, // 🔧 CORREGIDO: Array completo con cliente y agente
       status: 'open',
       assignedTo: agentEmail, // EMAIL del agente (puede ser null)
@@ -236,7 +231,7 @@ class Conversation {
       const [assignedSnapshot, unassignedSnapshot] = await Promise.all(queries.map(q => q.get()));
       
       // 🔍 LOG CRÍTICO DE CONSULTA FIRESTORE
-      console.log(`[BACKEND][CONVERSATIONS][FIRESTORE] Asignadas: ${assignedSnapshot.size} | No asignadas: ${unassignedSnapshot.size} | Usuario: ${fetchForUser}`);
+      logger.info(`[BACKEND][CONVERSATIONS][FIRESTORE] Asignadas: ${assignedSnapshot.size} | No asignadas: ${unassignedSnapshot.size} | Usuario: ${fetchForUser}`);
       
       const combined = new Map();
       assignedSnapshot.docs.forEach(doc => combined.set(doc.id, new Conversation({ id: doc.id, ...doc.data() })));
@@ -255,7 +250,7 @@ class Conversation {
       const conversations = uniqueConversations.slice(0, validatedLimit);
       
       // 🔍 LOG CRÍTICO DE RESULTADO FINAL
-      console.log(`[BACKEND][CONVERSATIONS][COMBINADAS] Total únicas: ${uniqueConversations.length} | Limitadas: ${conversations.length}`);
+      logger.info(`[BACKEND][CONVERSATIONS][COMBINADAS] Total únicas: ${uniqueConversations.length} | Limitadas: ${conversations.length}`);
       
       return { conversations, pagination: { hasMore: uniqueConversations.length > validatedLimit, limit: validatedLimit } };
     }
@@ -272,8 +267,7 @@ class Conversation {
     
     if (status) query = query.where('status', '==', status);
     if (customerPhone) {
-      const normPhone = validateAndNormalizePhone(customerPhone);
-      if (normPhone.isValid) query = query.where('customerPhone', '==', normPhone.normalized);
+      query = query.where('customerPhone', '==', customerPhone);
     }
 
     query = query.orderBy(sortBy, sortOrder);
@@ -282,7 +276,7 @@ class Conversation {
     const snapshot = await query.limit(validatedLimit + 1).get();
     
     // 🔍 LOG CRÍTICO DE CONSULTA ESPECÍFICA
-    console.log(`[BACKEND][CONVERSATIONS][FIRESTORE] Consulta específica: ${snapshot.size} documentos | Filtros: participantEmail=${participantEmail}, assignedTo=${assignedTo}, status=${status}`);
+    logger.info(`[BACKEND][CONVERSATIONS][FIRESTORE] Consulta específica: ${snapshot.size} documentos | Filtros: participantEmail=${participantEmail}, assignedTo=${assignedTo}, status=${status}`);
     
     const conversations = snapshot.docs.map(doc => new Conversation({ id: doc.id, ...doc.data() }));
 
@@ -292,7 +286,7 @@ class Conversation {
     const nextCursor = hasMore && conversations.length ? conversations[conversations.length - 1][sortBy] : null;
 
     // 🔍 LOG CRÍTICO DE RESULTADO ESPECÍFICO
-    console.log(`[BACKEND][CONVERSATIONS][ESPECIFICA] Resultado: ${conversations.length} conversaciones | hasMore: ${hasMore}`);
+    logger.info(`[BACKEND][CONVERSATIONS][ESPECIFICA] Resultado: ${conversations.length} conversaciones | hasMore: ${hasMore}`);
 
     return {
       conversations,

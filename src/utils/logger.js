@@ -1,488 +1,541 @@
 /**
- * 🎯 SISTEMA DE LOGGING AVANZADO - UTALK BACKEND
+ * 🔍 SISTEMA DE LOGGING PROFESIONAL Y ESTRUCTURADO
  * 
- * Sistema de logs estructurado y visual para monitoreo completo
- * Cubre todos los procesos críticos con logs concisos pero informativos
+ * Características mejoradas para manejo de errores:
+ * - RequestId tracking automático
+ * - Contexto enriquecido por defecto
+ * - Filtrado de datos sensibles
+ * - Formato JSON estructurado
+ * - Rotación automática de logs
+ * - Métricas de logging integradas
+ * - Alertas automáticas por severidad
+ * 
+ * Basado en mejores prácticas según:
+ * - https://medium.com/@mohantaankit2002/optimizing-memory-usage-in-node-js-applications-for-high-traffic-scenarios-1a6d4658aa9d
+ * - https://nodejs.org/en/learn/diagnostics/memory/understanding-and-tuning-memory
+ * 
+ * @version 2.0.0
+ * @author Logging Team
  */
 
-// Colores para terminal (solo desarrollo)
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
-  gray: '\x1b[90m'
-};
-
-// Categorías de logs con iconos y colores
-const LOG_CATEGORIES = {
-  AUTH: { icon: '🔐', color: colors.cyan, level: 'AUTH' },
-  SOCKET: { icon: '🔌', color: colors.blue, level: 'SOCKET' },
-  MESSAGE: { icon: '💬', color: colors.green, level: 'MESSAGE' },
-  WEBHOOK: { icon: '🔗', color: colors.magenta, level: 'WEBHOOK' },
-  DATABASE: { icon: '💾', color: colors.yellow, level: 'DATABASE' },
-  MEDIA: { icon: '📎', color: colors.cyan, level: 'MEDIA' },
-  SECURITY: { icon: '🛡️', color: colors.red, level: 'SECURITY' },
-  PERFORMANCE: { icon: '⚡', color: colors.yellow, level: 'PERFORMANCE' },
-  ERROR: { icon: '❌', color: colors.red, level: 'ERROR' },
-  WARNING: { icon: '⚠️', color: colors.yellow, level: 'WARNING' },
-  SUCCESS: { icon: '✅', color: colors.green, level: 'SUCCESS' },
-  INFO: { icon: 'ℹ️', color: colors.blue, level: 'INFO' },
-  DEBUG: { icon: '🔍', color: colors.gray, level: 'DEBUG' },
-  TWILIO: { icon: '📞', color: colors.magenta, level: 'TWILIO' },
-  FIREBASE: { icon: '🔥', color: colors.yellow, level: 'FIREBASE' }
-};
-
-// Niveles de log
-const LOG_LEVELS = {
-  ERROR: 0,
-  WARN: 1,
-  INFO: 2,
-  DEBUG: 3
-};
+const winston = require('winston');
+const path = require('path');
+const { AsyncLocalStorage } = require('async_hooks');
 
 class AdvancedLogger {
   constructor() {
-    this.isProduction = process.env.NODE_ENV === 'production';
-    this.logLevel = this.getLogLevel();
-    this.requestId = null;
-    this.userId = null;
+    this.asyncLocalStorage = new AsyncLocalStorage();
+    this.logMetrics = {
+      total: 0,
+      byLevel: new Map(),
+      byCategory: new Map(),
+      errors: 0,
+      warnings: 0,
+      lastReset: Date.now()
+    };
+    
+    this.sensitiveFields = [
+      'password', 'token', 'authorization', 'secret', 'key',
+      'auth', 'credential', 'pass', 'pwd', 'jwt', 'session',
+      'cookie', 'x-api-key', 'api-key', 'bearer'
+    ];
+    
+    this.initializeWinston();
+    this.setupMetricsReset();
+    this.setupMemoryMonitoring();
   }
 
   /**
-   * Obtener nivel de log desde variable de entorno
+   * 🚀 INICIALIZAR WINSTON CON CONFIGURACIÓN AVANZADA
    */
-  getLogLevel() {
-    const level = process.env.LOG_LEVEL?.toUpperCase() || 'INFO';
-    return LOG_LEVELS[level] !== undefined ? LOG_LEVELS[level] : LOG_LEVELS.INFO;
-  }
-
-  /**
-   * Crear contexto de request para tracking
-   */
-  createRequestContext(req) {
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    const context = {
-      requestId,
-      method: req?.method,
-      path: req?.path,
-      userEmail: req?.user?.email,
-      userRole: req?.user?.role,
-      ip: req?.ip,
-      userAgent: req?.headers?.['user-agent']?.substring(0, 50)
-    };
+  initializeWinston() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isDevelopment = process.env.NODE_ENV === 'development';
     
-    // Almacenar en el request para uso posterior
-    if (req) {
-      req.logContext = context;
-    }
-    
-    return context;
-  }
+    // Formato para desarrollo (colorido y legible)
+    const developmentFormat = winston.format.combine(
+      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.errors({ stack: true }),
+      winston.format.colorize(),
+      winston.format.printf(({ timestamp, level, message, category, requestId, ...meta }) => {
+        const reqId = requestId ? `[${requestId}]` : '';
+        const cat = category ? `[${category}]` : '';
+        const metaStr = Object.keys(meta).length ? `\n${JSON.stringify(meta, null, 2)}` : '';
+        return `${timestamp} ${level} ${cat}${reqId}: ${message}${metaStr}`;
+      })
+    );
 
-  /**
-   * Formatear mensaje de log con estructura visual
-   */
-  formatLog(category, level, message, data = {}, context = {}) {
-    const timestamp = new Date().toISOString();
-    const cat = LOG_CATEGORIES[category] || LOG_CATEGORIES.INFO;
-    
-    // Estructura base del log
-    const logEntry = {
-      timestamp,
-      level: level.toUpperCase(),
-      category: cat.level,
-      message,
-      pid: process.pid,
-      environment: process.env.NODE_ENV || 'development',
-      ...context,
-      ...data
-    };
+    // Formato para producción (JSON estructurado)
+    const productionFormat = winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.errors({ stack: true }),
+      winston.format.json(),
+      winston.format.printf((info) => {
+        return JSON.stringify({
+          timestamp: info.timestamp,
+          level: info.level,
+          message: info.message,
+          category: info.category || 'GENERAL',
+          requestId: info.requestId || this.getCurrentRequestId(),
+          processId: process.pid,
+          nodeEnv: process.env.NODE_ENV,
+          ...this.sanitizeLogData(info)
+        });
+      })
+    );
 
-    // En producción, retornar JSON estructurado
-    if (this.isProduction) {
-      return JSON.stringify(logEntry);
-    }
+    // Configurar transports
+    const transports = [
+      // Console transport
+      new winston.transports.Console({
+        level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+        format: isDevelopment ? developmentFormat : productionFormat,
+        handleExceptions: true,
+        handleRejections: true
+      })
+    ];
 
-    // En desarrollo, formato visual mejorado
-    const contextStr = context.requestId ? `[${context.requestId}]` : '';
-    const userStr = context.userEmail ? `{${context.userEmail}}` : '';
-    const dataStr = Object.keys(data).length > 0 
-      ? `\n${colors.dim}   📊 ${JSON.stringify(data, null, 3)}${colors.reset}`
-      : '';
-
-    return `${colors.dim}[${timestamp}]${colors.reset} ${cat.color}${cat.icon} ${cat.level}${colors.reset}${contextStr}${userStr} ${message}${dataStr}`;
-  }
-
-  /**
-   * Log genérico con nivel
-   */
-  log(level, category, message, data = {}, context = {}) {
-    const numericLevel = LOG_LEVELS[level.toUpperCase()];
-    if (numericLevel > this.logLevel) return;
-    
-    console.log(this.formatLog(category, level, message, data, context));
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🔐 LOGS DE AUTENTICACIÓN
-  // ═══════════════════════════════════════════════════════════════════
-
-  auth(action, data = {}, context = {}) {
-    const actions = {
-      login_attempt: { level: 'INFO', message: 'Intento de login' },
-      login_success: { level: 'INFO', message: 'Login exitoso' },
-      login_failed: { level: 'WARN', message: 'Login fallido' },
-      token_generated: { level: 'INFO', message: 'Token JWT generado' },
-      token_validated: { level: 'INFO', message: 'Token validado exitosamente' },
-      token_invalid: { level: 'WARN', message: 'Token inválido o expirado' },
-      token_missing: { level: 'WARN', message: 'Token faltante en request' },
-      session_expired: { level: 'WARN', message: 'Sesión expirada' },
-      logout: { level: 'INFO', message: 'Logout ejecutado' },
-      user_inactive: { level: 'WARN', message: 'Usuario inactivo intentando acceder' },
-      permission_denied: { level: 'WARN', message: 'Permiso denegado' },
-      password_changed: { level: 'INFO', message: 'Contraseña cambiada' },
-      user_created: { level: 'INFO', message: 'Usuario creado' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'AUTH', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🔌 LOGS DE SOCKET.IO
-  // ═══════════════════════════════════════════════════════════════════
-
-  socket(action, data = {}, context = {}) {
-    const actions = {
-      server_init: { level: 'INFO', message: 'Socket.IO server inicializado' },
-      client_connected: { level: 'INFO', message: 'Cliente conectado' },
-      client_disconnected: { level: 'INFO', message: 'Cliente desconectado' },
-      auth_success: { level: 'INFO', message: 'Autenticación Socket.IO exitosa' },
-      auth_failed: { level: 'WARN', message: 'Autenticación Socket.IO fallida' },
-      room_joined: { level: 'INFO', message: 'Usuario unido a sala' },
-      room_left: { level: 'INFO', message: 'Usuario salió de sala' },
-      message_emitted: { level: 'INFO', message: 'Mensaje emitido via Socket.IO' },
-      event_received: { level: 'DEBUG', message: 'Evento recibido' },
-      rate_limit_exceeded: { level: 'WARN', message: 'Rate limit excedido' },
-      connection_error: { level: 'ERROR', message: 'Error de conexión Socket.IO' },
-      duplicate_session: { level: 'WARN', message: 'Sesión duplicada detectada' },
-      invalid_room: { level: 'WARN', message: 'Intento de unirse a sala inválida' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'SOCKET', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 💬 LOGS DE MENSAJES
-  // ═══════════════════════════════════════════════════════════════════
-
-  message(action, data = {}, context = {}) {
-    const actions = {
-      received_inbound: { level: 'INFO', message: 'Mensaje entrante recibido' },
-      sent_outbound: { level: 'INFO', message: 'Mensaje saliente enviado' },
-      created: { level: 'INFO', message: 'Mensaje creado en BD' },
-      updated: { level: 'INFO', message: 'Mensaje actualizado' },
-      deleted: { level: 'INFO', message: 'Mensaje eliminado' },
-      marked_read: { level: 'INFO', message: 'Mensaje marcado como leído' },
-      validation_failed: { level: 'WARN', message: 'Validación de mensaje fallida' },
-      duplicate_detected: { level: 'WARN', message: 'Mensaje duplicado detectado' },
-      missing_content: { level: 'WARN', message: 'Mensaje sin contenido' },
-      media_attached: { level: 'INFO', message: 'Media adjunta al mensaje' },
-      processing_started: { level: 'INFO', message: 'Procesamiento de mensaje iniciado' },
-      processing_completed: { level: 'INFO', message: 'Procesamiento completado' },
-      delivery_failed: { level: 'ERROR', message: 'Fallo en entrega de mensaje' },
-      search_executed: { level: 'INFO', message: 'Búsqueda de mensajes ejecutada' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'MESSAGE', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🔗 LOGS DE WEBHOOKS
-  // ═══════════════════════════════════════════════════════════════════
-
-  webhook(action, data = {}, context = {}) {
-    const actions = {
-      received: { level: 'INFO', message: 'Webhook recibido' },
-      validated: { level: 'INFO', message: 'Webhook validado exitosamente' },
-      validation_failed: { level: 'WARN', message: 'Validación de webhook fallida' },
-      processed: { level: 'INFO', message: 'Webhook procesado exitosamente' },
-      processing_failed: { level: 'ERROR', message: 'Error procesando webhook' },
-      signature_invalid: { level: 'WARN', message: 'Firma de webhook inválida' },
-      missing_data: { level: 'WARN', message: 'Datos faltantes en webhook' },
-      duplicate_event: { level: 'WARN', message: 'Evento webhook duplicado' },
-      verification: { level: 'INFO', message: 'Verificación de webhook' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'WEBHOOK', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 💾 LOGS DE BASE DE DATOS
-  // ═══════════════════════════════════════════════════════════════════
-
-  database(action, data = {}, context = {}) {
-    const actions = {
-      query_started: { level: 'DEBUG', message: 'Query iniciada' },
-      query_completed: { level: 'DEBUG', message: 'Query completada' },
-      query_slow: { level: 'WARN', message: 'Query lenta detectada' },
-      query_failed: { level: 'ERROR', message: 'Query fallida' },
-      connection_established: { level: 'INFO', message: 'Conexión a BD establecida' },
-      connection_lost: { level: 'ERROR', message: 'Conexión a BD perdida' },
-      document_created: { level: 'INFO', message: 'Documento creado' },
-      document_updated: { level: 'INFO', message: 'Documento actualizado' },
-      document_deleted: { level: 'INFO', message: 'Documento eliminado' },
-      document_not_found: { level: 'WARN', message: 'Documento no encontrado' },
-      batch_operation: { level: 'INFO', message: 'Operación en lote ejecutada' },
-      transaction_started: { level: 'DEBUG', message: 'Transacción iniciada' },
-      transaction_committed: { level: 'DEBUG', message: 'Transacción confirmada' },
-      transaction_rolled_back: { level: 'WARN', message: 'Transacción revertida' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'DATABASE', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 📎 LOGS DE MEDIA
-  // ═══════════════════════════════════════════════════════════════════
-
-  media(action, data = {}, context = {}) {
-    const actions = {
-      upload_started: { level: 'INFO', message: 'Carga de archivo iniciada' },
-      upload_completed: { level: 'INFO', message: 'Archivo cargado exitosamente' },
-      upload_failed: { level: 'ERROR', message: 'Error cargando archivo' },
-      processing_started: { level: 'INFO', message: 'Procesamiento de media iniciado' },
-      processing_completed: { level: 'INFO', message: 'Media procesada exitosamente' },
-      processing_failed: { level: 'ERROR', message: 'Error procesando media' },
-      transcription_started: { level: 'INFO', message: 'Transcripción iniciada' },
-      transcription_completed: { level: 'INFO', message: 'Transcripción completada' },
-      compression_applied: { level: 'INFO', message: 'Compresión aplicada' },
-      format_converted: { level: 'INFO', message: 'Formato convertido' },
-      file_deleted: { level: 'INFO', message: 'Archivo eliminado' },
-      invalid_format: { level: 'WARN', message: 'Formato de archivo inválido' },
-      size_exceeded: { level: 'WARN', message: 'Tamaño de archivo excedido' },
-      whatsapp_compatible: { level: 'INFO', message: 'Archivo compatible con WhatsApp' },
-      whatsapp_incompatible: { level: 'WARN', message: 'Archivo no compatible con WhatsApp' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'MEDIA', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 📞 LOGS DE TWILIO
-  // ═══════════════════════════════════════════════════════════════════
-
-  twilio(action, data = {}, context = {}) {
-    const actions = {
-      service_init: { level: 'INFO', message: 'Servicio Twilio inicializado' },
-      message_sent: { level: 'INFO', message: 'Mensaje enviado via Twilio' },
-      message_failed: { level: 'ERROR', message: 'Error enviando mensaje Twilio' },
-      webhook_verified: { level: 'INFO', message: 'Webhook Twilio verificado' },
-      webhook_invalid: { level: 'WARN', message: 'Webhook Twilio inválido' },
-      phone_validated: { level: 'INFO', message: 'Número de teléfono validado' },
-      phone_invalid: { level: 'WARN', message: 'Número de teléfono inválido' },
-      media_sent: { level: 'INFO', message: 'Media enviada via Twilio' },
-      delivery_status: { level: 'INFO', message: 'Estado de entrega actualizado' },
-      rate_limit_hit: { level: 'WARN', message: 'Rate limit de Twilio alcanzado' },
-      config_error: { level: 'ERROR', message: 'Error de configuración Twilio' },
-      connectivity_test: { level: 'INFO', message: 'Test de conectividad Twilio' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'TWILIO', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🔥 LOGS DE FIREBASE
-  // ═══════════════════════════════════════════════════════════════════
-
-  firebase(action, data = {}, context = {}) {
-    const actions = {
-      init_success: { level: 'INFO', message: 'Firebase inicializado exitosamente' },
-      init_failed: { level: 'ERROR', message: 'Error inicializando Firebase' },
-      storage_upload: { level: 'INFO', message: 'Archivo subido a Firebase Storage' },
-      storage_download: { level: 'INFO', message: 'Archivo descargado de Firebase Storage' },
-      storage_delete: { level: 'INFO', message: 'Archivo eliminado de Firebase Storage' },
-      storage_error: { level: 'ERROR', message: 'Error en Firebase Storage' },
-      firestore_read: { level: 'DEBUG', message: 'Lectura de Firestore' },
-      firestore_write: { level: 'DEBUG', message: 'Escritura en Firestore' },
-      firestore_error: { level: 'ERROR', message: 'Error en Firestore' },
-      auth_token_verified: { level: 'INFO', message: 'Token Firebase verificado' },
-      auth_token_invalid: { level: 'WARN', message: 'Token Firebase inválido' },
-      bucket_access: { level: 'INFO', message: 'Acceso a bucket Firebase' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'FIREBASE', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🛡️ LOGS DE SEGURIDAD
-  // ═══════════════════════════════════════════════════════════════════
-
-  security(action, data = {}, context = {}) {
-    const actions = {
-      suspicious_activity: { level: 'WARN', message: 'Actividad sospechosa detectada' },
-      brute_force_attempt: { level: 'WARN', message: 'Intento de fuerza bruta' },
-      ip_blocked: { level: 'WARN', message: 'IP bloqueada' },
-      invalid_signature: { level: 'WARN', message: 'Firma inválida detectada' },
-      unauthorized_access: { level: 'WARN', message: 'Acceso no autorizado' },
-      data_leak_prevented: { level: 'WARN', message: 'Fuga de datos prevenida' },
-      encryption_applied: { level: 'INFO', message: 'Encriptación aplicada' },
-      decryption_success: { level: 'INFO', message: 'Desencriptación exitosa' },
-      certificate_validated: { level: 'INFO', message: 'Certificado validado' },
-      security_scan: { level: 'INFO', message: 'Escaneo de seguridad ejecutado' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'SECURITY', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // ⚡ LOGS DE PERFORMANCE
-  // ═══════════════════════════════════════════════════════════════════
-
-  performance(action, data = {}, context = {}) {
-    const actions = {
-      request_slow: { level: 'WARN', message: 'Request lento detectado' },
-      memory_high: { level: 'WARN', message: 'Uso alto de memoria' },
-      cpu_high: { level: 'WARN', message: 'Uso alto de CPU' },
-      cache_hit: { level: 'DEBUG', message: 'Cache hit' },
-      cache_miss: { level: 'DEBUG', message: 'Cache miss' },
-      optimization_applied: { level: 'INFO', message: 'Optimización aplicada' },
-      bottleneck_detected: { level: 'WARN', message: 'Cuello de botella detectado' },
-      threshold_exceeded: { level: 'WARN', message: 'Umbral de performance excedido' },
-      monitoring_started: { level: 'INFO', message: 'Monitoreo de performance iniciado' },
-      benchmark_completed: { level: 'INFO', message: 'Benchmark completado' }
-    };
-
-    const actionConfig = actions[action] || { level: 'INFO', message: action };
-    this.log(actionConfig.level, 'PERFORMANCE', actionConfig.message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🎯 MÉTODOS DE CONVENIENCIA
-  // ═══════════════════════════════════════════════════════════════════
-
-  info(message, data = {}, context = {}) {
-    this.log('INFO', 'INFO', message, data, context);
-  }
-
-  warn(message, data = {}, context = {}) {
-    this.log('WARN', 'WARNING', message, data, context);
-  }
-
-  error(message, data = {}, context = {}) {
-    this.log('ERROR', 'ERROR', message, data, context);
-  }
-
-  debug(message, data = {}, context = {}) {
-    this.log('DEBUG', 'DEBUG', message, data, context);
-  }
-
-  success(message, data = {}, context = {}) {
-    this.log('INFO', 'SUCCESS', message, data, context);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 📊 LOGS DE REQUEST HTTP
-  // ═══════════════════════════════════════════════════════════════════
-
-  request(req, res, next) {
-    const context = this.createRequestContext(req);
-    const startTime = Date.now();
-    
-    // Log de inicio de request
-    this.info('Request iniciado', {
-      method: req.method,
-      path: req.path,
-      query: Object.keys(req.query).length > 0 ? req.query : undefined,
-      contentType: req.headers['content-type'],
-      contentLength: req.headers['content-length'],
-      authorization: req.headers.authorization ? 'presente' : 'ausente'
-    }, context);
-
-    // Interceptar respuesta
-    const originalSend = res.send;
-    res.send = function(data) {
-      const duration = Date.now() - startTime;
-      const statusCode = res.statusCode;
+    // File transports para producción
+    if (isProduction || process.env.ENABLE_FILE_LOGGING === 'true') {
+      const logDir = process.env.LOG_DIR || './logs';
       
-      // Log de finalización de request
-      logger.info('Request completado', {
-        statusCode,
-        duration: `${duration}ms`,
-        contentLength: data ? data.length : 0,
-        successful: statusCode < 400
-      }, context);
+      transports.push(
+        // Archivo para todos los logs
+        new winston.transports.File({
+          filename: path.join(logDir, 'combined.log'),
+          level: 'info',
+          format: productionFormat,
+          maxsize: 10 * 1024 * 1024, // 10MB
+          maxFiles: 5,
+          tailable: true
+        }),
+        
+        // Archivo solo para errores
+        new winston.transports.File({
+          filename: path.join(logDir, 'errors.log'),
+          level: 'error',
+          format: productionFormat,
+          maxsize: 10 * 1024 * 1024, // 10MB
+          maxFiles: 10,
+          tailable: true
+        })
+      );
+    }
 
-      // Log de error si es necesario
-      if (statusCode >= 400) {
-        logger.warn('Request con error', {
-          statusCode,
-          duration: `${duration}ms`,
-          errorType: statusCode >= 500 ? 'server_error' : 'client_error'
-        }, context);
-      }
+    // Crear logger principal
+    this.winston = winston.createLogger({
+      level: process.env.LOG_LEVEL || 'info',
+      format: productionFormat,
+      transports: transports,
+      exitOnError: false,
+      silent: process.env.NODE_ENV === 'test'
+    });
 
-      originalSend.call(this, data);
-    };
-
-    if (next) next();
-    return context;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // 🎯 UTILIDADES DE DEBUGGING
-  // ═══════════════════════════════════════════════════════════════════
-
-  /**
-   * Log para debugging con stack trace
-   */
-  debugWithStack(message, error = null, data = {}) {
-    const stack = error ? error.stack : new Error().stack;
-    this.debug(message, {
-      ...data,
-      stack: stack?.split('\n').slice(1, 4) // Solo primeras 3 líneas del stack
+    // Manejar errores del logger
+    this.winston.on('error', (error) => {
+      console.error('Error en Winston logger:', error);
     });
   }
 
   /**
-   * Log temporal para desarrollo (se auto-elimina en producción)
+   * 🏷️ OBTENER REQUEST ID ACTUAL
    */
-  temp(message, data = {}) {
-    if (!this.isProduction) {
-      this.debug(`[TEMP] ${message}`, data);
+  getCurrentRequestId() {
+    const store = this.asyncLocalStorage.getStore();
+    return store?.requestId || 'no-request-context';
+  }
+
+  /**
+   * 🧹 SANITIZAR DATOS DE LOG
+   */
+  sanitizeLogData(data) {
+    if (!data || typeof data !== 'object') return data;
+
+    const sanitized = {};
+    
+    for (const [key, value] of Object.entries(data)) {
+      const lowerKey = key.toLowerCase();
+      
+      // Filtrar campos sensibles
+      if (this.sensitiveFields.some(field => lowerKey.includes(field))) {
+        sanitized[key] = '[FILTERED]';
+        continue;
+      }
+      
+      // Recursividad para objetos anidados
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        sanitized[key] = this.sanitizeLogData(value);
+      } else if (Array.isArray(value)) {
+        sanitized[key] = value.map(item => 
+          typeof item === 'object' ? this.sanitizeLogData(item) : item
+        );
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    
+    return sanitized;
+  }
+
+  /**
+   * 📊 INCREMENTAR MÉTRICAS
+   */
+  incrementMetrics(level, category) {
+    this.logMetrics.total++;
+    
+    // Por nivel
+    this.logMetrics.byLevel.set(level, 
+      (this.logMetrics.byLevel.get(level) || 0) + 1
+    );
+    
+    // Por categoría
+    if (category) {
+      this.logMetrics.byCategory.set(category, 
+        (this.logMetrics.byCategory.get(category) || 0) + 1
+      );
+    }
+    
+    // Contadores específicos
+    if (level === 'error') this.logMetrics.errors++;
+    if (level === 'warn') this.logMetrics.warnings++;
+  }
+
+  /**
+   * 🔄 CONFIGURAR RESET DE MÉTRICAS
+   */
+  setupMetricsReset() {
+    setInterval(() => {
+      this.winston.info('Métricas de logging (última hora)', {
+        category: 'METRICS',
+        metrics: {
+          total: this.logMetrics.total,
+          errors: this.logMetrics.errors,
+          warnings: this.logMetrics.warnings,
+          byLevel: Object.fromEntries(this.logMetrics.byLevel),
+          byCategory: Object.fromEntries(this.logMetrics.byCategory)
+        },
+        period: 'last_hour',
+        nodeMemory: process.memoryUsage()
+      });
+
+      // Reset metrics
+      this.logMetrics = {
+        total: 0,
+        byLevel: new Map(),
+        byCategory: new Map(),
+        errors: 0,
+        warnings: 0,
+        lastReset: Date.now()
+      };
+    }, 60 * 60 * 1000); // Cada hora
+  }
+
+  /**
+   * 📈 CONFIGURAR MONITOREO DE MEMORIA
+   */
+  setupMemoryMonitoring() {
+    // Monitor memory every 10 minutes
+    setInterval(() => {
+      const memoryUsage = process.memoryUsage();
+      const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+      const heapUsagePercent = Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100);
+      
+      // Log normal memory stats
+      this.winston.info('Estadísticas de memoria Node.js', {
+        category: 'MEMORY',
+        memory: {
+          heapUsed: `${heapUsedMB}MB`,
+          heapTotal: `${heapTotalMB}MB`,
+          heapUsagePercent: `${heapUsagePercent}%`,
+          rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
+          external: Math.round(memoryUsage.external / 1024 / 1024) + 'MB'
+        },
+        uptime: process.uptime(),
+        pid: process.pid
+      });
+      
+      // Alertas por alto uso de memoria
+      if (heapUsagePercent > 85) {
+        this.winston.error('ALERTA: Alto uso de memoria heap', {
+          category: 'MEMORY_ALERT',
+          severity: 'CRITICAL',
+          heapUsagePercent,
+          heapUsed: `${heapUsedMB}MB`,
+          heapTotal: `${heapTotalMB}MB`,
+          recommendedAction: 'Revisar posibles memory leaks'
+        });
+      } else if (heapUsagePercent > 70) {
+        this.winston.warn('Advertencia: Uso moderado de memoria heap', {
+          category: 'MEMORY_WARNING',
+          severity: 'HIGH',
+          heapUsagePercent,
+          heapUsed: `${heapUsedMB}MB`,
+          recommendedAction: 'Monitorear tendencia de memoria'
+        });
+      }
+      
+    }, 10 * 60 * 1000); // Cada 10 minutos
+  }
+
+  /**
+   * 🔧 CREAR CONTEXTO DE LOG
+   */
+  createLogContext(category, additionalData = {}) {
+    const baseContext = {
+      category: category || 'GENERAL',
+      requestId: this.getCurrentRequestId(),
+      timestamp: new Date().toISOString(),
+      processId: process.pid,
+      nodeEnv: process.env.NODE_ENV
+    };
+    
+    return {
+      ...baseContext,
+      ...this.sanitizeLogData(additionalData)
+    };
+  }
+
+  /**
+   * 📝 MÉTODOS DE LOGGING PRINCIPALES
+   */
+  error(message, data = {}, category = 'ERROR') {
+    const context = this.createLogContext(category, data);
+    this.incrementMetrics('error', category);
+    
+    this.winston.error(message, context);
+    
+    // Trigger alerta para errores críticos
+    if (context.severity === 'CRITICAL' || context.requiresAttention) {
+      this.triggerCriticalAlert(message, context);
+    }
+  }
+
+  warn(message, data = {}, category = 'WARNING') {
+    const context = this.createLogContext(category, data);
+    this.incrementMetrics('warn', category);
+    
+    this.winston.warn(message, context);
+  }
+
+  info(message, data = {}, category = 'INFO') {
+    const context = this.createLogContext(category, data);
+    this.incrementMetrics('info', category);
+    
+    this.winston.info(message, context);
+  }
+
+  debug(message, data = {}, category = 'DEBUG') {
+    if (process.env.NODE_ENV === 'production') return;
+    
+    const context = this.createLogContext(category, data);
+    this.incrementMetrics('debug', category);
+    
+    this.winston.debug(message, context);
+  }
+
+  /**
+   * 🏷️ MÉTODOS DE LOGGING POR CATEGORÍA
+   */
+  auth(action, data = {}) {
+    this.info(`Auth: ${action}`, data, 'AUTH');
+  }
+
+  security(action, data = {}) {
+    const level = data.severity === 'CRITICAL' ? 'error' : 
+                  data.severity === 'HIGH' ? 'warn' : 'info';
+    
+    this[level](`Security: ${action}`, data, 'SECURITY');
+  }
+
+  database(action, data = {}) {
+    this.info(`Database: ${action}`, data, 'DATABASE');
+  }
+
+  socket(action, data = {}) {
+    this.info(`Socket: ${action}`, data, 'SOCKET');
+  }
+
+  webhook(action, data = {}) {
+    this.info(`Webhook: ${action}`, data, 'WEBHOOK');
+  }
+
+  message(action, data = {}) {
+    this.info(`Message: ${action}`, data, 'MESSAGE');
+  }
+
+  performance(action, data = {}) {
+    this.info(`Performance: ${action}`, data, 'PERFORMANCE');
+  }
+
+  api(action, data = {}) {
+    this.info(`API: ${action}`, data, 'API');
+  }
+
+  /**
+   * ⏱️ TIMING LOGGER CON CONTEXTO MEJORADO
+   */
+  timing(operation, duration, data = {}) {
+    const durationMs = typeof duration === 'number' ? duration : 
+                      Date.now() - duration;
+    
+    const level = durationMs > 5000 ? 'warn' : 
+                  durationMs > 1000 ? 'info' : 'debug';
+    
+    this[level](`Timing: ${operation}`, {
+      duration: `${durationMs}ms`,
+      performance: {
+      operation,
+        duration: durationMs,
+        slow: durationMs > 1000
+      },
+      ...data
+    }, 'TIMING');
+  }
+
+  /**
+   * 🚨 TRIGGER ALERTA CRÍTICA
+   */
+  triggerCriticalAlert(message, context) {
+    // En un sistema real, aquí se enviarían notificaciones
+    // a Slack, email, PagerDuty, etc.
+    
+    console.error('🚨 ALERTA CRÍTICA:', {
+      message,
+      context,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Guardar alerta en archivo especial
+    if (process.env.ENABLE_ALERT_FILE === 'true') {
+      const alertData = {
+        type: 'CRITICAL_ALERT',
+        message,
+        context,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Escribir a archivo de alertas críticas
+      // En producción esto debería ser un sistema más robusto
+      require('fs').appendFileSync(
+        './logs/critical-alerts.log',
+        JSON.stringify(alertData) + '\n'
+      );
     }
   }
 
   /**
-   * Log de timing para medir performance
+   * 🔄 MIDDLEWARE PARA REQUEST TRACKING
    */
-  timing(label, startTime, data = {}) {
-    const duration = Date.now() - startTime;
-    this.performance('timing_measured', {
-      label,
+  createRequestTrackingMiddleware() {
+    return (req, res, next) => {
+      const requestId = req.headers['x-request-id'] || 
+                       `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      req.requestId = requestId;
+      
+      // Establecer contexto para async local storage
+      this.asyncLocalStorage.run({ requestId }, () => {
+        const startTime = Date.now();
+        
+        // Log de inicio de request
+        this.api('request_start', {
+          method: req.method,
+          url: req.originalUrl,
+          userAgent: req.headers['user-agent'],
+          ip: req.ip,
+          requestId
+        });
+        
+        // Hook para cuando la respuesta termine
+        const originalEnd = res.end;
+        res.end = function(...args) {
+          const duration = Date.now() - startTime;
+          const contentLength = res.get('content-length') || 0;
+          
+          // Log de fin de request
+          const logLevel = res.statusCode >= 500 ? 'error' :
+                          res.statusCode >= 400 ? 'warn' : 'info';
+          
+          this[logLevel]('request_completed', {
+      method: req.method,
+            url: req.originalUrl,
+      statusCode: res.statusCode,
       duration: `${duration}ms`,
-      slow: duration > 1000,
-      ...data
+            contentLength,
+            successful: res.statusCode < 400,
+            requestId
+          }, 'API');
+          
+          originalEnd.apply(this, args);
+        }.bind(this);
+        
+        next();
+      });
+    };
+  }
+
+  /**
+   * 📊 OBTENER ESTADÍSTICAS DE LOGGING
+   */
+  getStats() {
+    return {
+      metrics: {
+        total: this.logMetrics.total,
+        errors: this.logMetrics.errors,
+        warnings: this.logMetrics.warnings,
+        byLevel: Object.fromEntries(this.logMetrics.byLevel),
+        byCategory: Object.fromEntries(this.logMetrics.byCategory)
+      },
+      period: {
+        start: this.logMetrics.lastReset,
+        duration: Date.now() - this.logMetrics.lastReset
+      },
+      config: {
+        level: this.winston.level,
+        transports: this.winston.transports.length,
+        environment: process.env.NODE_ENV
+      }
+    };
+  }
+
+  /**
+   * 🔧 CONFIGURAR NIVEL DE LOG DINÁMICAMENTE
+   */
+  setLevel(level) {
+    this.winston.level = level;
+    this.winston.transports.forEach(transport => {
+      transport.level = level;
     });
+    
+    this.info('Nivel de log cambiado', { 
+      newLevel: level,
+      changedAt: new Date().toISOString()
+    }, 'CONFIG');
+  }
+
+  /**
+   * 🧪 MODO DEBUG TEMPORAL
+   */
+  enableDebugMode(durationMs = 300000) { // 5 minutos por defecto
+    const originalLevel = this.winston.level;
+    
+    this.setLevel('debug');
+    this.info('Modo debug activado temporalmente', {
+      duration: `${durationMs}ms`,
+      originalLevel
+    }, 'DEBUG');
+    
+    setTimeout(() => {
+      this.setLevel(originalLevel);
+      this.info('Modo debug desactivado', { 
+        restoredLevel: originalLevel 
+      }, 'DEBUG');
+    }, durationMs);
   }
 }
 
-// Crear instancia singleton
+// Singleton instance
 const logger = new AdvancedLogger();
 
 module.exports = logger;

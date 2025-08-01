@@ -1,11 +1,13 @@
 const Message = require('../models/Message');
-const Contact = require('../models/Contact');
+const ContactService = require('./ContactService');
 const Conversation = require('../models/Conversation');
 const TwilioService = require('./TwilioService');
-const MediaService = require('./MediaService');
+// MediaService eliminado - usar FileService en su lugar
 const logger = require('../utils/logger');
 const { generateConversationId, normalizePhoneNumber } = require('../utils/conversation');
-const { validateMessagesArrayResponse } = require('../utils/validation');
+const { validateMessagesArrayResponse } = require('../middleware/validation');
+const { firestore } = require('../config/firebase');
+const FileService = require('./FileService');
 
 /**
  * Servicio centralizado para toda la lógica de mensajes
@@ -258,7 +260,7 @@ class MessageService {
       if (mediaUrl) {
         try {
           // Procesar y guardar permanentemente
-          const processedInfo = await MediaService.processWebhookMedia(
+          const processedInfo = await this.processWebhookMedia(
             mediaUrl,
             webhookData.MessageSid,
             i,
@@ -514,33 +516,39 @@ class MessageService {
   }
 
   /**
-   * Actualizar contacto desde mensaje
+   * Actualizar contacto desde mensaje usando ContactService centralizado
    */
   static async updateContactFromMessage (message) {
     try {
-      const phoneNumber = message.direction === 'inbound' ? message.from : message.to;
+      logger.info('🔄 Iniciando actualización de contacto desde mensaje', {
+        messageId: message.id,
+        conversationId: message.conversationId,
+        direction: message.direction,
+        from: message.from,
+        to: message.to
+      });
 
-      let contact = await Contact.getByPhone(phoneNumber);
+      // Usar ContactService centralizado
+      const contact = await ContactService.createOrUpdateFromMessage(message, {
+        conversationId: message.conversationId,
+        userId: message.userId || null
+      });
 
-      if (!contact) {
-        // Crear contacto si no existe
-        contact = await Contact.create({
-          phone: phoneNumber,
-          name: phoneNumber, // Usar teléfono como nombre inicial
-          lastContactAt: message.timestamp,
-          isActive: true,
-        });
-      } else {
-        // Actualizar último contacto
-        await contact.update({
-          lastContactAt: message.timestamp,
-          updatedAt: new Date(),
-        });
-      }
+      logger.info('✅ Contacto actualizado exitosamente desde mensaje', {
+        messageId: message.id,
+        contactId: contact.id,
+        contactPhone: contact.phone,
+        contactName: contact.name,
+        isActive: contact.isActive
+      });
 
       return contact;
     } catch (error) {
-      logger.error('Error actualizando contacto:', error);
+      logger.error('❌ Error actualizando contacto desde mensaje:', {
+        messageId: message.id,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
       throw error;
     }
   }
@@ -707,6 +715,145 @@ class MessageService {
     } catch (error) {
       logger.error('Error eliminando mensaje:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 🚀 OPTIMIZED BATCH GET MESSAGE TYPES
+   * Optimiza la obtención de tipos de mensajes usando batch operations
+   */
+  static async getMessageTypesOptimized(messages) {
+    try {
+      if (!messages || messages.length === 0) {
+        return new Set();
+      }
+
+      const BatchOptimizer = require('./BatchOptimizer');
+      const messageIds = messages.map(m => m.id);
+      
+      const documents = await BatchOptimizer.batchGet('messages', messageIds, {
+        batchSize: 500,
+        timeout: 30000
+      });
+
+      const types = new Set();
+      documents.forEach(doc => {
+        if (doc.exists && doc.data?.type) {
+          types.add(doc.data.type);
+        }
+      });
+
+      logger.info('Message types obtenidos con batch optimization', {
+        totalMessages: messages.length,
+        uniqueTypes: types.size,
+        types: Array.from(types)
+      });
+
+      return types;
+
+    } catch (error) {
+      logger.error('Error obteniendo message types optimizados', {
+        error: error.message,
+        stack: error.stack
+      });
+      return new Set();
+    }
+  }
+
+  /**
+   * 📊 OPTIMIZED BATCH MESSAGE STATS
+   * Optimiza la obtención de estadísticas de mensajes usando batch operations
+   */
+  static async getMessageStatsOptimized(conversationIds, options = {}) {
+    try {
+      const { startDate, endDate, userId } = options;
+      
+      const BatchOptimizer = require('./BatchOptimizer');
+      
+      // Crear queries de batch para cada conversación
+      const queries = conversationIds.map(conversationId => {
+        let query = firestore.collection('messages')
+          .where('conversationId', '==', conversationId);
+        
+        if (userId) {
+          query = query.where('userId', '==', userId);
+        }
+        
+        if (startDate) {
+          query = query.where('timestamp', '>=', new Date(startDate));
+        }
+        
+        if (endDate) {
+          query = query.where('timestamp', '<=', new Date(endDate));
+        }
+        
+        return query;
+      });
+
+      const results = await BatchOptimizer.batchQuery(queries, {
+        maxConcurrent: 10,
+        timeout: 30000
+      });
+
+      // Procesar resultados
+      const stats = {
+        totalMessages: 0,
+        messagesByType: {},
+        messagesByStatus: {},
+        messagesByDirection: {},
+        conversations: {}
+      };
+
+      results.forEach((snapshot, index) => {
+        const conversationId = conversationIds[index];
+        const messages = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        stats.conversations[conversationId] = {
+          count: messages.length,
+          messages
+        };
+
+        stats.totalMessages += messages.length;
+
+        messages.forEach(message => {
+          // Contar por tipo
+          const type = message.type || 'unknown';
+          stats.messagesByType[type] = (stats.messagesByType[type] || 0) + 1;
+
+          // Contar por status
+          const status = message.status || 'unknown';
+          stats.messagesByStatus[status] = (stats.messagesByStatus[status] || 0) + 1;
+
+          // Contar por dirección
+          const direction = message.direction || 'unknown';
+          stats.messagesByDirection[direction] = (stats.messagesByDirection[direction] || 0) + 1;
+        });
+      });
+
+      logger.info('Message stats obtenidos con batch optimization', {
+        totalConversations: conversationIds.length,
+        totalMessages: stats.totalMessages,
+        uniqueTypes: Object.keys(stats.messagesByType).length,
+        uniqueStatuses: Object.keys(stats.messagesByStatus).length
+      });
+
+      return stats;
+
+    } catch (error) {
+      logger.error('Error obteniendo message stats optimizados', {
+        error: error.message,
+        stack: error.stack
+      });
+      return {
+        totalMessages: 0,
+        messagesByType: {},
+        messagesByStatus: {},
+        messagesByDirection: {},
+        conversations: {}
+      };
     }
   }
 }

@@ -1,89 +1,162 @@
 const express = require('express');
-const { authMiddleware } = require('../middleware/auth');
-const MediaUploadController = require('../controllers/MediaUploadController');
-const logger = require('../utils/logger');
-
 const router = express.Router();
+const MediaUploadController = require('../controllers/MediaUploadController');
+const { validateRequest } = require('../middleware/validation');
+const Joi = require('joi');
+
+// Validadores específicos para media
+const mediaValidators = {
+  validateUpload: validateRequest({
+    body: Joi.object({
+      conversationId: Joi.string().uuid().optional(),
+      tags: Joi.array().items(Joi.string()).max(10).optional(),
+      metadata: Joi.object().optional()
+    })
+  }),
+
+  validateGetFile: validateRequest({
+    params: Joi.object({
+      fileId: Joi.string().uuid().required()
+    })
+  }),
+
+  validateDeleteFile: validateRequest({
+    params: Joi.object({
+      fileId: Joi.string().uuid().required()
+    })
+  }),
+
+  validateSearchFiles: validateRequest({
+    query: Joi.object({
+      q: Joi.string().min(1).max(100).optional(),
+      type: Joi.string().valid('image', 'audio', 'video', 'document').optional(),
+      tags: Joi.string().optional(),
+      page: Joi.number().integer().min(1).default(1),
+      limit: Joi.number().integer().min(1).max(100).default(20)
+    })
+  })
+};
 
 /**
- * POST /api/media/upload
- * @desc Subir archivo multimedia a Firebase Storage
- * @access Private - Requiere autenticación
+ * @route POST /api/media/upload
+ * @desc Subir archivo multimedia con indexación automática
+ * @access Private (Agent, Admin)
  */
-router.post('/upload', 
+router.post('/upload',
   authMiddleware,
-  MediaUploadController.getUploadRateLimit(),
-  MediaUploadController.getMulterConfig().single('file'),
+  requireWriteAccess,
+  mediaValidators.validateUpload,
   MediaUploadController.uploadMedia
 );
 
 /**
- * GET /api/media/file/:fileId
- * @desc Obtener información de un archivo
- * @access Private
+ * @route GET /api/media/file/:fileId
+ * @desc Obtener información de archivo (eficiente con indexación)
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/file/:fileId', 
+router.get('/file/:fileId',
   authMiddleware,
+  requireReadAccess,
   MediaUploadController.getFileInfo
 );
 
 /**
- * DELETE /api/media/file/:fileId
- * @desc Eliminar archivo de Firebase Storage
- * @access Private
+ * @route DELETE /api/media/file/:fileId
+ * @desc Eliminar archivo (eficiente con indexación)
+ * @access Private (Agent, Admin)
  */
 router.delete('/file/:fileId',
-  authMiddleware, 
+  authMiddleware,
+  requireWriteAccess,
   MediaUploadController.deleteFile
 );
 
 /**
- * @route GET /media/:category/:filename
- * @desc Redirigir a Firebase Storage (LEGACY - solo para compatibilidad)
- * @access Private
+ * @route GET /api/media/file/:fileId/download
+ * @desc Descargar archivo
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:category/:filename', authMiddleware, async (req, res) => {
-  try {
-    const { category, filename } = req.params;
+router.get('/file/:fileId/download',
+  authMiddleware,
+  requireReadAccess,
+  MediaUploadController.downloadFile
+);
 
-    // Validar categoría
-    const allowedCategories = ['images', 'videos', 'audio', 'documents'];
-    if (!allowedCategories.includes(category)) {
-      return res.status(400).json({
-        error: 'Categoría inválida',
-        message: 'Categoría de archivo no permitida',
-      });
-    }
+/**
+ * @route GET /api/media/conversation/:conversationId
+ * @desc Listar archivos por conversación (eficiente con indexación)
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/conversation/:conversationId',
+  authMiddleware,
+  requireReadAccess,
+  MediaUploadController.listFilesByConversation
+);
 
-    // Validar nombre de archivo
-    if (!filename || filename.includes('..') || filename.includes('/')) {
-      return res.status(400).json({
-        error: 'Nombre de archivo inválido',
-        message: 'El nombre de archivo contiene caracteres no permitidos',
-      });
-    }
+/**
+ * @route GET /api/media/user/:userId
+ * @desc Listar archivos por usuario (eficiente con indexación)
+ * @access Private (Admin, Agent)
+ */
+router.get('/user/:userId',
+  authMiddleware,
+  requireReadAccess,
+  MediaUploadController.listFilesByUser
+);
 
-    logger.warn('Acceso a ruta legacy de media - migrar a Firebase Storage URLs', {
-      userEmail: req.user.email,
-      category,
-      filename,
-      path: req.originalUrl
-    });
+/**
+ * @route GET /api/media/category/:category
+ * @desc Listar archivos por categoría (eficiente con indexación)
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/category/:category',
+  authMiddleware,
+  requireReadAccess,
+  MediaUploadController.listFilesByCategory
+);
 
-    return res.status(410).json({
-      error: 'Endpoint obsoleto',
-      message: 'Esta ruta ha sido migrada a Firebase Storage. Use /api/media/upload para subir archivos y las URLs firmadas para acceder a ellos.',
-      migration: {
-        upload: '/api/media/upload',
-        info: '/api/media/file/:fileId'
-      }
-    });
-  } catch (error) {
-    logger.error('Error en ruta legacy de media:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor',
-    });
-  }
-});
+/**
+ * @route GET /api/media/search
+ * @desc Buscar archivos por texto (eficiente con indexación)
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/search',
+  authMiddleware,
+  requireReadAccess,
+  MediaUploadController.searchFiles
+);
+
+/**
+ * @route GET /api/media/stats
+ * @desc Obtener estadísticas de archivos
+ * @access Private (Admin, Agent)
+ */
+router.get('/stats',
+  authMiddleware,
+  requireReadAccess,
+  MediaUploadController.getFileStats
+);
+
+/**
+ * @route POST /api/media/file/:fileId/tags
+ * @desc Agregar tags a archivo
+ * @access Private (Agent, Admin)
+ */
+router.post('/file/:fileId/tags',
+  authMiddleware,
+  requireWriteAccess,
+  MediaUploadController.addTagsToFile
+);
+
+/**
+ * @route DELETE /api/media/file/:fileId/tags
+ * @desc Remover tags de archivo
+ * @access Private (Agent, Admin)
+ */
+router.delete('/file/:fileId/tags',
+  authMiddleware,
+  requireWriteAccess,
+  MediaUploadController.removeTagsFromFile
+);
 
 module.exports = router;

@@ -1,10 +1,48 @@
 const express = require('express');
-const { validate, schemas } = require('../utils/validation');
-const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
-const ConversationController = require('../controllers/ConversationController');
-const MessageController = require('../controllers/MessageController');
-
 const router = express.Router();
+const ConversationController = require('../controllers/ConversationController');
+const { validateRequest } = require('../middleware/validation');
+const { validatePhoneInBody } = require('../middleware/phoneValidation');
+const Joi = require('joi');
+
+// Validadores específicos para conversaciones
+const conversationValidators = {
+  validateCreate: validateRequest({
+    body: Joi.object({
+      customerPhone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      customerName: Joi.string().min(1).max(100).optional(),
+      subject: Joi.string().min(1).max(200).optional(),
+      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
+      tags: Joi.array().items(Joi.string()).max(10).optional(),
+      metadata: Joi.object().optional()
+    })
+  }),
+
+  validateUpdate: validateRequest({
+    body: Joi.object({
+      customerName: Joi.string().min(1).max(100).optional(),
+      subject: Joi.string().min(1).max(200).optional(),
+      status: Joi.string().valid('open', 'pending', 'resolved', 'closed').optional(),
+      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
+      tags: Joi.array().items(Joi.string()).max(10).optional(),
+      metadata: Joi.object().optional()
+    })
+  }),
+
+  validateAssign: validateRequest({
+    body: Joi.object({
+      agentEmail: Joi.string().email().required()
+    })
+  }),
+
+  validateTransfer: validateRequest({
+    body: Joi.object({
+      targetAgentEmail: Joi.string().email().required(),
+      reason: Joi.string().min(1).max(500).optional()
+    })
+  })
+};
+const { validateId } = require('../middleware/validation');
 
 /**
  * @route GET /api/conversations
@@ -14,191 +52,145 @@ const router = express.Router();
 router.get('/',
   authMiddleware,
   requireReadAccess,
-  ConversationController.listConversations,
+  conversationValidators.validateList,
+  ConversationController.list
 );
 
 /**
- * @route GET /api/conversations/unassigned
- * @desc Obtener conversaciones sin asignar
- * @access Private (Admin, Agent)
+ * @route GET /api/conversations/:id
+ * @desc Obtener conversación por ID
+ * @access Private (Admin, Agent, Viewer)
  */
-router.get('/unassigned',
+router.get('/:id',
+  authMiddleware,
+  requireReadAccess,
+  validateId('id'),
+  ConversationController.getById
+);
+
+/**
+ * @route PUT /api/conversations/:id
+ * @desc Actualizar conversación
+ * @access Private (Agent, Admin)
+ */
+router.put('/:id',
   authMiddleware,
   requireWriteAccess,
-  ConversationController.getUnassignedConversations,
+  validateId('id'),
+  conversationValidators.validateUpdate,
+  ConversationController.update
 );
 
 /**
- * @route GET /api/conversations/stats
- * @desc Obtener estadísticas de conversaciones
- * @access Private (Admin, Agent, Viewer)
+ * @route PUT /api/conversations/:id/assign
+ * @desc Asignar conversación a agente
+ * @access Private (Agent, Admin)
  */
-router.get('/stats',
-  authMiddleware,
-  requireReadAccess,
-  ConversationController.getConversationStats,
-);
-
-/**
- * @route GET /api/conversations/search
- * @desc Buscar conversaciones
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/search',
-  authMiddleware,
-  requireReadAccess,
-  ConversationController.searchConversations,
-);
-
-/**
- * @route GET /api/conversations/:conversationId
- * @desc Obtener conversación específica por su UUID
- * @access Private (Admin, Agent, Viewer)
- */
-router.get('/:conversationId',
-  authMiddleware,
-  requireReadAccess,
-  ConversationController.getConversation,
-);
-
-/**
- * @route GET /api/conversations/:conversationId/messages
- * @desc Obtener los mensajes de una conversación (EMAIL-FIRST)
- * @access Private (Admin, Agent, Viewer)
- * @params conversationId (UUID)
- */
-router.get('/:conversationId/messages',
-  authMiddleware,
-  requireReadAccess,
-  MessageController.getMessages,
-);
-
-/**
- * @route POST /api/conversations/:conversationId/messages
- * @desc Crear/enviar mensaje en una conversación específica
- * @access Private (Admin, Agent only)
- */
-router.post('/:conversationId/messages',
+router.put('/:id/assign',
   authMiddleware,
   requireWriteAccess,
-  validate(schemas.message.createInConversation),
-  MessageController.createMessageInConversation,
+  validateId('id'),
+  conversationValidators.validateAssign,
+  ConversationController.assign
 );
 
 /**
- * @route PUT /api/conversations/:conversationId/messages/:messageId/read
- * @desc Marcar mensaje específico como leído
- * @access Private (Admin, Agent, Viewer)
+ * @route PUT /api/conversations/:id/unassign
+ * @desc Desasignar conversación
+ * @access Private (Agent, Admin)
  */
-router.put('/:conversationId/messages/:messageId/read',
+router.put('/:id/unassign',
   authMiddleware,
-  requireReadAccess,
-  MessageController.markMessageAsRead,
+  requireWriteAccess,
+  validateId('id'),
+  ConversationController.unassign
 );
 
 /**
- * @route PUT /api/conversations/:conversationId/read-all
- * @desc Marcar toda la conversación como leída
- * @access Private (Admin, Agent, Viewer)
+ * @route POST /api/conversations/:id/transfer
+ * @desc Transferir conversación a otro agente
+ * @access Private (Agent, Admin)
  */
-router.put('/:conversationId/read-all',
+router.post('/:id/transfer',
   authMiddleware,
-  requireReadAccess,
-  ConversationController.markConversationAsRead,
+  requireWriteAccess,
+  validateId('id'),
+  conversationValidators.validateTransfer,
+  ConversationController.transfer
+);
+
+/**
+ * @route PUT /api/conversations/:id/status
+ * @desc Cambiar estado de conversación
+ * @access Private (Agent, Admin)
+ */
+router.put('/:id/status',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('id'),
+  conversationValidators.validateChangeStatus,
+  ConversationController.changeStatus
+);
+
+/**
+ * @route PUT /api/conversations/:id/priority
+ * @desc Cambiar prioridad de conversación
+ * @access Private (Agent, Admin)
+ */
+router.put('/:id/priority',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('id'),
+  conversationValidators.validateChangePriority,
+  ConversationController.changePriority
+);
+
+/**
+ * @route PUT /api/conversations/:id/read-all
+ * @desc Marcar todos los mensajes como leídos
+ * @access Private (Agent, Admin)
+ */
+router.put('/:id/read-all',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('id'),
+  ConversationController.markAllAsRead
+);
+
+/**
+ * @route POST /api/conversations/:id/typing
+ * @desc Indicar que usuario está escribiendo
+ * @access Private (Agent, Admin)
+ */
+router.post('/:id/typing',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('id'),
+  ConversationController.typing
 );
 
 /**
  * @route POST /api/conversations
  * @desc Crear nueva conversación
- * @access Private (Admin, Agent only)
+ * @access Private (Agent, Admin)
  */
 router.post('/',
   authMiddleware,
   requireWriteAccess,
-  validate(schemas.conversation.create),
-  ConversationController.createConversation,
+  conversationValidators.validateCreate,
+  ConversationController.create
 );
 
 /**
- * @route PUT /api/conversations/:conversationId
- * @desc Actualizar conversación
- * @access Private (Admin, Agent only)
+ * @route DELETE /api/conversations/:id
+ * @desc Eliminar conversación
+ * @access Private (Admin)
  */
-router.put('/:conversationId',
+router.delete('/:id',
   authMiddleware,
   requireWriteAccess,
-  validate(schemas.conversation.update),
-  ConversationController.updateConversation,
+  validateId('id'),
+  ConversationController.delete
 );
-
-/**
- * @route PUT /api/conversations/:conversationId/assign
- * @desc Asignar conversación a un agente
- * @access Private (Admin, Agent only)
- */
-router.put('/:conversationId/assign',
-  authMiddleware,
-  requireWriteAccess,
-  validate(schemas.conversation.assign),
-  ConversationController.assignConversation,
-);
-
-/**
- * @route PUT /api/conversations/:conversationId/unassign
- * @desc Desasignar conversación
- * @access Private (Admin, Agent only)
- */
-router.put('/:conversationId/unassign',
-  authMiddleware,
-  requireWriteAccess,
-  ConversationController.unassignConversation,
-);
-
-/**
- * @route PUT /api/conversations/:conversationId/transfer
- * @desc Transferir conversación a otro agente
- * @access Private (Admin, Agent only)
- */
-router.put('/:conversationId/transfer',
-  authMiddleware,
-  requireWriteAccess,
-  validate(schemas.conversation.transfer),
-  ConversationController.transferConversation,
-);
-
-/**
- * @route PUT /api/conversations/:conversationId/priority
- * @desc Cambiar prioridad de conversación
- * @access Private (Admin, Agent only)
- */
-router.put('/:conversationId/priority',
-  authMiddleware,
-  requireWriteAccess,
-  validate(schemas.conversation.priority),
-  ConversationController.changeConversationPriority,
-);
-
-/**
- * @route POST /api/conversations/:conversationId/typing
- * @desc Indicar que el usuario está escribiendo
- * @access Private (Admin, Agent only)
- */
-router.post('/:conversationId/typing',
-  authMiddleware,
-  requireWriteAccess,
-  ConversationController.indicateTyping,
-);
-
-// TODO: Implementar deleteConversation en ConversationController
-// /**
-//  * @route DELETE /api/conversations/:conversationId
-//  * @desc Eliminar conversación (soft delete)
-//  * @access Private (Admin only)
-//  */
-// router.delete('/:conversationId',
-//   authMiddleware,
-//   requireWriteAccess,
-//   ConversationController.deleteConversation,
-// );
 
 module.exports = router;

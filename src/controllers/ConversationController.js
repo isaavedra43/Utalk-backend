@@ -24,12 +24,9 @@
  * @author Backend Team
  */
 
-const Conversation = require('../models/Conversation');
-const Message = require('../models/Message');
-const User = require('../models/User');
-const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
+const ConversationService = require('../services/ConversationService');
 const logger = require('../utils/logger');
-const { validateAndNormalizePhone } = require('../utils/phoneValidation');
+const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class ConversationController {
@@ -49,105 +46,259 @@ class ConversationController {
    * - sortOrder: asc|desc (default: desc)
    */
   static async listConversations(req, res, next) {
+    const startTime = Date.now();
+    
     try {
-      const {
-        limit = 20,
-        cursor = null,
-        assignedTo = 'me', // Por defecto: mis conversaciones
-        status = null,
-        priority = null,
-        tags = null,
-        search = null,
-        sortBy = 'lastMessageAt',
-        sortOrder = 'desc'
-      } = req.query;
+      req.logger.info('get_conversations_start', {
+        userEmail: req.user.email,
+        userId: req.user.uid,
+        query: req.query
+      });
 
-      // 🔍 LOG CRÍTICO DE ENTRADA
-      console.log(`[BACKEND][CONVERSATIONS][ENTRADA] Usuario: ${req.user.email} | Role: ${req.user.role} | Filtros: assignedTo=${assignedTo}, status=${status}, limit=${limit}`);
+      // ✅ NUEVO: Debug logging exhaustivo
+      logger.logObject('req.user', req.user, 'get_conversations_start');
+      logger.logObject('req.query', req.query, 'get_conversations_start');
 
-      // 🔍 LÓGICA DE FILTRADO INTELIGENTE
-      let finalAssignedToFilter = assignedTo;
+      const { page = 1, limit = 50, status, search } = req.query;
+      const userEmail = req.user.email;
+
+      // Validar parámetros
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+
+      req.logger.debug('get_conversations_params', {
+        pageNum,
+        limitNum,
+        status,
+        search,
+        userEmail
+      });
+
+      // ✅ NUEVO: Debug logging para parámetros
+      logger.logObject('pagination_params', { pageNum, limitNum, status, search, userEmail }, 'after_validation');
+
+      // Construir query base
+      let query = firestore.collection('conversations');
+
+      // ✅ NUEVO: Debug logging para query inicial
+      logger.logObject('initial_query', query, 'before_filters');
+
+      // Aplicar filtros
+      if (status && status !== 'all') {
+        query = query.where('status', '==', status);
+        req.logger.debug('applied_status_filter', { status });
+      }
+
+      // Filtro por participante
+      query = query.where('participants', 'array-contains', userEmail);
+      req.logger.debug('applied_participant_filter', { userEmail });
+
+      // ✅ NUEVO: Debug logging para query con filtros
+      logger.logObject('filtered_query', query, 'after_filters');
+
+      // Ordenar por última actividad
+      query = query.orderBy('lastMessageAt', 'desc');
+
+      // Aplicar paginación
+      const offset = (pageNum - 1) * limitNum;
+      if (offset > 0) {
+        query = query.offset(offset);
+      }
+      query = query.limit(limitNum);
+
+      req.logger.debug('final_query_params', {
+        offset,
+        limit: limitNum,
+        orderBy: 'lastMessageAt desc'
+      });
+
+      // ✅ NUEVO: Debug logging para query final
+      logger.logObject('final_query', query, 'before_execution');
+
+      // Ejecutar query
+      req.logger.database('executing_conversations_query', {
+        userEmail,
+        pageNum,
+        limitNum,
+        hasStatusFilter: !!status,
+        hasSearchFilter: !!search
+      });
+
+      const snapshot = await query.get();
+
+      // ✅ NUEVO: Debug logging para snapshot
+      logger.logObject('firestore_snapshot', snapshot, 'after_query_execution');
+      logger.logArray('snapshot.docs', snapshot.docs, 'after_query_execution');
+
+      req.logger.database('conversations_query_executed', {
+        docsCount: snapshot.docs.length,
+        isEmpty: snapshot.empty,
+        userEmail
+      });
+
+      // ✅ NUEVO: Validación exhaustiva del snapshot
+      logger.validateArrayAccess('snapshot.docs', snapshot.docs, 'before_processing');
+
+      // Procesar conversaciones
+      const conversations = [];
       
-      if (assignedTo === 'me') {
-        finalAssignedToFilter = req.user.email;
-      } else if (assignedTo === 'unassigned') {
-          finalAssignedToFilter = null;
-      } else if (assignedTo && assignedTo !== 'all') {
-        // Verificar que el agente exista
-        const agent = await User.getByEmail(assignedTo);
-        if (!agent) {
-          throw CommonErrors.USER_NOT_AUTHORIZED('ver conversaciones de', assignedTo);
+      // ✅ NUEVO: Debug logging antes del procesamiento
+      logger.logArray('conversations_before_processing', conversations, 'initial_empty_array');
+
+      for (const doc of snapshot.docs) {
+        try {
+          // ✅ NUEVO: Debug logging para cada documento
+          logger.logObject('doc_data', doc.data(), `processing_doc_${doc.id}`);
+
+          const conversationData = doc.data();
+
+          // ✅ NUEVO: Validación de datos de conversación
+          logger.logObject('conversationData', conversationData, `before_processing_${doc.id}`);
+          logger.validateArrayAccess('conversationData.participants', conversationData.participants, `doc_${doc.id}`);
+
+          const conversation = new Conversation({
+            id: doc.id,
+            ...conversationData
+          });
+
+          // ✅ NUEVO: Debug logging después de crear la conversación
+          logger.logObject('created_conversation', conversation, `after_creation_${doc.id}`);
+
+          const conversationJSON = conversation.toJSON();
+
+          // ✅ NUEVO: Debug logging del JSON
+          logger.logObject('conversation_json', conversationJSON, `after_toJSON_${doc.id}`);
+          logger.validateArrayAccess('conversationJSON.participants', conversationJSON.participants, `json_${doc.id}`);
+
+          conversations.push(conversationJSON);
+
+          // ✅ NUEVO: Debug logging después de push
+          logger.logArray('conversations_after_push', conversations, `after_push_${doc.id}`);
+
+          req.logger.debug('conversation_processed', {
+            conversationId: doc.id,
+            participantsCount: conversationJSON.participants?.length || 0,
+            status: conversationJSON.status,
+            lastMessageAt: conversationJSON.lastMessageAt
+          });
+
+        } catch (docError) {
+          req.logger.error('error_processing_conversation_doc', {
+            docId: doc.id,
+            error: docError.message,
+            stack: docError.stack
+          });
+
+          // ✅ NUEVO: Debug logging del error
+          logger.logObject('doc_processing_error', {
+            docId: doc.id,
+            error: docError.message,
+            docData: doc.data()
+          }, 'doc_processing_error');
+          
+          continue;
         }
       }
 
-      // 🔒 CONTROL DE PERMISOS POR ROL
-      if (req.user.role === 'viewer' && finalAssignedToFilter !== req.user.email) {
-        throw CommonErrors.USER_NOT_AUTHORIZED('ver conversaciones de otros agentes', 'conversations');
+      // ✅ NUEVO: Validación final exhaustiva
+      logger.validateArrayAccess('final_conversations', conversations, 'before_response');
+      logger.logConversationData(conversations, 'final_processed_conversations');
+
+      // Aplicar filtro de búsqueda si existe
+      let filteredConversations = conversations;
+      if (search && search.trim()) {
+        const searchTerm = search.toLowerCase().trim();
+        
+        // ✅ NUEVO: Debug logging antes del filtro de búsqueda
+        logger.logArray('before_search_filter', filteredConversations, 'before_search');
+        logger.validateArrayAccess('filteredConversations', filteredConversations, 'before_search_filter');
+
+        filteredConversations = conversations.filter(conv => {
+          // ✅ NUEVO: Debug logging para cada conversación en el filtro
+          logger.logObject('conversation_for_search', conv, `search_filter_${conv.id}`);
+
+          try {
+            const matchesContact = conv.contact?.name?.toLowerCase().includes(searchTerm) ||
+                                  conv.contact?.identifier?.toLowerCase().includes(searchTerm);
+            
+            const matchesParticipants = conv.participants?.some(p => 
+              p.toLowerCase().includes(searchTerm)
+            );
+
+            const matchesLastMessage = conv.lastMessage?.content?.toLowerCase().includes(searchTerm);
+
+            return matchesContact || matchesParticipants || matchesLastMessage;
+          } catch (filterError) {
+            req.logger.error('search_filter_error', {
+              conversationId: conv.id,
+              error: filterError.message,
+              conv
+            });
+
+            // ✅ NUEVO: Debug logging del error de filtro
+            logger.logObject('search_filter_error', {
+              conversationId: conv.id,
+              error: filterError.message,
+              conv
+            }, 'search_filter_error');
+
+            return false;
+          }
+        });
+
+        // ✅ NUEVO: Debug logging después del filtro de búsqueda
+        logger.logArray('after_search_filter', filteredConversations, 'after_search');
+        logger.validateArrayAccess('filteredConversations_after_search', filteredConversations, 'after_search_filter');
+
+        req.logger.debug('search_filter_applied', {
+          searchTerm,
+          originalCount: conversations.length,
+          filteredCount: filteredConversations.length
+        });
       }
 
-      // 🔍 OPCIONES DE BÚSQUEDA
-      const searchOptions = {
-        limit: Math.min(parseInt(limit), 100),
-        cursor,
-        status,
-        priority,
-        tags: tags ? (Array.isArray(tags) ? tags : tags.split(',')) : null,
-        sortBy,
-        sortOrder
-      };
+      // ✅ NUEVO: Validación final antes de respuesta
+      logger.validateArrayAccess('final_filtered_conversations', filteredConversations, 'before_final_response');
 
-      // Determinar si es una vista general o una búsqueda específica
-      if (assignedTo === 'me' || assignedTo === 'all') {
-        searchOptions.fetchForUser = req.user.email; // VISTA GENERAL
-      } else if (assignedTo === 'unassigned') {
-        searchOptions.assignedTo = null; // Búsqueda específica de no asignadas
-      } else if (assignedTo) {
-        searchOptions.assignedTo = finalAssignedToFilter; // Búsqueda específica de un agente
-      } else {
-        searchOptions.fetchForUser = req.user.email; // Por defecto, vista general
-      }
+      const responseTime = Date.now() - startTime;
 
-
-      logger.info('Listando conversaciones', {
-        userEmail: req.user.email,
-          userRole: req.user.role,
-        filters: searchOptions,
-        ip: req.ip
+      req.logger.success('get_conversations_success', {
+        conversationsCount: filteredConversations.length,
+        userEmail,
+        pageNum,
+        limitNum,
+        responseTime: `${responseTime}ms`,
+        hasSearchFilter: !!search,
+        searchTerm: search || null
       });
 
-      // 📊 EJECUTAR BÚSQUEDA
-      const result = await Conversation.list(searchOptions);
-      
-      // 🔍 LOG CRÍTICO DE RESULTADO
-      console.log(`[BACKEND][CONVERSATIONS][RESULTADO] Encontradas: ${result.conversations?.length || 0} conversaciones | Es array: ${Array.isArray(result.conversations)} | Pagination: hasMore=${result.pagination?.hasMore}`);
+      // ✅ NUEVO: Debug logging de la respuesta final
+      logger.logApiResponse('/conversations', filteredConversations, 'final_response');
 
-      // Verificar si el resultado está vacío y loguear filtros
-      if (!result.conversations || result.conversations.length === 0) {
-        console.log(`[BACKEND][CONVERSATIONS][VACIO] Sin resultados con filtros: ${JSON.stringify(searchOptions)}`);
-      }
-      
-      // 📤 RESPUESTA ESTÁNDAR CON PAGINACIÓN
-      const responseData = result.conversations.map(conv => conv.toJSON());
-      
-      // 🔍 LOG CRÍTICO ANTES DE RESPUESTA
-      console.log(`[BACKEND][CONVERSATIONS][RESPONSE] Enviando ${responseData.length} conversaciones al frontend | Status: 200`);
-      
-      return ResponseHandler.successPaginated(
-        res,
-        responseData,
-        result.pagination,
-        `${result.conversations.length} conversaciones encontradas`,
-        200
-      );
+      ResponseHandler.success(res, filteredConversations, 'Conversaciones obtenidas exitosamente', {
+        page: pageNum,
+        limit: limitNum,
+        total: filteredConversations.length,
+        hasMore: filteredConversations.length === limitNum
+      });
 
-        } catch (error) {
-      logger.error('Error listando conversaciones', {
-            error: error.message,
-            stack: error.stack,
+    } catch (error) {
+      req.logger.error('get_conversations_error', {
+        error: error.message,
+        stack: error.stack,
         userEmail: req.user?.email,
         query: req.query
       });
-      return ResponseHandler.error(res, error);
+
+      // ✅ NUEVO: Debug logging del error general
+      logger.logObject('general_error', {
+        error: error.message,
+        stack: error.stack,
+        userEmail: req.user?.email,
+        query: req.query
+      }, 'get_conversations_error');
+
+      next(error);
     }
   }
 
@@ -163,15 +314,11 @@ class ConversationController {
 
       const { limit = 20, cursor = null } = req.query;
 
-      const result = await Conversation.list({
-        limit: Math.min(parseInt(limit), 100),
-        cursor,
-        assignedTo: null,
-        participantEmail: null, // 🔧 CORREGIDO: No filtrar por participantEmail para conversaciones sin asignar
-        status: 'open', // Solo abiertas sin asignar
-        sortBy: 'createdAt',
-        sortOrder: 'asc' // Más antiguas primero
-      });
+      const result = await ConversationService.listUnassignedConversations(
+        req.user.email,
+        Math.min(parseInt(limit), 100),
+        cursor
+      );
 
       logger.info('Conversaciones sin asignar obtenidas', {
         userEmail: req.user.email,
@@ -206,7 +353,7 @@ class ConversationController {
         throw CommonErrors.USER_NOT_AUTHORIZED('ver estadísticas de otros agentes', 'stats');
       }
 
-      const stats = await Conversation.getStats(targetAgent, period);
+      const stats = await ConversationService.getStats(targetAgent, period);
 
       logger.info('Estadísticas de conversaciones obtenidas', {
         userEmail: req.user.email,
@@ -245,7 +392,7 @@ class ConversationController {
         ...filters
       };
 
-      const result = await Conversation.search(searchTerm, searchOptions);
+      const result = await ConversationService.searchConversations(searchTerm, searchOptions);
 
       logger.info('Búsqueda de conversaciones ejecutada', {
         userEmail: req.user.email,
@@ -272,7 +419,7 @@ class ConversationController {
     try {
       const { conversationId } = req.params;
 
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
@@ -303,18 +450,6 @@ class ConversationController {
     try {
       const { customerPhone, assignedTo, initialMessage, priority = 'normal', tags = [] } = req.body;
 
-      // 🔍 VALIDAR TELÉFONO DEL CLIENTE
-      const phoneValidation = validateAndNormalizePhone(customerPhone);
-      if (!phoneValidation.isValid) {
-        throw new ApiError(
-          'INVALID_CUSTOMER_PHONE',
-          `Número de teléfono inválido: ${phoneValidation.error}`,
-          'Proporciona un número de teléfono válido en formato internacional (+1234567890)',
-          400,
-          { customerPhone, error: phoneValidation.error }
-        );
-      }
-
       // 🔍 VALIDAR AGENTE ASIGNADO
       let assignedAgent = null;
       if (assignedTo) {
@@ -326,13 +461,13 @@ class ConversationController {
 
       // 🆕 CREAR CONVERSACIÓN
       // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
-      const participants = Conversation.ensureParticipantsArray(
-        phoneValidation.normalized,
+      const participants = ConversationService.ensureParticipantsArray(
+        customerPhone,
         assignedAgent?.email || null
       );
       
       const conversationData = {
-        customerPhone: phoneValidation.normalized,
+        customerPhone: customerPhone,
         assignedTo: assignedAgent?.email || null,
         assignedToName: assignedAgent?.name || null,
         priority,
@@ -341,15 +476,15 @@ class ConversationController {
         createdBy: req.user.email
       };
 
-      const conversation = await Conversation.create(conversationData);
+      const conversation = await ConversationService.createConversation(conversationData);
 
-      // 💬 CREAR MENSAJE INICIAL SI SE PROPORCIONA
+      // �� CREAR MENSAJE INICIAL SI SE PROPORCIONA
       if (initialMessage) {
         const messageData = {
           conversationId: conversation.id,
           content: initialMessage,
           senderIdentifier: req.user.email,
-          recipientIdentifier: phoneValidation.normalized,
+          recipientIdentifier: customerPhone,
           direction: 'outbound',
           type: 'text',
           status: 'sent',
@@ -382,7 +517,7 @@ class ConversationController {
 
       logger.info('Nueva conversación creada', {
         conversationId: conversation.id,
-        customerPhone: phoneValidation.normalized,
+        customerPhone: customerPhone,
         assignedTo: assignedAgent?.email,
         createdBy: req.user.email,
         hasInitialMessage: !!initialMessage
@@ -404,7 +539,7 @@ class ConversationController {
       const { id } = req.params;
       const updates = req.body;
 
-      const conversation = await Conversation.getById(id);
+      const conversation = await ConversationService.getConversationById(id);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
@@ -450,7 +585,7 @@ class ConversationController {
       const { id } = req.params;
       const { assignedTo } = req.body;
 
-      const conversation = await Conversation.getById(id);
+      const conversation = await ConversationService.getConversationById(id);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
@@ -522,7 +657,7 @@ class ConversationController {
     try {
       const { id } = req.params;
 
-      const conversation = await Conversation.getById(id);
+      const conversation = await ConversationService.getConversationById(id);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
@@ -573,7 +708,7 @@ class ConversationController {
       const { id } = req.params;
       const { fromAgent, toAgent, reason = '' } = req.body;
 
-      const conversation = await Conversation.getById(id);
+      const conversation = await ConversationService.getConversationById(id);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
@@ -660,7 +795,7 @@ class ConversationController {
       const { id } = req.params;
       const { status, reason = '' } = req.body;
 
-      const conversation = await Conversation.getById(id);
+      const conversation = await ConversationService.getConversationById(id);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
@@ -726,7 +861,7 @@ class ConversationController {
       const { id } = req.params;
       const { priority, reason = '' } = req.body;
 
-      const conversation = await Conversation.getById(id);
+      const conversation = await ConversationService.getConversationById(id);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(id);
       }
@@ -769,7 +904,7 @@ class ConversationController {
     try {
       const { conversationId } = req.params;
 
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
