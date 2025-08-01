@@ -235,6 +235,34 @@ class Contact {
   }
 
   /**
+   * Obtener todos los tags únicos de contactos
+   */
+  static async getAllTags (userId = null) {
+    try {
+      let query = firestore.collection('contacts').where('isActive', '==', true);
+
+      if (userId) {
+        query = query.where('userId', '==', userId);
+      }
+
+      const snapshot = await query.get();
+      const allTags = new Set();
+
+      snapshot.docs.forEach(doc => {
+        const contact = new Contact({ id: doc.id, ...doc.data() });
+        if (contact.tags && Array.isArray(contact.tags)) {
+          contact.tags.forEach(tag => allTags.add(tag));
+        }
+      });
+
+      return Array.from(allTags).sort();
+    } catch (error) {
+      console.error('Error obteniendo tags:', error);
+      return [];
+    }
+  }
+
+  /**
    * Convertir a objeto plano para respuestas JSON con timestamps ISO
    */
   toJSON () {
