@@ -65,7 +65,7 @@ const knowledgeValidators = {
 router.get('/',
   authMiddleware,
   requireReadAccess,
-  KnowledgeController.list
+  KnowledgeController.listKnowledge
 );
 
 /**
@@ -77,7 +77,7 @@ router.get('/search',
   authMiddleware,
   requireReadAccess,
   knowledgeValidators.validateSearch,
-  KnowledgeController.search
+  KnowledgeController.searchKnowledge
 );
 
 /**
@@ -89,7 +89,7 @@ router.get('/:knowledgeId',
   authMiddleware,
   requireReadAccess,
   validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
-  KnowledgeController.getById
+  KnowledgeController.getKnowledge
 );
 
 /**
@@ -101,7 +101,7 @@ router.post('/',
   authMiddleware,
   requireWriteAccess,
   knowledgeValidators.validateCreate,
-  KnowledgeController.create
+  KnowledgeController.createKnowledge
 );
 
 /**
@@ -114,7 +114,7 @@ router.put('/:knowledgeId',
   requireWriteAccess,
   validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
   knowledgeValidators.validateUpdate,
-  KnowledgeController.update
+  KnowledgeController.updateKnowledge
 );
 
 /**
@@ -126,7 +126,7 @@ router.delete('/:knowledgeId',
   authMiddleware,
   requireWriteAccess,
   validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
-  KnowledgeController.delete
+  KnowledgeController.deleteKnowledge
 );
 
 /**
@@ -138,7 +138,7 @@ router.put('/:knowledgeId/publish',
   authMiddleware,
   requireWriteAccess,
   validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
-  KnowledgeController.publish
+  KnowledgeController.publishKnowledge
 );
 
 /**
@@ -150,7 +150,7 @@ router.put('/:knowledgeId/unpublish',
   authMiddleware,
   requireWriteAccess,
   validateRequest({ params: Joi.object({ knowledgeId: Joi.string().uuid().required() }) }),
-  KnowledgeController.unpublish
+  KnowledgeController.unpublishKnowledge
 );
 
 /**

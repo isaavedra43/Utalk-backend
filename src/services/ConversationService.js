@@ -1,0 +1,325 @@
+/**
+ * 💬 CONVERSATION SERVICE
+ * 
+ * Servicio para manejo de conversaciones con Firestore
+ * 
+ * @version 1.0.0
+ * @author Backend Team
+ */
+
+const { firestore, FieldValue } = require('../config/firebase');
+const logger = require('../utils/logger');
+
+class ConversationService {
+  /**
+   * Obtener conversaciones con filtros
+   */
+  static async getConversations(filters = {}) {
+    try {
+      let query = firestore.collection('conversations');
+
+      // Aplicar filtros
+      if (filters.status && filters.status !== 'all') {
+        query = query.where('status', '==', filters.status);
+      }
+
+      if (filters.assignedTo) {
+        if (filters.assignedTo === 'unassigned') {
+          query = query.where('assignedTo', '==', null);
+        } else {
+          query = query.where('assignedTo', '==', filters.assignedTo);
+        }
+      }
+
+      if (filters.participants) {
+        query = query.where('participants', 'array-contains', filters.participants);
+      }
+
+      // Ordenar
+      const sortBy = filters.sortBy || 'lastMessageAt';
+      const sortOrder = filters.sortOrder || 'desc';
+      query = query.orderBy(sortBy, sortOrder);
+
+      // Paginación
+      if (filters.limit) {
+        query = query.limit(filters.limit);
+      }
+
+      if (filters.cursor) {
+        query = query.startAfter(filters.cursor);
+      }
+
+      const snapshot = await query.get();
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+    } catch (error) {
+      logger.error('Error obteniendo conversaciones:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener conversación por ID
+   */
+  static async getConversationById(id) {
+    try {
+      const doc = await firestore.collection('conversations').doc(id).get();
+      
+      if (!doc.exists) {
+        return null;
+      }
+
+      return {
+        id: doc.id,
+        ...doc.data()
+      };
+
+    } catch (error) {
+      logger.error('Error obteniendo conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear nueva conversación
+   */
+  static async createConversation(conversationData) {
+    try {
+      const conversation = {
+        ...conversationData,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        lastMessageAt: FieldValue.serverTimestamp(),
+        status: conversationData.status || 'open',
+        priority: conversationData.priority || 'normal',
+        participants: conversationData.participants || [],
+        messages: [],
+        unreadCount: 0
+      };
+
+      const docRef = await firestore.collection('conversations').add(conversation);
+      
+      return {
+        id: docRef.id,
+        ...conversation
+      };
+
+    } catch (error) {
+      logger.error('Error creando conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar conversación
+   */
+  static async updateConversation(id, updates) {
+    try {
+      const updateData = {
+        ...updates,
+        updatedAt: FieldValue.serverTimestamp()
+      };
+
+      await firestore.collection('conversations').doc(id).update(updateData);
+      
+      return this.getConversationById(id);
+
+    } catch (error) {
+      logger.error('Error actualizando conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Asignar conversación
+   */
+  static async assignConversation(id, assignedTo) {
+    try {
+      await firestore.collection('conversations').doc(id).update({
+        assignedTo,
+        assignedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      return this.getConversationById(id);
+
+    } catch (error) {
+      logger.error('Error asignando conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Desasignar conversación
+   */
+  static async unassignConversation(id) {
+    try {
+      await firestore.collection('conversations').doc(id).update({
+        assignedTo: null,
+        assignedAt: null,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      return this.getConversationById(id);
+
+    } catch (error) {
+      logger.error('Error desasignando conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cambiar estado de conversación
+   */
+  static async changeConversationStatus(id, status) {
+    try {
+      await firestore.collection('conversations').doc(id).update({
+        status,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      return this.getConversationById(id);
+
+    } catch (error) {
+      logger.error('Error cambiando estado de conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cambiar prioridad de conversación
+   */
+  static async changeConversationPriority(id, priority) {
+    try {
+      await firestore.collection('conversations').doc(id).update({
+        priority,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      return this.getConversationById(id);
+
+    } catch (error) {
+      logger.error('Error cambiando prioridad de conversación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Marcar conversación como leída
+   */
+  static async markConversationAsRead(id, userEmail) {
+    try {
+      await firestore.collection('conversations').doc(id).update({
+        unreadCount: 0,
+        lastReadBy: userEmail,
+        lastReadAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      return this.getConversationById(id);
+
+    } catch (error) {
+      logger.error('Error marcando conversación como leída:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener estadísticas de conversaciones
+   */
+  static async getConversationStats(filters = {}) {
+    try {
+      let query = firestore.collection('conversations');
+
+      if (filters.assignedTo) {
+        query = query.where('assignedTo', '==', filters.assignedTo);
+      }
+
+      const snapshot = await query.get();
+      
+      const stats = {
+        total: 0,
+        open: 0,
+        closed: 0,
+        pending: 0,
+        archived: 0,
+        unassigned: 0,
+        urgent: 0,
+        high: 0,
+        normal: 0,
+        low: 0
+      };
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        stats.total++;
+        
+        if (data.status) {
+          stats[data.status] = (stats[data.status] || 0) + 1;
+        }
+        
+        if (data.priority) {
+          stats[data.priority] = (stats[data.priority] || 0) + 1;
+        }
+        
+        if (!data.assignedTo) {
+          stats.unassigned++;
+        }
+      });
+
+      return stats;
+
+    } catch (error) {
+      logger.error('Error obteniendo estadísticas de conversaciones:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar conversaciones
+   */
+  static async searchConversations(searchTerm, filters = {}) {
+    try {
+      let query = firestore.collection('conversations');
+
+      // Aplicar filtros base
+      if (filters.assignedTo) {
+        query = query.where('assignedTo', '==', filters.assignedTo);
+      }
+
+      if (filters.status) {
+        query = query.where('status', '==', filters.status);
+      }
+
+      const snapshot = await query.get();
+      
+      // Filtrar por término de búsqueda
+      const results = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(conversation => {
+          const searchLower = searchTerm.toLowerCase();
+          
+          return (
+            conversation.customerPhone?.toLowerCase().includes(searchLower) ||
+            conversation.contact?.name?.toLowerCase().includes(searchLower) ||
+            conversation.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+          );
+        });
+
+      return results;
+
+    } catch (error) {
+      logger.error('Error buscando conversaciones:', error);
+      throw error;
+    }
+  }
+}
+
+module.exports = ConversationService; 

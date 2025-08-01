@@ -3,6 +3,7 @@ const router = express.Router();
 const ConversationController = require('../controllers/ConversationController');
 const { validateRequest } = require('../middleware/validation');
 const { validatePhoneInBody } = require('../middleware/phoneValidation');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const Joi = require('joi');
 
 // Validadores específicos para conversaciones
@@ -40,6 +41,29 @@ const conversationValidators = {
       targetAgentEmail: Joi.string().email().required(),
       reason: Joi.string().min(1).max(500).optional()
     })
+  }),
+
+  validateList: validateRequest({
+    query: Joi.object({
+      page: Joi.number().integer().min(1).default(1),
+      limit: Joi.number().integer().min(1).max(100).default(20),
+      status: Joi.string().valid('open', 'pending', 'resolved', 'closed', 'all').optional(),
+      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
+      assignedTo: Joi.string().email().optional(),
+      search: Joi.string().min(1).max(100).optional()
+    })
+  }),
+
+  validateChangeStatus: validateRequest({
+    body: Joi.object({
+      status: Joi.string().valid('open', 'pending', 'resolved', 'closed').required()
+    })
+  }),
+
+  validateChangePriority: validateRequest({
+    body: Joi.object({
+      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').required()
+    })
   })
 };
 const { validateId } = require('../middleware/validation');
@@ -53,7 +77,7 @@ router.get('/',
   authMiddleware,
   requireReadAccess,
   conversationValidators.validateList,
-  ConversationController.list
+  ConversationController.listConversations
 );
 
 /**
@@ -65,7 +89,7 @@ router.get('/:id',
   authMiddleware,
   requireReadAccess,
   validateId('id'),
-  ConversationController.getById
+  ConversationController.getConversation
 );
 
 /**
@@ -78,7 +102,7 @@ router.put('/:id',
   requireWriteAccess,
   validateId('id'),
   conversationValidators.validateUpdate,
-  ConversationController.update
+  ConversationController.updateConversation
 );
 
 /**
@@ -91,7 +115,7 @@ router.put('/:id/assign',
   requireWriteAccess,
   validateId('id'),
   conversationValidators.validateAssign,
-  ConversationController.assign
+  ConversationController.assignConversation
 );
 
 /**
@@ -103,7 +127,7 @@ router.put('/:id/unassign',
   authMiddleware,
   requireWriteAccess,
   validateId('id'),
-  ConversationController.unassign
+  ConversationController.unassignConversation
 );
 
 /**
@@ -116,7 +140,7 @@ router.post('/:id/transfer',
   requireWriteAccess,
   validateId('id'),
   conversationValidators.validateTransfer,
-  ConversationController.transfer
+  ConversationController.transferConversation
 );
 
 /**
@@ -129,7 +153,7 @@ router.put('/:id/status',
   requireWriteAccess,
   validateId('id'),
   conversationValidators.validateChangeStatus,
-  ConversationController.changeStatus
+  ConversationController.changeConversationStatus
 );
 
 /**
@@ -142,7 +166,7 @@ router.put('/:id/priority',
   requireWriteAccess,
   validateId('id'),
   conversationValidators.validateChangePriority,
-  ConversationController.changePriority
+  ConversationController.changeConversationPriority
 );
 
 /**
@@ -154,7 +178,7 @@ router.put('/:id/read-all',
   authMiddleware,
   requireWriteAccess,
   validateId('id'),
-  ConversationController.markAllAsRead
+  ConversationController.markConversationAsRead
 );
 
 /**
@@ -166,7 +190,7 @@ router.post('/:id/typing',
   authMiddleware,
   requireWriteAccess,
   validateId('id'),
-  ConversationController.typing
+  ConversationController.indicateTyping
 );
 
 /**
@@ -178,7 +202,7 @@ router.post('/',
   authMiddleware,
   requireWriteAccess,
   conversationValidators.validateCreate,
-  ConversationController.create
+  ConversationController.createConversation
 );
 
 /**
@@ -190,7 +214,7 @@ router.delete('/:id',
   authMiddleware,
   requireWriteAccess,
   validateId('id'),
-  ConversationController.delete
+  ConversationController.deleteConversation
 );
 
 module.exports = router;

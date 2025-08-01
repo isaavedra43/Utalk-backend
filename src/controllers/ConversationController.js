@@ -888,6 +888,47 @@ class ConversationController {
       return ResponseHandler.error(res, error);
     }
   }
+
+  /**
+   * DELETE /api/conversations/:id
+   * Eliminar conversación
+   */
+  static async deleteConversation(req, res, next) {
+    try {
+      const { id } = req.params;
+      const userEmail = req.user.email;
+
+      // Verificar que la conversación existe
+      const conversation = await ConversationService.getConversationById(id);
+      
+      if (!conversation) {
+        return ResponseHandler.error(res, new ApiError(
+          'CONVERSATION_NOT_FOUND',
+          'Conversación no encontrada',
+          'Verifica el ID e intenta nuevamente',
+          404
+        ));
+      }
+
+      // Eliminar conversación
+      await firestore.collection('conversations').doc(id).delete();
+
+      logger.info('Conversación eliminada', {
+        conversationId: id,
+        deletedBy: userEmail
+      });
+
+      return ResponseHandler.success(
+        res,
+        null,
+        'Conversación eliminada exitosamente'
+      );
+
+    } catch (error) {
+      logger.error('Error eliminando conversación:', error);
+      return ResponseHandler.error(res, error);
+    }
+  }
 }
 
 module.exports = ConversationController;

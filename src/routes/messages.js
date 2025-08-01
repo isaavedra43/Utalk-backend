@@ -3,6 +3,7 @@ const router = express.Router();
 const MessageController = require('../controllers/MessageController');
 const { validateRequest } = require('../middleware/validation');
 const { validatePhoneInBody, validateMultiplePhonesInBody } = require('../middleware/phoneValidation');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const Joi = require('joi');
 
 // Validadores específicos para mensajes
@@ -59,7 +60,7 @@ router.get('/conversations/:conversationId/messages',
   authMiddleware,
   requireReadAccess,
   validateId('conversationId'),
-  MessageController.getByConversation
+  MessageController.getMessages
 );
 
 /**
@@ -86,7 +87,7 @@ router.put('/conversations/:conversationId/messages/:messageId/read',
   validateId('conversationId'),
   validateId('messageId'),
   messageValidators.validateMarkRead,
-  MessageController.markAsRead
+  MessageController.markMessageAsRead
 );
 
 /**
@@ -99,7 +100,7 @@ router.delete('/conversations/:conversationId/messages/:messageId',
   requireWriteAccess,
   validateId('conversationId'),
   validateId('messageId'),
-  MessageController.delete
+  MessageController.deleteMessage
 );
 
 /**
@@ -121,7 +122,7 @@ router.post('/send',
  */
 router.post('/webhook',
   messageValidators.validateWebhook,
-  MessageController.webhook
+  MessageController.handleWebhookSafe
 );
 
 module.exports = router;
