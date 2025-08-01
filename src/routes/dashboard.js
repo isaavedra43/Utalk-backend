@@ -11,8 +11,8 @@
 const express = require('express');
 const router = express.Router();
 const EnterpriseDashboardController = require('../controllers/DashboardController');
-const { authMiddleware } = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
+const { asyncWrapper } = require('../utils/errorWrapper');
 const logger = require('../utils/logger');
 
 /**

@@ -46,13 +46,14 @@ const knowledgeValidators = {
 
   validateVote: validateRequest({
     body: Joi.object({
-      helpful: Joi.boolean().required()
+      voteType: Joi.string().valid('up', 'down').required()
     })
   }),
 
   validateRate: validateRequest({
     body: Joi.object({
-      rating: Joi.number().min(1).max(5).required()
+      rating: Joi.number().min(1).max(5).required(),
+      comment: Joi.string().max(500).optional()
     })
   })
 };

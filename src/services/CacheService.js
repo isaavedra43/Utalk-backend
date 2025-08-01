@@ -477,6 +477,21 @@ class EnterpriseCacheService {
   }
 
   /**
+   * 🏓 Ping simple para health checks
+   */
+  async ping() {
+    try {
+      if (this.isRedisAvailable && this.redis) {
+        return await this.redis.ping();
+      } else {
+        return 'PONG'; // Fallback a local cache
+      }
+    } catch (error) {
+      throw new Error('Cache service unavailable');
+    }
+  }
+
+  /**
    * 🛑 GRACEFUL SHUTDOWN
    */
   async shutdown() {

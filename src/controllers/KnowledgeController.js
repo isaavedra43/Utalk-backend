@@ -413,6 +413,191 @@ class KnowledgeController {
   }
 
   /**
+   * 🗑️ Eliminar archivo de Firebase Storage
+   */
+  static async deleteFileFromStorage(fileUrl) {
+    try {
+      // Extraer path del storage desde la URL
+      const urlParts = fileUrl.split('/');
+      const pathIndex = urlParts.findIndex(part => part === 'o') + 1;
+      
+      if (pathIndex > 0 && pathIndex < urlParts.length) {
+        const encodedPath = urlParts[pathIndex].split('?')[0];
+        const storagePath = decodeURIComponent(encodedPath);
+        
+        const bucket = KnowledgeController.getBucket();
+        const fileRef = bucket.file(storagePath);
+        await fileRef.delete();
+        
+        logger.info('Archivo eliminado de Firebase Storage:', { storagePath });
+      }
+    } catch (error) {
+      logger.warn('Error eliminando archivo de Firebase Storage:', error);
+      // No lanzar error para no bloquear otras operaciones
+    }
+  }
+
+  /**
+   * 👍 VOTAR artículo de conocimiento
+   */
+  static async vote(req, res, next) {
+    try {
+      const { knowledgeId } = req.params;
+      const { voteType } = req.body; // 'up' o 'down'
+      const userEmail = req.user.email;
+
+      if (!['up', 'down'].includes(voteType)) {
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_VOTE_TYPE',
+          'Tipo de voto inválido',
+          'El voto debe ser "up" o "down"',
+          400
+        ));
+      }
+
+      const knowledge = await Knowledge.findById(knowledgeId);
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Artículo no encontrado',
+          'El artículo de conocimiento no existe',
+          404
+        ));
+      }
+
+      // Verificar si el usuario ya votó
+      const existingVote = knowledge.votes?.find(vote => vote.userEmail === userEmail);
+      
+      if (existingVote) {
+        // Actualizar voto existente
+        existingVote.voteType = voteType;
+        existingVote.updatedAt = new Date();
+      } else {
+        // Agregar nuevo voto
+        if (!knowledge.votes) knowledge.votes = [];
+        knowledge.votes.push({
+          userEmail,
+          voteType,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
+
+      await knowledge.save();
+
+      // Calcular votos totales
+      const upVotes = knowledge.votes?.filter(v => v.voteType === 'up').length || 0;
+      const downVotes = knowledge.votes?.filter(v => v.voteType === 'down').length || 0;
+
+      logger.info('Voto registrado en conocimiento:', {
+        knowledgeId,
+        userEmail,
+        voteType,
+        upVotes,
+        downVotes
+      });
+
+      return ResponseHandler.success(res, {
+        knowledgeId,
+        voteType,
+        upVotes,
+        downVotes,
+        totalVotes: upVotes + downVotes
+      }, 'Voto registrado exitosamente');
+    } catch (error) {
+      logger.error('Error registrando voto:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'VOTE_ERROR',
+        'Error registrando voto',
+        'Intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * ⭐ CALIFICAR artículo de conocimiento
+   */
+  static async rate(req, res, next) {
+    try {
+      const { knowledgeId } = req.params;
+      const { rating, comment } = req.body;
+      const userEmail = req.user.email;
+
+      // Validar rating (1-5 estrellas)
+      if (!rating || rating < 1 || rating > 5) {
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_RATING',
+          'Calificación inválida',
+          'La calificación debe estar entre 1 y 5',
+          400
+        ));
+      }
+
+      const knowledge = await Knowledge.findById(knowledgeId);
+      if (!knowledge) {
+        return ResponseHandler.error(res, new ApiError(
+          'KNOWLEDGE_NOT_FOUND',
+          'Artículo no encontrado',
+          'El artículo de conocimiento no existe',
+          404
+        ));
+      }
+
+      // Verificar si el usuario ya calificó
+      const existingRating = knowledge.ratings?.find(r => r.userEmail === userEmail);
+      
+      if (existingRating) {
+        // Actualizar calificación existente
+        existingRating.rating = rating;
+        existingRating.comment = comment;
+        existingRating.updatedAt = new Date();
+      } else {
+        // Agregar nueva calificación
+        if (!knowledge.ratings) knowledge.ratings = [];
+        knowledge.ratings.push({
+          userEmail,
+          rating,
+          comment,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
+
+      await knowledge.save();
+
+      // Calcular rating promedio
+      const totalRatings = knowledge.ratings?.length || 0;
+      const averageRating = totalRatings > 0 
+        ? knowledge.ratings.reduce((sum, r) => sum + r.rating, 0) / totalRatings 
+        : 0;
+
+      logger.info('Calificación registrada en conocimiento:', {
+        knowledgeId,
+        userEmail,
+        rating,
+        averageRating,
+        totalRatings
+      });
+
+      return ResponseHandler.success(res, {
+        knowledgeId,
+        rating,
+        averageRating: Math.round(averageRating * 100) / 100,
+        totalRatings
+      }, 'Calificación registrada exitosamente');
+    } catch (error) {
+      logger.error('Error registrando calificación:', error);
+      return ResponseHandler.error(res, new ApiError(
+        'RATING_ERROR',
+        'Error registrando calificación',
+        'Intenta nuevamente',
+        500
+      ));
+    }
+  }
+
+  /**
    * 📤 Subir archivo a Firebase Storage
    */
   static async uploadFileToStorage(file, folder = 'knowledge') {
@@ -452,31 +637,6 @@ class KnowledgeController {
     } catch (error) {
       logger.error('Error subiendo archivo a Firebase Storage:', error);
       throw error;
-    }
-  }
-
-  /**
-   * 🗑️ Eliminar archivo de Firebase Storage
-   */
-  static async deleteFileFromStorage(fileUrl) {
-    try {
-      // Extraer path del storage desde la URL
-      const urlParts = fileUrl.split('/');
-      const pathIndex = urlParts.findIndex(part => part === 'o') + 1;
-      
-      if (pathIndex > 0 && pathIndex < urlParts.length) {
-        const encodedPath = urlParts[pathIndex].split('?')[0];
-        const storagePath = decodeURIComponent(encodedPath);
-        
-        const bucket = KnowledgeController.getBucket();
-        const fileRef = bucket.file(storagePath);
-        await fileRef.delete();
-        
-        logger.info('Archivo eliminado de Firebase Storage:', { storagePath });
-      }
-    } catch (error) {
-      logger.warn('Error eliminando archivo de Firebase Storage:', error);
-      // No lanzar error para no bloquear otras operaciones
     }
   }
 
