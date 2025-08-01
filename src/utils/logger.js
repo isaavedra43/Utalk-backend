@@ -137,12 +137,13 @@ class AdvancedLogger {
           })
         );
         
-        this.winston.info('✅ File logging habilitado en:', { logDir });
+        // File logging habilitado exitosamente
+        console.log('✅ File logging habilitado en:', logDir);
         
       } catch (error) {
         // Si no podemos escribir archivos, solo usar console
-        this.winston.warn('⚠️ No se pudo habilitar file logging (permisos insuficientes):', { error: error.message });
-        this.winston.info('ℹ️ Continuando solo con console logging...');
+        console.warn('⚠️ No se pudo habilitar file logging (permisos insuficientes):', error.message);
+        console.log('ℹ️ Continuando solo con console logging...');
       }
     }
 
