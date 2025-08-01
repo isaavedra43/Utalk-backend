@@ -16,8 +16,18 @@ const { logger } = require('../src/utils/logger');
  * Migrar archivos existentes al sistema indexado
  */
 async function migrateFilesToIndexedSystem() {
-  console.log('🔄 INICIANDO MIGRACIÓN DE ARCHIVOS AL SISTEMA INDEXADO');
-  console.log('=' .repeat(60));
+  // Usar logger simple para scripts
+  const log = (message, data = {}) => {
+    const timestamp = new Date().toISOString();
+    if (Object.keys(data).length > 0) {
+      console.log(`[${timestamp}] ${message}`, JSON.stringify(data, null, 2));
+    } else {
+      console.log(`[${timestamp}] ${message}`);
+    }
+  };
+
+  log('🔄 INICIANDO MIGRACIÓN DE ARCHIVOS AL SISTEMA INDEXADO');
+  log('=' .repeat(60));
 
   try {
     // Verificar conexión a Firebase
@@ -28,12 +38,12 @@ async function migrateFilesToIndexedSystem() {
     const bucket = admin.storage().bucket();
     const firestore = admin.firestore();
 
-    console.log('📋 Paso 1: Escaneando archivos existentes en Firebase Storage...');
+    log('📋 Paso 1: Escaneando archivos existentes en Firebase Storage...');
 
     // Obtener todos los archivos del bucket
     const [files] = await bucket.getFiles();
     
-    console.log(`📊 Encontrados ${files.length} archivos en Storage`);
+    log(`📊 Encontrados ${files.length} archivos en Storage`);
 
     let migratedCount = 0;
     let skippedCount = 0;

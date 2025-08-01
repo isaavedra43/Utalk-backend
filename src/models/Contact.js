@@ -91,7 +91,13 @@ class Contact {
       const updatedDoc = await docRef.get();
       return new Contact({ id: updatedDoc.id, ...updatedDoc.data() });
     } catch (error) {
-      console.error('Error actualizando contacto:', error);
+      const logger = require('../utils/logger');
+      logger.error('Error actualizando contacto', {
+        category: 'CONTACT_UPDATE_ERROR',
+        contactId: id,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -113,7 +119,14 @@ class Contact {
       // Actualizar con los nuevos tags
       return await Contact.update(id, { tags: uniqueTags });
     } catch (error) {
-      console.error('Error agregando tags:', error);
+      const logger = require('../utils/logger');
+      logger.error('Error agregando tags al contacto', {
+        category: 'CONTACT_ADD_TAGS_ERROR',
+        contactId: id,
+        newTags,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -140,7 +153,13 @@ class Contact {
 
       return { id, deleted: true };
     } catch (error) {
-      console.error('Error eliminando contacto:', error);
+      const logger = require('../utils/logger');
+      logger.error('Error eliminando contacto', {
+        category: 'CONTACT_DELETE_ERROR',
+        contactId: id,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -337,7 +356,12 @@ class Contact {
 
       return Array.from(allTags).sort();
     } catch (error) {
-      console.error('Error obteniendo tags:', error);
+      const logger = require('../utils/logger');
+      logger.error('Error obteniendo tags de contactos', {
+        category: 'CONTACT_GET_TAGS_ERROR',
+        error: error.message,
+        stack: error.stack
+      });
       return [];
     }
   }

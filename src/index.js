@@ -404,117 +404,22 @@ class ConsolidatedServer {
   }
 
   /**
-   * 🔒 CONFIGURACIÓN CORS SEGURA POR ENTORNO
+   * 🔒 CONFIGURACIÓN CORS SEGURA Y CENTRALIZADA
    */
   setupCORS() {
-    const env = process.env.NODE_ENV || 'development';
+    const { getCorsConfig } = require('./config/cors');
     
-    if (env === 'production') {
-      // 🚨 PRODUCCIÓN: Lista blanca de dominios
-      const allowedOrigins = this.getAllowedOrigins();
-      
-      this.app.use(cors({
-        origin: (origin, callback) => {
-          // Permitir requests sin origin (como mobile apps, Postman, etc.)
-          if (!origin) {
-            return callback(null, true);
-          }
-          
-          // Verificar si el origin está en la lista blanca
-          if (allowedOrigins.includes(origin)) {
-            callback(null, true);
-          } else {
-            logger.warn('🚫 CORS bloqueado - Origin no permitido', {
-              category: 'CORS_BLOCKED',
-              origin,
-              allowedOrigins,
-              ip: origin ? 'unknown' : 'no-origin'
-            });
-            callback(new Error('Origin no permitido por CORS'));
-          }
-        },
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-        allowedHeaders: [
-          'Origin',
-          'X-Requested-With',
-          'Content-Type',
-          'Accept',
-          'Authorization',
-          'X-API-Key',
-          'Cache-Control'
-        ],
-        exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Request-ID']
-      }));
-      
-      logger.info('🔒 CORS configurado para PRODUCCIÓN', {
-        category: 'CORS_CONFIG',
-        environment: env,
-        allowedOrigins,
-        strictMode: true
-      });
-      
-    } else {
-      // 🛠️ DESARROLLO: Permitir localhost y dominios de desarrollo
-      this.app.use(cors({
-        origin: [
-          'http://localhost:3000',
-          'http://localhost:3001',
-          'http://localhost:5173', // Vite dev server
-          'http://localhost:8080',
-          'http://127.0.0.1:3000',
-          'http://127.0.0.1:3001',
-          'http://127.0.0.1:5173',
-          'http://127.0.0.1:8080'
-        ],
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-        allowedHeaders: [
-          'Origin',
-          'X-Requested-With',
-          'Content-Type',
-          'Accept',
-          'Authorization',
-          'X-API-Key',
-          'Cache-Control'
-        ],
-        exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Request-ID']
-      }));
-      
-      logger.info('🛠️ CORS configurado para DESARROLLO', {
-        category: 'CORS_CONFIG',
-        environment: env,
-        allowedOrigins: [
-          'http://localhost:3000',
-          'http://localhost:3001',
-          'http://localhost:5173',
-          'http://localhost:8080'
-        ],
-        strictMode: false
-      });
-    }
+    // Usar configuración centralizada
+    const corsConfig = getCorsConfig();
+    this.app.use(cors(corsConfig));
+    
+    logger.info('✅ CORS configurado con configuración centralizada', {
+      category: 'CORS_SETUP_SUCCESS',
+      environment: process.env.NODE_ENV || 'development'
+    });
   }
 
-  /**
-   * 📋 OBTENER ORÍGENES PERMITIDOS PARA PRODUCCIÓN
-   */
-  getAllowedOrigins() {
-    // Obtener dominios desde variables de entorno
-    const corsOrigins = process.env.CORS_ORIGINS;
-    
-    if (corsOrigins) {
-      return corsOrigins.split(',').map(origin => origin.trim());
-    }
-    
-    // Fallback a dominios por defecto de UTalk
-    return [
-      'https://utalk.com',
-      'https://www.utalk.com',
-      'https://app.utalk.com',
-      'https://admin.utalk.com',
-      'https://api.utalk.com'
-    ];
-  }
+
 
   /**
    * 🛣️ CONFIGURAR RUTAS
