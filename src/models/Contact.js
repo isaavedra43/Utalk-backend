@@ -66,6 +66,86 @@ class Contact {
   }
 
   /**
+   * Actualizar contacto por ID (método estático)
+   */
+  static async update (id, updates) {
+    try {
+      // Verificar que el documento existe
+      const docRef = firestore.collection('contacts').doc(id);
+      const doc = await docRef.get();
+      
+      if (!doc.exists) {
+        return null;
+      }
+
+      // Preparar datos para Firestore
+      const validUpdates = prepareForFirestore({
+        ...updates,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Realizar update con merge para preservar campos existentes
+      await docRef.update(validUpdates);
+
+      // Obtener el documento actualizado
+      const updatedDoc = await docRef.get();
+      return new Contact({ id: updatedDoc.id, ...updatedDoc.data() });
+    } catch (error) {
+      console.error('Error actualizando contacto:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Agregar tags a contacto por ID (método estático)
+   */
+  static async addTags (id, newTags) {
+    try {
+      // Obtener el contacto actual
+      const contact = await Contact.getById(id);
+      if (!contact) {
+        return null;
+      }
+
+      // Agregar tags únicos
+      const uniqueTags = [...new Set([...contact.tags, ...newTags])];
+      
+      // Actualizar con los nuevos tags
+      return await Contact.update(id, { tags: uniqueTags });
+    } catch (error) {
+      console.error('Error agregando tags:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Eliminar contacto por ID (método estático - soft delete)
+   */
+  static async delete (id) {
+    try {
+      // Verificar que el documento existe
+      const docRef = firestore.collection('contacts').doc(id);
+      const doc = await docRef.get();
+      
+      if (!doc.exists) {
+        return null;
+      }
+
+      // Soft delete - marcar como inactivo
+      await docRef.update({
+        isActive: false,
+        deletedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return { id, deleted: true };
+    } catch (error) {
+      console.error('Error eliminando contacto:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Listar contactos con filtros y paginación
    */
   static async list ({

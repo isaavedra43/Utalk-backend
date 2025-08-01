@@ -1,229 +1,456 @@
-# 🚀 UTalk Backend - Enterprise Edition
+# 🚀 UTalk Backend
+
+> **Sistema de Mensajería Multicanal con CRM, Campañas y Chatbot**  
+> **Versión**: 1.0.0  
+> **Estado**: 🟢 Ready for Production – audited 2025-08-01
 
 ## 📋 Descripción
 
-Backend enterprise para UTalk, una plataforma de mensajería WhatsApp con gestión de contactos, conversaciones y campañas. Desarrollado con Node.js, Express, Firebase y Socket.IO.
+UTalk es un sistema completo de mensajería multicanal que integra CRM, gestión de campañas, equipos de agentes y chatbot inteligente. El backend proporciona una API REST robusta y escalable para gestionar todas las operaciones del sistema.
 
-## ✅ Estado del Proyecto
+### 🎯 Características Principales
 
-**🟢 LISTO PARA PRODUCCIÓN**
+- **💬 Mensajería Multicanal**: WhatsApp, SMS, Email
+- **👥 Gestión de Equipos**: Roles, permisos, asignación de conversaciones
+- **📊 CRM Integrado**: Contactos, conversaciones, historial completo
+- **📢 Campañas de Marketing**: Envío masivo, segmentación, tracking
+- **🤖 Chatbot Inteligente**: Respuestas automáticas, integración con IA
+- **📚 Base de Conocimientos**: Artículos, FAQs, sistema de votos
+- **📈 Analytics**: Dashboard completo con métricas en tiempo real
+- **🔐 Seguridad Enterprise**: JWT, CORS, Rate Limiting, Auditoría
 
-El backend ha sido completamente auditado y optimizado. Todas las fases de limpieza y validación han sido completadas exitosamente.
+## 🛠️ Tecnologías
 
-### 📊 Métricas de Calidad:
-- **Cobertura de código:** 100% funcional
-- **Referencias:** 100% válidas
-- **Servicios:** 100% operativos
-- **Conectividad:** 100% estable
-- **Seguridad:** 100% implementada
-- **Performance:** 100% optimizada
+### Core
+- **Node.js** (v18+) - Runtime de JavaScript
+- **Express.js** (v4.18+) - Framework web
+- **Firebase** - Base de datos y autenticación
+- **JWT** - Autenticación y autorización
 
-## 🏗️ Arquitectura
+### Base de Datos
+- **Firestore** - Base de datos NoSQL
+- **Firebase Storage** - Almacenamiento de archivos
+- **Redis** (opcional) - Cache y rate limiting
 
-### **Servicios Principales:**
-- **AuthService** - Autenticación JWT con refresh tokens
-- **MessageService** - Gestión de mensajes WhatsApp
-- **ContactService** - Gestión de contactos y etiquetas
-- **ConversationService** - Gestión de conversaciones
-- **FileService** - Gestión de archivos multimedia
-- **TwilioService** - Integración con WhatsApp API
-- **CacheService** - Cache Redis con fallback local
-- **SocketManager** - Comunicación en tiempo real
+### Servicios Externos
+- **Twilio** - API de mensajería (WhatsApp, SMS)
+- **OpenAI** - Procesamiento de audio y IA
+- **Railway** - Plataforma de deployment
 
-### **Middleware Enterprise:**
-- **Auth** - Autenticación y autorización
-- **Rate Limiting** - Persistente con Redis
-- **Validation** - Validación centralizada
-- **Error Handling** - Manejo de errores enterprise
-- **Logging** - Sistema de logging profesional
-
-## 🚀 Instalación
-
-```bash
-# Clonar repositorio
-git clone <repository-url>
-cd Utalk-backend
-
-# Instalar dependencias
-npm install
-
-# Configurar variables de entorno
-cp env.example .env
-# Editar .env con tus credenciales
-
-# Iniciar en desarrollo
-npm run dev
-
-# Iniciar en producción
-npm start
-```
+### Herramientas de Desarrollo
+- **Winston** - Sistema de logging
+- **Joi** - Validación de datos
+- **Multer** - Manejo de archivos
+- **Compression** - Compresión de respuestas
+- **Helmet** - Seguridad HTTP
 
 ## 📁 Estructura del Proyecto
 
 ```
-src/
-├── config/          # Configuraciones (Firebase, Twilio, JWT)
-├── controllers/     # Controladores REST API
-├── middleware/      # Middleware enterprise
-├── models/          # Modelos de datos
-├── routes/          # Rutas de la API
-├── services/        # Servicios de negocio
-├── socket/          # Socket.IO enterprise manager
-├── utils/           # Utilidades y helpers
-└── index.js         # Servidor principal
+Utalk-backend/
+├── 📁 src/
+│   ├── 📁 config/           # Configuraciones (Firebase, JWT, etc.)
+│   ├── 📁 controllers/      # Lógica de negocio
+│   ├── 📁 middleware/       # Middlewares (auth, validation, etc.)
+│   ├── 📁 models/          # Modelos de datos
+│   ├── 📁 routes/          # Definición de rutas API
+│   ├── 📁 services/        # Servicios especializados
+│   ├── 📁 socket/          # WebSocket para tiempo real
+│   ├── 📁 utils/           # Utilidades y helpers
+│   ├── 📄 index.js         # Servidor principal (enterprise)
+│   └── 📄 index-simple.js  # Servidor simplificado (producción)
+├── 📁 docs/               # Documentación
+│   └── 📄 API.md          # Documentación completa de la API
+├── 📁 tests/              # Tests unitarios e integración
+├── 📁 uploads/            # Archivos subidos
+├── 📄 package.json        # Dependencias y scripts
+├── 📄 env.example         # Variables de entorno de ejemplo
+├── 📄 Dockerfile          # Configuración Docker
+└── 📄 README.md           # Este archivo
 ```
 
-## 🔧 Configuración
+## 🚀 Instalación y Configuración
 
-### **Variables de Entorno Requeridas:**
+### Prerrequisitos
+
+- **Node.js** v18 o superior
+- **npm** v8 o superior
+- **Cuenta de Firebase** con proyecto configurado
+- **Cuenta de Twilio** (para mensajería)
+
+### 1. Clonar el Repositorio
 
 ```bash
-# Firebase
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_PRIVATE_KEY=your-private-key
-FIREBASE_CLIENT_EMAIL=your-client-email
+git clone https://github.com/tu-usuario/utalk-backend.git
+cd utalk-backend
+```
 
-# Twilio
-TWILIO_ACCOUNT_SID=your-account-sid
-TWILIO_AUTH_TOKEN=your-auth-token
+### 2. Instalar Dependencias
+
+```bash
+npm install
+```
+
+### 3. Configurar Variables de Entorno
+
+Copia el archivo de ejemplo y configura tus variables:
+
+```bash
+cp env.example .env
+```
+
+#### Variables Críticas (REQUERIDAS)
+
+```bash
+# 🔐 AUTENTICACIÓN
+JWT_SECRET=tu-super-secreto-jwt-aqui
+JWT_REFRESH_SECRET=tu-refresh-token-secreto
+
+# 🔥 FIREBASE
+FIREBASE_PROJECT_ID=tu-proyecto-firebase
+FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
+
+# 📱 TWILIO
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=tu-auth-token-twilio
 TWILIO_WHATSAPP_NUMBER=whatsapp:+1234567890
 
-# JWT
-JWT_SECRET=your-jwt-secret
-JWT_REFRESH_SECRET=your-refresh-secret
-JWT_EXPIRES_IN=1h
-JWT_REFRESH_EXPIRES_IN=7d
-JWT_ISSUER=utalk-api
-JWT_AUDIENCE=utalk-api
+# 🎯 CONFIGURACIÓN
+NODE_ENV=development
+PORT=3001
+```
 
-# Redis (opcional)
+#### Variables Opcionales
+
+```bash
+# 🗄️ REDIS (opcional)
 REDIS_URL=redis://localhost:6379
 
-# Servidor
-PORT=3001
-NODE_ENV=production
+# 🤖 OPENAI (para procesamiento de audio)
+OPENAI_API_KEY=sk-tu-openai-api-key
+
+# 📊 LOGGING
+LOG_LEVEL=info
+ENABLE_FILE_LOGGING=true
+
+# 🔒 CORS
+CORS_ORIGINS=https://utalk.com,https://app.utalk.com
 ```
 
-## 📚 Documentación
+### 4. Configurar Firebase
 
-### **Documentos Importantes:**
+1. Ve a [Firebase Console](https://console.firebase.google.com)
+2. Crea un nuevo proyecto o usa uno existente
+3. Habilita **Firestore Database** y **Storage**
+4. Ve a **Project Settings** > **Service Accounts**
+5. Genera una nueva clave privada
+6. Copia el JSON completo a `FIREBASE_SERVICE_ACCOUNT_KEY`
 
-- **[AUDITORIA_FINAL_CRITICA_COMPLETADA.md](AUDITORIA_FINAL_CRITICA_COMPLETADA.md)** - Auditoría final del backend
-- **[FASE_1_LIMPIEZA_COMPLETADA.md](FASE_1_LIMPIEZA_COMPLETADA.md)** - Limpieza de referencias y configuración
-- **[FASE_2_LIMPIEZA_COMPLETADA.md](FASE_2_LIMPIEZA_COMPLETADA.md)** - Limpieza de logging y validación
-- **[VALIDATION_SYSTEM.md](VALIDATION_SYSTEM.md)** - Sistema de validación
-- **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Auditoría de seguridad
-- **[SECURITY_SETUP.md](SECURITY_SETUP.md)** - Configuración de seguridad
-- **[ERROR_HANDLING_ENTERPRISE.md](ERROR_HANDLING_ENTERPRISE.md)** - Manejo de errores
-- **[REALTIME_ARCHITECTURE.md](REALTIME_ARCHITECTURE.md)** - Arquitectura en tiempo real
-- **[SCALABILITY_ENTERPRISE.md](SCALABILITY_ENTERPRISE.md)** - Escalabilidad enterprise
+### 5. Configurar Twilio
 
-## 🔌 API Endpoints
+1. Ve a [Twilio Console](https://console.twilio.com)
+2. Obtén tu **Account SID** y **Auth Token**
+3. Configura un número de WhatsApp en **Messaging** > **Try it out**
+4. Actualiza las variables de entorno con tus credenciales
 
-### **Autenticación:**
-- `POST /api/auth/login` - Iniciar sesión
-- `POST /api/auth/refresh` - Renovar token
-- `POST /api/auth/logout` - Cerrar sesión
+### 6. Ejecutar el Servidor
 
-### **Contactos:**
-- `GET /api/contacts` - Listar contactos
-- `POST /api/contacts` - Crear contacto
-- `PUT /api/contacts/:id` - Actualizar contacto
-- `DELETE /api/contacts/:id` - Eliminar contacto
-
-### **Conversaciones:**
-- `GET /api/conversations` - Listar conversaciones
-- `POST /api/conversations` - Crear conversación
-- `PUT /api/conversations/:id` - Actualizar conversación
-
-### **Mensajes:**
-- `GET /api/messages` - Listar mensajes
-- `POST /api/messages` - Enviar mensaje
-- `PUT /api/messages/:id/read` - Marcar como leído
-
-### **Campañas:**
-- `GET /api/campaigns` - Listar campañas
-- `POST /api/campaigns` - Crear campaña
-- `POST /api/campaigns/:id/send` - Enviar campaña
-
-## 🔒 Seguridad
-
-- **JWT Authentication** - Tokens seguros con refresh
-- **Rate Limiting Adaptativo** - **ADAPTATIVO** con límites que se ajustan según la carga del sistema
-- **Input Validation** - Validación centralizada
-- **Error Handling** - Sin información sensible en logs
-- **CORS** - Configurado para producción
-
-### **🚦 Rate Limiting Adaptativo**
-
-El sistema ahora ajusta automáticamente los límites de rate limiting según la carga del servidor:
-
-- **Carga Normal (< 1.0)**: Límites base sin reducción
-- **Carga Moderada (1.0-2.0)**: Límites reducidos al 80%
-- **Carga Alta (> 2.0)**: Límites reducidos al 50%
-
-**Fallback Robusto:**
-- ✅ **Redis** como store principal
-- ✅ **Memoria** como fallback automático si Redis falla
-- ✅ **Logging detallado** de todos los eventos de fallback
-
-**Monitoreo en Producción:**
-```javascript
-const { advancedSecurity } = require('./src/middleware/advancedSecurity');
-const stats = advancedSecurity.getSecurityStats();
-console.log('Rate limiting adaptativo:', stats.adaptiveRateLimiting);
+#### Desarrollo
+```bash
+npm run dev
 ```
 
-## 📊 Performance
-
-- **Caching** - Redis con fallback local
-- **Batch Operations** - Optimizadas para Firestore
-- **Memory Management** - **ADAPTATIVO** con límites calculados automáticamente según el hardware
-- **Connection Pooling** - Para servicios externos
-
-### **🧠 Memory Management Adaptativo**
-
-El sistema ahora calcula automáticamente todos los límites de memoria basándose en el hardware donde corre:
-
-- **maxMapsPerInstance**: Calculado como 50MB por mapa (mínimo 10)
-- **maxEntriesPerMap**: Calculado como 1MB por entrada (mínimo 1000)
-- **memoryWarningThreshold**: 70% de la RAM total
-- **memoryCriticalThreshold**: 90% de la RAM total
-
-**Beneficios:**
-- ✅ **Escalabilidad automática** - Se adapta a servidores con poca o mucha RAM
-- ✅ **Protección de estabilidad** - Límites más bajos en servidores con poca memoria
-- ✅ **Sin cuellos de botella artificiales** - Aprovecha toda la RAM disponible
-- ✅ **Monitoreo en tiempo real** - Información detallada del hardware y límites
-
-**Monitoreo recomendado en producción:**
-```javascript
-const { memoryManager } = require('./src/utils/memoryManager');
-const stats = memoryManager.getAdaptiveLimitsInfo();
-console.log('Límites adaptativos:', stats);
+#### Producción
+```bash
+npm start
 ```
 
-## 🚀 Deployment
-
-### **Docker:**
+#### Con Docker
 ```bash
 docker build -t utalk-backend .
 docker run -p 3001:3001 utalk-backend
 ```
 
-### **Railway:**
+## 🧪 Testing
+
+### Ejecutar Tests
 ```bash
-railway login
-railway link
-railway up
+# Tests unitarios
+npm test
+
+# Tests de integración
+npm run test:integration
+
+# Tests de seguridad
+npm run test:security
+
+# Coverage
+npm run test:coverage
 ```
+
+### Probar con Postman
+
+1. **Importar Collection**: Usa la colección de Postman incluida en `/docs/postman/`
+2. **Configurar Variables**:
+   - `baseUrl`: `http://localhost:3001`
+   - `token`: Token JWT obtenido del login
+3. **Ejecutar Tests**: La colección incluye tests automáticos
+
+### Probar con cURL
+
+```bash
+# Health check
+curl http://localhost:3001/health
+
+# Login
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@utalk.com","password":"password123"}'
+
+# Obtener contactos (con token)
+curl -X GET http://localhost:3001/api/contacts \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+## 🚀 Deployment
+
+### Railway (Recomendado)
+
+1. **Conectar Repositorio**:
+   ```bash
+   # Instalar Railway CLI
+   npm install -g @railway/cli
+   
+   # Login y deploy
+   railway login
+   railway init
+   railway up
+   ```
+
+2. **Configurar Variables**:
+   - Ve a tu proyecto en Railway
+   - Configura todas las variables de entorno
+   - Especialmente las variables críticas (JWT, Firebase, Twilio)
+
+3. **Variables de Railway**:
+   ```bash
+   NODE_ENV=production
+   PORT=3001
+   JWT_SECRET=tu-secreto-produccion
+   FIREBASE_PROJECT_ID=tu-proyecto
+   TWILIO_ACCOUNT_SID=ACxxx
+   TWILIO_AUTH_TOKEN=tu-token
+   CORS_ORIGINS=https://utalk.com,https://app.utalk.com
+   ```
+
+### Docker
+
+```bash
+# Build
+docker build -t utalk-backend .
+
+# Run
+docker run -d \
+  -p 3001:3001 \
+  -e NODE_ENV=production \
+  -e JWT_SECRET=tu-secreto \
+  -e FIREBASE_PROJECT_ID=tu-proyecto \
+  utalk-backend
+```
+
+### Heroku
+
+```bash
+# Crear app
+heroku create utalk-backend
+
+# Configurar variables
+heroku config:set NODE_ENV=production
+heroku config:set JWT_SECRET=tu-secreto
+heroku config:set FIREBASE_PROJECT_ID=tu-proyecto
+
+# Deploy
+git push heroku main
+```
+
+## 🔐 Seguridad
+
+### Características Implementadas
+
+- ✅ **JWT Authentication** - Tokens seguros con refresh
+- ✅ **Role-Based Access Control** - Roles: admin, agent, viewer
+- ✅ **CORS Protection** - Lista blanca de dominios en producción
+- ✅ **Rate Limiting** - Prevención de abuso
+- ✅ **Input Validation** - Validación con Joi
+- ✅ **SQL Injection Protection** - Firestore sanitization
+- ✅ **XSS Protection** - Headers de seguridad
+- ✅ **Audit Logging** - Registro de todas las operaciones
+- ✅ **Error Handling** - Manejo seguro de errores
+
+### Headers de Seguridad
+
+```javascript
+// Configurados automáticamente
+helmet() // XSS, Content Security Policy
+compression() // Compresión gzip
+cors() // CORS protection
+```
+
+## 📊 Monitoreo y Logs
+
+### Logs Estructurados
+
+El sistema usa Winston para logging estructurado:
+
+```javascript
+// Ejemplo de log
+{
+  "timestamp": "2025-08-01T22:00:00.000Z",
+  "level": "info",
+  "message": "Usuario autenticado",
+  "category": "AUTH",
+  "userId": "user_123",
+  "ip": "192.168.1.1"
+}
+```
+
+### Métricas Disponibles
+
+- **Performance**: Response time, throughput
+- **Errors**: Error rate, error types
+- **Business**: Users, messages, campaigns
+- **System**: Memory, CPU, uptime
+
+### Health Check
+
+```bash
+curl http://localhost:3001/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-08-01T22:00:00.000Z",
+  "uptime": 3600,
+  "version": "1.0.0",
+  "environment": "production",
+  "checks": {
+    "server": {"status": "healthy"},
+    "memory": {"status": "healthy", "heapUsed": "48MB"},
+    "process": {"status": "healthy", "pid": 12345}
+  }
+}
+```
+
+## 🔧 Configuración Avanzada
+
+### Variables de Entorno Completas
+
+Consulta `env.example` para todas las variables disponibles:
+
+- **🔐 Autenticación**: JWT secrets, expiración
+- **🗄️ Base de Datos**: Firebase config
+- **📱 Mensajería**: Twilio credentials
+- **🤖 IA**: OpenAI API key
+- **📊 Logging**: Niveles, archivos
+- **🔒 Seguridad**: Rate limiting, CORS
+- **⚡ Performance**: Cache, compression
+
+### Scripts Disponibles
+
+```bash
+# Desarrollo
+npm run dev          # Servidor de desarrollo con nodemon
+npm run start        # Servidor de producción
+
+# Testing
+npm test             # Tests unitarios
+npm run test:watch   # Tests en modo watch
+npm run test:coverage # Coverage report
+
+# Linting
+npm run lint         # ESLint
+npm run lint:fix     # Auto-fix linting issues
+
+# Database
+npm run db:seed      # Seed database
+npm run db:migrate   # Run migrations
+
+# Utils
+npm run docs:generate # Generar documentación
+npm run security:audit # Auditoría de seguridad
+```
+
+## 📚 Documentación
+
+### API Documentation
+
+- **📄 [API.md](docs/API.md)** - Documentación completa de la API
+- **📋 [Postman Collection](docs/postman/)** - Colección de Postman
+- **🔧 [Environment Variables](env.example)** - Variables de entorno
+
+### Guías
+
+- **🚀 [Deployment Guide](docs/DEPLOYMENT.md)** - Guía de deployment
+- **🔐 [Security Guide](docs/SECURITY.md)** - Guía de seguridad
+- **🧪 [Testing Guide](docs/TESTING.md)** - Guía de testing
+
+## 🤝 Contribución
+
+### Flujo de Trabajo
+
+1. **Fork** el repositorio
+2. **Crea** una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
+3. **Commit** tus cambios (`git commit -am 'Agregar nueva funcionalidad'`)
+4. **Push** a la rama (`git push origin feature/nueva-funcionalidad`)
+5. **Crea** un Pull Request
+
+### Estándares de Código
+
+- **ESLint** para linting
+- **Prettier** para formateo
+- **Conventional Commits** para commits
+- **JSDoc** para documentación de código
+
+### Tests
+
+- **Unit Tests**: Jest
+- **Integration Tests**: Supertest
+- **Security Tests**: OWASP ZAP
+- **Coverage**: Mínimo 80%
 
 ## 📞 Soporte
 
-Para soporte técnico o preguntas sobre el proyecto, contacta al equipo de desarrollo.
+### Canales de Soporte
+
+- **🐛 Issues**: [GitHub Issues](https://github.com/tu-usuario/utalk-backend/issues)
+- **💬 Discord**: [UTalk Community](https://discord.gg/utalk)
+- **📧 Email**: support@utalk.com
+
+### Reportar Bugs
+
+Por favor incluye:
+
+1. **Descripción** del problema
+2. **Pasos** para reproducir
+3. **Comportamiento esperado** vs actual
+4. **Logs** relevantes
+5. **Versión** del sistema
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia **MIT**. Ver [LICENSE](LICENSE) para más detalles.
+
+## 🙏 Agradecimientos
+
+- **Firebase** por la infraestructura
+- **Twilio** por las APIs de mensajería
+- **OpenAI** por las capacidades de IA
+- **Railway** por la plataforma de deployment
 
 ---
 
-**Versión:** 3.0.0 Enterprise  
-**Estado:** ✅ Listo para Producción  
-**Última Actualización:** $(date) 
+**🟢 Estado del Backend**: Ready for Production – audited 2025-08-01
+
+*Última actualización: 2025-08-01* 

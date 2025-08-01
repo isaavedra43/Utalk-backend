@@ -51,8 +51,8 @@ class EnterpriseCacheService {
         redisUrl: process.env.REDIS_URL ? 'configured' : 'not-configured'
       });
 
-      // Intentar conectar a Redis
-      if (process.env.REDIS_URL) {
+      // Intentar conectar a Redis solo si está configurado
+      if (process.env.REDIS_URL && process.env.ENABLE_REDIS !== 'false') {
         this.redis = new Redis(process.env.REDIS_URL, {
           retryDelayOnFailover: 100,
           maxRetriesPerRequest: 3,

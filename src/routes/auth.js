@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AuthController = require('../controllers/AuthController');
 const { validateRequest } = require('../middleware/validation');
+const { authMiddleware } = require('../middleware/auth');
 const Joi = require('joi');
 
 // Validadores específicos para autenticación
@@ -70,6 +71,7 @@ router.post('/validate-token',
  * @access Private
  */
 router.post('/logout', 
+  authMiddleware,
   AuthController.logout
 );
 
@@ -79,6 +81,7 @@ router.post('/logout',
  * @access Private
  */
 router.get('/profile',
+  authMiddleware,
   AuthController.getProfile
 );
 
@@ -88,6 +91,7 @@ router.get('/profile',
  * @access Private
  */
 router.put('/profile', 
+  authMiddleware,
   AuthController.updateProfile
 );
 
@@ -97,6 +101,7 @@ router.put('/profile',
  * @access Private
  */
 router.post('/change-password', 
+  authMiddleware,
   AuthController.changePassword
 );
 
@@ -106,6 +111,7 @@ router.post('/change-password',
  * @access Private (Admin)
  */
 router.post('/create-user', 
+  authMiddleware,
   AuthController.createUser
 );
 
@@ -115,6 +121,7 @@ router.post('/create-user',
  * @access Private
  */
 router.get('/sessions',
+  authMiddleware,
   AuthController.getActiveSessions
 );
 
@@ -124,6 +131,7 @@ router.get('/sessions',
  * @access Private
  */
 router.delete('/sessions/:sessionId',
+  authMiddleware,
   AuthController.closeSession
 );
 

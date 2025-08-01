@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const TwilioStatusController = require('../controllers/TwilioStatusController');
+const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
 const Joi = require('joi');
 
@@ -44,6 +45,8 @@ router.post('/status-callback',
  * @access Private (Admin, Agent)
  */
 router.get('/status/:messageId',
+  authMiddleware,
+  requireReadAccess,
   TwilioStatusController.getMessageStatusHistory
 );
 
@@ -53,6 +56,8 @@ router.get('/status/:messageId',
  * @access Private (Admin, Agent)
  */
 router.get('/status/:messageId/last',
+  authMiddleware,
+  requireReadAccess,
   TwilioStatusController.getLastMessageStatus
 );
 
@@ -62,6 +67,8 @@ router.get('/status/:messageId/last',
  * @access Private (Admin, Agent)
  */
 router.get('/status/stats',
+  authMiddleware,
+  requireReadAccess,
   TwilioStatusController.getStatusStats
 );
 
@@ -71,6 +78,8 @@ router.get('/status/stats',
  * @access Private (Admin)
  */
 router.post('/status/bulk-update',
+  authMiddleware,
+  requireWriteAccess,
   TwilioStatusController.bulkUpdateStatus
 );
 
@@ -80,6 +89,8 @@ router.post('/status/bulk-update',
  * @access Private (Admin)
  */
 router.post('/status/sync',
+  authMiddleware,
+  requireWriteAccess,
   TwilioStatusController.syncStatusFromTwilio
 );
 

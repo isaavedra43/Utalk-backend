@@ -444,11 +444,11 @@ class TeamController {
    */
   static async changeRole(req, res, next) {
     try {
-      const { userId } = req.params;
+      const { id } = req.params;
       const { newRole, reason } = req.body;
 
       logger.info('Cambiando rol de usuario', {
-        targetUserId: userId,
+        targetUserId: id,
         requestedBy: req.user.id,
         currentRole: req.user.role,
         newRole,
@@ -474,7 +474,7 @@ class TeamController {
       }
 
       // Verificar que el usuario existe
-      const targetUser = await User.getById(userId);
+      const targetUser = await User.getById(id);
       if (!targetUser) {
         return res.status(404).json({
           error: 'USER_NOT_FOUND',
@@ -491,7 +491,7 @@ class TeamController {
       }
 
       // Prevenir que el usuario se cambie su propio rol a un nivel inferior
-      if (req.user.id === userId && newRole !== 'admin') {
+      if (req.user.id === id && newRole !== 'admin') {
         return res.status(400).json({
           error: 'CANNOT_DEMOTE_SELF',
           message: 'No puedes cambiar tu propio rol a un nivel inferior'
@@ -521,7 +521,7 @@ class TeamController {
 
       // Registrar el cambio en logs de auditoría
       logger.info('Rol de usuario cambiado exitosamente', {
-        targetUserId: userId,
+        targetUserId: id,
         targetUserEmail: targetUser.email,
         previousRole,
         newRole,
@@ -533,7 +533,7 @@ class TeamController {
       // Crear entrada de auditoría
       await this.createAuditLog({
         action: 'ROLE_CHANGED',
-        targetUserId: userId,
+        targetUserId: id,
         targetUserEmail: targetUser.email,
         performedBy: req.user.id,
         performedByEmail: req.user.email,

@@ -86,17 +86,18 @@ class AdvancedLogger {
 
     // Configurar transports
     const transports = [
-      // Console transport
+      // Console transport con configuración específica por entorno
       new winston.transports.Console({
-        level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+        level: this.getLogLevel(),
         format: isDevelopment ? developmentFormat : productionFormat,
         handleExceptions: true,
-        handleRejections: true
+        handleRejections: true,
+        silent: process.env.NODE_ENV === 'test'
       })
     ];
 
     // File transports para producción (con manejo de errores de permisos)
-    if (isProduction || process.env.ENABLE_FILE_LOGGING === 'true') {
+    if ((isProduction || process.env.ENABLE_FILE_LOGGING === 'true') && process.env.DISABLE_FILE_LOGGING !== 'true') {
       try {
         const logDir = process.env.LOG_DIR || './logs';
         
@@ -136,12 +137,12 @@ class AdvancedLogger {
           })
         );
         
-        console.log('✅ File logging habilitado en:', logDir);
+        this.winston.info('✅ File logging habilitado en:', { logDir });
         
       } catch (error) {
         // Si no podemos escribir archivos, solo usar console
-        console.warn('⚠️ No se pudo habilitar file logging (permisos insuficientes):', error.message);
-        console.log('ℹ️ Continuando solo con console logging...');
+        this.winston.warn('⚠️ No se pudo habilitar file logging (permisos insuficientes):', { error: error.message });
+        this.winston.info('ℹ️ Continuando solo con console logging...');
       }
     }
 
@@ -169,6 +170,24 @@ class AdvancedLogger {
   getCurrentRequestId() {
     const store = this.asyncLocalStorage.getStore();
     return store?.requestId || 'no-request-context';
+  }
+
+  /**
+   * 📊 OBTENER NIVEL DE LOG SEGÚN ENTORNO
+   */
+  getLogLevel() {
+    const env = process.env.NODE_ENV || 'development';
+    
+    switch (env) {
+      case 'production':
+        return process.env.LOG_LEVEL || 'info';
+      case 'development':
+        return process.env.LOG_LEVEL || 'debug';
+      case 'test':
+        return process.env.LOG_LEVEL || 'error';
+      default:
+        return process.env.LOG_LEVEL || 'info';
+    }
   }
 
   /**
@@ -352,7 +371,12 @@ class AdvancedLogger {
   }
 
   debug(message, data = {}, category = 'DEBUG') {
-    if (process.env.NODE_ENV === 'production') return;
+    const env = process.env.NODE_ENV || 'development';
+    
+    // En producción, solo mostrar debug si LOG_LEVEL está configurado explícitamente
+    if (env === 'production' && process.env.LOG_LEVEL !== 'debug') {
+      return;
+    }
     
     const context = this.createLogContext(category, data);
     this.incrementMetrics('debug', category);
@@ -423,11 +447,13 @@ class AdvancedLogger {
    * 🚨 TRIGGER ALERTA CRÍTICA
    */
   triggerCriticalAlert(message, context) {
+    const env = process.env.NODE_ENV || 'development';
+    
     // En un sistema real, aquí se enviarían notificaciones
     // a Slack, email, PagerDuty, etc.
     
-    // Fallback seguro: solo en desarrollo
-    if (process.env.NODE_ENV === 'development') {
+    // Fallback seguro: solo en desarrollo o si está habilitado
+    if (env === 'development' || process.env.ENABLE_CRITICAL_ALERTS === 'true') {
       console.error('🚨 ALERTA CRÍTICA:', {
         message,
         context,

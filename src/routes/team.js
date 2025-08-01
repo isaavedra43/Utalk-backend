@@ -48,13 +48,13 @@ router.get('/',
 );
 
 /**
- * @route GET /api/team/:userId
+ * @route GET /api/team/:id
  * @desc Obtener miembro por ID
  * @access Private (Admin, Agent, Viewer)
  */
-router.get('/:userId',
+router.get('/:id',
   authMiddleware,
-  validateRequest('userId'),
+  validateRequest('id'),
   TeamController.getById
 );
 
@@ -71,63 +71,63 @@ router.post('/invite',
 );
 
 /**
- * @route PUT /api/team/:userId/role
+ * @route PUT /api/team/:id/role
  * @desc Cambiar rol de miembro
  * @access Private (Admin)
  */
-router.put('/:userId/role',
+router.put('/:id/role',
   authMiddleware,
   requireAdmin,
-  validateRequest('userId'),
+  validateRequest('id'),
   teamValidators.validateChangeRole,
   TeamController.changeRole
 );
 
 /**
- * @route PUT /api/team/:userId/deactivate
+ * @route PUT /api/team/:id/deactivate
  * @desc Desactivar miembro
  * @access Private (Admin)
  */
-router.put('/:userId/deactivate',
+router.put('/:id/deactivate',
   authMiddleware,
   requireAdmin,
-  validateRequest('userId'),
+  validateRequest('id'),
   TeamController.deactivate
 );
 
 /**
- * @route PUT /api/team/:userId/activate
+ * @route PUT /api/team/:id/activate
  * @desc Activar miembro
  * @access Private (Admin)
  */
-router.put('/:userId/activate',
+router.put('/:id/activate',
   authMiddleware,
   requireAdmin,
-  validateRequest('userId'),
+  validateRequest('id'),
   TeamController.activate
 );
 
 /**
- * @route DELETE /api/team/:userId
+ * @route DELETE /api/team/:id
  * @desc Eliminar miembro
  * @access Private (Admin)
  */
-router.delete('/:userId',
+router.delete('/:id',
   authMiddleware,
   requireAdmin,
-  validateRequest('userId'),
+  validateRequest('id'),
   TeamController.delete
 );
 
 /**
- * @route POST /api/team/:userId/reset-password
+ * @route POST /api/team/:id/reset-password
  * @desc Resetear contraseña de miembro
  * @access Private (Admin)
  */
-router.post('/:userId/reset-password',
+router.post('/:id/reset-password',
   authMiddleware,
   requireAdmin,
-  validateRequest('userId'),
+  validateRequest('id'),
   teamValidators.validateResetPassword,
   TeamController.resetPassword
 );
@@ -145,40 +145,6 @@ router.put('/:id',
   TeamController.update
 );
 
-/**
- * @route DELETE /api/team/:id
- * @desc Eliminar miembro
- * @access Private (Admin)
- */
-router.delete('/:id',
-  authMiddleware,
-  requireAdmin,
-  validateRequest('id'),
-  TeamController.delete
-);
 
-/**
- * @route POST /api/team/:id/activate
- * @desc Activar miembro
- * @access Private (Admin)
- */
-router.post('/:id/activate',
-  authMiddleware,
-  requireAdmin,
-  validateRequest('id'),
-  TeamController.activate
-);
-
-/**
- * @route POST /api/team/:id/deactivate
- * @desc Desactivar miembro
- * @access Private (Admin)
- */
-router.post('/:id/deactivate',
-  authMiddleware,
-  requireAdmin,
-  validateRequest('id'),
-  TeamController.deactivate
-);
 
 module.exports = router;
