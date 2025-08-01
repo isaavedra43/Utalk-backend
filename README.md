@@ -57,8 +57,7 @@ Utalk-backend/
 │   ├── 📁 services/        # Servicios especializados
 │   ├── 📁 socket/          # WebSocket para tiempo real
 │   ├── 📁 utils/           # Utilidades y helpers
-│   ├── 📄 index.js         # Servidor principal (enterprise)
-│   └── 📄 index-simple.js  # Servidor simplificado (producción)
+│   └── 📄 index.js         # Servidor consolidado (producción)
 ├── 📁 docs/               # Documentación
 │   └── 📄 API.md          # Documentación completa de la API
 ├── 📁 tests/              # Tests unitarios e integración
