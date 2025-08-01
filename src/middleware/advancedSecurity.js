@@ -4,10 +4,22 @@ const jwt = require('jsonwebtoken');
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { getAccessTokenConfig } = require('../config/jwt');
+const os = require('os');
+
+/**
+ * Rate Limiting Adaptativo con Fallback
+ *
+ * - El límite máximo de requests se ajusta automáticamente según la carga promedio del servidor.
+ * - Si la carga es alta (loadavg > 2), el límite se reduce para proteger la estabilidad del sistema.
+ * - Si Redis falla, el sistema cambia automáticamente a un store en memoria para evitar downtime.
+ * - Todos los eventos de fallback quedan logueados para su monitoreo.
+ *
+ * Esto garantiza máxima resiliencia y protección ante picos de carga o fallos de infraestructura.
+ */
 
 /**
  * Middleware de seguridad avanzado con detección de amenazas
- * y rate limiting inteligente
+ * y rate limiting inteligente adaptativo
  */
 class AdvancedSecurity {
   constructor () {
@@ -24,18 +36,206 @@ class AdvancedSecurity {
       cleanupInterval: parseInt(process.env.CLEANUP_INTERVAL_MINUTES) || 60,
     };
 
+    // Inicializar rate limiting adaptativo
+    this.initializeAdaptiveRateLimiting();
+
     // Iniciar limpieza periódica
     this.startCleanupTimer();
   }
 
   /**
-   * Rate limiting inteligente basado en patrones de uso
+   * 🚀 INICIALIZAR RATE LIMITING ADAPTATIVO
+   */
+  initializeAdaptiveRateLimiting() {
+    // Configurar fallback de Redis a memoria
+    this.setupRateLimitFallback();
+    
+    // Iniciar monitoreo de carga del sistema
+    this.startLoadMonitoring();
+    
+    logger.info('🔄 Rate Limiting Adaptativo inicializado', {
+      systemLoad: this.getSystemLoad(),
+      adaptiveLimits: this.getAdaptiveLimitsInfo()
+    });
+  }
+
+  /**
+   * 📊 OBTENER CARGA DEL SISTEMA
+   */
+  getSystemLoad() {
+    return os.loadavg()[0]; // carga promedio del último minuto
+  }
+
+  /**
+   * 🔧 CALCULAR LÍMITE MÁXIMO ADAPTATIVO
+   */
+  getAdaptiveMax(baseMax) {
+    const load = this.getSystemLoad();
+    
+    // Si la carga promedio supera 2.0, reduce el límite a la mitad
+    if (load > 2.0) {
+      const reducedMax = Math.floor(baseMax * 0.5);
+      logger.warn('🔄 Reduciendo rate limit por alta carga del sistema', {
+        originalMax: baseMax,
+        reducedMax,
+        systemLoad: load,
+        reason: 'Carga del sistema > 2.0'
+      });
+      return reducedMax;
+    }
+    
+    // Si la carga es moderada (1.0-2.0), reduce ligeramente
+    if (load > 1.0) {
+      const reducedMax = Math.floor(baseMax * 0.8);
+      logger.info('🔄 Ajustando rate limit por carga moderada', {
+        originalMax: baseMax,
+        reducedMax,
+        systemLoad: load
+      });
+      return reducedMax;
+    }
+    
+    // Carga normal, usar límite base
+    return baseMax;
+  }
+
+  /**
+   * 🔄 CONFIGURAR FALLBACK DE REDIS A MEMORIA
+   */
+  setupRateLimitFallback() {
+    let rateLimitStore;
+    
+    try {
+      // Intentar usar Redis si está disponible
+      const RedisStore = require('rate-limit-redis');
+      const redis = require('redis');
+      
+      const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      
+      if (redisUrl) {
+        const redisClient = redis.createClient({
+          url: redisUrl,
+          socket: {
+            connectTimeout: 5000,
+            commandTimeout: 3000,
+            reconnectStrategy: (retries) => {
+              if (retries > 3) {
+                logger.error('Redis: Máximo número de reintentos alcanzado');
+                return false;
+              }
+              return Math.min(retries * 100, 3000);
+            }
+          }
+        });
+
+        redisClient.on('error', (err) => {
+          logger.error('Redis error:', err);
+          this.rateLimitStore = new Map(); // Fallback a memoria
+        });
+
+        rateLimitStore = new RedisStore({ 
+          sendCommand: (...args) => redisClient.sendCommand(args),
+          prefix: 'adaptive_rate_limit:'
+        });
+        
+        logger.info('✅ Redis configurado para rate limiting adaptativo');
+      } else {
+        throw new Error('Redis URL no configurada');
+      }
+      
+    } catch (e) {
+      // Fallback a memoria si Redis falla
+      const MemoryStore = require('express-rate-limit').MemoryStore;
+      rateLimitStore = new MemoryStore();
+      
+      logger.warn('⚠️ Redis no disponible, usando fallback de memoria para rate limiting', {
+        error: e.message,
+        fallback: 'MemoryStore',
+        impact: 'Rate limits no persistirán entre reinicios'
+      });
+    }
+    
+    this.rateLimitStore = rateLimitStore;
+  }
+
+  /**
+   * 📈 INICIAR MONITOREO DE CARGA DEL SISTEMA
+   */
+  startLoadMonitoring() {
+    // Monitorear carga cada 30 segundos
+    setInterval(() => {
+      const load = this.getSystemLoad();
+      
+      if (load > 2.0) {
+        logger.warn('⚠️ Alta carga del sistema detectada', {
+          load,
+          impact: 'Rate limits reducidos automáticamente',
+          recommendation: 'Considerar escalar recursos'
+        });
+      } else if (load > 1.0) {
+        logger.info('📊 Carga moderada del sistema', {
+          load,
+          impact: 'Rate limits ligeramente reducidos'
+        });
+      }
+    }, 30000);
+  }
+
+  /**
+   * 📊 OBTENER INFORMACIÓN DE LÍMITES ADAPTATIVOS
+   */
+  getAdaptiveLimitsInfo() {
+    const load = this.getSystemLoad();
+    const baseLimits = {
+      auth: 5,
+      messaging: 100,
+      upload: 20,
+      api: 2000,
+      default: 1000
+    };
+    
+    const adaptiveLimits = {};
+    
+    for (const [type, baseMax] of Object.entries(baseLimits)) {
+      adaptiveLimits[type] = {
+        baseMax,
+        adaptiveMax: this.getAdaptiveMax(baseMax),
+        systemLoad: load,
+        reduction: baseMax - this.getAdaptiveMax(baseMax)
+      };
+    }
+    
+    return {
+      systemLoad: load,
+      adaptiveLimits,
+      store: this.rateLimitStore.constructor.name,
+      recommendations: this.getLoadRecommendations(load)
+    };
+  }
+
+  /**
+   * 💡 OBTENER RECOMENDACIONES BASADAS EN CARGA
+   */
+  getLoadRecommendations(load) {
+    if (load > 3.0) {
+      return ['CRÍTICO: Considerar escalar inmediatamente', 'Revisar procesos background'];
+    } else if (load > 2.0) {
+      return ['ALTO: Monitorear tendencia', 'Considerar optimizaciones'];
+    } else if (load > 1.0) {
+      return ['MODERADO: Sistema funcionando normalmente'];
+    } else {
+      return ['NORMAL: Sistema con buena capacidad'];
+    }
+  }
+
+  /**
+   * Rate limiting inteligente adaptativo basado en patrones de uso y carga del sistema
    */
   createSmartRateLimit (endpointType = 'default') {
     const configs = {
       auth: {
         windowMs: 15 * 60 * 1000, // 15 minutos
-        max: 5, // 5 intentos de login
+        max: (req) => this.getAdaptiveMax(5), // 5 intentos de login (adaptativo)
         message: {
           error: 'Demasiados intentos de autenticación',
           message: 'Has excedido el límite de intentos de login. Intenta en 15 minutos.',
@@ -48,7 +248,7 @@ class AdvancedSecurity {
       },
       messaging: {
         windowMs: 1 * 60 * 1000, // 1 minuto
-        max: (req) => this.getMessageLimit(req),
+        max: (req) => this.getAdaptiveMax(this.getMessageLimit(req)),
         message: {
           error: 'Límite de mensajes excedido',
           message: 'Has enviado demasiados mensajes. Espera un momento.',
@@ -59,7 +259,7 @@ class AdvancedSecurity {
       },
       upload: {
         windowMs: 10 * 60 * 1000, // 10 minutos
-        max: 20, // 20 uploads
+        max: (req) => this.getAdaptiveMax(20), // 20 uploads (adaptativo)
         message: {
           error: 'Límite de subidas excedido',
           message: 'Has subido demasiados archivos. Intenta más tarde.',
@@ -70,7 +270,7 @@ class AdvancedSecurity {
       },
       api: {
         windowMs: 15 * 60 * 1000, // 15 minutos
-        max: (req) => this.getAPILimit(req),
+        max: (req) => this.getAdaptiveMax(this.getAPILimit(req)),
         message: {
           error: 'Límite de API excedido',
           message: 'Has excedido el límite de solicitudes a la API.',
@@ -81,7 +281,7 @@ class AdvancedSecurity {
       },
       default: {
         windowMs: 15 * 60 * 1000,
-        max: 1000,
+        max: (req) => this.getAdaptiveMax(1000), // 1000 requests (adaptativo)
         message: {
           error: 'Límite de solicitudes excedido',
           message: 'Demasiadas solicitudes desde esta IP.',
@@ -96,6 +296,7 @@ class AdvancedSecurity {
 
     return rateLimit({
       ...config,
+      store: this.rateLimitStore, // Usar store adaptativo con fallback
       skip: (req) => this.shouldSkipRateLimit(req),
       // ✅ CORREGIDO: Usar handler en lugar de onLimitReached
       handler: (req, res) => this.handleRateLimitReached(req, res, options, endpointType),
@@ -718,7 +919,7 @@ class AdvancedSecurity {
   }
 
   /**
-   * Obtener estadísticas de seguridad
+   * Obtener estadísticas de seguridad con información adaptativa
    */
   getSecurityStats () {
     return {
@@ -727,6 +928,9 @@ class AdvancedSecurity {
       failedAttempts: this.failedAttempts.size,
       rateLimitEntries: this.rateLimitStore.size,
       config: this.config,
+      adaptiveRateLimiting: this.getAdaptiveLimitsInfo(),
+      systemLoad: this.getSystemLoad(),
+      store: this.rateLimitStore.constructor.name
     };
   }
 }

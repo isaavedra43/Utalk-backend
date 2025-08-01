@@ -1,36 +1,64 @@
 /**
- * 🧠 GESTOR CENTRALIZADO DE MEMORIA
+ * 🧠 GESTOR CENTRALIZADO DE MEMORIA ADAPTATIVO
+ * 
+ * Memory Manager Adaptativo
+ *
+ * Todos los límites de memoria se calculan automáticamente en base al hardware
+ * donde corre el proceso, permitiendo máxima escalabilidad y evitando cuellos
+ * de botella en servidores con poca o mucha RAM.
+ *
+ * - maxMapsPerInstance: Calculado como 50MB por mapa, mínimo 10
+ * - maxEntriesPerMap: 1MB por entrada
+ * - memoryWarningThreshold: 70% de la RAM total
+ * - memoryCriticalThreshold: 90% de la RAM total
+ *
+ * Si el servidor tiene poca memoria, los límites serán más bajos, protegiendo la estabilidad.
+ * Si el servidor tiene mucha RAM, la app escala sin cuellos de botella artificiales.
  * 
  * Previene fugas de memoria mediante:
- * - Límites máximos configurables
+ * - Límites máximos adaptativos al hardware
  * - TTL (Time To Live) automático
  * - Limpieza proactiva
  * - Monitoreo y alertas
  * - Compatibilidad con múltiples instancias
  * 
- * @version 1.0.0
+ * @version 2.0.0 ADAPTATIVO
  * @author Memory Management Team
  */
 
 const EventEmitter = require('events');
 const { performance } = require('perf_hooks');
+const os = require('os');
 const logger = require('./logger');
+
+// Cálculo de límites adaptativos basados en el hardware
+const totalMemory = os.totalmem();
+const availableMemory = os.freemem();
+
+const adaptiveLimits = {
+  maxMapsPerInstance: Math.max(10, Math.floor(totalMemory / (50 * 1024 * 1024))), // 50MB por mapa, mínimo 10
+  maxEntriesPerMap: Math.max(1000, Math.floor(availableMemory / (1024 * 1024))), // 1MB por entrada, mínimo 1000
+  memoryWarningThreshold: totalMemory * 0.7, // 70% de la RAM total
+  memoryCriticalThreshold: totalMemory * 0.9, // 90% de la RAM total
+  defaultTTL: 30 * 60 * 1000, // 30 minutos
+  cleanupInterval: 5 * 60 * 1000 // 5 minutos
+};
 
 class AdvancedMemoryManager extends EventEmitter {
   constructor(options = {}) {
     super();
     
-    // Configuración con valores seguros por defecto
+    // Configuración con límites adaptativos al hardware
     this.config = {
-      // Límites globales
-      maxMapsPerInstance: options.maxMapsPerInstance || 20,
-      maxEntriesPerMap: options.maxEntriesPerMap || 10000,
-      defaultTTL: options.defaultTTL || 30 * 60 * 1000, // 30 minutos
+      // Límites globales adaptativos
+      maxMapsPerInstance: options.maxMapsPerInstance || adaptiveLimits.maxMapsPerInstance,
+      maxEntriesPerMap: options.maxEntriesPerMap || adaptiveLimits.maxEntriesPerMap,
+      defaultTTL: options.defaultTTL || adaptiveLimits.defaultTTL,
       
       // Configuración de limpieza
-      cleanupInterval: options.cleanupInterval || 5 * 60 * 1000, // 5 minutos
-      memoryWarningThreshold: options.memoryWarningThreshold || 100 * 1024 * 1024, // 100MB
-      memoryCriticalThreshold: options.memoryCriticalThreshold || 200 * 1024 * 1024, // 200MB
+      cleanupInterval: options.cleanupInterval || adaptiveLimits.cleanupInterval,
+      memoryWarningThreshold: options.memoryWarningThreshold || adaptiveLimits.memoryWarningThreshold,
+      memoryCriticalThreshold: options.memoryCriticalThreshold || adaptiveLimits.memoryCriticalThreshold,
       
       // Configuración para producción
       enableMetrics: options.enableMetrics !== false,
@@ -76,11 +104,23 @@ class AdvancedMemoryManager extends EventEmitter {
     // Configurar graceful shutdown
     this.setupGracefulShutdown();
     
-    logger.info('🧠 AdvancedMemoryManager inicializado', {
+    logger.info('🧠 AdvancedMemoryManager inicializado con límites adaptativos', {
       maxMapsPerInstance: this.config.maxMapsPerInstance,
       maxEntriesPerMap: this.config.maxEntriesPerMap,
       defaultTTL: this.config.defaultTTL,
-      cleanupInterval: this.config.cleanupInterval
+      cleanupInterval: this.config.cleanupInterval,
+      hardware: {
+        totalMemory: `${(totalMemory / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        availableMemory: `${(availableMemory / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        memoryWarningThreshold: `${(this.config.memoryWarningThreshold / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        memoryCriticalThreshold: `${(this.config.memoryCriticalThreshold / (1024 * 1024 * 1024)).toFixed(2)} GB`
+      },
+      adaptiveLimits: {
+        maxMapsPerInstance: adaptiveLimits.maxMapsPerInstance,
+        maxEntriesPerMap: adaptiveLimits.maxEntriesPerMap,
+        memoryWarningThreshold: `${(adaptiveLimits.memoryWarningThreshold / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        memoryCriticalThreshold: `${(adaptiveLimits.memoryCriticalThreshold / (1024 * 1024 * 1024)).toFixed(2)} GB`
+      }
     });
   }
   
@@ -338,6 +378,21 @@ class AdvancedMemoryManager extends EventEmitter {
         maxEntriesPerMap: this.config.maxEntriesPerMap,
         defaultTTL: this.config.defaultTTL,
         cleanupInterval: this.config.cleanupInterval
+      },
+      hardware: {
+        totalMemory: totalMemory,
+        availableMemory: availableMemory,
+        totalMemoryGB: (totalMemory / (1024 * 1024 * 1024)).toFixed(2),
+        availableMemoryGB: (availableMemory / (1024 * 1024 * 1024)).toFixed(2),
+        memoryUsagePercent: ((process.memoryUsage().heapUsed / totalMemory) * 100).toFixed(2)
+      },
+      adaptiveLimits: {
+        maxMapsPerInstance: adaptiveLimits.maxMapsPerInstance,
+        maxEntriesPerMap: adaptiveLimits.maxEntriesPerMap,
+        memoryWarningThreshold: adaptiveLimits.memoryWarningThreshold,
+        memoryCriticalThreshold: adaptiveLimits.memoryCriticalThreshold,
+        memoryWarningThresholdGB: (adaptiveLimits.memoryWarningThreshold / (1024 * 1024 * 1024)).toFixed(2),
+        memoryCriticalThresholdGB: (adaptiveLimits.memoryCriticalThreshold / (1024 * 1024 * 1024)).toFixed(2)
       }
     };
   }
@@ -354,6 +409,43 @@ class AdvancedMemoryManager extends EventEmitter {
    */
   listManagedMaps() {
     return Array.from(this.managedMaps.keys());
+  }
+  
+  /**
+   * 🔧 OBTENER INFORMACIÓN DE LÍMITES ADAPTATIVOS
+   */
+  getAdaptiveLimitsInfo() {
+    return {
+      hardware: {
+        totalMemory: totalMemory,
+        availableMemory: availableMemory,
+        totalMemoryGB: (totalMemory / (1024 * 1024 * 1024)).toFixed(2),
+        availableMemoryGB: (availableMemory / (1024 * 1024 * 1024)).toFixed(2),
+        cpuCount: os.cpus().length,
+        platform: os.platform(),
+        arch: os.arch()
+      },
+      adaptiveLimits: {
+        maxMapsPerInstance: adaptiveLimits.maxMapsPerInstance,
+        maxEntriesPerMap: adaptiveLimits.maxEntriesPerMap,
+        memoryWarningThreshold: adaptiveLimits.memoryWarningThreshold,
+        memoryCriticalThreshold: adaptiveLimits.memoryCriticalThreshold,
+        memoryWarningThresholdGB: (adaptiveLimits.memoryWarningThreshold / (1024 * 1024 * 1024)).toFixed(2),
+        memoryCriticalThresholdGB: (adaptiveLimits.memoryCriticalThreshold / (1024 * 1024 * 1024)).toFixed(2)
+      },
+      currentConfig: {
+        maxMapsPerInstance: this.config.maxMapsPerInstance,
+        maxEntriesPerMap: this.config.maxEntriesPerMap,
+        memoryWarningThreshold: this.config.memoryWarningThreshold,
+        memoryCriticalThreshold: this.config.memoryCriticalThreshold
+      },
+      explanation: {
+        maxMapsPerInstance: `Calculado como ${Math.floor(totalMemory / (50 * 1024 * 1024))} mapas (50MB por mapa)`,
+        maxEntriesPerMap: `Calculado como ${Math.floor(availableMemory / (1024 * 1024))} entradas (1MB por entrada)`,
+        memoryWarningThreshold: `70% de la RAM total (${(totalMemory * 0.7 / (1024 * 1024 * 1024)).toFixed(2)} GB)`,
+        memoryCriticalThreshold: `90% de la RAM total (${(totalMemory * 0.9 / (1024 * 1024 * 1024)).toFixed(2)} GB)`
+      }
+    };
   }
 }
 

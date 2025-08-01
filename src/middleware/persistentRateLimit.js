@@ -1,5 +1,5 @@
 /**
- * 🚦 SISTEMA DE RATE LIMITING PERSISTENTE Y CONFIGURABLE
+ * 🚦 SISTEMA DE RATE LIMITING PERSISTENTE, CONFIGURABLE Y ADAPTATIVO
  * 
  * Implementa rate limiting robusto que persiste entre reinicios del servidor
  * usando Redis como store principal y fallback a memoria con persistencia en archivo.
@@ -10,8 +10,10 @@
  * - Múltiples algoritmos (sliding window, token bucket)
  * - Logging detallado de intentos de abuso
  * - Escalable horizontalmente
+ * - LÍMITES ADAPTATIVOS según carga del sistema
+ * - FALLBACK ROBUSTO de Redis a memoria
  * 
- * @version 1.0.0
+ * @version 2.0.0 ADAPTATIVO
  * @author Security Team
  */
 
@@ -21,6 +23,7 @@ const redis = require('redis');
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
+const os = require('os');
 
 class PersistentRateLimit {
   constructor() {
@@ -29,12 +32,15 @@ class PersistentRateLimit {
     this.persistenceFile = path.join(process.cwd(), 'temp', 'rate-limits.json');
     this.initialized = false;
     
+    // Inicializar funcionalidades adaptativas
+    this.initializeAdaptiveFeatures();
+    
     // Configuraciones por defecto para diferentes tipos de endpoints
     this.configs = {
       // 🔐 WEBHOOKS: Muy restrictivo para prevenir abuse
       webhook: {
         windowMs: 1 * 60 * 1000, // 1 minuto
-        max: 30, // 30 requests por minuto por IP
+        max: (req) => this.getAdaptiveMax(30), // 30 requests por minuto por IP (adaptativo)
         message: {
           error: 'Webhook rate limit exceeded',
           code: 'WEBHOOK_RATE_LIMIT',
@@ -50,7 +56,7 @@ class PersistentRateLimit {
       // 🔐 LOGIN: Muy restrictivo para prevenir brute force
       login: {
         windowMs: 15 * 60 * 1000, // 15 minutos
-        max: 5, // 5 intentos por IP en 15 minutos
+        max: (req) => this.getAdaptiveMax(5), // 5 intentos por IP en 15 minutos (adaptativo)
         message: {
           error: 'Too many login attempts',
           code: 'LOGIN_RATE_LIMIT',
@@ -67,10 +73,13 @@ class PersistentRateLimit {
       messages: {
         windowMs: 1 * 60 * 1000, // 1 minuto
         max: (req) => {
-          // Rate limit dinámico basado en rol de usuario
-          if (req.user?.role === 'admin') return 100;
-          if (req.user?.role === 'agent') return 60;
-          return 30; // usuarios básicos
+          // Rate limit dinámico basado en rol de usuario + adaptativo
+          let baseLimit;
+          if (req.user?.role === 'admin') baseLimit = 100;
+          else if (req.user?.role === 'agent') baseLimit = 60;
+          else baseLimit = 30; // usuarios básicos
+          
+          return this.getAdaptiveMax(baseLimit);
         },
         message: {
           error: 'Message rate limit exceeded',
@@ -85,7 +94,7 @@ class PersistentRateLimit {
       // 📝 CONVERSATIONS: Restrictivo para crear/modificar
       conversations: {
         windowMs: 5 * 60 * 1000, // 5 minutos
-        max: 20, // 20 operaciones por usuario en 5 minutos
+        max: (req) => this.getAdaptiveMax(20), // 20 operaciones por usuario en 5 minutos (adaptativo)
         message: {
           error: 'Conversation operations rate limit exceeded',
           code: 'CONVERSATION_RATE_LIMIT',
@@ -99,7 +108,7 @@ class PersistentRateLimit {
       // 📁 MEDIA: Muy restrictivo para uploads
       media: {
         windowMs: 10 * 60 * 1000, // 10 minutos
-        max: 10, // 10 uploads por usuario en 10 minutos
+        max: (req) => this.getAdaptiveMax(10), // 10 uploads por usuario en 10 minutos (adaptativo)
         message: {
           error: 'Media upload rate limit exceeded',
           code: 'MEDIA_RATE_LIMIT',
@@ -113,7 +122,7 @@ class PersistentRateLimit {
       // 🌐 GENERAL: Rate limit global por defecto
       general: {
         windowMs: 15 * 60 * 1000, // 15 minutos
-        max: 1000, // 1000 requests por IP en 15 minutos
+        max: (req) => this.getAdaptiveMax(1000), // 1000 requests por IP en 15 minutos (adaptativo)
         message: {
           error: 'Too many requests',
           code: 'GENERAL_RATE_LIMIT',
@@ -124,6 +133,129 @@ class PersistentRateLimit {
         skipFailedRequests: false
       }
     };
+  }
+
+  /**
+   * 🚀 INICIALIZAR FUNCIONALIDADES ADAPTATIVAS
+   */
+  initializeAdaptiveFeatures() {
+    // Configurar monitoreo de carga del sistema
+    this.startLoadMonitoring();
+    
+    logger.info('🔄 Funcionalidades adaptativas inicializadas', {
+      systemLoad: this.getSystemLoad(),
+      adaptiveLimits: this.getAdaptiveLimitsInfo()
+    });
+  }
+
+  /**
+   * 📊 OBTENER CARGA DEL SISTEMA
+   */
+  getSystemLoad() {
+    return os.loadavg()[0]; // carga promedio del último minuto
+  }
+
+  /**
+   * 🔧 CALCULAR LÍMITE MÁXIMO ADAPTATIVO
+   */
+  getAdaptiveMax(baseMax) {
+    const load = this.getSystemLoad();
+    
+    // Si la carga promedio supera 2.0, reduce el límite a la mitad
+    if (load > 2.0) {
+      const reducedMax = Math.floor(baseMax * 0.5);
+      logger.warn('🔄 Reduciendo rate limit por alta carga del sistema', {
+        originalMax: baseMax,
+        reducedMax,
+        systemLoad: load,
+        reason: 'Carga del sistema > 2.0'
+      });
+      return reducedMax;
+    }
+    
+    // Si la carga es moderada (1.0-2.0), reduce ligeramente
+    if (load > 1.0) {
+      const reducedMax = Math.floor(baseMax * 0.8);
+      logger.info('🔄 Ajustando rate limit por carga moderada', {
+        originalMax: baseMax,
+        reducedMax,
+        systemLoad: load
+      });
+      return reducedMax;
+    }
+    
+    // Carga normal, usar límite base
+    return baseMax;
+  }
+
+  /**
+   * 📈 INICIAR MONITOREO DE CARGA DEL SISTEMA
+   */
+  startLoadMonitoring() {
+    // Monitorear carga cada 30 segundos
+    setInterval(() => {
+      const load = this.getSystemLoad();
+      
+      if (load > 2.0) {
+        logger.warn('⚠️ Alta carga del sistema detectada', {
+          load,
+          impact: 'Rate limits reducidos automáticamente',
+          recommendation: 'Considerar escalar recursos'
+        });
+      } else if (load > 1.0) {
+        logger.info('📊 Carga moderada del sistema', {
+          load,
+          impact: 'Rate limits ligeramente reducidos'
+        });
+      }
+    }, 30000);
+  }
+
+  /**
+   * 📊 OBTENER INFORMACIÓN DE LÍMITES ADAPTATIVOS
+   */
+  getAdaptiveLimitsInfo() {
+    const load = this.getSystemLoad();
+    const baseLimits = {
+      webhook: 30,
+      login: 5,
+      messages: 60,
+      conversations: 20,
+      media: 10,
+      general: 1000
+    };
+    
+    const adaptiveLimits = {};
+    
+    for (const [type, baseMax] of Object.entries(baseLimits)) {
+      adaptiveLimits[type] = {
+        baseMax,
+        adaptiveMax: this.getAdaptiveMax(baseMax),
+        systemLoad: load,
+        reduction: baseMax - this.getAdaptiveMax(baseMax)
+      };
+    }
+    
+    return {
+      systemLoad: load,
+      adaptiveLimits,
+      recommendations: this.getLoadRecommendations(load)
+    };
+  }
+
+  /**
+   * 💡 OBTENER RECOMENDACIONES BASADAS EN CARGA
+   */
+  getLoadRecommendations(load) {
+    if (load > 3.0) {
+      return ['CRÍTICO: Considerar escalar inmediatamente', 'Revisar procesos background'];
+    } else if (load > 2.0) {
+      return ['ALTO: Monitorear tendencia', 'Considerar optimizaciones'];
+    } else if (load > 1.0) {
+      return ['MODERADO: Sistema funcionando normalmente'];
+    } else {
+      return ['NORMAL: Sistema con buena capacidad'];
+    }
   }
 
   /**
@@ -426,14 +558,17 @@ class PersistentRateLimit {
   }
 
   /**
-   * 📊 OBTENER ESTADÍSTICAS DE RATE LIMITING
+   * 📊 OBTENER ESTADÍSTICAS DE RATE LIMITING CON INFORMACIÓN ADAPTATIVA
    */
   async getStats() {
     const stats = {
       store: this.redisClient ? 'Redis' : 'Memory',
       memoryEntries: this.memoryStore.size,
       configurations: Object.keys(this.configs),
-      initialized: this.initialized
+      initialized: this.initialized,
+      adaptiveRateLimiting: this.getAdaptiveLimitsInfo(),
+      systemLoad: this.getSystemLoad(),
+      recommendations: this.getLoadRecommendations(this.getSystemLoad())
     };
 
     if (this.redisClient) {

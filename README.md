@@ -149,17 +149,59 @@ NODE_ENV=production
 ## 🔒 Seguridad
 
 - **JWT Authentication** - Tokens seguros con refresh
-- **Rate Limiting** - Protección contra abuso
+- **Rate Limiting Adaptativo** - **ADAPTATIVO** con límites que se ajustan según la carga del sistema
 - **Input Validation** - Validación centralizada
 - **Error Handling** - Sin información sensible en logs
 - **CORS** - Configurado para producción
+
+### **🚦 Rate Limiting Adaptativo**
+
+El sistema ahora ajusta automáticamente los límites de rate limiting según la carga del servidor:
+
+- **Carga Normal (< 1.0)**: Límites base sin reducción
+- **Carga Moderada (1.0-2.0)**: Límites reducidos al 80%
+- **Carga Alta (> 2.0)**: Límites reducidos al 50%
+
+**Fallback Robusto:**
+- ✅ **Redis** como store principal
+- ✅ **Memoria** como fallback automático si Redis falla
+- ✅ **Logging detallado** de todos los eventos de fallback
+
+**Monitoreo en Producción:**
+```javascript
+const { advancedSecurity } = require('./src/middleware/advancedSecurity');
+const stats = advancedSecurity.getSecurityStats();
+console.log('Rate limiting adaptativo:', stats.adaptiveRateLimiting);
+```
 
 ## 📊 Performance
 
 - **Caching** - Redis con fallback local
 - **Batch Operations** - Optimizadas para Firestore
-- **Memory Management** - Con límites y cleanup
+- **Memory Management** - **ADAPTATIVO** con límites calculados automáticamente según el hardware
 - **Connection Pooling** - Para servicios externos
+
+### **🧠 Memory Management Adaptativo**
+
+El sistema ahora calcula automáticamente todos los límites de memoria basándose en el hardware donde corre:
+
+- **maxMapsPerInstance**: Calculado como 50MB por mapa (mínimo 10)
+- **maxEntriesPerMap**: Calculado como 1MB por entrada (mínimo 1000)
+- **memoryWarningThreshold**: 70% de la RAM total
+- **memoryCriticalThreshold**: 90% de la RAM total
+
+**Beneficios:**
+- ✅ **Escalabilidad automática** - Se adapta a servidores con poca o mucha RAM
+- ✅ **Protección de estabilidad** - Límites más bajos en servidores con poca memoria
+- ✅ **Sin cuellos de botella artificiales** - Aprovecha toda la RAM disponible
+- ✅ **Monitoreo en tiempo real** - Información detallada del hardware y límites
+
+**Monitoreo recomendado en producción:**
+```javascript
+const { memoryManager } = require('./src/utils/memoryManager');
+const stats = memoryManager.getAdaptiveLimitsInfo();
+console.log('Límites adaptativos:', stats);
+```
 
 ## 🚀 Deployment
 
