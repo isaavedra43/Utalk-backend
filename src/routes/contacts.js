@@ -56,6 +56,13 @@ const contactValidators = {
       page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(20)
     })
+  }),
+
+  validateStats: validateRequest({
+    query: Joi.object({
+      period: Joi.string().valid('7d', '30d', '90d', '1y').default('30d'),
+      userId: Joi.string().optional()
+    })
   })
 };
 
