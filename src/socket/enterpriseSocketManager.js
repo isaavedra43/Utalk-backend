@@ -322,16 +322,44 @@ class EnterpriseSocketManager {
       serveClient: false // Don't serve client files
     });
 
-    // Memory optimization: Clear request reference (Socket.IO docs recommendation)
+    // 🔧 MEMORY LEAK FIXES - Advanced optimizations based on Socket.IO best practices
     this.io.engine.on("connection", (rawSocket) => {
-      rawSocket.request = null; // Save memory
+      // 1. Clear request reference (Socket.IO docs recommendation)
+      rawSocket.request = null;
+      
+      // 2. Clear upgrade head buffer to prevent memory leaks (Node.js 0.8 fix)
+      if (rawSocket.request && rawSocket.request.head) {
+        delete rawSocket.request.head;
+      }
+      
+      // 3. Set socket-specific memory limits
+      rawSocket.on('error', () => {
+        // Force cleanup on error
+        if (rawSocket.readyState === 'open') {
+          rawSocket.close();
+        }
+      });
+      
+      // 4. Limit maximum listeners per socket
+      rawSocket.setMaxListeners(20);
+    });
+
+    // 🔧 ENGINE OPTIMIZATIONS
+    this.io.engine.on("connection_error", (err) => {
+      logger.warn('Socket.IO engine connection error', {
+        category: 'SOCKET_ENGINE_ERROR',
+        error: err.message,
+        code: err.code,
+        context: err.context
+      });
     });
 
     logger.info('✅ Socket.IO server configured successfully', {
       category: 'SOCKET_CONFIG_SUCCESS',
       corsOrigins: corsOrigins.length,
       memoryOptimizations: true,
-      performanceOptimizations: true
+      performanceOptimizations: true,
+      memoryLeakPrevention: true
     });
   }
 
@@ -801,8 +829,38 @@ class EnterpriseSocketManager {
       return false; // Rate limited
     }
 
+    // 🔧 MEMORY OPTIMIZATION: Auto-cleanup old rate limit entries
+    if (this.rateLimitTracker.size > 50000) { // Limit to 50k entries
+      this.cleanupOldRateLimitEntries();
+    }
+
     this.rateLimitTracker.set(rateLimitKey, now);
     return true; // Allowed
+  }
+
+  /**
+   * 🧹 CLEANUP OLD RATE LIMIT ENTRIES
+   * Limpia entradas antiguas del rate limiting para optimizar memoria
+   */
+  cleanupOldRateLimitEntries() {
+    const now = Date.now();
+    const maxAge = 30 * 60 * 1000; // 30 minutos
+    let cleanedCount = 0;
+
+    for (const [key, timestamp] of this.rateLimitTracker.entries()) {
+      if (now - timestamp > maxAge) {
+        this.rateLimitTracker.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.info('Rate limit entries cleaned up', {
+        category: 'SOCKET_RATE_LIMIT_CLEANUP',
+        cleanedCount,
+        remainingEntries: this.rateLimitTracker.size
+      });
+    }
   }
 
   /**
@@ -1362,15 +1420,24 @@ class EnterpriseSocketManager {
     try {
       if (!userEmail) return;
 
-      // Remove from connected users
+      logger.debug('Iniciando cleanup de sesión de usuario', {
+        category: 'SOCKET_CLEANUP_START',
+        email: userEmail.substring(0, 20) + '...',
+        socketId
+      });
+
+      // 1. Remove from connected users
       this.connectedUsers.delete(userEmail);
 
-      // Clean up event listeners
+      // 2. Clean up event listeners - IMPROVED CLEANUP
       const listenersMap = this.eventListeners.get(socketId);
       if (listenersMap) {
+        let cleanedListeners = 0;
+        
         for (const [eventName, cleanupFn] of listenersMap.entries()) {
           try {
             cleanupFn();
+            cleanedListeners++;
           } catch (cleanupError) {
             logger.warn('Error cleaning up event listener', {
               category: 'SOCKET_CLEANUP_WARNING',
@@ -1379,10 +1446,19 @@ class EnterpriseSocketManager {
             });
           }
         }
+        
+        // Force clear the listeners map
+        listenersMap.clear();
         this.eventListeners.delete(socketId);
+        
+        logger.debug('Event listeners cleaned up', {
+          category: 'SOCKET_CLEANUP_LISTENERS',
+          cleanedListeners,
+          socketId
+        });
       }
 
-      // Clean up user from all conversations
+      // 3. Clean up user from all conversations
       const userConversations = this.userConversations.get(userEmail);
       if (userConversations) {
         for (const conversationId of userConversations) {
@@ -1411,10 +1487,33 @@ class EnterpriseSocketManager {
         this.userConversations.delete(userEmail);
       }
 
-      logger.debug('User session cleaned up successfully', {
+      // 4. 🔧 MEMORY LEAK PREVENTION: Clean up rate limiting entries for this user
+      this.cleanupUserRateLimitEntries(userEmail);
+
+      // 5. 🔧 FORCE GARBAGE COLLECTION HINT
+      if (global.gc && this.connectedUsers.size % 100 === 0) {
+        // Trigger GC every 100 disconnections
+        setImmediate(() => {
+          global.gc();
+          logger.debug('Garbage collection triggered after user cleanup', {
+            category: 'SOCKET_GC_TRIGGER',
+            connectedUsers: this.connectedUsers.size
+          });
+        });
+      }
+
+      logger.info('User session cleaned up successfully', {
         category: 'SOCKET_CLEANUP_SUCCESS',
         email: userEmail.substring(0, 20) + '...',
-        socketId
+        socketId,
+        remainingConnections: this.connectedUsers.size,
+        memoryMaps: {
+          connectedUsers: this.connectedUsers.size,
+          userConversations: this.userConversations.size,
+          conversationUsers: this.conversationUsers.size,
+          eventListeners: this.eventListeners.size,
+          rateLimitTracker: this.rateLimitTracker.size
+        }
       });
 
     } catch (error) {
@@ -1424,6 +1523,30 @@ class EnterpriseSocketManager {
         stack: error.stack,
         userEmail: userEmail?.substring(0, 20) + '...',
         socketId
+      });
+    }
+  }
+
+  /**
+   * 🧹 CLEANUP USER RATE LIMIT ENTRIES
+   * Limpia entradas de rate limiting específicas del usuario
+   */
+  cleanupUserRateLimitEntries(userEmail) {
+    let cleanedCount = 0;
+    const userPrefix = `${userEmail}:`;
+
+    for (const key of this.rateLimitTracker.keys()) {
+      if (key.startsWith(userPrefix)) {
+        this.rateLimitTracker.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.debug('User rate limit entries cleaned', {
+        category: 'SOCKET_USER_RATE_LIMIT_CLEANUP',
+        email: userEmail.substring(0, 20) + '...',
+        cleanedCount
       });
     }
   }
@@ -1778,14 +1901,117 @@ class EnterpriseSocketManager {
 
     }, 60000); // Every minute
 
-    // Memory cleanup every 10 minutes
+    // 🔧 ENHANCED MEMORY CLEANUP - More frequent cleanup for better memory management
     setInterval(() => {
       this.performMemoryCleanup();
-    }, 10 * 60 * 1000);
+    }, 2 * 60 * 1000); // Every 2 minutes (increased frequency)
+
+    // 🔧 MEMORY LEAK DETECTION - Monitor memory growth
+    setInterval(() => {
+      this.performMemoryLeakDetection();
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    // 🔧 RATE LIMIT CLEANUP - Dedicated cleanup for rate limiting
+    setInterval(() => {
+      this.cleanupOldRateLimitEntries();
+    }, 30 * 1000); // Every 30 seconds
 
     logger.info('✅ Socket.IO monitoring configured', {
-      category: 'SOCKET_MONITORING_SUCCESS'
+      category: 'SOCKET_MONITORING_SUCCESS',
+      intervals: {
+        metrics: '60s',
+        memoryCleanup: '2min',
+        memoryLeakDetection: '5min',
+        rateLimitCleanup: '30s'
+      }
     });
+  }
+
+  /**
+   * 🔍 PERFORM MEMORY LEAK DETECTION
+   * Sistema de detección proactiva de memory leaks
+   */
+  performMemoryLeakDetection() {
+    try {
+      const memoryUsage = process.memoryUsage();
+      const currentTime = Date.now();
+      
+      // Store previous memory readings for trend analysis
+      if (!this.memoryHistory) {
+        this.memoryHistory = [];
+      }
+      
+      this.memoryHistory.push({
+        timestamp: currentTime,
+        heapUsed: memoryUsage.heapUsed,
+        heapTotal: memoryUsage.heapTotal,
+        external: memoryUsage.external,
+        connections: this.connectedUsers.size
+      });
+      
+      // Keep only last 12 readings (1 hour of data)
+      if (this.memoryHistory.length > 12) {
+        this.memoryHistory = this.memoryHistory.slice(-12);
+      }
+      
+      // Analyze memory trends if we have enough data
+      if (this.memoryHistory.length >= 3) {
+        const recent = this.memoryHistory.slice(-3);
+        const isMemoryGrowing = recent.every((reading, index) => {
+          if (index === 0) return true;
+          return reading.heapUsed > recent[index - 1].heapUsed;
+        });
+        
+        const memoryGrowthRate = recent[recent.length - 1].heapUsed - recent[0].heapUsed;
+        const connectionsRatio = this.connectedUsers.size > 0 ? memoryUsage.heapUsed / this.connectedUsers.size : 0;
+        
+        if (isMemoryGrowing && memoryGrowthRate > 50 * 1024 * 1024) { // 50MB growth
+          logger.warn('Potential memory leak detected', {
+            category: 'SOCKET_MEMORY_LEAK_DETECTED',
+            memoryGrowthMB: Math.round(memoryGrowthRate / 1024 / 1024),
+            connectionsRatio: Math.round(connectionsRatio / 1024),
+            currentStats: {
+              heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+              connections: this.connectedUsers.size,
+              eventListeners: this.eventListeners.size,
+              rateLimitEntries: this.rateLimitTracker.size
+            },
+            recommendation: 'Consider performing aggressive cleanup'
+          });
+          
+          // Trigger aggressive cleanup if memory leak detected
+          this.performAggressiveCleanup();
+        }
+      }
+      
+      // Alert on high memory usage per connection
+      const memoryPerConnection = this.connectedUsers.size > 0 
+        ? memoryUsage.heapUsed / this.connectedUsers.size 
+        : 0;
+        
+      if (memoryPerConnection > 10 * 1024 * 1024) { // 10MB per connection
+        logger.warn('High memory usage per connection detected', {
+          category: 'SOCKET_HIGH_MEMORY_PER_CONNECTION',
+          memoryPerConnectionMB: Math.round(memoryPerConnection / 1024 / 1024),
+          totalConnections: this.connectedUsers.size,
+          totalMemoryMB: Math.round(memoryUsage.heapUsed / 1024 / 1024)
+        });
+      }
+      
+      logger.debug('Memory leak detection completed', {
+        category: 'SOCKET_MEMORY_LEAK_CHECK',
+        memoryTrend: this.memoryHistory.length >= 3 ? 'analyzed' : 'insufficient_data',
+        historySize: this.memoryHistory.length,
+        memoryPerConnectionKB: Math.round(memoryPerConnection / 1024)
+      });
+      
+    } catch (error) {
+      logger.error('Error in memory leak detection', {
+        category: 'SOCKET_MEMORY_LEAK_ERROR',
+        error: error.message,
+        stack: error.stack
+      });
+    }
   }
 
   /**
@@ -1799,8 +2025,10 @@ class EnterpriseSocketManager {
 
       let cleanedSockets = 0;
       let cleanedConversations = 0;
+      let cleanedEventListeners = 0;
+      let cleanedRateLimit = 0;
 
-      // Clean up orphaned sockets
+      // 1. Clean up orphaned sockets
       for (const [email, session] of this.connectedUsers.entries()) {
         if (!session?.socketId || !this.io.sockets.sockets.has(session.socketId)) {
           this.connectedUsers.delete(email);
@@ -1808,7 +2036,7 @@ class EnterpriseSocketManager {
         }
       }
 
-      // Clean up empty conversations
+      // 2. Clean up empty conversations
       for (const [conversationId, userSet] of this.conversationUsers.entries()) {
         if (!userSet || userSet.size === 0) {
           this.conversationUsers.delete(conversationId);
@@ -1816,7 +2044,62 @@ class EnterpriseSocketManager {
         }
       }
 
-      // Force garbage collection if available
+      // 3. 🔧 MEMORY LEAK PREVENTION: Clean up orphaned event listeners
+      for (const [socketId, listenersMap] of this.eventListeners.entries()) {
+        if (!this.io.sockets.sockets.has(socketId)) {
+          // Socket no longer exists, cleanup all its listeners
+          if (listenersMap && listenersMap.size > 0) {
+            for (const [eventName, cleanupFn] of listenersMap.entries()) {
+              try {
+                cleanupFn();
+              } catch (error) {
+                logger.warn('Error cleaning orphaned listener', {
+                  category: 'SOCKET_ORPHANED_LISTENER_ERROR',
+                  eventName,
+                  error: error.message
+                });
+              }
+            }
+            listenersMap.clear();
+          }
+          this.eventListeners.delete(socketId);
+          cleanedEventListeners++;
+        }
+      }
+
+      // 4. 🔧 AGGRESSIVE RATE LIMIT CLEANUP
+      this.cleanupOldRateLimitEntries();
+      
+      // Count cleaned rate limit entries
+      const rateLimitSizeBefore = this.rateLimitTracker.size;
+      this.cleanupOldRateLimitEntries();
+      cleanedRateLimit = rateLimitSizeBefore - this.rateLimitTracker.size;
+
+      // 5. 🔧 TYPING USERS CLEANUP (stale typing states)
+      const now = Date.now();
+      for (const [conversationId, typingSet] of this.typingUsers.entries()) {
+        if (!typingSet || typingSet.size === 0) {
+          this.typingUsers.delete(conversationId);
+        }
+      }
+
+      // 6. 🔧 MEMORY PRESSURE CHECK
+      const memoryUsage = process.memoryUsage();
+      const memoryPressure = memoryUsage.heapUsed / memoryUsage.heapTotal;
+      
+      if (memoryPressure > 0.85) { // 85% memory usage
+        logger.warn('High memory pressure detected, performing aggressive cleanup', {
+          category: 'SOCKET_MEMORY_PRESSURE',
+          memoryPressure: (memoryPressure * 100).toFixed(2) + '%',
+          heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+          heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB'
+        });
+
+        // Aggressive cleanup under memory pressure
+        this.performAggressiveCleanup();
+      }
+
+      // 7. Force garbage collection if available
       if (global.gc) {
         global.gc();
       }
@@ -1825,11 +2108,20 @@ class EnterpriseSocketManager {
         category: 'SOCKET_MEMORY_CLEANUP_COMPLETE',
         cleanedSockets,
         cleanedConversations,
+        cleanedEventListeners,
+        cleanedRateLimit,
+        memoryPressure: (memoryPressure * 100).toFixed(2) + '%',
         currentStats: {
           connectedUsers: this.connectedUsers.size,
           activeConversations: this.conversationUsers.size,
           eventListeners: this.eventListeners.size,
-          rateLimitEntries: this.rateLimitTracker.size
+          rateLimitEntries: this.rateLimitTracker.size,
+          typingUsers: this.typingUsers.size
+        },
+        memoryUsage: {
+          heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+          heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+          external: Math.round(memoryUsage.external / 1024 / 1024) + 'MB'
         }
       });
 
@@ -1838,6 +2130,58 @@ class EnterpriseSocketManager {
         category: 'SOCKET_MEMORY_CLEANUP_ERROR',
         error: error.message,
         stack: error.stack
+      });
+    }
+  }
+
+  /**
+   * 🔥 PERFORM AGGRESSIVE CLEANUP
+   * Cleanup agresivo para situaciones de alta presión de memoria
+   */
+  performAggressiveCleanup() {
+    logger.warn('Performing aggressive memory cleanup due to memory pressure', {
+      category: 'SOCKET_AGGRESSIVE_CLEANUP'
+    });
+
+    // 1. Clear old user role cache entries
+    if (this.userRoleCache.size > 10000) {
+      const entries = Array.from(this.userRoleCache.entries());
+      const toDelete = entries.slice(0, Math.floor(entries.length * 0.3)); // Delete 30%
+      
+      for (const [key] of toDelete) {
+        this.userRoleCache.delete(key);
+      }
+      
+      logger.info('Aggressive cleanup: User role cache reduced', {
+        category: 'SOCKET_AGGRESSIVE_CACHE_CLEANUP',
+        deletedEntries: toDelete.length,
+        remainingEntries: this.userRoleCache.size
+      });
+    }
+
+    // 2. Clear all rate limiting entries older than 5 minutes
+    const now = Date.now();
+    const aggressiveMaxAge = 5 * 60 * 1000; // 5 minutes
+    let cleanedCount = 0;
+
+    for (const [key, timestamp] of this.rateLimitTracker.entries()) {
+      if (now - timestamp > aggressiveMaxAge) {
+        this.rateLimitTracker.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    logger.info('Aggressive cleanup: Rate limit entries cleared', {
+      category: 'SOCKET_AGGRESSIVE_RATE_CLEANUP',
+      cleanedCount,
+      remainingEntries: this.rateLimitTracker.size
+    });
+
+    // 3. Force immediate garbage collection
+    if (global.gc) {
+      global.gc();
+      logger.info('Aggressive cleanup: Forced garbage collection', {
+        category: 'SOCKET_AGGRESSIVE_GC'
       });
     }
   }

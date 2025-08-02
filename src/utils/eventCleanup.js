@@ -290,22 +290,41 @@ class EventCleanup {
    */
   startAutoCleanup(options = {}) {
     const { 
-      interval = 300000, // 5 minutos
-      maxAge = 3600000, // 1 hora
-      maxCalls = 1000 
+      interval = 120000, // 2 minutos (más frecuente)
+      maxAge = 1800000, // 30 minutos (más agresivo)
+      maxCalls = 500,   // Límite más bajo
+      memoryPressureThreshold = 0.80 // 80% de memoria
     } = options;
 
     const cleanupInterval = setInterval(() => {
       try {
         const now = new Date();
+        const memoryUsage = process.memoryUsage();
+        const memoryPressure = memoryUsage.heapUsed / memoryUsage.heapTotal;
+        
         let cleanedCount = 0;
+        let totalListeners = 0;
+
+        // Usar límites más agresivos bajo presión de memoria
+        const effectiveMaxAge = memoryPressure > memoryPressureThreshold 
+          ? maxAge * 0.5  // 15 minutos bajo presión
+          : maxAge;
+          
+        const effectiveMaxCalls = memoryPressure > memoryPressureThreshold 
+          ? maxCalls * 0.5  // 250 llamadas bajo presión
+          : maxCalls;
 
         this.listeners.forEach((emitterListeners, emitter) => {
+          // Verificar si el emitter sigue existiendo
+          const isEmitterValid = this.isEmitterValid(emitter);
+          
           emitterListeners.forEach((listenerInfo, event) => {
+            totalListeners++;
             const age = now - listenerInfo.addedAt;
             const shouldCleanup = 
-              age > maxAge || 
-              listenerInfo.callCount > maxCalls;
+              !isEmitterValid ||
+              age > effectiveMaxAge || 
+              listenerInfo.callCount > effectiveMaxCalls;
 
             if (shouldCleanup) {
               this.removeListener(emitter, event, listenerInfo.handler);
@@ -314,15 +333,31 @@ class EventCleanup {
           });
         });
 
-        if (cleanedCount > 0) {
+        if (cleanedCount > 0 || memoryPressure > memoryPressureThreshold) {
           logger.info('Auto cleanup ejecutado', {
+            category: 'EVENT_CLEANUP_AUTO',
             cleanedCount,
-            activeListeners: this.stats.activeListeners
+            totalListeners,
+            activeListeners: this.stats.activeListeners,
+            memoryPressure: (memoryPressure * 100).toFixed(2) + '%',
+            cleanupMode: memoryPressure > memoryPressureThreshold ? 'aggressive' : 'normal',
+            effectiveMaxAge: effectiveMaxAge / 1000 + 's',
+            effectiveMaxCalls
+          });
+        }
+
+        // Forzar garbage collection bajo alta presión de memoria
+        if (memoryPressure > 0.90 && global.gc) {
+          global.gc();
+          logger.warn('Forced garbage collection due to high memory pressure', {
+            category: 'EVENT_CLEANUP_FORCE_GC',
+            memoryPressure: (memoryPressure * 100).toFixed(2) + '%'
           });
         }
 
       } catch (error) {
         logger.error('Error en auto cleanup', {
+          category: 'EVENT_CLEANUP_AUTO_ERROR',
           error: error.message,
           stack: error.stack
         });
@@ -334,13 +369,50 @@ class EventCleanup {
       clearInterval(cleanupInterval);
     });
 
-    logger.info('Auto cleanup iniciado', {
-      interval,
-      maxAge,
-      maxCalls
+    logger.info('Auto cleanup iniciado (optimizado)', {
+      category: 'EVENT_CLEANUP_AUTO_START',
+      interval: interval / 1000 + 's',
+      maxAge: maxAge / 1000 + 's',
+      maxCalls,
+      memoryPressureThreshold: (memoryPressureThreshold * 100) + '%'
     });
 
     return cleanupInterval;
+  }
+
+  /**
+   * 🔍 IS EMITTER VALID
+   * Verifica si un emitter sigue siendo válido
+   */
+  isEmitterValid(emitter) {
+    try {
+      // Para Socket.IO sockets, verificar si están conectados
+      if (emitter.constructor.name === 'Socket' && emitter.connected !== undefined) {
+        return emitter.connected;
+      }
+      
+      // Para otros emitters, verificar si el objeto no ha sido destruido
+      if (emitter.destroyed !== undefined) {
+        return !emitter.destroyed;
+      }
+      
+      // Para emitters con readyState
+      if (emitter.readyState !== undefined) {
+        return emitter.readyState === 'open';
+      }
+      
+      // Por defecto, asumir que es válido
+      return true;
+      
+    } catch (error) {
+      // Si hay error accediendo al emitter, probablemente no es válido
+      logger.debug('Error verificando validez del emitter', {
+        category: 'EVENT_CLEANUP_EMITTER_CHECK',
+        emitterType: emitter.constructor.name,
+        error: error.message
+      });
+      return false;
+    }
   }
 
   /**
@@ -400,9 +472,18 @@ const eventCleanup = new EventCleanup();
 // Configurar cleanup automático en producción
 if (process.env.NODE_ENV === 'production') {
   eventCleanup.startAutoCleanup({
-    interval: 300000, // 5 minutos
-    maxAge: 3600000, // 1 hora
-    maxCalls: 1000
+    interval: 120000,   // 2 minutos (más frecuente)
+    maxAge: 1800000,    // 30 minutos (más agresivo)
+    maxCalls: 500,      // Límite más bajo
+    memoryPressureThreshold: 0.80 // 80% de memoria
+  });
+} else {
+  // En desarrollo usar parámetros menos agresivos
+  eventCleanup.startAutoCleanup({
+    interval: 300000,   // 5 minutos
+    maxAge: 3600000,    // 1 hora
+    maxCalls: 1000,     // Límite más alto
+    memoryPressureThreshold: 0.85 // 85% de memoria
   });
 }
 
