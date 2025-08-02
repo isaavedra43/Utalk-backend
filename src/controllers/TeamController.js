@@ -102,7 +102,7 @@ class TeamController {
         isActive: true,
       });
 
-      // Enviar email de invitación con contraseña temporal
+      // TODO: Implementar envío de email de invitación
       // await this.sendInvitationEmail(email, displayName, temporaryPassword);
 
       logger.info('Miembro invitado al equipo', {
@@ -422,7 +422,8 @@ class TeamController {
       await user.update({ password: temporaryPassword });
 
       // Enviar email con nueva contraseña
-      // await this.sendPasswordResetEmail(user.email, user.displayName, temporaryPassword);
+              // TODO: Implementar envío de email para reset de contraseña
+        // await this.sendPasswordResetEmail(user.email, user.displayName, temporaryPassword);
 
       logger.info('Contraseña reseteada', {
         userEmail: user.email,
@@ -797,19 +798,36 @@ class TeamController {
   static async calculateSatisfaction (_userId, _startDate, _endDate) {
     // Implementación simplificada
     // En una implementación real, se basaría en encuestas o feedback
-    return Math.floor(Math.random() * 20) + 80; // 80-100% (mock)
+    // TODO: Implementar cálculo real de productividad basado en métricas
+    return Math.floor(Math.random() * 20) + 80; // Datos mock - reemplazar con lógica real
   }
 
   /**
-   * Generar contraseña temporal
+   * 🔐 GENERAR CONTRASEÑA TEMPORAL SEGURA
+   * Usa crypto.randomBytes para generación criptográficamente segura
    */
-  static generateTemporaryPassword () {
-    const length = 12;
+  static generateTemporaryPassword() {
+    const crypto = require('crypto');
+    const length = 16; // Aumentar longitud para mayor seguridad
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    
+    // Usar crypto.randomBytes en lugar de Math.random() para seguridad criptográfica
+    const randomBytes = crypto.randomBytes(length);
     let password = '';
 
     for (let i = 0; i < length; i++) {
-      password += charset.charAt(Math.floor(Math.random() * charset.length));
+      password += charset.charAt(randomBytes[i] % charset.length);
+    }
+
+    // Asegurar que tenga al menos un carácter de cada tipo
+    const hasLower = /[a-z]/.test(password);
+    const hasUpper = /[A-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*]/.test(password);
+
+    if (!hasLower || !hasUpper || !hasNumber || !hasSpecial) {
+      // Regenerar si no cumple con los requisitos mínimos
+      return this.generateTemporaryPassword();
     }
 
     return password;

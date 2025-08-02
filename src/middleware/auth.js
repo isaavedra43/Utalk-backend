@@ -16,6 +16,7 @@ const authMiddleware = async (req, res, next) => {
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       logger.warn('Token de autorización faltante o con formato incorrecto', {
+        category: 'AUTH_MISSING_TOKEN',
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         url: req.originalUrl,
@@ -31,7 +32,10 @@ const authMiddleware = async (req, res, next) => {
     const token = authHeader.substring(7); // Remover "Bearer "
 
     if (!token) {
-      logger.warn('Token vacío detectado', { ip: req.ip });
+      logger.warn('Token vacío detectado', { 
+        category: 'AUTH_EMPTY_TOKEN',
+        ip: req.ip 
+      });
       return res.status(401).json({
         error: 'Token vacío',
         message: 'El token no puede estar vacío.',
@@ -43,7 +47,9 @@ const authMiddleware = async (req, res, next) => {
     const jwtConfig = getAccessTokenConfig();
     
     if (!jwtConfig.secret) {
-      logger.error('💥 JWT_SECRET no configurado en servidor');
+      logger.error('💥 JWT_SECRET no configurado en servidor', {
+        category: 'AUTH_CONFIG_ERROR'
+      });
       return res.status(500).json({
         error: 'Error de configuración del servidor',
         message: 'Servidor mal configurado.',
@@ -61,6 +67,7 @@ const authMiddleware = async (req, res, next) => {
       // ✅ VALIDACIÓN ADICIONAL DE CLAIMS CRÍTICOS
       if (!decodedToken.email) {
         logger.error('Token sin claim email requerido', {
+          category: 'AUTH_INVALID_CLAIMS',
           tokenPayload: decodedToken,
           ip: req.ip,
         });
@@ -73,6 +80,7 @@ const authMiddleware = async (req, res, next) => {
       
       if (!decodedToken.role) {
         logger.warn('Token sin claim role', {
+          category: 'AUTH_MISSING_ROLE',
           email: decodedToken.email,
           ip: req.ip,
         });
@@ -94,6 +102,7 @@ const authMiddleware = async (req, res, next) => {
       }
 
       logger.warn('JWT inválido', {
+        category: 'AUTH_JWT_ERROR',
         error: jwtError.message,
         name: jwtError.name,
         ip: req.ip,
@@ -112,6 +121,7 @@ const authMiddleware = async (req, res, next) => {
     
     if (!email) {
       logger.error('Token sin email', {
+        category: 'AUTH_NO_EMAIL',
         tokenPayload: decodedToken,
         ip: req.ip,
       });
@@ -126,6 +136,7 @@ const authMiddleware = async (req, res, next) => {
 
     if (!userFromDb) {
       logger.error('Usuario del token no encontrado en Firestore', {
+        category: 'AUTH_USER_NOT_FOUND',
         email,
         ip: req.ip,
       });
@@ -139,6 +150,7 @@ const authMiddleware = async (req, res, next) => {
     // VERIFICACIÓN DE ESTADO: Asegurarse que el usuario esté activo
     if (!userFromDb.isActive) {
       logger.warn('Intento de acceso de usuario inactivo', {
+        category: 'AUTH_USER_INACTIVE',
         email: userFromDb.email,
         name: userFromDb.name,
         ip: req.ip,
@@ -153,7 +165,8 @@ const authMiddleware = async (req, res, next) => {
     // Adjuntar la instancia completa del usuario de Firestore a la petición
     req.user = userFromDb;
 
-    logger.info('Usuario autenticado correctamente', {
+    logger.debug('Usuario autenticado correctamente', {
+      category: 'AUTH_SUCCESS',
       email: req.user.email,
       name: req.user.name,
       role: req.user.role,
@@ -164,6 +177,7 @@ const authMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     logger.error('💥 Error inesperado en middleware de autenticación', {
+      category: 'AUTH_SYSTEM_ERROR',
       error: error.message,
       stack: error.stack,
       ip: req.ip,
@@ -179,134 +193,98 @@ const authMiddleware = async (req, res, next) => {
 };
 
 /**
- * Middleware para requerir rol específico
+ * 🛡️ MIDDLEWARE UNIFICADO PARA ROLES
+ * Middleware estándar para requerir roles específicos
+ * Acepta tanto string como array de roles
  */
-const requireRole = (role) => {
+const requireRole = (allowedRoles) => {
+  // Normalizar a array
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  
   return (req, res, next) => {
     if (!req.user) {
+      logger.warn('Intento de acceso sin autenticación', {
+        category: 'ROLE_NOT_AUTHENTICATED',
+        ip: req.ip,
+        url: req.originalUrl
+      });
       return res.status(401).json({
         error: 'Usuario no autenticado',
+        message: 'Se requiere autenticación para acceder a este recurso',
         code: 'NOT_AUTHENTICATED',
       });
     }
 
-    if (!req.user.hasRole(role)) {
+    // Verificar si el usuario tiene al menos uno de los roles permitidos
+    const userRole = req.user.role;
+    const hasRequiredRole = roles.includes(userRole);
+
+    if (!hasRequiredRole) {
       logger.warn('🚫 Acceso denegado por rol insuficiente', {
+        category: 'ROLE_ACCESS_DENIED',
         email: req.user.email,
-        requiredRole: role,
-        userRole: req.user.role,
+        userRole: userRole,
+        requiredRoles: roles,
         ip: req.ip,
+        url: req.originalUrl
       });
 
       return res.status(403).json({
         error: 'Permisos insuficientes',
-        message: `Se requiere rol: ${role}`,
+        message: `Se requiere uno de los siguientes roles: ${roles.join(', ')}`,
         code: 'INSUFFICIENT_ROLE',
       });
     }
+
+    logger.debug('Acceso autorizado por rol', {
+      category: 'ROLE_ACCESS_GRANTED',
+      email: req.user.email,
+      userRole: userRole,
+      requiredRoles: roles,
+      url: req.originalUrl
+    });
 
     next();
   };
 };
 
 /**
- * Middleware para requerir ser administrador
+ * 🔒 MIDDLEWARES ESPECÍFICOS ESTANDARIZADOS
+ * Todos basados en requireRole para consistencia
  */
-const requireAdmin = requireRole('admin');
 
-/**
- * Middleware para requerir ser administrador o superadmin
- */
-const requireAgentOrAdmin = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'Usuario no autenticado',
-      code: 'NOT_AUTHENTICATED',
-    });
-  }
+// Solo administradores
+const requireAdmin = requireRole(['admin']);
 
-  const allowedRoles = ['admin', 'superadmin', 'agent'];
-  if (!allowedRoles.includes(req.user.role)) {
-    logger.warn('🚫 Acceso denegado: Se requiere rol de agente o admin', {
-      email: req.user.email,
-      userRole: req.user.role,
-      allowedRoles,
-      ip: req.ip,
-    });
+// Administradores y superadmins
+const requireAdminOrSuperAdmin = requireRole(['admin', 'superadmin']);
 
-    return res.status(403).json({
-      error: 'Permisos insuficientes',
-      message: 'Se requiere ser agente o administrador',
-      code: 'INSUFFICIENT_ROLE',
-    });
-  }
+// Cualquier rol con permisos de escritura
+const requireWriteAccess = requireRole(['admin', 'superadmin', 'agent']);
 
-  next();
-};
-
-/**
- * Middleware para requerir acceso de lectura
- */
+// Cualquier rol con permisos de lectura (todos los usuarios activos)
 const requireReadAccess = (req, res, next) => {
   if (!req.user) {
+    logger.warn('Intento de lectura sin autenticación', {
+      category: 'READ_NOT_AUTHENTICATED',
+      ip: req.ip,
+      url: req.originalUrl
+    });
     return res.status(401).json({
       error: 'Usuario no autenticado',
+      message: 'Se requiere autenticación para leer este recurso',
       code: 'NOT_AUTHENTICATED',
     });
   }
 
-  // Todos los usuarios activos tienen acceso de lectura básico
+  // Todos los usuarios autenticados tienen acceso de lectura básico
   // Los permisos específicos se validan en los controladores
   next();
 };
 
 /**
- * Middleware para requerir acceso de escritura
- */
-const requireWriteAccess = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'Usuario no autenticado',
-      code: 'NOT_AUTHENTICATED',
-    });
-  }
-
-  const writeRoles = ['admin', 'superadmin', 'agent'];
-  if (!writeRoles.includes(req.user.role)) {
-    logger.warn('🚫 Acceso de escritura denegado', {
-      email: req.user.email,
-      userRole: req.user.role,
-      writeRoles,
-      ip: req.ip,
-    });
-
-    return res.status(403).json({
-      error: 'Permisos de escritura insuficientes',
-      message: 'No tienes permisos para realizar esta acción',
-      code: 'INSUFFICIENT_WRITE_ACCESS',
-    });
-  }
-
-  next();
-};
-
-/**
- * Middleware para requerir nivel viewer o superior
- */
-const requireViewerOrHigher = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'Usuario no autenticado',
-      code: 'NOT_AUTHENTICATED',
-    });
-  }
-
-  // Todos los usuarios activos tienen al menos nivel viewer
-  next();
-};
-
-/**
- * Middleware para requerir permiso específico
+ * 🧩 MIDDLEWARE PARA PERMISOS ESPECÍFICOS
+ * Para casos donde se necesitan permisos granulares
  */
 const requirePermission = (permission) => {
   return (req, res, next) => {
@@ -317,13 +295,15 @@ const requirePermission = (permission) => {
       });
     }
 
-    if (!req.user.hasPermission(permission)) {
+    if (!req.user.hasPermission || !req.user.hasPermission(permission)) {
       logger.warn('🚫 Acceso denegado por permiso insuficiente', {
+        category: 'PERMISSION_ACCESS_DENIED',
         email: req.user.email,
         requiredPermission: permission,
-        userPermissions: req.user.permissions,
+        userPermissions: req.user.permissions || [],
         userRole: req.user.role,
         ip: req.ip,
+        url: req.originalUrl
       });
 
       return res.status(403).json({
@@ -337,13 +317,62 @@ const requirePermission = (permission) => {
   };
 };
 
+/**
+ * 🎯 MIDDLEWARE PARA VALIDAR PROPIETARIO O ADMIN
+ * Permite acceso si el usuario es propietario del recurso o admin
+ */
+const requireOwnerOrAdmin = (resourceIdParam = 'id', userIdField = 'userId') => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Usuario no autenticado',
+        code: 'NOT_AUTHENTICATED',
+      });
+    }
+
+    const resourceId = req.params[resourceIdParam];
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Admins tienen acceso completo
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      return next();
+    }
+
+    // Para otros usuarios, verificar ownership
+    // Esta verificación se puede extender según el modelo de datos
+    if (req.body && req.body[userIdField] && req.body[userIdField] !== userId) {
+      logger.warn('🚫 Acceso denegado: no es propietario del recurso', {
+        category: 'OWNERSHIP_ACCESS_DENIED',
+        email: req.user.email,
+        userId: userId,
+        resourceId: resourceId,
+        ip: req.ip,
+        url: req.originalUrl
+      });
+
+      return res.status(403).json({
+        error: 'Acceso denegado',
+        message: 'Solo puedes acceder a tus propios recursos',
+        code: 'NOT_OWNER',
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   authMiddleware,
   requireRole,
   requireAdmin,
-  requireAgentOrAdmin,
-  requireReadAccess,
+  requireAdminOrSuperAdmin,
   requireWriteAccess,
-  requireViewerOrHigher,
+  requireReadAccess,
   requirePermission,
+  requireOwnerOrAdmin,
+  
+  // Deprecated - mantener para compatibilidad temporal
+  requireAgentOrAdmin: requireRole(['admin', 'superadmin', 'agent']), // TODO: Migrar a requireWriteAccess
+  requireViewerOrHigher: requireReadAccess // TODO: Migrar a requireReadAccess
 };
