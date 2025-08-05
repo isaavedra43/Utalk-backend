@@ -58,6 +58,18 @@ class ConsolidatedServer {
     this.healthService = null;
     this.isShuttingDown = false;
     
+    // 🚨 RUTA DE EMERGENCIA PARA DIAGNÓSTICO - AGREGAR AL INICIO
+    this.app.get('/emergency-test', (req, res) => {
+      console.log('🚨 EMERGENCIA: Petición recibida en /emergency-test desde:', req.ip);
+      res.status(200).json({
+        status: 'EMERGENCY_ROUTE_WORKING',
+        timestamp: new Date().toISOString(),
+        message: 'El servidor Express SÍ está recibiendo peticiones',
+        ip: req.ip,
+        headers: req.headers
+      });
+    });
+
     // ✅ CRÍTICO: Railway debe inyectar PORT - Debugging intensivo
     console.log('🔍 DEBUG PORT - process.env.PORT:', process.env.PORT);
     console.log('🔍 DEBUG PORT - typeof:', typeof process.env.PORT);
@@ -503,275 +515,383 @@ class ConsolidatedServer {
       category: 'ROUTES_SETUP'
     });
 
-    // ✅ TIP 1: Endpoint de diagnósticos de servicios
-    this.app.get('/diagnostics', (req, res) => {
-      const healthService = getHealthCheckService();
-      const diagnostics = {
-        server: 'running',
-        timestamp: new Date().toISOString(),
-        services: {
-          memoryManager: !!memoryManager,
-          healthService: !!this.healthService,
-          rateLimiting: 'disabled',
-          socketManager: !!this.socketManager
-        },
-        environment: process.env.NODE_ENV || 'development',
-        port: this.PORT,
-        uptime: process.uptime(),
-        healthStatus: healthService.getHealthStatus() // Estado detallado
-      };
-      res.json(diagnostics);
-    });
-
-    // ✅ TIP 1: Endpoint para verificar variables de entorno (seguro)
-    this.app.get('/env-check', (req, res) => {
-      const envStatus = {
-        PORT: !!process.env.PORT,
-        NODE_ENV: process.env.NODE_ENV || 'not_set',
-        JWT_SECRET: !!process.env.JWT_SECRET,
-        CORS_ORIGINS: !!process.env.CORS_ORIGINS,
-        // Variables obsoletas
-        deprecated: {
-          REDIS_URL: !!process.env.REDIS_URL,
-          REDISCLOUD_URL: !!process.env.REDISCLOUD_URL
-        }
-      };
-      res.json(envStatus);
-    });
-
-    // HEALTH CHECK MEJORADO - Para liveness/readiness probes
-    this.app.get('/health', (req, res) => {
-      const healthService = getHealthCheckService();
-      const health = healthService.getSimpleHealthCheck();
-      
-      // Log para Railway diagnostics
-      console.log(`🏥 Health check solicitado desde: ${req.ip} - Status: ${health.status}`);
-      
-      res.status(health.statusCode).json(health);
-    });
-
-    // ✅ TIP 1: Endpoint específico para verificar conectividad desde Vercel
-    this.app.get('/ping', (req, res) => {
-      console.log('🏓 Ping recibido desde:', req.ip, req.headers.origin);
-      res.status(200).json({
-        pong: true,
-        timestamp: new Date().toISOString(),
-        from: req.ip,
-        origin: req.headers.origin
+    try {
+      // ✅ TIP 1: Endpoint de diagnósticos de servicios
+      this.app.get('/diagnostics', (req, res) => {
+        const healthService = getHealthCheckService();
+        const diagnostics = {
+          server: 'running',
+          timestamp: new Date().toISOString(),
+          services: {
+            memoryManager: !!memoryManager,
+            healthService: !!this.healthService,
+            rateLimiting: 'disabled',
+            socketManager: !!this.socketManager
+          },
+          environment: process.env.NODE_ENV || 'development',
+          port: this.PORT,
+          uptime: process.uptime(),
+          healthStatus: healthService.getHealthStatus() // Estado detallado
+        };
+        res.json(diagnostics);
       });
-    });
+      console.log('✅ /diagnostics configurado');
 
-    // Health check detallado enterprise
-    this.app.get('/health/detailed', async (req, res) => {
-      try {
-        logger.info('🔍 Iniciando health check detallado enterprise', {
-          category: 'HEALTH_CHECK_DETAILED',
-          requestId: req.requestId
+      // ✅ TIP 1: Endpoint para verificar variables de entorno (seguro)
+      this.app.get('/env-check', (req, res) => {
+        const envStatus = {
+          PORT: !!process.env.PORT,
+          NODE_ENV: process.env.NODE_ENV || 'not_set',
+          JWT_SECRET: !!process.env.JWT_SECRET,
+          CORS_ORIGINS: !!process.env.CORS_ORIGINS,
+          // Variables obsoletas
+          deprecated: {
+            REDIS_URL: !!process.env.REDIS_URL,
+            REDISCLOUD_URL: !!process.env.REDISCLOUD_URL
+          }
+        };
+        res.json(envStatus);
+      });
+      console.log('✅ /env-check configurado');
+
+      // HEALTH CHECK MEJORADO - Para liveness/readiness probes
+      this.app.get('/health', (req, res) => {
+        const healthService = getHealthCheckService();
+        const health = healthService.getSimpleHealthCheck();
+        
+        // Log para Railway diagnostics
+        console.log(`🏥 Health check solicitado desde: ${req.ip} - Status: ${health.status}`);
+        
+        res.status(health.statusCode).json(health);
+      });
+      console.log('✅ /health configurado');
+
+      // ✅ TIP 1: Endpoint específico para verificar conectividad desde Vercel
+      this.app.get('/ping', (req, res) => {
+        console.log('🏓 Ping recibido desde:', req.ip, req.headers.origin);
+        res.status(200).json({
+          pong: true,
+          timestamp: new Date().toISOString(),
+          from: req.ip,
+          origin: req.headers.origin
         });
+      });
+      console.log('✅ /ping configurado');
 
-        if (this.healthService) {
-          const healthData = await this.healthService.performFullHealthCheck();
-          res.json(healthData);
-        } else {
-          // Fallback si health service no está disponible
-          const { firestore } = require('./config/firebase');
-          let firestoreStatus = 'unknown';
-          try {
-            await firestore.collection('_health_check').limit(1).get();
-            firestoreStatus = 'connected';
-          } catch (error) {
-            firestoreStatus = 'disconnected';
+      // Health check detallado enterprise
+      this.app.get('/health/detailed', async (req, res) => {
+        try {
+          logger.info('🔍 Iniciando health check detallado enterprise', {
+            category: 'HEALTH_CHECK_DETAILED',
+            requestId: req.requestId
+          });
+
+          if (this.healthService) {
+            const healthData = await this.healthService.performFullHealthCheck();
+            res.json(healthData);
+          } else {
+            // Fallback si health service no está disponible
+            const { firestore } = require('./config/firebase');
+            let firestoreStatus = 'unknown';
+            try {
+              await firestore.collection('_health_check').limit(1).get();
+              firestoreStatus = 'connected';
+            } catch (error) {
+              firestoreStatus = 'disconnected';
+            }
+
+            const os = require('os');
+            const healthData = {
+              status: 'healthy',
+              timestamp: new Date().toISOString(),
+              services: {
+                firestore: firestoreStatus,
+                memory: 'healthy',
+                process: 'healthy'
+              },
+              system: {
+                platform: os.platform(),
+                arch: os.arch(),
+                nodeVersion: process.version,
+                pid: process.pid,
+                memoryUsage: process.memoryUsage(),
+                cpuUsage: process.cpuUsage(),
+                loadAverage: os.loadavg(),
+                uptime: os.uptime()
+              },
+              environment: {
+                NODE_ENV: process.env.NODE_ENV,
+                PORT: process.env.PORT,
+                FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+                TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not_configured',
+                REDIS_URL: process.env.REDIS_URL ? 'configured' : 'not_configured'
+              }
+            };
+
+            res.json(healthData);
           }
 
-          const os = require('os');
-          const healthData = {
-            status: 'healthy',
+        } catch (error) {
+          logger.error('Error en health check detallado', {
+            category: 'HEALTH_CHECK_DETAILED_ERROR',
+            error: error.message,
+            requestId: req.requestId
+          });
+
+          res.status(503).json({
+            status: 'error',
+            error: error.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+      console.log('✅ /health/detailed configurado');
+
+      // Readiness probe para Kubernetes
+      this.app.get('/ready', (req, res) => {
+        const isReady = this.socketManager && memoryManager && rateLimitManager.isInitialized;
+        
+        if (isReady) {
+          res.status(200).json({ 
+            status: 'ready',
             timestamp: new Date().toISOString(),
             services: {
-              firestore: firestoreStatus,
-              memory: 'healthy',
-              process: 'healthy'
-            },
-            system: {
-              platform: os.platform(),
-              arch: os.arch(),
-              nodeVersion: process.version,
-              pid: process.pid,
-              memoryUsage: process.memoryUsage(),
-              cpuUsage: process.cpuUsage(),
-              loadAverage: os.loadavg(),
-              uptime: os.uptime()
-            },
-            environment: {
-              NODE_ENV: process.env.NODE_ENV,
-              PORT: process.env.PORT,
-              FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-              TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not_configured',
-              REDIS_URL: process.env.REDIS_URL ? 'configured' : 'not_configured'
+              socketManager: !!this.socketManager,
+              memoryManager: !!memoryManager,
+              rateLimiting: rateLimitManager.isInitialized,
+              healthService: !!this.healthService
             }
+          });
+        } else {
+          res.status(503).json({ 
+            status: 'not_ready',
+            timestamp: new Date().toISOString(),
+            services: {
+              socketManager: !!this.socketManager,
+              memoryManager: !!memoryManager,
+              rateLimiting: rateLimitManager.isInitialized,
+              healthService: !!this.healthService
+            }
+          });
+        }
+      });
+      console.log('✅ /ready configurado');
+
+      // Liveness probe para Kubernetes
+      this.app.get('/live', (req, res) => {
+        res.status(200).json({ 
+          status: 'alive',
+          timestamp: new Date().toISOString(),
+          uptime: process.uptime()
+        });
+      });
+      console.log('✅ /live configurado');
+
+      // Métricas endpoint enterprise (protegido)
+      this.app.get('/api/internal/metrics', authMiddleware, async (req, res) => {
+        try {
+          const metrics = {
+            server: {
+              uptime: process.uptime(),
+              memory: process.memoryUsage(),
+              pid: process.pid,
+              loadAverage: require('os').loadavg(),
+              platform: process.platform,
+              nodeVersion: process.version
+            },
+            memoryManager: memoryManager ? memoryManager.getStats() : null,
+            socket: this.socketManager ? this.socketManager.getDetailedStats() : null,
+            rateLimiting: await rateLimitManager.getStats(),
+            healthService: this.healthService ? this.healthService.getDetailedMetrics() : null,
+            logging: logger.getStats(),
+            timestamp: new Date().toISOString()
           };
 
-          res.json(healthData);
+          res.json({
+            success: true,
+            data: metrics,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          logger.error('Error obteniendo métricas internas', {
+            category: 'METRICS_ERROR',
+            error: error.message,
+            stack: error.stack,
+            requestId: req.requestId
+          });
+          
+          res.status(500).json({
+            success: false,
+            error: {
+              type: 'METRICS_ERROR',
+              message: 'Error obteniendo métricas del sistema',
+              timestamp: new Date().toISOString()
+            }
+          });
         }
-
-      } catch (error) {
-        logger.error('Error en health check detallado', {
-          category: 'HEALTH_CHECK_DETAILED_ERROR',
-          error: error.message,
-          requestId: req.requestId
-        });
-
-        res.status(503).json({
-          status: 'error',
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-
-    // Readiness probe para Kubernetes
-    this.app.get('/ready', (req, res) => {
-      const isReady = this.socketManager && memoryManager && rateLimitManager.isInitialized;
-      
-      if (isReady) {
-        res.status(200).json({ 
-          status: 'ready',
-          timestamp: new Date().toISOString(),
-          services: {
-            socketManager: !!this.socketManager,
-            memoryManager: !!memoryManager,
-            rateLimiting: rateLimitManager.isInitialized,
-            healthService: !!this.healthService
-          }
-        });
-      } else {
-        res.status(503).json({ 
-          status: 'not_ready',
-          timestamp: new Date().toISOString(),
-          services: {
-            socketManager: !!this.socketManager,
-            memoryManager: !!memoryManager,
-            rateLimiting: rateLimitManager.isInitialized,
-            healthService: !!this.healthService
-          }
-        });
-      }
-    });
-
-    // Liveness probe para Kubernetes
-    this.app.get('/live', (req, res) => {
-      res.status(200).json({ 
-        status: 'alive',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
       });
-    });
+      console.log('✅ /api/internal/metrics configurado');
 
-    // Métricas endpoint enterprise (protegido)
-    this.app.get('/api/internal/metrics', authMiddleware, async (req, res) => {
-      try {
-        const metrics = {
-          server: {
-            uptime: process.uptime(),
-            memory: process.memoryUsage(),
-            pid: process.pid,
-            loadAverage: require('os').loadavg(),
-            platform: process.platform,
-            nodeVersion: process.version
-          },
-          memoryManager: memoryManager ? memoryManager.getStats() : null,
-          socket: this.socketManager ? this.socketManager.getDetailedStats() : null,
-          rateLimiting: await rateLimitManager.getStats(),
-          healthService: this.healthService ? this.healthService.getDetailedMetrics() : null,
-          logging: logger.getStats(),
-          timestamp: new Date().toISOString()
-        };
-
+      // ✅ TIP 2: Endpoint root informativo
+      this.app.get('/', (req, res) => {
+        console.log('📋 Root endpoint solicitado desde:', req.ip);
         res.json({
-          success: true,
-          data: metrics,
-          timestamp: new Date().toISOString()
+          service: 'UTalk Backend API',
+          status: 'running',
+          timestamp: new Date().toISOString(),
+          version: '1.0.0',
+          environment: process.env.NODE_ENV || 'development',
+          endpoints: {
+            health: '/health',
+            ping: '/ping',
+            diagnostics: '/diagnostics',
+            api: '/api/*'
+          }
         });
+      });
+      console.log('✅ / (root) configurado');
+
+      // 🚨 INTENTAR CONFIGURAR RUTAS PRINCIPALES CON MANEJO DE ERRORES
+      console.log('🔧 Configurando rutas principales de la API...');
+
+      try {
+        console.log('📝 Intentando configurar /api/auth...');
+        this.app.use('/api/auth', authRoutes);
+        console.log('✅ /api/auth configurado exitosamente');
       } catch (error) {
-        logger.error('Error obteniendo métricas internas', {
-          category: 'METRICS_ERROR',
-          error: error.message,
-          stack: error.stack,
+        console.error('❌ Error configurando /api/auth:', error.message);
+      }
+
+      try {
+        console.log('👥 Intentando configurar /api/contacts...');
+        this.app.use('/api/contacts', contactRoutes);
+        console.log('✅ /api/contacts configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/contacts:', error.message);
+      }
+
+      try {
+        console.log('💬 Intentando configurar /api/conversations...');
+        this.app.use('/api/conversations', conversationRoutes);
+        console.log('✅ /api/conversations configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/conversations:', error.message);
+      }
+
+      try {
+        console.log('📩 Intentando configurar /api/messages...');
+        this.app.use('/api/messages', messageRoutes);
+        console.log('✅ /api/messages configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/messages:', error.message);
+      }
+
+      try {
+        console.log('🎯 Intentando configurar /api/campaigns...');
+        this.app.use('/api/campaigns', campaignRoutes);
+        console.log('✅ /api/campaigns configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/campaigns:', error.message);
+      }
+
+      try {
+        console.log('👥 Intentando configurar /api/team...');
+        this.app.use('/api/team', teamRoutes);
+        console.log('✅ /api/team configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/team:', error.message);
+      }
+
+      try {
+        console.log('🧠 Intentando configurar /api/knowledge...');
+        this.app.use('/api/knowledge', knowledgeRoutes);
+        console.log('✅ /api/knowledge configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/knowledge:', error.message);
+      }
+
+      try {
+        console.log('📁 Intentando configurar /api/media...');
+        this.app.use('/api/media', mediaRoutes);
+        console.log('✅ /api/media configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/media:', error.message);
+      }
+
+      try {
+        console.log('📊 Intentando configurar /api/dashboard...');
+        this.app.use('/api/dashboard', dashboardRoutes);
+        console.log('✅ /api/dashboard configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/dashboard:', error.message);
+      }
+
+      try {
+        console.log('📞 Intentando configurar /api/twilio...');
+        this.app.use('/api/twilio', twilioRoutes);
+        console.log('✅ /api/twilio configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/twilio:', error.message);
+      }
+
+      // Ruta catch-all para 404
+      this.app.use('*', (req, res) => {
+        console.log('🚫 Ruta no encontrada:', req.method, req.originalUrl, 'desde IP:', req.ip);
+        
+        logger.warn('Ruta no encontrada', {
+          category: 'ROUTE_NOT_FOUND',
+          method: req.method,
+          url: req.originalUrl,
+          ip: req.ip,
+          userAgent: req.headers['user-agent']?.substring(0, 100),
           requestId: req.requestId
         });
-        
-        res.status(500).json({
+
+        res.status(404).json({
           success: false,
           error: {
-            type: 'METRICS_ERROR',
-            message: 'Error obteniendo métricas del sistema',
+            type: 'NOT_FOUND_ERROR',
+            code: 'ROUTE_NOT_FOUND',
+            message: 'Ruta no encontrada',
+            details: {
+              method: req.method,
+              path: req.originalUrl
+            },
             timestamp: new Date().toISOString()
-          }
-        });
-      }
-    });
-
-    // ✅ TIP 2: Endpoint root informativo
-    this.app.get('/', (req, res) => {
-      console.log('📋 Root endpoint solicitado desde:', req.ip);
-      res.json({
-        service: 'UTalk Backend API',
-        status: 'running',
-        timestamp: new Date().toISOString(),
-        version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
-        endpoints: {
-          health: '/health',
-          ping: '/ping',
-          diagnostics: '/diagnostics',
-          api: '/api/*'
-        }
-      });
-    });
-
-    // Rutas principales de la aplicación
-    this.app.use('/api/auth', authRoutes);
-    this.app.use('/api/contacts', contactRoutes);
-    this.app.use('/api/conversations', conversationRoutes);
-    this.app.use('/api/messages', messageRoutes);
-    this.app.use('/api/campaigns', campaignRoutes);
-    this.app.use('/api/team', teamRoutes);
-    this.app.use('/api/knowledge', knowledgeRoutes);
-    this.app.use('/api/media', mediaRoutes);
-    this.app.use('/api/dashboard', dashboardRoutes);
-    this.app.use('/api/twilio', twilioRoutes);
-
-    // Ruta catch-all para 404
-    this.app.use('*', (req, res) => {
-      logger.warn('Ruta no encontrada', {
-        category: 'ROUTE_NOT_FOUND',
-        method: req.method,
-        url: req.originalUrl,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']?.substring(0, 100),
-        requestId: req.requestId
-      });
-
-      res.status(404).json({
-        success: false,
-        error: {
-          type: 'NOT_FOUND_ERROR',
-          code: 'ROUTE_NOT_FOUND',
-          message: 'Ruta no encontrada',
-          details: {
-            method: req.method,
-            path: req.originalUrl
           },
-          timestamp: new Date().toISOString()
-        },
-        requestId: req.requestId
+          requestId: req.requestId
+        });
       });
-    });
+      console.log('✅ Catch-all 404 configurado');
 
-    logger.info('✅ Rutas configuradas exitosamente', {
-      category: 'ROUTES_SUCCESS',
-      totalRoutes: this.app._router ? this.app._router.stack.length : 'unknown'
-    });
+      // ✅ CONTAR RUTAS REGISTRADAS
+      const routeCount = this.app._router ? this.app._router.stack.length : 0;
+      console.log(`📊 TOTAL RUTAS REGISTRADAS: ${routeCount}`);
+
+      logger.info('✅ Rutas configuradas exitosamente', {
+        category: 'ROUTES_SUCCESS',
+        totalRoutes: routeCount
+      });
+
+    } catch (error) {
+      console.error('💥 ERROR CRÍTICO en setupRoutes:', error.message);
+      logger.error('ERROR CRÍTICO configurando rutas', {
+        category: 'ROUTES_ERROR_CRITICAL',
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // En lugar de lanzar el error, configurar rutas mínimas de emergencia
+      this.app.get('/emergency', (req, res) => {
+        res.status(200).json({ 
+          status: 'emergency_mode', 
+          error: 'Route configuration failed',
+          timestamp: new Date().toISOString()
+        });
+      });
+      
+      throw error; // Re-lanzar para que se maneje a nivel superior
+    }
   }
 
   /**
