@@ -58,12 +58,28 @@ class ConsolidatedServer {
     this.healthService = null;
     this.isShuttingDown = false;
     
-    // ✅ TIP 1: Validar PORT de Railway explícitamente
+    // ✅ CRÍTICO: Railway debe inyectar PORT - Debugging intensivo
+    console.log('🔍 DEBUG PORT - process.env.PORT:', process.env.PORT);
+    console.log('🔍 DEBUG PORT - typeof:', typeof process.env.PORT);
+    
+    // Buscar puertos alternativos que Railway pueda usar
+    const railwayPorts = Object.keys(process.env)
+      .filter(key => key.toLowerCase().includes('port'))
+      .reduce((acc, key) => {
+        acc[key] = process.env[key];
+        return acc;
+      }, {});
+    console.log('🔍 DEBUG - Todas las variables PORT:', railwayPorts);
+    
+    // Usar PORT de Railway o fallback a 3001
     this.PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
     
-    // ⚠️ Advertencia si no hay PORT de Railway
+    // ⚠️ CRÍTICO: Log si Railway no inyecta PORT
     if (!process.env.PORT) {
-      console.warn('⚠️ PORT no configurado por Railway, usando 3001 por defecto');
+      console.error('🚨 CRÍTICO: Railway NO está inyectando process.env.PORT');
+      console.log('📋 Variables de entorno disponibles:', Object.keys(process.env).filter(k => k.includes('PORT') || k.includes('RAILWAY')));
+    } else {
+      console.log('✅ Railway PORT detectado:', process.env.PORT);
     }
     this.startTime = Date.now();
     
