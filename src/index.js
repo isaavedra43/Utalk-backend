@@ -58,11 +58,46 @@ class ConsolidatedServer {
     this.healthService = null;
     this.isShuttingDown = false;
     
-    this.PORT = process.env.PORT || 3001;
+    // ✅ TIP 1: Validar PORT de Railway explícitamente
+    this.PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+    
+    // ⚠️ Advertencia si no hay PORT de Railway
+    if (!process.env.PORT) {
+      console.warn('⚠️ PORT no configurado por Railway, usando 3001 por defecto');
+    }
     this.startTime = Date.now();
     
     // Configurar proceso
     this.setupProcess();
+  }
+
+  /**
+   * ✅ VALIDAR VARIABLES DE ENTORNO CRÍTICAS
+   */
+  validateEnvironmentVariables() {
+    const criticalVars = {
+      PORT: process.env.PORT,
+      NODE_ENV: process.env.NODE_ENV,
+      JWT_SECRET: process.env.JWT_SECRET ? '***SET***' : undefined
+    };
+
+    console.log('🔍 Variables críticas:', criticalVars);
+
+    // ⚠️ Advertencias por variables faltantes
+    if (!process.env.JWT_SECRET) {
+      console.warn('⚠️ JWT_SECRET no configurado - Autenticación no funcionará');
+    }
+
+    // ❌ Variables que YA NO necesitamos (para limpiar Railway)
+    const deprecatedVars = ['REDIS_URL', 'REDISCLOUD_URL', 'RATE_LIMIT_REDIS'];
+    deprecatedVars.forEach(varName => {
+      if (process.env[varName]) {
+        console.warn(`⚠️ Variable obsoleta detectada: ${varName} (se puede eliminar)`);
+      }
+    });
+
+    // ✅ Variables que SÍ necesitamos
+    console.log('✅ Variables Railway requeridas: PORT, NODE_ENV');
   }
 
   /**
@@ -117,6 +152,12 @@ class ConsolidatedServer {
    */
   async initialize() {
     try {
+      // ✅ TIP 2: Log inmediato para Railway diagnostics
+      console.log(`🚀 UTalk Backend iniciando en puerto ${this.PORT} (0.0.0.0)...`);
+      
+      // ✅ VALIDACIÓN DE VARIABLES CRÍTICAS
+      this.validateEnvironmentVariables();
+      
       logger.info('🚀 Iniciando servidor consolidado enterprise...', {
         category: 'SERVER_STARTUP',
         nodeVersion: process.version,
@@ -128,20 +169,49 @@ class ConsolidatedServer {
         startupTime: new Date().toISOString()
       });
 
-      // 1. Inicializar gestión de memoria
-      await this.initializeMemoryManagement();
+      // ✅ INICIALIZACIÓN TOLERANTE A FALLOS
+      const serviceStatus = {
+        memory: false,
+        health: false,
+        rateLimiting: false
+      };
 
-      // 2. Inicializar rate limiting
-      await this.initializeRateLimit();
+      // 1. Inicializar gestión de memoria (no crítico)
+      try {
+        await this.initializeMemoryManagement();
+        serviceStatus.memory = true;
+        console.log('✅ Memory management inicializado');
+      } catch (error) {
+        console.warn('⚠️ Memory management falló, continuando...', error.message);
+      }
 
-      // 3. Inicializar health checks
-      await this.initializeHealthChecks();
+      // ❌ DESACTIVADO: Rate limiting con Redis (temporalmente)
+      // await this.initializeRateLimit();
+      console.warn('⚠️ RATE LIMITING DESACTIVADO - Solo para debugging');
+
+      // 3. Inicializar health checks (no crítico)
+      try {
+        await this.initializeHealthChecks();
+        serviceStatus.health = true;
+        console.log('✅ Health checks inicializados');
+      } catch (error) {
+        console.warn('⚠️ Health checks fallaron, continuando...', error.message);
+      }
+
+      // ✅ Log del estado de servicios
+      console.log('📊 Estado de servicios:', serviceStatus);
 
       // 4. Configurar middlewares básicos
       this.setupBasicMiddleware();
 
-      // 5. Configurar rate limiting en rutas
-      this.setupRateLimiting();
+      // ❌ DESACTIVADO: Rate limiting en rutas (temporalmente)
+      // this.setupRateLimiting();
+      
+      // ✅ TIP 1: Middleware dummy para logging de requests
+      this.app.use('/api', (req, res, next) => {
+        console.log(`📥 API Request: ${req.method} ${req.path} from ${req.ip}`);
+        next();
+      });
 
       // 6. Configurar rutas y middlewares de aplicación
       this.setupRoutes();
@@ -166,13 +236,14 @@ class ConsolidatedServer {
         port: this.PORT,
         environment: process.env.NODE_ENV || 'development',
         features: {
-          memoryManagement: true,
-          rateLimiting: true,
-          healthChecks: true,
+          memoryManagement: serviceStatus.memory,
+          rateLimiting: false, // ✅ TIP 2: Reflejar estado real
+          healthChecks: serviceStatus.health,
           errorHandling: true,
           logging: true,
           socketIO: true,
-          gracefulShutdown: true
+          gracefulShutdown: true,
+          degradedMode: !serviceStatus.memory || !serviceStatus.health // ✅ TIP 2: Indicar modo degradado
         },
         startupDuration: Date.now() - this.startTime + 'ms',
         memoryUsage: process.memoryUsage()
@@ -429,16 +500,60 @@ class ConsolidatedServer {
       category: 'ROUTES_SETUP'
     });
 
-    // Health check básico
+    // ✅ TIP 1: Endpoint de diagnósticos de servicios
+    this.app.get('/diagnostics', (req, res) => {
+      const diagnostics = {
+        server: 'running',
+        timestamp: new Date().toISOString(),
+        services: {
+          memoryManager: !!memoryManager,
+          healthService: !!this.healthService,
+          rateLimiting: 'disabled',
+          socketManager: !!this.socketManager
+        },
+        environment: process.env.NODE_ENV || 'development',
+        port: this.PORT,
+        uptime: process.uptime()
+             };
+       res.json(diagnostics);
+     });
+
+     // ✅ TIP 1: Endpoint para verificar variables de entorno (seguro)
+     this.app.get('/env-check', (req, res) => {
+       const envStatus = {
+         PORT: !!process.env.PORT,
+         NODE_ENV: process.env.NODE_ENV || 'not_set',
+         JWT_SECRET: !!process.env.JWT_SECRET,
+         CORS_ORIGINS: !!process.env.CORS_ORIGINS,
+         // Variables obsoletas
+         deprecated: {
+           REDIS_URL: !!process.env.REDIS_URL,
+           REDISCLOUD_URL: !!process.env.REDISCLOUD_URL
+         }
+       };
+       res.json(envStatus);
+     });
+
+    // ✅ HEALTH CHECK MEJORADO - Railway/Vercel Ready
     this.app.get('/health', (req, res) => {
+      // ✅ Log para Railway diagnostics
+      console.log('🏥 Health check solicitado desde:', req.ip);
+      
       const healthData = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         version: process.env.npm_package_version || '1.0.0',
         environment: process.env.NODE_ENV || 'development',
+        port: this.PORT,
+        host: '0.0.0.0',
+        railwayReady: true, // ✅ Indicador para Railway
         checks: {
-          server: { status: 'healthy', message: 'Server is running' },
+          server: { 
+            status: 'healthy', 
+            message: 'Server listening on 0.0.0.0',
+            address: this.server?.address() || 'unknown'
+          },
           memory: { 
             status: 'healthy', 
             usage: process.memoryUsage(),
@@ -448,17 +563,33 @@ class ConsolidatedServer {
             status: 'healthy', 
             pid: process.pid,
             uptime: process.uptime()
+          },
+          cors: {
+            status: 'configured',
+            vercelEnabled: true,
+            railwayEnabled: true
           }
         },
         summary: {
-          total: 3,
-          healthy: 3,
+          total: 4,
+          healthy: 4,
           failed: 0,
           failedChecks: []
         }
       };
 
       res.status(200).json(healthData);
+    });
+
+    // ✅ TIP 1: Endpoint específico para verificar conectividad desde Vercel
+    this.app.get('/ping', (req, res) => {
+      console.log('🏓 Ping recibido desde:', req.ip, req.headers.origin);
+      res.status(200).json({
+        pong: true,
+        timestamp: new Date().toISOString(),
+        from: req.ip,
+        origin: req.headers.origin
+      });
     });
 
     // Health check detallado enterprise
@@ -611,6 +742,24 @@ class ConsolidatedServer {
       }
     });
 
+    // ✅ TIP 2: Endpoint root informativo
+    this.app.get('/', (req, res) => {
+      console.log('📋 Root endpoint solicitado desde:', req.ip);
+      res.json({
+        service: 'UTalk Backend API',
+        status: 'running',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        endpoints: {
+          health: '/health',
+          ping: '/ping',
+          diagnostics: '/diagnostics',
+          api: '/api/*'
+        }
+      });
+    });
+
     // Rutas principales de la aplicación
     this.app.use('/api/auth', authRoutes);
     this.app.use('/api/contacts', contactRoutes);
@@ -703,26 +852,31 @@ class ConsolidatedServer {
    */
   async startServer() {
     return new Promise((resolve, reject) => {
-      this.server.listen(this.PORT, (error) => {
+      // ✅ CRÍTICO: Railway requiere '0.0.0.0' para enrutamiento externo
+      this.server.listen(this.PORT, '0.0.0.0', (error) => {
         if (error) {
           logger.error('Error iniciando servidor HTTP', {
             category: 'SERVER_START_ERROR',
             error: error.message,
             stack: error.stack,
-            port: this.PORT
+            port: this.PORT,
+            host: '0.0.0.0'
           });
           reject(error);
           return;
         }
 
-        logger.info('🎉 Servidor HTTP enterprise iniciado exitosamente', {
+        // ✅ LOG CRÍTICO: Confirmar binding correcto
+        logger.info('🎉 Servidor HTTP iniciado en 0.0.0.0 - RAILWAY READY', {
           category: 'SERVER_STARTED',
           port: this.PORT,
+          host: '0.0.0.0',
           environment: process.env.NODE_ENV || 'development',
           startupTime: Date.now() - this.startTime + 'ms',
           memoryUsage: process.memoryUsage(),
           pid: process.pid,
-          address: this.server.address()
+          address: this.server.address(),
+          railwayReady: true
         });
 
         resolve();

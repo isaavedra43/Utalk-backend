@@ -25,11 +25,20 @@ const ALLOWED_ORIGINS = {
   ],
   
   production: [
+    // ✅ DOMINIOS ORIGINALES
     'https://utalk.com',
     'https://www.utalk.com',
     'https://app.utalk.com',
     'https://admin.utalk.com',
-    'https://api.utalk.com'
+    'https://api.utalk.com',
+    
+    // ✅ CRÍTICO: Dominios de Vercel (Frontend)
+    'https://utalk-frontend-glt2.vercel.app',
+    'https://*.vercel.app',
+    
+    // ✅ CRÍTICO: Dominios de Railway (Backend)
+    'https://*.railway.app',
+    'https://utalk-backend-production.up.railway.app'
   ],
   
   test: [
@@ -43,10 +52,11 @@ const ALLOWED_ORIGINS = {
 function getAllowedOrigins() {
   const env = process.env.NODE_ENV || 'development';
   
-  // Permitir orígenes desde variable de entorno en producción
-  if (env === 'production' && process.env.CORS_ORIGINS) {
+  // ✅ TIP 3: Permitir orígenes desde variable de entorno en cualquier ambiente
+  if (process.env.CORS_ORIGINS) {
     const envOrigins = process.env.CORS_ORIGINS.split(',').map(origin => origin.trim());
-    return [...new Set([...ALLOWED_ORIGINS.production, ...envOrigins])];
+    console.log('🔒 CORS: Usando orígenes de variable de entorno:', envOrigins);
+    return [...new Set([...ALLOWED_ORIGINS[env], ...envOrigins])];
   }
   
   return ALLOWED_ORIGINS[env] || ALLOWED_ORIGINS.development;
@@ -72,6 +82,12 @@ function validateOrigin(origin, callback) {
   
   // Verificar si el origin está en la lista permitida
   if (allowedOrigins.includes(origin)) {
+    // ✅ TIP 2: Log de CORS exitoso para debugging
+    logger.info('✅ CORS permitido', {
+      category: 'CORS_ALLOWED',
+      origin,
+      environment: env
+    });
     callback(null, true);
   } else {
     logger.warn('🚫 CORS bloqueado - Origin no permitido', {
@@ -105,7 +121,11 @@ function getCorsConfig() {
       'Authorization',
       'X-API-Key',
       'Cache-Control',
-      'X-Request-ID'
+      'X-Request-ID',
+      // ✅ TIP 1: Headers adicionales para Vercel/Railway
+      'X-Forwarded-For',
+      'X-Real-IP',
+      'User-Agent'
     ],
     exposedHeaders: [
       'X-Total-Count', 
