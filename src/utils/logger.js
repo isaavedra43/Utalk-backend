@@ -59,6 +59,11 @@ class AdvancedLogger {
       'cookie', 'x-api-key', 'api-key', 'bearer'
     ];
     
+    // Rate limiting para alertas críticas
+    this.criticalAlertsTracker = new Map();
+    this.CRITICAL_ALERT_LIMIT = 10; // Max 10 alertas
+    this.CRITICAL_ALERT_WINDOW_MS = 60 * 60 * 1000; // por hora
+
     this.initializeWinston();
     this.setupMetricsReset();
     this.setupMemoryMonitoring();
@@ -466,39 +471,64 @@ class AdvancedLogger {
   }
 
   /**
-   * 🚨 TRIGGER ALERTA CRÍTICA
+   * 🚨 TRIGGER ALERTA CRÍTICA CON RATE LIMITING
    */
   triggerCriticalAlert(message, context) {
-    const env = process.env.NODE_ENV || 'development';
-    
-    // En un sistema real, aquí se enviarían notificaciones
-    // a Slack, email, PagerDuty, etc.
-    
-    // Fallback seguro: solo en desarrollo o si está habilitado
-    if (env === 'development' || process.env.ENABLE_CRITICAL_ALERTS === 'true') {
-      console.error('🚨 ALERTA CRÍTICA:', {
-        message,
-        context,
-        timestamp: new Date().toISOString()
-      });
+    const alertSignature = `${context.category || 'GENERAL'}:${message}`;
+    const now = Date.now();
+
+    // Limpiar rastreador de alertas viejas
+    if (this.criticalAlertsTracker.has(alertSignature) && (now - this.criticalAlertsTracker.get(alertSignature).firstSeen > this.CRITICAL_ALERT_WINDOW_MS)) {
+      this.criticalAlertsTracker.delete(alertSignature);
     }
-    
-    // Guardar alerta en archivo especial
-    if (process.env.ENABLE_ALERT_FILE === 'true') {
-      const alertData = {
-        type: 'CRITICAL_ALERT',
-        message,
-        context,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Escribir a archivo de alertas críticas
-      // En producción esto debería ser un sistema más robusto
-      require('fs').appendFileSync(
-        './logs/critical-alerts.log',
-        JSON.stringify(alertData) + '\n'
-      );
+
+    // Aplicar rate limiting
+    const alertInfo = this.criticalAlertsTracker.get(alertSignature) || { count: 0, firstSeen: now };
+    alertInfo.count++;
+
+    if (alertInfo.count > this.CRITICAL_ALERT_LIMIT) {
+      if (alertInfo.count === this.CRITICAL_ALERT_LIMIT + 1) {
+        this.warn('Rate limit para alerta crítica alcanzado. Suprimiendo alertas.', {
+          category: 'LOGGING_RATE_LIMIT',
+          alertSignature,
+          limit: this.CRITICAL_ALERT_LIMIT,
+          window: `${this.CRITICAL_ALERT_WINDOW_MS / 1000}s`
+        });
+      }
+      return; // Suprimir alerta
     }
+
+    this.criticalAlertsTracker.set(alertSignature, alertInfo);
+
+    // Enviar la alerta
+    console.error('🚨 ALERTA CRÍTICA:', { message, context, timestamp: new Date().toISOString() });
+
+    // En un sistema real, aquí se integrarían notificaciones (PagerDuty, Slack, etc.)
+    this.error(`🚨 CRITICAL ALERT: ${message}`, { ...context, isAlert: true });
+  }
+
+  /**
+   * 🛡️ EJECUTAR FUNCIÓN CON CIRCUIT BREAKER
+   * @param {Function} asyncFn - La función asíncrona a ejecutar.
+   * @param {Object} options - Opciones (timeout, etc.).
+   */
+  async executeWithCircuitBreaker(asyncFn, options = {}) {
+    const { timeout = 5000, context = 'default' } = options;
+
+    return new Promise(async (resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`CircuitBreaker: Timeout de ${timeout}ms excedido para ${context}`));
+      }, timeout);
+
+      try {
+        const result = await asyncFn();
+        clearTimeout(timeoutId);
+        resolve(result);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        reject(error); // El error original es más informativo
+      }
+    });
   }
 
   /**

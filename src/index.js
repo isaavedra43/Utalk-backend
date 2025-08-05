@@ -30,7 +30,7 @@ const logger = require('./utils/logger');
 const { memoryManager } = require('./utils/memoryManager');
 const { enhancedErrorHandler } = require('./middleware/enhancedErrorHandler');
 const { rateLimitManager } = require('./middleware/persistentRateLimit');
-const { getHealthCheckService } = require('./services/HealthCheckService');
+const { getHealthCheckService } = require('./services/HealthCheckService'); // Ahora importa la nueva versión
 
 // Middleware personalizado
 const { authMiddleware } = require('./middleware/auth');
@@ -365,26 +365,13 @@ class ConsolidatedServer {
    * 🏥 INICIALIZAR HEALTH CHECKS
    */
   async initializeHealthChecks() {
-    logger.info('🏥 Inicializando health checks enterprise...', {
-      category: 'HEALTH_INIT'
+    logger.info('🏥 Inicializando health checks con Circuit Breaker...', {
+        category: 'HEALTH_INIT'
     });
-
-    try {
-      this.healthService = getHealthCheckService();
-      await this.healthService.initialize();
-
-      logger.info('✅ Health checks enterprise inicializados', {
-        category: 'HEALTH_SUCCESS'
-      });
-
-    } catch (error) {
-      logger.error('Error inicializando health checks', {
-        category: 'HEALTH_INIT_ERROR',
-        error: error.message
-      });
-      // No lanzar error - health checks son opcionales
-    }
-  }
+    // El nuevo servicio no necesita await aquí, se inicializa en segundo plano
+    this.healthService = getHealthCheckService();
+    this.healthService.initialize();
+}
 
   /**
    * 🛡️ CONFIGURAR MIDDLEWARES BÁSICOS
@@ -518,6 +505,7 @@ class ConsolidatedServer {
 
     // ✅ TIP 1: Endpoint de diagnósticos de servicios
     this.app.get('/diagnostics', (req, res) => {
+      const healthService = getHealthCheckService();
       const diagnostics = {
         server: 'running',
         timestamp: new Date().toISOString(),
@@ -529,72 +517,37 @@ class ConsolidatedServer {
         },
         environment: process.env.NODE_ENV || 'development',
         port: this.PORT,
-        uptime: process.uptime()
-             };
-       res.json(diagnostics);
-     });
-
-     // ✅ TIP 1: Endpoint para verificar variables de entorno (seguro)
-     this.app.get('/env-check', (req, res) => {
-       const envStatus = {
-         PORT: !!process.env.PORT,
-         NODE_ENV: process.env.NODE_ENV || 'not_set',
-         JWT_SECRET: !!process.env.JWT_SECRET,
-         CORS_ORIGINS: !!process.env.CORS_ORIGINS,
-         // Variables obsoletas
-         deprecated: {
-           REDIS_URL: !!process.env.REDIS_URL,
-           REDISCLOUD_URL: !!process.env.REDISCLOUD_URL
-         }
-       };
-       res.json(envStatus);
-     });
-
-    // ✅ HEALTH CHECK MEJORADO - Railway/Vercel Ready
-    this.app.get('/health', (req, res) => {
-      // ✅ Log para Railway diagnostics
-      console.log('🏥 Health check solicitado desde:', req.ip);
-      
-      const healthData = {
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        version: process.env.npm_package_version || '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
-        port: this.PORT,
-        host: '0.0.0.0',
-        railwayReady: true, // ✅ Indicador para Railway
-        checks: {
-          server: { 
-            status: 'healthy', 
-            message: 'Server listening on 0.0.0.0',
-            address: this.server?.address() || 'unknown'
-          },
-          memory: { 
-            status: 'healthy', 
-            usage: process.memoryUsage(),
-            heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB'
-          },
-          process: { 
-            status: 'healthy', 
-            pid: process.pid,
-            uptime: process.uptime()
-          },
-          cors: {
-            status: 'configured',
-            vercelEnabled: true,
-            railwayEnabled: true
-          }
-        },
-        summary: {
-          total: 4,
-          healthy: 4,
-          failed: 0,
-          failedChecks: []
+        healthStatus: healthService.getHealthStatus() // Estado detallado
+      };
+      res.json(diagnostics);
+    });
+
+    // ✅ TIP 1: Endpoint para verificar variables de entorno (seguro)
+    this.app.get('/env-check', (req, res) => {
+      const envStatus = {
+        PORT: !!process.env.PORT,
+        NODE_ENV: process.env.NODE_ENV || 'not_set',
+        JWT_SECRET: !!process.env.JWT_SECRET,
+        CORS_ORIGINS: !!process.env.CORS_ORIGINS,
+        // Variables obsoletas
+        deprecated: {
+          REDIS_URL: !!process.env.REDIS_URL,
+          REDISCLOUD_URL: !!process.env.REDISCLOUD_URL
         }
       };
+      res.json(envStatus);
+    });
 
-      res.status(200).json(healthData);
+    // HEALTH CHECK MEJORADO - Para liveness/readiness probes
+    this.app.get('/health', (req, res) => {
+      const healthService = getHealthCheckService();
+      const health = healthService.getSimpleHealthCheck();
+      
+      // Log para Railway diagnostics
+      console.log(`🏥 Health check solicitado desde: ${req.ip} - Status: ${health.status}`);
+      
+      res.status(health.statusCode).json(health);
     });
 
     // ✅ TIP 1: Endpoint específico para verificar conectividad desde Vercel
@@ -1018,19 +971,10 @@ class ConsolidatedServer {
         }
       }
 
-      // 4. Detener health checks
+      // 4. Detener HealthCheckService
       if (this.healthService) {
-        try {
-          await this.healthService.stop();
-          logger.info('✅ Health service detenido', {
-            category: 'SHUTDOWN_HEALTH_STOPPED'
-          });
-        } catch (healthError) {
-          logger.error('Error deteniendo health service', {
-            category: 'SHUTDOWN_HEALTH_ERROR',
-            error: healthError.message
-          });
-        }
+        this.healthService.shutdown();
+        logger.info('✅ Health service detenido', { category: 'SHUTDOWN_HEALTH_STOPPED' });
       }
 
       // 5. Limpiar memory manager
