@@ -22,6 +22,25 @@ const winston = require('winston');
 const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 
+/**
+ * Detecta si la aplicación se está ejecutando en un entorno de contenedor/serverless
+ * donde el sistema de archivos es probablemente de solo lectura (excepto /tmp).
+ * @returns {boolean}
+ */
+function isContainerizedEnvironment() {
+  return !!(
+    process.env.RAILWAY_ENVIRONMENT || // Railway
+    process.env.VERCEL ||             // Vercel
+    process.env.LAMBDA_TASK_ROOT ||   // AWS Lambda
+    process.env.FUNCTION_TARGET ||    // Google Cloud Functions
+    process.env.WEBSITE_INSTANCE_ID ||// Azure App Service
+    process.env.K_SERVICE ||          // Google Cloud Run
+    process.env.CONTAINER_NAME ||     // Genérico
+    process.env.NODE_ENV === 'production' // Una buena heurística
+  );
+}
+
+
 class AdvancedLogger {
   constructor() {
     this.asyncLocalStorage = new AsyncLocalStorage();
@@ -51,6 +70,7 @@ class AdvancedLogger {
   initializeWinston() {
     const isProduction = process.env.NODE_ENV === 'production';
     const isDevelopment = process.env.NODE_ENV === 'development';
+    const isContainerized = isContainerizedEnvironment();
     
     // Formato para desarrollo (colorido y legible)
     const developmentFormat = winston.format.combine(
@@ -96,8 +116,9 @@ class AdvancedLogger {
       })
     ];
 
-    // File transports para producción (con manejo de errores de permisos)
-    if ((isProduction || process.env.ENABLE_FILE_LOGGING === 'true') && process.env.DISABLE_FILE_LOGGING !== 'true') {
+    if (isContainerized) {
+      console.log('✅ Logging configurado para entorno de contenedor (solo consola). File logging deshabilitado.');
+    } else if ((isProduction || process.env.ENABLE_FILE_LOGGING === 'true') && process.env.DISABLE_FILE_LOGGING !== 'true') {
       try {
         const logDir = process.env.LOG_DIR || './logs';
         
@@ -142,7 +163,7 @@ class AdvancedLogger {
         
       } catch (error) {
         // Si no podemos escribir archivos, solo usar console
-        console.warn('⚠️ No se pudo habilitar file logging (permisos insuficientes):', error.message);
+        console.warn(`⚠️ No se pudo habilitar file logging (permisos insuficientes): ${error.message}`);
         console.log('ℹ️ Continuando solo con console logging...');
       }
     }
