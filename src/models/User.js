@@ -16,6 +16,7 @@ class User {
   constructor(data) {
     // EMAIL como identificador principal (NO más UID)
     this.email = data.email;
+    this.id = data.email; // Usar email como ID para compatibilidad
     this.password = data.password; // Hash de bcrypt
     this.name = data.name || data.displayName;
     this.phone = data.phone || null;
@@ -411,6 +412,7 @@ class User {
    */
   toJSON() {
     return {
+      id: this.id, // ID para compatibilidad con RefreshToken
       email: this.email, // Identificador principal
       name: this.name,
       phone: this.phone,

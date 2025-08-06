@@ -1,7 +1,7 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { getRefreshTokenConfig } = require('../config/jwt');
 
 /**
@@ -39,6 +39,13 @@ class RefreshToken {
    * Crear un nuevo refresh token
    */
   static async create(tokenData) {
+    console.log('🔍 [REFRESH_TOKEN] Creando refresh token...');
+    console.log('🔍 [REFRESH_TOKEN] tokenData recibido:', { 
+      userEmail: tokenData.userEmail, 
+      userId: tokenData.userId,
+      deviceId: tokenData.deviceId 
+    });
+
     const refreshToken = new RefreshToken(tokenData);
 
     // Preparar datos para Firestore
@@ -59,19 +66,34 @@ class RefreshToken {
       maxUses: refreshToken.maxUses
     };
 
+    console.log('🔍 [REFRESH_TOKEN] Guardando en Firestore...');
     // Guardar en Firestore
     await firestore.collection('refresh_tokens').doc(refreshToken.id).set(cleanData);
+    console.log('✅ [REFRESH_TOKEN] Guardado en Firestore exitosamente');
 
+    console.log('🔍 [REFRESH_TOKEN] Creando índices...');
     // Crear índices para consultas eficientes
     await this.createIndexes(refreshToken);
+    console.log('✅ [REFRESH_TOKEN] Índices creados exitosamente');
 
-    logger.info('🔄 Refresh token creado', {
-      tokenId: refreshToken.id,
-      userEmail: refreshToken.userEmail,
-      familyId: refreshToken.familyId,
-      deviceId: refreshToken.deviceId
-    });
+    console.log('🔍 [REFRESH_TOKEN] Loggeando con logger...');
+    console.log('🔍 [REFRESH_TOKEN] logger existe:', !!logger);
+    console.log('🔍 [REFRESH_TOKEN] logger.info existe:', !!(logger && typeof logger.info === 'function'));
 
+    if (logger && typeof logger.info === 'function') {
+      console.log('🔍 [REFRESH_TOKEN] Llamando logger.info...');
+      logger.info('🔄 Refresh token creado', {
+        tokenId: refreshToken.id,
+        userEmail: refreshToken.userEmail,
+        familyId: refreshToken.familyId,
+        deviceId: refreshToken.deviceId
+      });
+      console.log('✅ [REFRESH_TOKEN] logger.info ejecutado exitosamente');
+    } else {
+      console.log('❌ [REFRESH_TOKEN] logger.info NO disponible');
+    }
+
+    console.log('✅ [REFRESH_TOKEN] Refresh token creado exitosamente');
     return refreshToken;
   }
 
@@ -399,6 +421,19 @@ class RefreshToken {
    * Generar nuevo refresh token
    */
   static async generate(userEmail, userId, deviceInfo = {}) {
+    console.log('🔍 [REFRESH_TOKEN] Generando refresh token...');
+    console.log('🔍 [REFRESH_TOKEN] Parámetros recibidos:', { 
+      userEmail, 
+      userId, 
+      deviceInfoExists: !!deviceInfo 
+    });
+
+    // Validar que userId no sea undefined
+    if (!userId) {
+      console.log('❌ [REFRESH_TOKEN] userId es undefined, usando userEmail como fallback');
+      userId = userEmail; // Usar userEmail como fallback
+    }
+
     const refreshConfig = getRefreshTokenConfig();
     const token = jwt.sign(
       {
@@ -421,6 +456,13 @@ class RefreshToken {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 días por defecto
 
+    console.log('🔍 [REFRESH_TOKEN] Creando refresh token con datos:', {
+      userEmail,
+      userId,
+      deviceId: deviceInfo.deviceId || uuidv4(),
+      expiresAt: expiresAt.toISOString()
+    });
+
     const refreshToken = await this.create({
       token,
       userEmail,
@@ -434,6 +476,7 @@ class RefreshToken {
       maxUses: 100
     });
 
+    console.log('✅ [REFRESH_TOKEN] Refresh token generado exitosamente');
     return refreshToken;
   }
 
