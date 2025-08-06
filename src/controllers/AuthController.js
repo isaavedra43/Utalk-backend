@@ -17,19 +17,23 @@ class AuthController {
       const { email, password } = req.body;
 
       // ✅ NUEVO: Log de intento de login
-      req.logger.auth('login_attempt', {
-        email,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']?.substring(0, 100)
-      });
+      if (req.logger && typeof req.logger.auth === 'function') {
+        req.logger.auth('login_attempt', {
+          email,
+          ip: req.ip,
+          userAgent: req.headers['user-agent']?.substring(0, 100)
+        });
+      }
 
       // Validación de entrada
       if (!email || !password) {
-        req.logger.auth('login_failed', {
-          reason: 'missing_credentials',
-          email: email || 'not_provided',
-          hasPassword: !!password
-        });
+        if (req.logger && typeof req.logger.auth === 'function') {
+          req.logger.auth('login_failed', {
+            reason: 'missing_credentials',
+            email: email || 'not_provided',
+            hasPassword: !!password
+          });
+        }
 
         return res.status(400).json({
           error: 'Credenciales incompletas',
@@ -49,11 +53,13 @@ class AuthController {
 
       // VERIFICACIÓN EXHAUSTIVA:
       if (!user) {
-        req.logger.auth('login_failed', {
-          reason: 'user_not_found',
-          email,
-          ip: req.ip
-        });
+        if (req.logger && typeof req.logger.auth === 'function') {
+          req.logger.auth('login_failed', {
+            reason: 'user_not_found',
+            email,
+            ip: req.ip
+          });
+        }
 
         return res.status(401).json({ 
           error: 'Usuario no encontrado',
@@ -66,18 +72,22 @@ class AuthController {
       const isPasswordValid = await User.validatePassword(email, password);
 
       if (!isPasswordValid) {
-        req.logger.auth('login_failed', {
-          reason: 'invalid_password',
-          email,
-          ip: req.ip
-        });
+        if (req.logger && typeof req.logger.auth === 'function') {
+          req.logger.auth('login_failed', {
+            reason: 'invalid_password',
+            email,
+            ip: req.ip
+          });
+        }
 
-        req.logger.security('suspicious_activity', {
-          type: 'failed_login',
-          email,
-          ip: req.ip,
-          userAgent: req.headers['user-agent']?.substring(0, 100)
-        });
+        if (req.logger && typeof req.logger.security === 'function') {
+          req.logger.security('suspicious_activity', {
+            type: 'failed_login',
+            email,
+            ip: req.ip,
+            userAgent: req.headers['user-agent']?.substring(0, 100)
+          });
+        }
 
         return res.status(401).json({ 
           error: 'Contraseña incorrecta',
@@ -140,24 +150,28 @@ class AuthController {
       const refreshToken = await RefreshToken.generate(user.email, user.id, deviceInfo);
 
       // ✅ NUEVO: Log de tokens generados
-      req.logger.auth('tokens_generated', {
-        email: user.email,
-        role: user.role,
-        accessTokenExpiresIn: jwtConfig.expiresIn,
-        refreshTokenExpiresIn: '7d',
-        deviceId: deviceInfo.deviceId
-      });
+      if (req.logger && typeof req.logger.auth === 'function') {
+        req.logger.auth('tokens_generated', {
+          email: user.email,
+          role: user.role,
+          accessTokenExpiresIn: jwtConfig.expiresIn,
+          refreshTokenExpiresIn: '7d',
+          deviceId: deviceInfo.deviceId
+        });
+      }
 
       // LOGIN EXITOSO
-      req.logger.auth('login_success', {
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        department: user.department,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']?.substring(0, 100),
-        deviceId: deviceInfo.deviceId
-      });
+      if (req.logger && typeof req.logger.auth === 'function') {
+        req.logger.auth('login_success', {
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          department: user.department,
+          ip: req.ip,
+          userAgent: req.headers['user-agent']?.substring(0, 100),
+          deviceId: deviceInfo.deviceId
+        });
+      }
 
       // Solo aquí retornas una respuesta de éxito
       return res.status(200).json({
