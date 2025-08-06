@@ -44,12 +44,30 @@ class AuthController {
         email
       });
 
-      // Validar credenciales
-      const isValidPassword = await User.validatePassword(email, password);
-      
-      if (!isValidPassword) {
+      // Asegúrate que 'findUserByEmail' siempre retorne un objeto válido o null, pero nunca undefined directamente
+      const user = await User.getByEmail(email);
+
+      // VERIFICACIÓN EXHAUSTIVA:
+      if (!user) {
         req.logger.auth('login_failed', {
-          reason: 'invalid_credentials',
+          reason: 'user_not_found',
+          email,
+          ip: req.ip
+        });
+
+        return res.status(401).json({ 
+          error: 'Usuario no encontrado',
+          message: 'Email o contraseña incorrectos',
+          code: 'USER_NOT_FOUND'
+        });
+      }
+
+      // VALIDA SIEMPRE LA CONTRASEÑA DIRECTAMENTE CON EL MODELO (sin Firebase Auth)
+      const isPasswordValid = await User.validatePassword(email, password);
+
+      if (!isPasswordValid) {
+        req.logger.auth('login_failed', {
+          reason: 'invalid_password',
           email,
           ip: req.ip
         });
@@ -61,15 +79,14 @@ class AuthController {
           userAgent: req.headers['user-agent']?.substring(0, 100)
         });
 
-        return res.status(401).json({
-          error: 'Credenciales inválidas',
+        return res.status(401).json({ 
+          error: 'Contraseña incorrecta',
           message: 'Email o contraseña incorrectos',
-          code: 'INVALID_CREDENTIALS',
-          });
-        }
+          code: 'INVALID_PASSWORD'
+        });
+      }
 
       // ✅ NUEVO: Log de usuario obtenido
-      const user = await User.getByEmail(email);
       req.logger.database('document_read', {
         operation: 'user_by_email',
         email,
@@ -126,7 +143,7 @@ class AuthController {
       req.logger.auth('tokens_generated', {
         email: user.email,
         role: user.role,
-        accessTokenExpiresIn: jwtExpiresIn,
+        accessTokenExpiresIn: jwtConfig.expiresIn,
         refreshTokenExpiresIn: '7d',
         deviceId: deviceInfo.deviceId
       });
@@ -142,13 +159,13 @@ class AuthController {
         deviceId: deviceInfo.deviceId
       });
 
-      // RESPUESTA CON AMBOS TOKENS
-      res.json({
+      // Solo aquí retornas una respuesta de éxito
+      return res.status(200).json({
         success: true,
         message: 'Login exitoso',
         accessToken: accessToken,
         refreshToken: refreshToken.token,
-        expiresIn: jwtExpiresIn,
+        expiresIn: jwtConfig.expiresIn,
         refreshExpiresIn: '7d',
         user: user.toJSON(),
         deviceInfo: {
@@ -157,14 +174,15 @@ class AuthController {
           loginAt: deviceInfo.loginAt
         }
       });
+
     } catch (error) {
-      req.logger.error('💥 Error crítico en login', {
-        email: req.body?.email,
-        error: error.message,
-        stack: error.stack?.split('\n').slice(0, 3),
-        ip: req.ip
+      console.error('Error en AuthController.login:', error);
+      // siempre manejar errores para no generar rechazos no manejados
+      return res.status(500).json({ 
+        error: 'Error interno del servidor',
+        message: 'Ocurrió un error durante el login',
+        code: 'INTERNAL_SERVER_ERROR'
       });
-      next(error);
     }
   }
 
