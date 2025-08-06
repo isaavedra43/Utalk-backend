@@ -754,6 +754,11 @@ class ConsolidatedServer {
       // 🚨 INTENTAR CONFIGURAR RUTAS PRINCIPALES CON MANEJO DE ERRORES
       console.log('🔧 Configurando rutas principales de la API...');
 
+      // ✅ CRÍTICO: Agregar middleware de logging ANTES de todas las rutas /api
+      const { databaseLoggingMiddleware } = require('./middleware/logging');
+      this.app.use('/api', databaseLoggingMiddleware);
+      console.log('✅ Middleware de logging configurado para /api');
+
       try {
         console.log('📝 Intentando configurar /api/auth...');
         this.app.use('/api/auth', authRoutes);
