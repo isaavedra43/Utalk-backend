@@ -178,6 +178,16 @@ class AuthController {
     } catch (error) {
       const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Error desconocido';
       console.error('Error en AuthController.login:', errorMessage);
+      
+      // Validación adicional para evitar errores de undefined en el logger
+      if (req && req.logger && typeof req.logger.error === 'function') {
+        req.logger.error('Error crítico en login', {
+          email: req.body?.email || 'unknown',
+          error: errorMessage,
+          ip: req.ip || 'unknown'
+        });
+      }
+      
       return res.status(500).json({ 
         error: 'Error interno del servidor',
         message: 'Ocurrió un error durante el login',

@@ -213,6 +213,17 @@ function databaseLoggingMiddleware(req, res, next) {
       });
     },
     
+    auth: (operation, data) => {
+      logger.info('🔐 Operación de autenticación', {
+        operation,
+        data,
+        method: req.method,
+        url: req.originalUrl,
+        requestId: req.requestId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    
     message: (operation, data) => {
       logger.info('💬 Operación de mensajes', {
         operation,
