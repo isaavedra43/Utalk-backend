@@ -176,8 +176,8 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error('Error en AuthController.login:', error);
-      // siempre manejar errores para no generar rechazos no manejados
+      const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Error desconocido';
+      console.error('Error en AuthController.login:', errorMessage);
       return res.status(500).json({ 
         error: 'Error interno del servidor',
         message: 'Ocurrió un error durante el login',
