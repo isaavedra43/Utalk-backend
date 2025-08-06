@@ -132,5 +132,7 @@ try {
 module.exports = {
   firestore,
   storage,
-  admin
+  admin,
+  FieldValue: admin.firestore.FieldValue,
+  Timestamp: admin.firestore.Timestamp
 };
