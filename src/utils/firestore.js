@@ -61,43 +61,22 @@ function cleanFirestoreObject (obj) {
  * @returns {Object} - Objeto listo para Firestore
  */
 function prepareForFirestore (obj) {
-  // === LOG DE EMERGENCIA ANTES DE LIMPIAR ===
-  console.log('🚨 EMERGENCY BEFORE CLEANING:', {
+  // === LOG CONSOLIDADO DE LIMPIEZA FIRESTORE ===
+  console.log('🚨 FIRESTORE CLEANING:', {
     originalKeys: Object.keys(obj),
-    originalValues: {
-      id: obj.id,
-      conversationId: obj.conversationId,
-      senderIdentifier: obj.senderIdentifier,
-      recipientIdentifier: obj.recipientIdentifier,
-      content: obj.content,
-      type: obj.type,
-      direction: obj.direction,
-      status: obj.status,
-      mediaUrl: obj.mediaUrl,
-      timestamp: obj.timestamp,
-      hasMetadata: !!obj.metadata
-    },
+    originalId: obj.id,
+    originalContent: obj.content?.substring(0, 30) + (obj.content?.length > 30 ? '...' : ''),
+    originalType: obj.type,
     step: 'before_cleaning'
   });
 
   const cleaned = cleanFirestoreObject(obj);
 
-  // === LOG DE EMERGENCIA DESPUÉS DE LIMPIAR ===
-  console.log('🚨 EMERGENCY AFTER CLEANING:', {
+  console.log('🚨 FIRESTORE CLEANED:', {
     cleanedKeys: Object.keys(cleaned),
-    cleanedValues: {
-      id: cleaned.id,
-      conversationId: cleaned.conversationId,
-      senderIdentifier: cleaned.senderIdentifier,
-      recipientIdentifier: cleaned.recipientIdentifier,
-      content: cleaned.content,
-      type: cleaned.type,
-      direction: cleaned.direction,
-      status: cleaned.status,
-      mediaUrl: cleaned.mediaUrl,
-      timestamp: cleaned.timestamp,
-      hasMetadata: !!cleaned.metadata
-    },
+    cleanedId: cleaned.id,
+    cleanedContent: cleaned.content?.substring(0, 30) + (cleaned.content?.length > 30 ? '...' : ''),
+    cleanedType: cleaned.type,
     step: 'after_cleaning'
   });
 

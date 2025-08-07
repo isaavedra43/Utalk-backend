@@ -207,7 +207,7 @@ class MessageService {
         });
 
         // Crear el mensaje
-        const message = await Message.create(messageData);
+        const message = await Message.create(messageData, messageData.id); // Pasar el ID único explícitamente
 
         // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE Message.create ===
         logger.info('✅ CREATEMESSAGE - DESPUÉS DE Message.create EXITOSO', {
@@ -1052,12 +1052,67 @@ class MessageService {
             validateInput: true,
           });
 
-          // LOG DE EMERGENCIA DESPUÉS DE createMessage
-          console.log('🚨 EMERGENCY LOG - createMessage COMPLETADO:', {
+          // === LOG CONSOLIDADO DE PREPARACIÓN DE MENSAJE ===
+          console.log('🚨 MESSAGE PREPARATION:', {
             requestId,
             messageId: message.id,
             conversationId: message.conversationId,
-            timestamp: new Date().toISOString()
+            sender: message.senderIdentifier,
+            recipient: message.recipientIdentifier,
+            content: message.content?.substring(0, 50) + (message.content?.length > 50 ? '...' : ''),
+            type: message.type,
+            direction: message.direction,
+            hasMedia: !!message.mediaUrl,
+            timestamp: message.timestamp,
+            step: 'message_prepared'
+          });
+
+          // === LOG CONSOLIDADO ANTES DE MESSAGE.CREATE ===
+          console.log('🚨 BEFORE MESSAGE.CREATE:', {
+            requestId,
+            messageDataId: message.id,
+            messageDataConversationId: message.conversationId,
+            messageDataKeys: Object.keys(message),
+            step: 'before_message_create_call'
+          });
+
+          // === DEBUG DETALLADO ANTES DE GUARDAR ===
+          logger.info('=== DATA ANTES DE GUARDAR ===', {
+            requestId,
+            messageData: JSON.stringify(message, null, 2),
+            tipos: {
+              id: typeof message.id,
+              conversationId: typeof message.conversationId,
+              senderIdentifier: typeof message.senderIdentifier,
+              recipientIdentifier: typeof message.recipientIdentifier,
+              content: typeof message.content,
+              type: typeof message.type,
+              direction: typeof message.direction,
+              status: typeof message.status,
+              hasMetadata: !!message.metadata
+            },
+            valores: {
+              id: message.id,
+              conversationId: message.conversationId,
+              senderIdentifier: message.senderIdentifier,
+              recipientIdentifier: message.recipientIdentifier,
+              content: message.content,
+              type: message.type,
+              direction: message.direction,
+              status: message.status
+            }
+          });
+
+          // Crear el mensaje
+          const createdMessage = await Message.create(messageData, messageData.id); // Pasar el ID único explícitamente
+
+          // === LOG CONSOLIDADO DESPUÉS DE MESSAGE.CREATE ===
+          console.log('🚨 AFTER MESSAGE.CREATE:', {
+            requestId,
+            messageCreated: !!createdMessage,
+            messageId: createdMessage?.id,
+            conversationId: createdMessage?.conversationId,
+            step: 'message_created'
           });
 
           // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE createMessage ===

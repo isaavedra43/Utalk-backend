@@ -88,22 +88,18 @@ class Message {
       this.id = messageId;
       this.conversationId = data.conversationId;
 
-      // === LOG CRÍTICO PARA VERIFICAR ASIGNACIÓN DE ID ===
-      console.log('🚨 EMERGENCY CONSTRUCTOR ID ASSIGNMENT:', {
+      // === LOG CONSOLIDADO DE CONSTRUCTOR ===
+      console.log('🚨 MESSAGE CONSTRUCTOR:', {
         requestId,
         originalDataId: data.id,
         originalDataConversationId: data.conversationId,
         assignedMessageId: this.id,
         assignedConversationId: this.conversationId,
         areIdsSame: this.id === this.conversationId,
-        step: 'constructor_id_assignment'
-      });
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - ID Y CONVERSATIONID ASIGNADOS', {
-        requestId,
-        id: this.id,
-        conversationId: this.conversationId,
-        step: 'id_assigned'
+        content: this.content?.substring(0, 30) + (this.content?.length > 30 ? '...' : ''),
+        type: this.type,
+        direction: this.direction,
+        step: 'constructor_completed'
       });
 
       // Contenido
@@ -300,30 +296,18 @@ class Message {
     const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
-    console.log('🚨 EMERGENCY MESSAGE.CREATE STARTED:', {
-      requestId,
-      timestamp: new Date().toISOString(),
-      messageDataKeys: Object.keys(messageData || {}),
-      messageDataValues: {
-        id: messageData?.id,
-        conversationId: messageData?.conversationId,
-        senderIdentifier: messageData?.senderIdentifier,
-        recipientIdentifier: messageData?.recipientIdentifier,
-        content: messageData?.content,
-        type: messageData?.type,
-        direction: messageData?.direction,
-        status: messageData?.status,
-        mediaUrl: messageData?.mediaUrl
-      },
-      step: 'message_create_start'
-    });
-    
-    // LOG DE EMERGENCIA PARA RAILWAY
-    console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE INICIADO:', {
+    // === LOG CONSOLIDADO DE MESSAGE.CREATE ===
+    console.log('🚨 MESSAGE.CREATE STARTED:', {
       requestId,
       messageDataId: messageData?.id,
       conversationId: messageData?.conversationId,
-      timestamp: new Date().toISOString()
+      sender: messageData?.senderIdentifier,
+      recipient: messageData?.recipientIdentifier,
+      content: messageData?.content?.substring(0, 30) + (messageData?.content?.length > 30 ? '...' : ''),
+      type: messageData?.type,
+      direction: messageData?.direction,
+      hasMetadata: !!messageData?.metadata,
+      step: 'message_create_start'
     });
     
     try {
@@ -384,31 +368,16 @@ class Message {
 
         const cleanData = prepareForFirestore({ ...message });
 
-        // === LOG DE EMERGENCIA DESPUÉS DE PREPARACIÓN ===
-        console.log('🚨 EMERGENCY MESSAGE.CREATE PREPARED:', {
-          requestId,
-          cleanDataKeys: Object.keys(cleanData),
-          cleanDataValues: {
-            id: cleanData.id,
-            conversationId: cleanData.conversationId,
-            senderIdentifier: cleanData.senderIdentifier,
-            recipientIdentifier: cleanData.recipientIdentifier,
-            content: cleanData.content,
-            type: cleanData.type,
-            direction: cleanData.direction,
-            status: cleanData.status
-          },
-          step: 'firestore_prepared'
-        });
-
-        // === LOG CRÍTICO PARA VERIFICAR ID ===
-        console.log('🚨 EMERGENCY ID VERIFICATION:', {
+        // === LOG CONSOLIDADO DE PREPARACIÓN FIRESTORE ===
+        console.log('🚨 FIRESTORE PREPARATION:', {
           requestId,
           originalMessageId: message.id,
           cleanDataId: cleanData.id,
-          conversationId: cleanData.conversationId,
-          isIdCorrect: message.id === cleanData.id,
-          step: 'id_verification'
+          areIdsSame: message.id === cleanData.id,
+          content: cleanData.content?.substring(0, 30) + (cleanData.content?.length > 30 ? '...' : ''),
+          type: cleanData.type,
+          direction: cleanData.direction,
+          step: 'firestore_prepared'
         });
 
         logger.info('🧹 MESSAGE.CREATE - DATOS LIMPIOS PREPARADOS', {
