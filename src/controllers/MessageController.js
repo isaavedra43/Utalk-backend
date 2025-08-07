@@ -814,6 +814,24 @@ class MessageController {
         step: 'before_message_service'
       });
 
+      // === LOG INMEDIATO ANTES DE LLAMAR MESSAGESERVICE ===
+      logger.info('🚨 MESSAGECONTROLLER - ANTES DE LLAMAR MESSAGESERVICE', {
+        requestId,
+        messageSid,
+        fromPhone: normalizedPhone,
+        hasContent: !!content,
+        hasMedia: parseInt(numMedia) > 0,
+        reqBodyKeys: Object.keys(req.body),
+        reqBodyValues: {
+          From: req.body.From,
+          To: req.body.To,
+          Body: req.body.Body,
+          MessageSid: req.body.MessageSid,
+          NumMedia: req.body.NumMedia
+        },
+        step: 'before_message_service_call'
+      });
+
       // Procesar mensaje usando MessageService (que incluye ContactService)
       const message = await MessageService.processIncomingMessage(req.body);
 
@@ -844,6 +862,17 @@ class MessageController {
       }, 'Mensaje procesado correctamente', 200);
 
     } catch (error) {
+      // === LOG INMEDIATO DEL ERROR EN EL CONTROLADOR ===
+      logger.error('🚨 MESSAGECONTROLLER - ERROR CRÍTICO CAPTURADO', {
+        requestId,
+        error: error.message,
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 20),
+        body: req.body,
+        processTime: Date.now() - startTime,
+        step: 'controller_error_captured'
+      });
+
       logger.error('❌ ERROR CRÍTICO EN WEBHOOK', {
         requestId,
         error: error.message,

@@ -413,7 +413,18 @@ class MessageService {
   static async processIncomingMessage (webhookData) {
     const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // === LOG INMEDIATO AL INICIAR LA FUNCIÓN ===
+    logger.info('🚨 MESSAGESERVICE - FUNCIÓN INICIADA', {
+      requestId,
+      timestamp: new Date().toISOString(),
+      webhookDataType: typeof webhookData,
+      webhookDataIsObject: webhookData && typeof webhookData === 'object',
+      webhookDataKeys: webhookData ? Object.keys(webhookData) : 'NO_DATA',
+      step: 'function_start'
+    });
+    
     try {
+      // === LOG ANTES DE CUALQUIER PROCESAMIENTO ===
       logger.info('🔄 MESSAGESERVICE - INICIANDO PROCESAMIENTO', {
         requestId,
         timestamp: new Date().toISOString(),
@@ -430,6 +441,7 @@ class MessageService {
 
       const { From, To, Body, MessageSid, NumMedia } = webhookData;
 
+      // === LOG INMEDIATO DESPUÉS DE DESTRUCTURACIÓN ===
       logger.info('📋 MESSAGESERVICE - DATOS EXTRAÍDOS', {
         requestId,
         from: From,
@@ -440,6 +452,17 @@ class MessageService {
         bodyPreview: Body?.substring(0, 50) || null,
         numMedia: NumMedia,
         step: 'data_extraction'
+      });
+
+      // === LOG INMEDIATO ANTES DE VALIDACIÓN ===
+      logger.info('🔍 MESSAGESERVICE - ANTES DE VALIDACIÓN', {
+        requestId,
+        from: From,
+        to: To,
+        messageSid: MessageSid,
+        body: Body,
+        numMedia: NumMedia,
+        step: 'before_validation'
       });
 
       // Validar webhook data
@@ -768,6 +791,25 @@ class MessageService {
           }
         }
 
+        // === LOG INMEDIATO ANTES DE CREAR MENSAJE ===
+        logger.info('🚨 MESSAGESERVICE - ANTES DE LLAMAR createMessage', {
+          requestId,
+          conversationId,
+          messageDataKeys: Object.keys(messageData),
+          messageDataValues: {
+            id: messageData.id,
+            conversationId: messageData.conversationId,
+            senderIdentifier: messageData.senderIdentifier,
+            recipientIdentifier: messageData.recipientIdentifier,
+            content: messageData.content,
+            type: messageData.type,
+            direction: messageData.direction,
+            status: messageData.status,
+            mediaUrl: messageData.mediaUrl
+          },
+          step: 'before_create_message_call'
+        });
+
         // Crear mensaje con efectos secundarios
         logger.info('💾 MESSAGESERVICE - INICIANDO CREACIÓN DE MENSAJE', {
           requestId,
@@ -915,6 +957,22 @@ class MessageService {
         }
 
       } catch (error) {
+        // === LOG INMEDIATO DEL ERROR PRINCIPAL ===
+        logger.error('🚨 MESSAGESERVICE - ERROR CRÍTICO CAPTURADO', {
+          requestId,
+          error: error.message,
+          errorType: error.constructor.name,
+          stack: error.stack?.split('\n').slice(0, 20),
+          webhookData: {
+            From: webhookData.From,
+            To: webhookData.To,
+            MessageSid: webhookData.MessageSid,
+            Body: webhookData.Body,
+            NumMedia: webhookData.NumMedia
+          },
+          step: 'critical_error_captured'
+        });
+
         // Determinar el tipo de error basado en el contexto
         if (error.message && error.message.includes('normaliz')) {
           logger.error('❌ MESSAGESERVICE - ERROR EN NORMALIZACIÓN DE TELÉFONOS', {
@@ -952,6 +1010,22 @@ class MessageService {
       }
 
     } catch (error) {
+      // === LOG INMEDIATO DEL ERROR MÁS EXTERNO ===
+      logger.error('🚨 MESSAGESERVICE - ERROR CRÍTICO EXTERNO', {
+        requestId,
+        error: error.message,
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 25),
+        webhookData: {
+          From: webhookData.From,
+          To: webhookData.To,
+          MessageSid: webhookData.MessageSid,
+          Body: webhookData.Body,
+          NumMedia: webhookData.NumMedia
+        },
+        step: 'external_critical_error'
+      });
+      
       logger.error('❌ MESSAGESERVICE - ERROR CRÍTICO', {
         requestId,
         error: error.message,
