@@ -390,6 +390,16 @@ class Message {
           step: 'firestore_prepared'
         });
 
+        // === LOG CRÍTICO PARA VERIFICAR ID ===
+        console.log('🚨 EMERGENCY ID VERIFICATION:', {
+          requestId,
+          originalMessageId: message.id,
+          cleanDataId: cleanData.id,
+          conversationId: cleanData.conversationId,
+          isIdCorrect: message.id === cleanData.id,
+          step: 'id_verification'
+        });
+
         logger.info('🧹 MESSAGE.CREATE - DATOS LIMPIOS PREPARADOS', {
           requestId,
           cleanDataKeys: Object.keys(cleanData),
@@ -467,7 +477,7 @@ class Message {
 
             // Crear el documento padre de la conversación
             await conversationRef.set({
-              id: message.conversationId,
+              id: message.conversationId, // ID de la conversación (correcto)
               customerPhone: message.senderIdentifier,
               createdAt: new Date(),
               updatedAt: new Date(),
