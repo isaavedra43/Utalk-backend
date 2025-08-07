@@ -1,4 +1,5 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
+const { admin } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { prepareForFirestore } = require('../utils/firestore');
 // const { isValidConversationId } = require('../utils/conversation'); // DEPRECATED
@@ -287,11 +288,30 @@ class Message {
   static async create (messageData) {
     const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
+    console.log('🚨 EMERGENCY MESSAGE.CREATE STARTED:', {
+      requestId,
+      timestamp: new Date().toISOString(),
+      messageDataKeys: Object.keys(messageData || {}),
+      messageDataValues: {
+        id: messageData?.id,
+        conversationId: messageData?.conversationId,
+        senderIdentifier: messageData?.senderIdentifier,
+        recipientIdentifier: messageData?.recipientIdentifier,
+        content: messageData?.content,
+        type: messageData?.type,
+        direction: messageData?.direction,
+        status: messageData?.status,
+        mediaUrl: messageData?.mediaUrl
+      },
+      step: 'message_create_start'
+    });
+    
     // LOG DE EMERGENCIA PARA RAILWAY
     console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE INICIADO:', {
       requestId,
-      messageDataId: messageData.id,
-      conversationId: messageData.conversationId,
+      messageDataId: messageData?.id,
+      conversationId: messageData?.conversationId,
       timestamp: new Date().toISOString()
     });
     
@@ -323,6 +343,17 @@ class Message {
       try {
         const message = new Message(messageData);
 
+        // === LOG DE EMERGENCIA DESPUÉS DE CONSTRUCTOR ===
+        console.log('🚨 EMERGENCY MESSAGE.CONSTRUCTOR SUCCESS:', {
+          requestId,
+          messageId: message.id,
+          conversationId: message.conversationId,
+          content: message.content,
+          type: message.type,
+          direction: message.direction,
+          step: 'constructor_success'
+        });
+
         logger.info('✅ MESSAGE.CREATE - INSTANCIA CREADA', {
           requestId,
           messageId: message.id,
@@ -341,6 +372,23 @@ class Message {
         });
 
         const cleanData = prepareForFirestore({ ...message });
+
+        // === LOG DE EMERGENCIA DESPUÉS DE PREPARACIÓN ===
+        console.log('🚨 EMERGENCY MESSAGE.CREATE PREPARED:', {
+          requestId,
+          cleanDataKeys: Object.keys(cleanData),
+          cleanDataValues: {
+            id: cleanData.id,
+            conversationId: cleanData.conversationId,
+            senderIdentifier: cleanData.senderIdentifier,
+            recipientIdentifier: cleanData.recipientIdentifier,
+            content: cleanData.content,
+            type: cleanData.type,
+            direction: cleanData.direction,
+            status: cleanData.status
+          },
+          step: 'firestore_prepared'
+        });
 
         logger.info('🧹 MESSAGE.CREATE - DATOS LIMPIOS PREPARADOS', {
           requestId,
@@ -404,6 +452,13 @@ class Message {
           const conversationDoc = await conversationRef.get();
 
           if (!conversationDoc.exists) {
+            // === LOG DE EMERGENCIA PARA CONVERSACIÓN NO EXISTENTE ===
+            console.log('🚨 EMERGENCY CONVERSATION NOT EXISTS:', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'conversation_not_exists'
+            });
+            
             logger.info('❌ MESSAGE.CREATE - DOCUMENTO PADRE NO EXISTE, CREÁNDOLO', {
               requestId,
               conversationId: message.conversationId,
@@ -423,12 +478,26 @@ class Message {
               }
             });
 
+            // === LOG DE EMERGENCIA PARA CONVERSACIÓN CREADA ===
+            console.log('🚨 EMERGENCY CONVERSATION CREATED:', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'conversation_created'
+            });
+
             logger.info('✅ MESSAGE.CREATE - DOCUMENTO PADRE CREADO', {
               requestId,
               conversationId: message.conversationId,
               step: 'parent_document_created'
             });
           } else {
+            // === LOG DE EMERGENCIA PARA CONVERSACIÓN EXISTENTE ===
+            console.log('🚨 EMERGENCY CONVERSATION EXISTS:', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'conversation_exists'
+            });
+            
             logger.info('✅ MESSAGE.CREATE - DOCUMENTO PADRE EXISTE', {
               requestId,
               conversationId: message.conversationId,
@@ -475,7 +544,7 @@ class Message {
           .doc(message.id)
           .set(cleanData);
 
-        // LOG DE EMERGENCIA DESPUÉS DE GUARDAR EN FIRESTORE
+        // === LOG DE EMERGENCIA DESPUÉS DE GUARDAR EN FIRESTORE ===
         console.log('🚨 EMERGENCY LOG - DESPUÉS DE GUARDAR EN FIRESTORE:', {
           requestId,
           path: `conversations/${message.conversationId}/messages/${message.id}`,
@@ -515,6 +584,16 @@ class Message {
           });
 
         } catch (firestoreError) {
+          // === LOG DE EMERGENCIA PARA ERROR DE FIRESTORE ===
+          console.log('🚨 EMERGENCY FIRESTORE ERROR:', {
+            requestId,
+            error: firestoreError.message,
+            errorType: firestoreError.constructor.name,
+            errorCode: firestoreError.code,
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            step: 'firestore_error'
+          });
+          
           // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DE FIRESTORE ===
           logger.error('❌ MESSAGE.CREATE - ERROR EN FIRESTORE SET', {
             requestId,
@@ -641,38 +720,38 @@ class Message {
       }
 
             } catch (error) {
-          // LOG DE EMERGENCIA PARA RAILWAY
-          console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE ERROR:', {
-            requestId,
-            error: error.message,
-            errorType: error.constructor.name,
-            timestamp: new Date().toISOString()
-          });
-          
-          // === LOG EXTREMADAMENTE DETALLADO DEL ERROR CRÍTICO ===
-          logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
-        requestId,
-        error: error.message,
-        errorType: error.constructor.name,
-        stack: error.stack?.split('\n').slice(0, 20),
-        messageData: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-          senderIdentifier: messageData.senderIdentifier,
-          recipientIdentifier: messageData.recipientIdentifier,
-          content: messageData.content,
-          contentLength: messageData.content?.length || 0,
-          type: messageData.type,
-          direction: messageData.direction,
-          status: messageData.status,
-          mediaUrl: messageData.mediaUrl,
-          hasMetadata: !!messageData.metadata,
-          metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-        },
-        step: 'message_create_error'
-      });
-      throw error;
-    }
+              // LOG DE EMERGENCIA PARA RAILWAY
+              console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE ERROR:', {
+                requestId,
+                error: error.message,
+                errorType: error.constructor.name,
+                timestamp: new Date().toISOString()
+              });
+              
+              // === LOG EXTREMADAMENTE DETALLADO DEL ERROR CRÍTICO ===
+              logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
+                requestId,
+                error: error.message,
+                errorType: error.constructor.name,
+                stack: error.stack?.split('\n').slice(0, 20),
+                messageData: {
+                  id: messageData?.id,
+                  conversationId: messageData?.conversationId,
+                  senderIdentifier: messageData?.senderIdentifier,
+                  recipientIdentifier: messageData?.recipientIdentifier,
+                  content: messageData?.content,
+                  contentLength: messageData?.content?.length || 0,
+                  type: messageData?.type,
+                  direction: messageData?.direction,
+                  status: messageData?.status,
+                  mediaUrl: messageData?.mediaUrl,
+                  hasMetadata: !!messageData?.metadata,
+                  metadataKeys: messageData?.metadata ? Object.keys(messageData.metadata) : []
+                },
+                step: 'message_create_error'
+              });
+              throw error;
+            }
   }
 
   /**

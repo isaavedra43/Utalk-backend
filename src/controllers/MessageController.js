@@ -731,6 +731,22 @@ class MessageController {
     const startTime = Date.now();
     const requestId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
+    console.log('🚨 EMERGENCY WEBHOOK RECEIVED:', {
+      requestId,
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      path: req.path,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for']
+      },
+      body: req.body,
+      bodyKeys: Object.keys(req.body || {}),
+      step: 'webhook_received'
+    });
+    
     try {
       logger.info('🔗 WEBHOOK INICIADO', {
         requestId,
@@ -748,6 +764,19 @@ class MessageController {
 
       const { From: fromPhone, To: twilioPhone, Body: content, MessageSid: messageSid, NumMedia: numMedia } = req.body;
 
+      // === LOG DE EMERGENCIA DESPUÉS DE DESTRUCTURACIÓN ===
+      console.log('🚨 EMERGENCY WEBHOOK DATA EXTRACTED:', {
+        requestId,
+        fromPhone,
+        twilioPhone,
+        messageSid,
+        hasContent: !!content,
+        contentLength: content?.length || 0,
+        contentPreview: content?.substring(0, 100) || null,
+        numMedia: parseInt(numMedia) || 0,
+        step: 'data_extracted'
+      });
+
       logger.info('📥 PAYLOAD WEBHOOK RECIBIDO', {
         requestId,
         fromPhone,
@@ -764,8 +793,29 @@ class MessageController {
       const hasMedia = parseInt(numMedia || '0') > 0;
       const hasContent = content && content.trim().length > 0;
       
+      // === LOG DE EMERGENCIA ANTES DE VALIDACIÓN ===
+      console.log('🚨 EMERGENCY BEFORE VALIDATION:', {
+        requestId,
+        hasFrom: !!fromPhone,
+        hasContent: !!content,
+        hasMedia,
+        numMedia: parseInt(numMedia || '0'),
+        step: 'before_validation'
+      });
+      
       // Permitir mensajes multimedia sin contenido de texto
       if (!fromPhone || (!hasContent && !hasMedia)) {
+        // === LOG DE EMERGENCIA PARA VALIDACIÓN FALLIDA ===
+        console.log('🚨 EMERGENCY VALIDATION FAILED:', {
+          requestId,
+          hasFrom: !!fromPhone,
+          hasContent: !!content,
+          hasMedia,
+          numMedia: parseInt(numMedia || '0'),
+          messageSid,
+          step: 'validation_failed'
+        });
+        
         logger.warn('❌ WEBHOOK DATOS FALTANTES', {
           requestId,
           hasFrom: !!fromPhone,
@@ -784,6 +834,17 @@ class MessageController {
           processTime: Date.now() - startTime
         }, 'Datos incompletos procesados', 200);
       }
+
+      // === LOG DE EMERGENCIA DESPUÉS DE VALIDACIÓN ===
+      console.log('🚨 EMERGENCY VALIDATION PASSED:', {
+        requestId,
+        fromPhone,
+        twilioPhone,
+        messageSid,
+        hasContent: !!content,
+        hasMedia,
+        step: 'validation_passed'
+      });
 
       logger.info('✅ WEBHOOK VALIDACIÓN BÁSICA PASADA', {
         requestId,
@@ -832,8 +893,27 @@ class MessageController {
         step: 'before_message_service_call'
       });
 
+      // === LOG DE EMERGENCIA ANTES DE MESSAGESERVICE ===
+      console.log('🚨 EMERGENCY BEFORE MESSAGESERVICE:', {
+        requestId,
+        messageSid,
+        fromPhone: normalizedPhone,
+        hasContent: !!content,
+        hasMedia: parseInt(numMedia) > 0,
+        step: 'before_message_service_call'
+      });
+
       // Procesar mensaje usando MessageService (que incluye ContactService)
       const message = await MessageService.processIncomingMessage(req.body);
+
+      // === LOG DE EMERGENCIA DESPUÉS DE MESSAGESERVICE ===
+      console.log('🚨 EMERGENCY AFTER MESSAGESERVICE:', {
+        requestId,
+        messageId: message?.id,
+        conversationId: message?.conversationId,
+        success: !!message,
+        step: 'after_message_service'
+      });
 
       logger.info('✅ MESSAGESERVICE PROCESAMIENTO COMPLETADO', {
         requestId,
@@ -862,33 +942,31 @@ class MessageController {
       }, 'Mensaje procesado correctamente', 200);
 
     } catch (error) {
-      // === LOG INMEDIATO DEL ERROR EN EL CONTROLADOR ===
-      logger.error('🚨 MESSAGECONTROLLER - ERROR CRÍTICO CAPTURADO', {
+      // === LOG DE EMERGENCIA CRÍTICO EN CATCH PRINCIPAL ===
+      console.log('🚨 EMERGENCY WEBHOOK CRITICAL ERROR:', {
+        requestId,
+        error: error.message,
+        errorType: error.constructor.name,
+        errorStack: error.stack?.split('\n').slice(0, 10),
+        timestamp: new Date().toISOString(),
+        step: 'critical_error'
+      });
+      
+      logger.error('❌ ERROR CRÍTICO EN WEBHOOK', {
         requestId,
         error: error.message,
         errorType: error.constructor.name,
         stack: error.stack?.split('\n').slice(0, 20),
-        body: req.body,
         processTime: Date.now() - startTime,
-        step: 'controller_error_captured'
+        step: 'webhook_error'
       });
 
-      logger.error('❌ ERROR CRÍTICO EN WEBHOOK', {
-        requestId,
-        error: error.message,
-        stack: error.stack?.split('\n').slice(0, 5),
-        body: req.body,
-        processTime: Date.now() - startTime,
-        step: 'webhook_error_handling'
-      });
-
-      // SIEMPRE RESPONDER 200 OK A TWILIO (no retry)
+      // RESPONDER 200 OK SIEMPRE A TWILIO (IMPORTANTE)
       return ResponseHandler.success(res, {
-        status: 'error_handled',
-        message: 'Error procesado, reintento no requerido',
-        error: error.message,
+        status: 'error',
+        message: 'Error procesado',
         processTime: Date.now() - startTime
-      }, 'Error procesado, reintento no requerido', 200);
+      }, 'Error procesado', 200);
     }
   }
 

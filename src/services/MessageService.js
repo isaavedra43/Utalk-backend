@@ -422,6 +422,38 @@ class MessageService {
   static async processIncomingMessage (webhookData) {
     const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
+    console.log('🚨 EMERGENCY MESSAGESERVICE STARTED:', {
+      requestId,
+      timestamp: new Date().toISOString(),
+      webhookDataType: typeof webhookData,
+      webhookDataIsObject: webhookData && typeof webhookData === 'object',
+      webhookDataKeys: webhookData ? Object.keys(webhookData) : 'NO_DATA',
+      step: 'function_start'
+    });
+    
+    // === VERIFICACIÓN CRÍTICA DE FIREBASE ===
+    try {
+      const { firestore, admin } = require('../config/firebase');
+      console.log('🚨 EMERGENCY FIREBASE CHECK:', {
+        requestId,
+        hasFirestore: !!firestore,
+        hasAdmin: !!admin,
+        firestoreType: typeof firestore,
+        adminType: typeof admin,
+        timestamp: new Date().toISOString(),
+        step: 'firebase_check'
+      });
+    } catch (firebaseError) {
+      console.log('🚨 EMERGENCY FIREBASE ERROR:', {
+        requestId,
+        error: firebaseError.message,
+        errorType: firebaseError.constructor.name,
+        timestamp: new Date().toISOString(),
+        step: 'firebase_error'
+      });
+    }
+    
     // === LOG INMEDIATO AL INICIAR LA FUNCIÓN ===
     logger.info('🚨 MESSAGESERVICE - FUNCIÓN INICIADA', {
       requestId,
@@ -485,6 +517,18 @@ class MessageService {
       });
 
       if (!From || !To || !MessageSid) {
+        // === LOG DE EMERGENCIA PARA VALIDACIÓN FALLIDA ===
+        console.log('🚨 EMERGENCY MESSAGESERVICE VALIDATION FAILED:', {
+          requestId,
+          hasFrom: !!From,
+          hasTo: !!To,
+          hasMessageSid: !!MessageSid,
+          from: From,
+          to: To,
+          messageSid: MessageSid,
+          step: 'validation_failed'
+        });
+        
         logger.error('❌ MESSAGESERVICE - DATOS INCOMPLETOS', {
           requestId,
           hasFrom: !!From,
@@ -497,6 +541,15 @@ class MessageService {
         });
         throw new Error('Datos de webhook incompletos');
       }
+
+      // === LOG DE EMERGENCIA DESPUÉS DE VALIDACIÓN ===
+      console.log('🚨 EMERGENCY MESSAGESERVICE VALIDATION PASSED:', {
+        requestId,
+        from: From,
+        to: To,
+        messageSid: MessageSid,
+        step: 'validation_passed'
+      });
 
       logger.info('✅ MESSAGESERVICE - VALIDACIÓN PASADA', {
         requestId,
@@ -1096,34 +1149,38 @@ class MessageService {
       }
 
     } catch (error) {
-      // === LOG INMEDIATO DEL ERROR MÁS EXTERNO ===
-      logger.error('🚨 MESSAGESERVICE - ERROR CRÍTICO EXTERNO', {
+      // === LOG DE EMERGENCIA CRÍTICO EN CATCH PRINCIPAL ===
+      console.log('🚨 EMERGENCY MESSAGESERVICE CRITICAL ERROR:', {
         requestId,
         error: error.message,
         errorType: error.constructor.name,
-        stack: error.stack?.split('\n').slice(0, 25),
+        errorStack: error.stack?.split('\n').slice(0, 10),
         webhookData: {
-          From: webhookData.From,
-          To: webhookData.To,
-          MessageSid: webhookData.MessageSid,
-          Body: webhookData.Body,
-          NumMedia: webhookData.NumMedia
+          From: webhookData?.From,
+          To: webhookData?.To,
+          MessageSid: webhookData?.MessageSid,
+          hasBody: !!webhookData?.Body,
+          bodyLength: webhookData?.Body?.length || 0,
+          numMedia: webhookData?.NumMedia
         },
-        step: 'external_critical_error'
+        timestamp: new Date().toISOString(),
+        step: 'critical_error'
       });
       
       logger.error('❌ MESSAGESERVICE - ERROR CRÍTICO', {
         requestId,
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 10),
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 20),
         webhookData: {
-          From: webhookData.From,
-          To: webhookData.To,
-          MessageSid: webhookData.MessageSid,
-          hasBody: !!webhookData.Body,
-          bodyLength: webhookData.Body?.length || 0
+          From: webhookData?.From,
+          To: webhookData?.To,
+          MessageSid: webhookData?.MessageSid,
+          hasBody: !!webhookData?.Body,
+          bodyLength: webhookData?.Body?.length || 0,
+          numMedia: webhookData?.NumMedia
         },
-        step: 'process_incoming_error'
+        step: 'message_processing_error'
       });
       throw error;
     }

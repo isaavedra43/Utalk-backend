@@ -216,6 +216,14 @@ class AdvancedLogger {
         )
       }));
       
+      // Forzar salida inmediata a stdout
+      this.winston.add(new winston.transports.Console({
+        level: 'debug',
+        format: winston.format.simple(),
+        handleExceptions: true,
+        handleRejections: true
+      }));
+      
       console.log('✅ LOGGER CONFIGURADO PARA RAILWAY CON LOGS DE EMERGENCIA');
     }
 

@@ -8,6 +8,15 @@ const logger = require('../utils/logger');
 let firestore = null;
 let storage = null;
 
+// === LOG DE EMERGENCIA AL INICIAR FIREBASE ===
+console.log('🚨 EMERGENCY FIREBASE INIT STARTED:', {
+  timestamp: new Date().toISOString(),
+  hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+  serviceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.length || 0,
+  nodeEnv: process.env.NODE_ENV,
+  step: 'firebase_init_start'
+});
+
 try {
   logger.info('🔥 FIREBASE - Iniciando configuración...', {
     category: 'FIREBASE_INIT',
@@ -17,13 +26,29 @@ try {
 
   // Validar configuración
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    console.log('🚨 EMERGENCY FIREBASE NO SERVICE ACCOUNT:', {
+      timestamp: new Date().toISOString(),
+      step: 'no_service_account'
+    });
     throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
   }
 
   let serviceAccount;
   try {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    console.log('🚨 EMERGENCY FIREBASE SERVICE ACCOUNT PARSED:', {
+      timestamp: new Date().toISOString(),
+      hasProjectId: !!serviceAccount.project_id,
+      hasPrivateKey: !!serviceAccount.private_key,
+      hasClientEmail: !!serviceAccount.client_email,
+      step: 'service_account_parsed'
+    });
   } catch (parseError) {
+    console.log('🚨 EMERGENCY FIREBASE PARSE ERROR:', {
+      timestamp: new Date().toISOString(),
+      error: parseError.message,
+      step: 'parse_error'
+    });
     logger.error('FIREBASE - Error parseando service account key', {
       category: 'FIREBASE_CONFIG_ERROR',
       error: parseError.message,
@@ -37,6 +62,11 @@ try {
   const missingFields = requiredFields.filter(field => !serviceAccount[field]);
   
   if (missingFields.length > 0) {
+    console.log('🚨 EMERGENCY FIREBASE MISSING FIELDS:', {
+      timestamp: new Date().toISOString(),
+      missingFields,
+      step: 'missing_fields'
+    });
     logger.error('FIREBASE - Campos faltantes en service account', {
       category: 'FIREBASE_CONFIG_ERROR',
       missingFields,
@@ -52,9 +82,23 @@ try {
     storageBucket: `${serviceAccount.project_id}.appspot.com`
   });
 
+  console.log('🚨 EMERGENCY FIREBASE APP INITIALIZED:', {
+    timestamp: new Date().toISOString(),
+    appName: app.name,
+    projectId: serviceAccount.project_id,
+    step: 'app_initialized'
+  });
+
   // Inicializar servicios
   firestore = admin.firestore();
   storage = admin.storage();
+
+  console.log('🚨 EMERGENCY FIREBASE SERVICES INITIALIZED:', {
+    timestamp: new Date().toISOString(),
+    hasFirestore: !!firestore,
+    hasStorage: !!storage,
+    step: 'services_initialized'
+  });
 
   // Configurar Firestore settings
   firestore.settings({
@@ -70,6 +114,14 @@ try {
     appName: app.name
   });
 
+  console.log('🚨 EMERGENCY FIREBASE INIT SUCCESS:', {
+    timestamp: new Date().toISOString(),
+    projectId: serviceAccount.project_id,
+    firestoreAvailable: !!firestore,
+    storageAvailable: !!storage,
+    step: 'init_success'
+  });
+
   // Test de conectividad
       // Log removido para reducir ruido en producción
 
@@ -79,6 +131,10 @@ try {
     test: true 
   }, { merge: true })
     .then(() => {
+      console.log('🚨 EMERGENCY FIREBASE CONNECTIVITY TEST SUCCESS:', {
+        timestamp: new Date().toISOString(),
+        step: 'connectivity_success'
+      });
       logger.info('FIREBASE - Test de conectividad Firestore exitoso', {
         category: 'FIREBASE_CONNECTIVITY',
         service: 'firestore',
@@ -86,6 +142,11 @@ try {
       });
     })
     .catch((connectError) => {
+      console.log('🚨 EMERGENCY FIREBASE CONNECTIVITY TEST FAILED:', {
+        timestamp: new Date().toISOString(),
+        error: connectError.message,
+        step: 'connectivity_failed'
+      });
       logger.warn('FIREBASE - Test de conectividad Firestore falló', {
         category: 'FIREBASE_CONNECTIVITY',
         service: 'firestore',
@@ -95,6 +156,13 @@ try {
     });
 
 } catch (error) {
+  console.log('🚨 EMERGENCY FIREBASE INIT ERROR:', {
+    timestamp: new Date().toISOString(),
+    error: error.message,
+    errorType: error.constructor.name,
+    step: 'init_error'
+  });
+  
   logger.error('🔥 FIREBASE - Error crítico en inicialización', {
     category: 'FIREBASE_CRITICAL_ERROR',
     error: error.message,
