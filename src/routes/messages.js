@@ -39,13 +39,19 @@ const messageValidators = {
 
   validateWebhook: validateRequest({
     body: Joi.object({
-      From: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
-      To: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      From: Joi.string().required(),
+      To: Joi.string().required(),
       Body: Joi.string().optional(),
       MessageSid: Joi.string().required(),
-      NumMedia: Joi.string().optional(),
+      NumMedia: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
       MediaUrl0: Joi.string().uri().optional(),
-      MediaContentType0: Joi.string().optional()
+      MediaContentType0: Joi.string().optional(),
+      ProfileName: Joi.string().optional(),
+      WaId: Joi.string().optional(),
+      AccountSid: Joi.string().optional(),
+      ApiVersion: Joi.string().optional(),
+      Price: Joi.string().optional(),
+      PriceUnit: Joi.string().optional()
     })
   })
 };
