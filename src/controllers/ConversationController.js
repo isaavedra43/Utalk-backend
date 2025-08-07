@@ -160,56 +160,112 @@ class ConversationController {
             const matchesParticipants = conv.participants?.some(p => 
               p.toLowerCase().includes(searchTerm)
             );
-
-            const matchesLastMessage = conv.lastMessage?.content?.toLowerCase().includes(searchTerm);
-
-            return matchesContact || matchesParticipants || matchesLastMessage;
+            
+            const matchesCustomerPhone = conv.customerPhone?.toLowerCase().includes(searchTerm);
+            
+            return matchesContact || matchesParticipants || matchesCustomerPhone;
           } catch (filterError) {
             logger.error('search_filter_error', {
-              conversationId: conv.id,
-              error: filterError.message,
-              conv
+              convId: conv.id,
+              error: filterError.message
             });
-
             return false;
           }
         });
       }
 
+      // Calcular tiempo de respuesta
       const responseTime = Date.now() - startTime;
 
-      logger.success('get_conversations_success', {
-        conversationsCount: filteredConversations.length,
+      logger.info('get_conversations_success', {
         userEmail,
+        conversationsCount: filteredConversations.length,
+        responseTime,
         pageNum,
-        limitNum,
-        responseTime: `${responseTime}ms`,
-        hasSearchFilter: !!search,
-        searchTerm: search || null
+        limitNum
       });
 
-      ResponseHandler.success(res, filteredConversations, 'Conversaciones obtenidas exitosamente', {
-        page: pageNum,
-        limit: limitNum,
-        total: filteredConversations.length,
-        hasMore: filteredConversations.length === limitNum
-      });
+      // 📤 RESPUESTA ESTÁNDAR
+      return ResponseHandler.success(
+        res,
+        filteredConversations,
+        `${filteredConversations.length} conversaciones encontradas`,
+        200
+      );
 
     } catch (error) {
+      // 🆕 MANEJO ESPECÍFICO PARA ERRORES DE ÍNDICE EN CONSTRUCCIÓN
+      if (error.message && error.message.includes('FAILED_PRECONDITION: The query requires an index')) {
+        logger.error('FIRESTORE_INDEX_BUILDING_ERROR', {
+          error: error.message,
+          userEmail: req.user?.email,
+          suggestion: 'El índice está en construcción. Esperar 5-10 minutos o usar query temporal',
+          action: 'Crear query temporal sin ordenamiento'
+        });
+
+        // 🆕 QUERY TEMPORAL SIN ORDENAMIENTO
+        try {
+          logger.info('attempting_fallback_query', {
+            userEmail: req.user?.email,
+            message: 'Intentando query sin ordenamiento como fallback'
+          });
+
+          let fallbackQuery = firestore.collection('conversations');
+          
+          // Aplicar filtros básicos sin ordenamiento
+          if (status && status !== 'all') {
+            fallbackQuery = fallbackQuery.where('status', '==', status);
+          }
+          
+          fallbackQuery = fallbackQuery.where('participants', 'array-contains', req.user.email);
+          fallbackQuery = fallbackQuery.limit(limitNum);
+
+          const fallbackSnapshot = await fallbackQuery.get();
+          const fallbackConversations = [];
+
+          for (const doc of fallbackSnapshot.docs) {
+            try {
+              const conversation = new Conversation(doc.id, doc.data());
+              fallbackConversations.push(conversation.toJSON());
+            } catch (docError) {
+              continue;
+            }
+          }
+
+          // Ordenar en memoria como fallback
+          fallbackConversations.sort((a, b) => {
+            const aTime = a.lastMessageAt?._seconds || 0;
+            const bTime = b.lastMessageAt?._seconds || 0;
+            return bTime - aTime; // Descendente
+          });
+
+          logger.info('fallback_query_success', {
+            userEmail: req.user?.email,
+            conversationsCount: fallbackConversations.length,
+            message: 'Query temporal exitosa mientras se construye el índice'
+          });
+
+          return ResponseHandler.success(
+            res,
+            fallbackConversations,
+            `${fallbackConversations.length} conversaciones encontradas (índice en construcción)`,
+            200
+          );
+
+        } catch (fallbackError) {
+          logger.error('fallback_query_failed', {
+            error: fallbackError.message,
+            userEmail: req.user?.email
+          });
+        }
+      }
+
       logger.error('get_conversations_error', {
         error: error.message,
         stack: error.stack,
         userEmail: req.user?.email,
         query: req.query
       });
-
-      // ✅ NUEVO: Debug logging del error general
-      logger.error('general_error', {
-        error: error.message,
-        stack: error.stack,
-        userEmail: req.user?.email,
-        query: req.query
-      }, 'get_conversations_error');
 
       next(error);
     }
