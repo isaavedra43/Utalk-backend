@@ -184,6 +184,16 @@ class MessageService {
           step: 'calling_message_create'
         });
 
+        // === LOG CRÍTICO ANTES DE LLAMAR MESSAGE.CREATE ===
+        console.log('🚨 EMERGENCY BEFORE MESSAGE.CREATE CALL:', {
+          requestId,
+          messageDataId: messageData.id,
+          messageDataConversationId: messageData.conversationId,
+          messageDataKeys: Object.keys(messageData),
+          step: 'before_message_create_call'
+        });
+
+        // Crear el mensaje
         const message = await Message.create(messageData);
 
         // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE Message.create ===
