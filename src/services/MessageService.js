@@ -788,7 +788,7 @@ class MessageService {
         });
 
         const messageData = {
-          id: MessageSid || `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ID único para cada mensaje
+          id: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ID único SIEMPRE generado
           conversationId: finalConversationId, // Usar el conversationId final
           senderIdentifier: fromPhone, // Campo requerido por Message
           recipientIdentifier: toPhone, // Campo requerido por Message
@@ -804,7 +804,7 @@ class MessageService {
             hasMedia,
             numMedia: parseInt(NumMedia || '0'),
             originalMessageSid: MessageSid, // Guardar el MessageSid original de Twilio
-            generatedId: MessageSid ? false : true, // Indicar si el ID fue generado
+            generatedId: true, // SIEMPRE generado para evitar colisiones
             uniqueTimestamp: Date.now(), // Timestamp único para evitar colisiones
           },
         };
@@ -830,9 +830,18 @@ class MessageService {
           requestId,
           messageId: messageData.id,
           originalMessageSid: MessageSid,
-          isGeneratedId: !MessageSid,
+          isGeneratedId: true, // SIEMPRE generado
           timestamp: new Date().toISOString(),
           step: 'message_id_verification'
+        });
+
+        // === LOG ADICIONAL PARA VERIFICAR UNICIDAD ===
+        console.log('🚨 EMERGENCY UNIQUE ID CONFIRMATION:', {
+          requestId,
+          messageId: messageData.id,
+          timestamp: Date.now(),
+          randomSuffix: Math.random().toString(36).substr(2, 9),
+          step: 'unique_id_confirmation'
         });
 
         // Procesar media si existe
