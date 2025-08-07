@@ -99,16 +99,32 @@ class MessageService {
           throw new Error('direction debe ser inbound o outbound');
         }
 
-        if (!messageData.content && !messageData.mediaUrl) {
+        // CORREGIDO: Validación que permite contenido vacío pero no null/undefined
+        const noContent = messageData.content === null || messageData.content === undefined;
+        const noMedia = !messageData.mediaUrl;
+        
+        logger.info('🔍 CREATEMESSAGE - VALIDACIÓN DE CONTENIDO', {
+          requestId,
+          content: messageData.content,
+          contentType: typeof messageData.content,
+          contentLength: messageData.content?.length || 0,
+          hasMediaUrl: !!messageData.mediaUrl,
+          noContent,
+          noMedia,
+          step: 'content_validation_check'
+        });
+        
+        if (noContent && noMedia) {
           logger.error('❌ CREATEMESSAGE - CONTENIDO FALTANTE', {
             requestId,
             hasContent: !!messageData.content,
             hasMediaUrl: !!messageData.mediaUrl,
             content: messageData.content,
             mediaUrl: messageData.mediaUrl,
+            contentType: typeof messageData.content,
             step: 'validation_failed_content'
           });
-          throw new Error('content o mediaUrl es obligatorio');
+          throw new Error('Message debe tener content o mediaUrl (no pueden ser ambos null/undefined)');
         }
 
         logger.info('✅ CREATEMESSAGE - VALIDACIÓN PASADA', {
@@ -586,7 +602,7 @@ class MessageService {
           conversationId: finalConversationId, // Usar el conversationId final
           senderIdentifier: fromPhone, // Campo requerido por Message
           recipientIdentifier: toPhone, // Campo requerido por Message
-          content: Body || '',
+          content: Body !== undefined && Body !== null ? Body : '', // CORREGIDO: Manejo explícito de contenido
           type: messageType,
           direction: 'inbound',
           status: 'received',
