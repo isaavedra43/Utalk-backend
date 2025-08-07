@@ -210,6 +210,17 @@ function getFieldTypeByName(fieldName) {
     website: 'url',
     avatar: 'url',
     profilePicture: 'url',
+    mediaUrl: 'url',
+    MediaUrl0: 'url',
+    MediaUrl1: 'url',
+    MediaUrl2: 'url',
+    MediaUrl3: 'url',
+    MediaUrl4: 'url',
+    MediaUrl5: 'url',
+    MediaUrl6: 'url',
+    MediaUrl7: 'url',
+    MediaUrl8: 'url',
+    MediaUrl9: 'url',
     
     // Nombres y títulos
     name: 'plainText',
@@ -232,7 +243,20 @@ function getFieldTypeByName(fieldName) {
     // Teléfonos
     phone: 'plainText',
     phoneNumber: 'plainText',
-    mobile: 'plainText'
+    mobile: 'plainText',
+    
+    // Campos multimedia de Twilio
+    MediaContentType0: 'plainText',
+    MediaContentType1: 'plainText',
+    MediaContentType2: 'plainText',
+    MediaContentType3: 'plainText',
+    MediaContentType4: 'plainText',
+    MediaContentType5: 'plainText',
+    MediaContentType6: 'plainText',
+    MediaContentType7: 'plainText',
+    MediaContentType8: 'plainText',
+    MediaContentType9: 'plainText',
+    NumMedia: 'plainText'
   };
   
   const normalizedName = fieldName.toLowerCase();

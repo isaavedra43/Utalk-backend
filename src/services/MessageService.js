@@ -101,7 +101,7 @@ class MessageService {
 
         // CORREGIDO: Validación que permite contenido vacío pero no null/undefined
         const noContent = messageData.content === null || messageData.content === undefined;
-        const noMedia = !messageData.mediaUrl;
+        const noMedia = !messageData.mediaUrl || messageData.mediaUrl === null || messageData.mediaUrl === undefined;
         
         logger.info('🔍 CREATEMESSAGE - VALIDACIÓN DE CONTENIDO', {
           requestId,
@@ -109,6 +109,7 @@ class MessageService {
           contentType: typeof messageData.content,
           contentLength: messageData.content?.length || 0,
           hasMediaUrl: !!messageData.mediaUrl,
+          mediaUrl: messageData.mediaUrl,
           noContent,
           noMedia,
           step: 'content_validation_check'
@@ -472,6 +473,19 @@ class MessageService {
         const fromPhone = normalizePhoneNumber(From);
         const toPhone = normalizePhoneNumber(To);
         
+        // CORREGIDO: Validar que la normalización fue exitosa
+        if (!fromPhone || !toPhone) {
+          logger.error('❌ MESSAGESERVICE - ERROR EN NORMALIZACIÓN DE TELÉFONOS', {
+            requestId,
+            originalFrom: From,
+            originalTo: To,
+            normalizedFrom: fromPhone,
+            normalizedTo: toPhone,
+            step: 'phone_normalization_failed'
+          });
+          throw new Error('No se pudieron normalizar los números de teléfono');
+        }
+        
         logger.info('✅ MESSAGESERVICE - TELÉFONOS NORMALIZADOS', {
           requestId,
           originalFrom: From,
@@ -606,6 +620,7 @@ class MessageService {
           type: messageType,
           direction: 'inbound',
           status: 'received',
+          mediaUrl: null, // Inicializar mediaUrl para validación
           metadata: {
             twilioSid: MessageSid, // MOVIDO AQUÍ
             webhookProcessedAt: new Date().toISOString(),
@@ -643,11 +658,17 @@ class MessageService {
             messageData.mediaUrls = mediaData.urls;
             messageData.metadata.media = mediaData.processed;
             messageData.type = mediaData.primaryType || 'media';
+            
+            // CORREGIDO: Asignar mediaUrl para validación
+            if (mediaData.urls && mediaData.urls.length > 0) {
+              messageData.mediaUrl = mediaData.urls[0]; // Usar la primera URL como mediaUrl principal
+            }
 
             logger.info('✅ MESSAGESERVICE - MEDIA PROCESADA EXITOSAMENTE', {
               requestId,
               mediaUrlsCount: mediaData.urls?.length || 0,
               primaryType: mediaData.primaryType,
+              mediaUrl: messageData.mediaUrl,
               step: 'media_processing_complete'
             });
           } catch (mediaError) {

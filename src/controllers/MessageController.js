@@ -760,12 +760,18 @@ class MessageController {
         fullBody: req.body
       });
 
-      // 🔍 VALIDACIÓN BÁSICA
-      if (!fromPhone || !content) {
+      // 🔍 VALIDACIÓN BÁSICA - CORREGIDA PARA MULTIMEDIA
+      const hasMedia = parseInt(numMedia || '0') > 0;
+      const hasContent = content && content.trim().length > 0;
+      
+      // Permitir mensajes multimedia sin contenido de texto
+      if (!fromPhone || (!hasContent && !hasMedia)) {
         logger.warn('❌ WEBHOOK DATOS FALTANTES', {
           requestId,
           hasFrom: !!fromPhone,
           hasContent: !!content,
+          hasMedia,
+          numMedia: parseInt(numMedia || '0'),
           messageSid,
           body: req.body,
           validationFailed: true
