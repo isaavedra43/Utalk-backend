@@ -123,6 +123,14 @@ class MessageService {
             content: messageData.content,
             mediaUrl: messageData.mediaUrl,
             contentType: typeof messageData.content,
+            messageDataKeys: Object.keys(messageData),
+            messageDataValues: {
+              id: messageData.id,
+              conversationId: messageData.conversationId,
+              type: messageData.type,
+              direction: messageData.direction,
+              status: messageData.status
+            },
             step: 'validation_failed_content'
           });
           throw new Error('Message debe tener content o mediaUrl (no pueden ser ambos null/undefined)');
@@ -655,14 +663,33 @@ class MessageService {
 
           try {
             const mediaData = await this.processWebhookMedia(webhookData);
-            messageData.mediaUrls = mediaData.urls;
+            
+            // LOG ANTES DE ASIGNACIÓN
+            logger.info('🔍 MESSAGESERVICE - ANTES DE ASIGNAR MEDIA', {
+              requestId,
+              mediaDataUrls: mediaData.urls,
+              mediaDataUrlsLength: mediaData.urls?.length || 0,
+              messageDataMediaUrl: messageData.mediaUrl,
+              step: 'before_media_assignment'
+            });
+            
+            // ESTANDARIZADO: Usar solo mediaUrl como campo principal
+            if (mediaData.urls && mediaData.urls.length > 0) {
+              messageData.mediaUrl = mediaData.urls[0]; // URL principal
+              messageData.metadata.mediaUrls = mediaData.urls; // Array completo en metadata
+            }
+            
             messageData.metadata.media = mediaData.processed;
             messageData.type = mediaData.primaryType || 'media';
             
-            // CORREGIDO: Asignar mediaUrl para validación
-            if (mediaData.urls && mediaData.urls.length > 0) {
-              messageData.mediaUrl = mediaData.urls[0]; // Usar la primera URL como mediaUrl principal
-            }
+            // LOG DESPUÉS DE ASIGNACIÓN
+            logger.info('✅ MESSAGESERVICE - DESPUÉS DE ASIGNAR MEDIA', {
+              requestId,
+              messageDataMediaUrl: messageData.mediaUrl,
+              messageDataMediaUrls: messageData.metadata.mediaUrls,
+              messageDataType: messageData.type,
+              step: 'after_media_assignment'
+            });
 
             logger.info('✅ MESSAGESERVICE - MEDIA PROCESADA EXITOSAMENTE', {
               requestId,
@@ -672,12 +699,20 @@ class MessageService {
               step: 'media_processing_complete'
             });
           } catch (mediaError) {
-            logger.warn('⚠️ MESSAGESERVICE - ERROR PROCESANDO MEDIA', {
+            logger.error('❌ MESSAGESERVICE - ERROR PROCESANDO MEDIA', {
               requestId,
               error: mediaError.message,
+              stack: mediaError.stack?.split('\n').slice(0, 5),
+              messageDataMediaUrl: messageData.mediaUrl,
               step: 'media_processing_error'
             });
             messageData.metadata.mediaProcessingError = mediaError.message;
+            
+            // Continuar con el mensaje aunque falle el procesamiento de media
+            logger.info('⚠️ MESSAGESERVICE - CONTINUANDO SIN MEDIA PROCESADA', {
+              requestId,
+              step: 'continue_without_processed_media'
+            });
           }
         }
 
@@ -781,6 +816,14 @@ class MessageService {
             requestId,
             error: error.message,
             stack: error.stack?.split('\n').slice(0, 10),
+            webhookData: {
+              From: webhookData.From,
+              To: webhookData.To,
+              MessageSid: webhookData.MessageSid,
+              hasBody: !!webhookData.Body,
+              bodyLength: webhookData.Body?.length || 0,
+              numMedia: webhookData.NumMedia
+            },
             step: 'message_processing_error'
           });
         }
