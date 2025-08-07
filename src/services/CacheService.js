@@ -97,8 +97,9 @@ class EnterpriseCacheService {
         // Conectar a Redis
         await this.redis.connect();
       } else {
-        logger.warn('⚠️ Redis URL not configured, using local cache only', {
-          category: 'CACHE_REDIS_MISSING'
+        logger.info('ℹ️ Redis no configurado, usando cache local', {
+          category: 'CACHE_REDIS_MISSING',
+          fallback: 'local_memory'
         });
       }
 

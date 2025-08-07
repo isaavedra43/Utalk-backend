@@ -260,11 +260,16 @@ class AdvancedMemoryManager extends EventEmitter {
         ratio: (memoryUsage / this.config.memoryCriticalThreshold).toFixed(2)
       });
     } else if (memoryUsage > this.config.memoryWarningThreshold) {
-      this.triggerWarningAlert('HIGH_MEMORY_USAGE', {
-        current: memoryUsage,
-        threshold: this.config.memoryWarningThreshold,
-        ratio: (memoryUsage / this.config.memoryWarningThreshold).toFixed(2)
-      });
+      // Solo loggear si no se ha loggeado recientemente (evitar spam)
+      const now = Date.now();
+      if (!this.lastMemoryWarning || (now - this.lastMemoryWarning) > 60000) { // 1 minuto
+        this.triggerWarningAlert('HIGH_MEMORY_USAGE', {
+          current: memoryUsage,
+          threshold: this.config.memoryWarningThreshold,
+          ratio: (memoryUsage / this.config.memoryWarningThreshold).toFixed(2)
+        });
+        this.lastMemoryWarning = now;
+      }
     }
   }
   
@@ -292,7 +297,8 @@ class AdvancedMemoryManager extends EventEmitter {
    * ⚠️ MANEJAR ALERTAS DE ADVERTENCIA
    */
   triggerWarningAlert(type, data) {
-    logger.warn(`ALERTA: ${type}`, {
+    // Cambiar de warn a debug para reducir ruido
+    logger.debug(`ALERTA: ${type}`, {
       type,
       data,
       timestamp: new Date().toISOString(),
