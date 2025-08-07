@@ -694,16 +694,33 @@ class MessageService {
           throw createMessageError;
         }
 
-      } catch (phoneError) {
-        logger.error('❌ MESSAGESERVICE - ERROR EN NORMALIZACIÓN DE TELÉFONOS', {
-          requestId,
-          error: phoneError.message,
-          stack: phoneError.stack?.split('\n').slice(0, 5),
-          originalFrom: From,
-          originalTo: To,
-          step: 'phone_normalization_error'
-        });
-        throw phoneError;
+      } catch (error) {
+        // Determinar el tipo de error basado en el contexto
+        if (error.message && error.message.includes('normaliz')) {
+          logger.error('❌ MESSAGESERVICE - ERROR EN NORMALIZACIÓN DE TELÉFONOS', {
+            requestId,
+            error: error.message,
+            stack: error.stack?.split('\n').slice(0, 5),
+            originalFrom: From,
+            originalTo: To,
+            step: 'phone_normalization_error'
+          });
+        } else if (error.message && (error.message.includes('conversación') || error.message.includes('conversation'))) {
+          logger.error('❌ MESSAGESERVICE - ERROR EN BÚSQUEDA/CREACIÓN DE CONVERSACIÓN', {
+            requestId,
+            error: error.message,
+            stack: error.stack?.split('\n').slice(0, 10),
+            step: 'conversation_search_error'
+          });
+        } else {
+          logger.error('❌ MESSAGESERVICE - ERROR EN PROCESAMIENTO DE MENSAJE', {
+            requestId,
+            error: error.message,
+            stack: error.stack?.split('\n').slice(0, 10),
+            step: 'message_processing_error'
+          });
+        }
+        throw error;
       }
 
     } catch (error) {
