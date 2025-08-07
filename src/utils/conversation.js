@@ -76,17 +76,33 @@ function isValidConversationId (conversationId) {
 function normalizePhoneNumber (phone) {
   if (!phone) return null;
   
-  // Remover todos los caracteres no numéricos
-  let normalized = phone.replace(/[^\d]/g, '');
+  // Remover prefijo WhatsApp si existe
+  let normalized = phone.replace(/^whatsapp:/, '');
   
-  // Manejar prefijos de WhatsApp
-  if (phone.startsWith('whatsapp:')) {
-    normalized = phone.replace('whatsapp:', '').replace(/[^\d]/g, '');
+  // Remover espacios, guiones, paréntesis y otros caracteres
+  normalized = normalized.replace(/[\s\-()]/g, '');
+  
+  // Obtener solo dígitos para validación
+  const digitsOnly = normalized.replace(/\D/g, '');
+  
+  // Validar que tenga al menos 7 dígitos (mínimo para números válidos)
+  if (digitsOnly.length < 7) {
+    return null;
   }
   
-  // Asegurar que tenga al menos 10 dígitos
-  if (normalized.length < 10) {
-    return null;
+  // Asegurar que comience con +
+  if (!normalized.startsWith('+')) {
+    // Si no tiene código de país, asumir +1 (EEUU) solo para números de 10 dígitos
+    if (digitsOnly.length === 10) {
+      normalized = '+1' + digitsOnly;
+    } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+      normalized = '+' + digitsOnly;
+    } else if (digitsOnly.length >= 7) {
+      // Solo agregar + si tiene al menos 7 dígitos
+      normalized = '+' + digitsOnly;
+    } else {
+      return null; // Rechazar números muy cortos
+    }
   }
   
   return normalized;

@@ -521,7 +521,6 @@ class MessageService {
 
             conversation = await Conversation.create({
               customerPhone: fromPhone,
-              agentPhone: toPhone,
               id: conversationId
             });
 
