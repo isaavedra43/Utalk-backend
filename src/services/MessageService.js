@@ -215,13 +215,16 @@ class MessageService {
         // Efectos secundarios en paralelo
         const sideEffects = [];
 
+        // ACTUALIZACIÓN DE CONVERSACIÓN DESHABILITADA (SE HACE EN Message.create)
+        // Evitar doble actualización que causa inconsistencias
         if (updateConversation) {
-          logger.info('🔄 CREATEMESSAGE - AGREGANDO UPDATE CONVERSATION', {
+          logger.info('🔄 CREATEMESSAGE - ACTUALIZACIÓN DE CONVERSACIÓN DESHABILITADA', {
             requestId,
             conversationId: message.conversationId,
-            step: 'side_effects_conversation_added'
+            reason: 'Se actualiza directamente en Message.create para evitar doble actualización',
+            step: 'side_effects_conversation_disabled'
           });
-          sideEffects.push(this.updateConversationWithMessage(message));
+          // sideEffects.push(this.updateConversationWithMessage(message)); // DESHABILITADO
         }
 
         if (updateContact) {
@@ -816,11 +819,22 @@ class MessageService {
           step: 'before_create_message_call'
         });
 
+        // ASEGURAR QUE SIEMPRE HAY UN ID VÁLIDO
+        if (!messageData.id) {
+          messageData.id = `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          console.log('🚨 EMERGENCY LOG - ID GENERADO:', {
+            requestId,
+            generatedId: messageData.id,
+            timestamp: new Date().toISOString()
+          });
+        }
+
         // Crear mensaje con efectos secundarios
         logger.info('💾 MESSAGESERVICE - INICIANDO CREACIÓN DE MENSAJE', {
           requestId,
           conversationId,
           messageDataKeys: Object.keys(messageData),
+          messageId: messageData.id,
           step: 'message_creation_start'
         });
 
@@ -829,6 +843,7 @@ class MessageService {
           requestId,
           conversationId,
           messageDataKeys: Object.keys(messageData),
+          messageId: messageData.id,
           timestamp: new Date().toISOString()
         });
 
@@ -944,6 +959,47 @@ class MessageService {
             hasMedia,
             step: 'message_creation_complete'
           });
+
+          // EMITIR EVENTO EN TIEMPO REAL PARA MENSAJES ENTRANTES
+          try {
+            logger.info('🔄 MESSAGESERVICE - EMITIENDO EVENTO EN TIEMPO REAL', {
+              requestId,
+              messageId: message.id,
+              conversationId: message.conversationId,
+              direction: message.direction,
+              step: 'realtime_emission_start'
+            });
+
+            // Obtener socket manager de la aplicación
+            const socketManager = global.socketManager || require('../socket/enterpriseSocketManager');
+            
+            if (socketManager && typeof socketManager.emitNewMessage === 'function') {
+              await socketManager.emitNewMessage(message.conversationId, message);
+              
+              logger.info('✅ MESSAGESERVICE - EVENTO EMITIDO EXITOSAMENTE', {
+                requestId,
+                messageId: message.id,
+                conversationId: message.conversationId,
+                step: 'realtime_emission_success'
+              });
+            } else {
+              logger.warn('⚠️ MESSAGESERVICE - SOCKET MANAGER NO DISPONIBLE', {
+                requestId,
+                hasSocketManager: !!socketManager,
+                hasEmitNewMessage: socketManager && typeof socketManager.emitNewMessage === 'function',
+                step: 'realtime_emission_warning'
+              });
+            }
+          } catch (emissionError) {
+            logger.error('❌ MESSAGESERVICE - ERROR EMITIENDO EVENTO', {
+              requestId,
+              error: emissionError.message,
+              messageId: message.id,
+              conversationId: message.conversationId,
+              step: 'realtime_emission_error'
+            });
+            // No lanzar error, es una operación secundaria
+          }
 
           return message;
 

@@ -200,6 +200,25 @@ class AdvancedLogger {
       }));
     }
 
+    // CONFIGURACIÓN ESPECÍFICA PARA RAILWAY - FORZAR TODOS LOS LOGS
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      // Configurar nivel de log para Railway
+      this.winston.level = 'debug';
+      
+      // Agregar transport de emergencia para Railway
+      this.winston.add(new winston.transports.Console({
+        level: 'debug',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.printf(({ timestamp, level, message, ...meta }) => {
+            return `🚨 RAILWAY_EMERGENCY ${timestamp} ${level.toUpperCase()}: ${message}`;
+          })
+        )
+      }));
+      
+      console.log('✅ LOGGER CONFIGURADO PARA RAILWAY CON LOGS DE EMERGENCIA');
+    }
+
     // Manejar errores del logger
     this.winston.on('error', (error) => {
       // Fallback seguro: solo en desarrollo

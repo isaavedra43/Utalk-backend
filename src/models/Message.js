@@ -457,13 +457,33 @@ class Message {
             step: 'before_firestore_set'
           });
 
-          // Ahora guardar el mensaje en la subcolección
-          await firestore
-            .collection('conversations')
-            .doc(message.conversationId)
-            .collection('messages')
-            .doc(message.id)
-            .set(cleanData);
+                  // LOG DE EMERGENCIA ANTES DE GUARDAR EN FIRESTORE
+        console.log('🚨 EMERGENCY LOG - ANTES DE GUARDAR EN FIRESTORE:', {
+          requestId,
+          path: `conversations/${message.conversationId}/messages/${message.id}`,
+          messageId: message.id,
+          conversationId: message.conversationId,
+          content: message.content,
+          timestamp: new Date().toISOString()
+        });
+
+        // Ahora guardar el mensaje en la subcolección
+        await firestore
+          .collection('conversations')
+          .doc(message.conversationId)
+          .collection('messages')
+          .doc(message.id)
+          .set(cleanData);
+
+        // LOG DE EMERGENCIA DESPUÉS DE GUARDAR EN FIRESTORE
+        console.log('🚨 EMERGENCY LOG - DESPUÉS DE GUARDAR EN FIRESTORE:', {
+          requestId,
+          path: `conversations/${message.conversationId}/messages/${message.id}`,
+          messageId: message.id,
+          conversationId: message.conversationId,
+          success: true,
+          timestamp: new Date().toISOString()
+        });
 
           // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DEL SET EN FIRESTORE ===
           logger.info('✅ MESSAGE.CREATE - DESPUÉS DE SET EN FIRESTORE EXITOSO', {
@@ -545,7 +565,7 @@ class Message {
           throw firestoreError;
         }
 
-        // Actualizar conversación
+        // ACTUALIZAR CONVERSACIÓN DIRECTAMENTE EN FIRESTORE (EVITAR DOBLE ACTUALIZACIÓN)
         logger.info('🔄 MESSAGE.CREATE - INICIANDO ACTUALIZACIÓN DE CONVERSACIÓN', {
           requestId,
           conversationId: message.conversationId,
@@ -553,54 +573,26 @@ class Message {
         });
 
         try {
-          logger.info('🔄 MESSAGE.CREATE - IMPORTANDO CONVERSATION MODEL', {
-            requestId,
-            step: 'conversation_import_start'
-          });
-
-          const Conversation = require('./Conversation');
+          // Actualizar conversación directamente en Firestore
+          const conversationRef = firestore.collection('conversations').doc(message.conversationId);
           
-          logger.info('✅ MESSAGE.CREATE - CONVERSATION MODEL IMPORTADO', {
-            requestId,
-            step: 'conversation_import_complete'
+          await conversationRef.update({
+            lastMessage: {
+              content: message.content,
+              timestamp: new Date(),
+              sender: message.senderIdentifier,
+              messageId: message.id
+            },
+            messageCount: admin.firestore.FieldValue.increment(1),
+            updatedAt: new Date()
           });
 
-          logger.info('🔄 MESSAGE.CREATE - LLAMANDO Conversation.getById', {
+          logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ACTUALIZADA EN FIRESTORE', {
             requestId,
             conversationId: message.conversationId,
-            step: 'calling_conversation_getById'
+            messageId: message.id,
+            step: 'conversation_update_complete'
           });
-
-          const conversation = await Conversation.getById(message.conversationId);
-          
-          if (conversation) {
-            logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ENCONTRADA', {
-              requestId,
-              conversationId: message.conversationId,
-              step: 'conversation_found'
-            });
-
-            logger.info('🔄 MESSAGE.CREATE - LLAMANDO conversation.updateLastMessage', {
-              requestId,
-              conversationId: message.conversationId,
-              messageId: message.id,
-              step: 'calling_updateLastMessage'
-            });
-
-            await conversation.updateLastMessage(message);
-
-            logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ACTUALIZADA', {
-              requestId,
-              conversationId: message.conversationId,
-              step: 'conversation_update_complete'
-            });
-          } else {
-            logger.warn('⚠️ MESSAGE.CREATE - CONVERSACIÓN NO ENCONTRADA', {
-              requestId,
-              conversationId: message.conversationId,
-              step: 'conversation_not_found'
-            });
-          }
 
         } catch (conversationError) {
           logger.error('❌ MESSAGE.CREATE - ERROR EN ACTUALIZACIÓN DE CONVERSACIÓN', {
