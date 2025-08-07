@@ -292,346 +292,156 @@ class Message {
   /**
    * Crear mensaje en Firestore (EMAIL-FIRST)
    */
-  static async create (messageData) {
+  static async create (messageData, uniqueMessageId) {
     const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
-    // === LOG CONSOLIDADO DE MESSAGE.CREATE ===
     console.log('🚨 MESSAGE.CREATE STARTED:', {
       requestId,
       messageDataId: messageData?.id,
       conversationId: messageData?.conversationId,
-      sender: messageData?.senderIdentifier,
-      recipient: messageData?.recipientIdentifier,
-      content: messageData?.content?.substring(0, 30) + (messageData?.content?.length > 30 ? '...' : ''),
-      type: messageData?.type,
-      direction: messageData?.direction,
-      hasMetadata: !!messageData?.metadata,
+      uniqueMessageId,
       step: 'message_create_start'
     });
     
     try {
-      logger.info('🔄 MESSAGE.CREATE - INICIANDO CREACIÓN', {
+      const message = new Message(messageData);
+
+      console.log('🚨 MESSAGE CONSTRUCTOR:', {
         requestId,
-        timestamp: new Date().toISOString(),
-        messageDataKeys: Object.keys(messageData),
-        messageDataValues: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-          senderIdentifier: messageData.senderIdentifier,
-          recipientIdentifier: messageData.recipientIdentifier,
-          content: messageData.content,
-          type: messageData.type,
-          direction: messageData.direction,
-          status: messageData.status,
-          hasMetadata: !!messageData.metadata,
-          metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-        },
-        step: 'message_create_start'
+        originalDataId: messageData.id,
+        assignedMessageId: message.id,
+        assignedConversationId: message.conversationId,
+        areIdsSame: message.id === message.conversationId,
+        step: 'constructor_completed'
       });
 
-      logger.info('🔄 MESSAGE.CREATE - INICIANDO CONSTRUCCIÓN DE INSTANCIA', {
-        requestId,
-        step: 'constructor_start'
-      });
+      // Check if conversation exists, if not, create it
+      const conversationRef = firestore.collection('conversations').doc(message.conversationId);
+      const conversationDoc = await conversationRef.get();
 
-      try {
-        const message = new Message(messageData);
-
-        // === LOG DE EMERGENCIA DESPUÉS DE CONSTRUCTOR ===
-        console.log('🚨 EMERGENCY MESSAGE.CONSTRUCTOR SUCCESS:', {
+      if (!conversationDoc.exists) {
+        console.log('🚨 CONVERSATION NOT EXISTS:', {
           requestId,
-          messageId: message.id,
           conversationId: message.conversationId,
-          content: message.content,
-          type: message.type,
-          direction: message.direction,
-          step: 'constructor_success'
-        });
-
-        logger.info('✅ MESSAGE.CREATE - INSTANCIA CREADA', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          senderIdentifier: message.senderIdentifier,
-          recipientIdentifier: message.recipientIdentifier,
-          content: message.content,
-          type: message.type,
-          direction: message.direction,
-          step: 'message_instance_created'
-        });
-
-        logger.info('🧹 MESSAGE.CREATE - INICIANDO PREPARACIÓN PARA FIRESTORE', {
-          requestId,
-          step: 'firestore_preparation_start'
-        });
-
-        const cleanData = prepareForFirestore({ ...message });
-
-        // === LOG CONSOLIDADO DE PREPARACIÓN FIRESTORE ===
-        console.log('🚨 FIRESTORE PREPARATION:', {
-          requestId,
-          originalMessageId: message.id,
-          cleanDataId: cleanData.id,
-          areIdsSame: message.id === cleanData.id,
-          content: cleanData.content?.substring(0, 30) + (cleanData.content?.length > 30 ? '...' : ''),
-          type: cleanData.type,
-          direction: cleanData.direction,
-          step: 'firestore_prepared'
-        });
-
-        // === LIMPIEZA AGRESIVA DE VALORES UNDEFINED/NULL ===
-        const firestoreData = {};
-        for (const [key, value] of Object.entries(cleanData)) {
-          // Solo incluir valores que NO sean undefined, null, o strings vacíos
-          if (value !== undefined && value !== null && value !== '') {
-            firestoreData[key] = value;
-          }
-        }
-
-        // === LOG DE VERIFICACIÓN DE DATOS LIMPIOS ===
-        console.log('🚨 FIRESTORE CLEANED DATA:', {
-          requestId,
-          originalKeys: Object.keys(cleanData),
-          cleanedKeys: Object.keys(firestoreData),
-          removedKeys: Object.keys(cleanData).filter(key => !firestoreData.hasOwnProperty(key)),
-          hasId: !!firestoreData.id,
-          hasContent: !!firestoreData.content,
-          hasConversationId: !!firestoreData.conversationId,
-          step: 'data_cleaning_complete'
-        });
-
-        // === VERIFICACIÓN CRÍTICA ANTES DE GUARDAR ===
-        if (!firestoreData.id || !firestoreData.conversationId) {
-          throw new Error(`DATOS CRÍTICOS FALTANTES: id=${!!firestoreData.id}, conversationId=${!!firestoreData.conversationId}`);
-        }
-
-        // === LOG EXTREMADAMENTE DETALLADO ANTES DEL SET EN FIRESTORE ===
-        console.log('🚨 EMERGENCY CRITICAL ID CHECK - ID to be used for Firestore document:', {
-          requestId,
-          idForFirestore: message.id, // Use the explicitly passed unique ID
-          path: `conversations/${message.conversationId}/messages/${message.id}`, // Use the explicitly passed unique ID
-          firestoreDataKeys: Object.keys(firestoreData),
-          firestoreDataValues: {
-            id: firestoreData.id,
-            conversationId: firestoreData.conversationId,
-            senderIdentifier: firestoreData.senderIdentifier,
-            recipientIdentifier: firestoreData.recipientIdentifier,
-            content: firestoreData.content,
-            type: firestoreData.type,
-            direction: firestoreData.direction,
-            status: firestoreData.status,
-            mediaUrl: firestoreData.mediaUrl,
-            timestamp: firestoreData.timestamp
-          },
-          step: 'before_firestore_set'
-        });
-
-        // Save message to Firestore subcollection using the uniqueMessageId
-        await firestore.collection('conversations').doc(message.conversationId).collection('messages').doc(message.id).set(firestoreData);
-
-        logger.info('✅ MESSAGE.CREATE - DESPUÉS DE SET EN FIRESTORE EXITOSO', { requestId, messageId: message.id, conversationId: message.conversationId, step: 'firestore_set_success' });
-        console.log('🚨 EMERGENCY LOG - DESPUÉS DE GUARDAR EN FIRESTORE', { requestId, messageId: message.id, conversationId: message.conversationId, step: 'firestore_saved_emergency' });
-
-        // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DEL SET EN FIRESTORE ===
-        logger.info('✅ MESSAGE.CREATE - DESPUÉS DE SET EN FIRESTORE EXITOSO', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          path: `conversations/${message.conversationId}/messages/${message.id}`,
-          step: 'after_firestore_set_success'
-        });
-
-        logger.info('✅ MESSAGE.CREATE - MENSAJE GUARDADO EN FIRESTORE', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          sender: message.senderIdentifier,
-          recipient: message.recipientIdentifier,
-          step: 'firestore_save_complete'
-        });
-
-        // === LOG DE ÉXITO DETALLADO ===
-        logger.info('=== MENSAJE GUARDADO CORRECTAMENTE ===', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          content: message.content,
-          type: message.type,
-          direction: message.direction,
-          timestamp: new Date().toISOString()
-        });
-
-      } catch (firestoreError) {
-        // === LOG DE EMERGENCIA PARA ERROR DE FIRESTORE ===
-        console.log('🚨 EMERGENCY FIRESTORE ERROR:', {
-          requestId,
-          error: firestoreError.message,
-          errorType: firestoreError.constructor.name,
-          errorCode: firestoreError.code,
-          path: `conversations/${message.conversationId}/messages/${message.id}`,
-          step: 'firestore_error'
+          step: 'conversation_not_exists'
         });
         
-        // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DE FIRESTORE ===
-        logger.error('❌ MESSAGE.CREATE - ERROR EN FIRESTORE SET', {
-          requestId,
-          error: firestoreError.message,
-          errorType: firestoreError.constructor.name,
-          errorCode: firestoreError.code,
-          errorDetails: firestoreError.details,
-          stack: firestoreError.stack?.split('\n').slice(0, 20),
-          path: `conversations/${message.conversationId}/messages/${message.id}`,
-          cleanDataKeys: Object.keys(cleanData),
-          cleanDataValues: {
-            id: cleanData.id,
-            conversationId: cleanData.conversationId,
-            senderIdentifier: cleanData.senderIdentifier,
-            recipientIdentifier: cleanData.recipientIdentifier,
-            content: cleanData.content,
-            type: cleanData.type,
-            direction: cleanData.direction,
-            status: cleanData.status,
-            mediaUrl: cleanData.mediaUrl,
-            hasMetadata: !!cleanData.metadata,
-            metadataKeys: cleanData.metadata ? Object.keys(cleanData.metadata) : []
-          },
-          step: 'firestore_set_error'
-        });
-
-        // === ERROR DETALLADO ===
-        logger.error('=== ERROR DETALLADO EN FIRESTORE ===', {
-          requestId,
-          errorMessage: firestoreError.message,
-          errorCode: firestoreError.code,
-          errorDetails: firestoreError.details,
-          path: `conversations/${message.conversationId}/messages/${message.id}`,
-          cleanData: JSON.stringify(cleanData, null, 2),
-          messageData: {
-            id: message.id,
-            conversationId: message.conversationId,
-            senderIdentifier: message.senderIdentifier,
-            recipientIdentifier: message.recipientIdentifier,
-            content: message.content,
-            type: message.type,
-            direction: message.direction,
-            status: message.status,
-            mediaUrl: message.mediaUrl
-          }
-        });
-
-        throw firestoreError;
-      }
-
-      // ACTUALIZAR CONVERSACIÓN DIRECTAMENTE EN FIRESTORE (EVITAR DOBLE ACTUALIZACIÓN)
-      logger.info('🔄 MESSAGE.CREATE - INICIANDO ACTUALIZACIÓN DE CONVERSACIÓN', {
-        requestId,
-        conversationId: message.conversationId,
-        step: 'conversation_update_start'
-      });
-
-      try {
-        // Actualizar conversación directamente en Firestore
-        const conversationRef = firestore.collection('conversations').doc(message.conversationId);
-        
-        await conversationRef.update({
+        // Create the parent conversation document
+        await conversationRef.set({
+          id: message.conversationId,
+          customerPhone: message.senderIdentifier,
+          createdAt: new Date(),
+          updatedAt: new Date(),
           lastMessage: {
             content: message.content,
             timestamp: new Date(),
-            sender: message.senderIdentifier,
-            messageId: message.id
+            sender: message.senderIdentifier
           },
-          messageCount: admin.firestore.FieldValue.increment(1),
-          updatedAt: new Date()
+          messageCount: 1
         });
-
-        logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ACTUALIZADA EN FIRESTORE', {
+        
+        console.log('🚨 CONVERSATION CREATED:', {
           requestId,
           conversationId: message.conversationId,
-          messageId: message.id,
-          step: 'conversation_update_complete'
+          step: 'conversation_created'
         });
-
-      } catch (conversationError) {
-        logger.error('❌ MESSAGE.CREATE - ERROR EN ACTUALIZACIÓN DE CONVERSACIÓN', {
-          requestId,
-          error: conversationError.message,
-          stack: conversationError.stack?.split('\n').slice(0, 10),
-          conversationId: message.conversationId,
-          step: 'conversation_update_error'
-        });
-        // No lanzar error, es una operación secundaria
       }
 
-      logger.info('✅ MESSAGE.CREATE - CREACIÓN COMPLETADA', {
+      // Update conversation with last message and increment count
+      await conversationRef.update({
+        lastMessage: {
+          content: message.content,
+          timestamp: new Date(),
+          sender: message.senderIdentifier,
+          messageId: uniqueMessageId
+        },
+        messageCount: admin.firestore.FieldValue.increment(1),
+        updatedAt: new Date()
+      });
+
+      // Prepare data for Firestore, ensuring no undefined values
+      const cleanData = prepareForFirestore({ ...message });
+
+      console.log('🚨 FIRESTORE PREPARATION:', {
         requestId,
-        messageId: message.id,
-        conversationId: message.conversationId,
-        step: 'message_create_complete'
+        originalMessageId: message.id,
+        cleanDataId: cleanData.id,
+        areIdsSame: message.id === cleanData.id,
+        step: 'firestore_prepared'
+      });
+
+      // Aggressive cleaning of undefined/null values
+      const firestoreData = {};
+      for (const [key, value] of Object.entries(cleanData)) {
+        if (value !== undefined && value !== null && value !== '') {
+          firestoreData[key] = value;
+        }
+      }
+
+      console.log('🚨 FIRESTORE CLEANED DATA:', {
+        requestId,
+        originalKeys: Object.keys(cleanData),
+        cleanedKeys: Object.keys(firestoreData),
+        removedKeys: Object.keys(cleanData).filter(key => !firestoreData.hasOwnProperty(key)),
+        hasId: !!firestoreData.id,
+        hasContent: !!firestoreData.content,
+        hasConversationId: !!firestoreData.conversationId,
+        step: 'data_cleaning_complete'
+      });
+
+      // Critical verification before saving
+      if (!firestoreData.id || !firestoreData.conversationId) {
+        throw new Error(`CRITICAL DATA MISSING: id=${!!firestoreData.id}, conversationId=${!!firestoreData.conversationId}`);
+      }
+
+      console.log('🚨 EMERGENCY CRITICAL ID CHECK:', {
+        requestId,
+        idForFirestore: uniqueMessageId,
+        path: `conversations/${message.conversationId}/messages/${uniqueMessageId}`,
+        step: 'before_firestore_set'
+      });
+
+      // Save message to Firestore subcollection using the uniqueMessageId
+      await firestore.collection('conversations').doc(message.conversationId).collection('messages').doc(uniqueMessageId).set(firestoreData);
+
+      console.log('🚨 EMERGENCY LOG - AFTER FIRESTORE SAVE:', { 
+        requestId, 
+        messageId: uniqueMessageId, 
+        conversationId: message.conversationId, 
+        step: 'firestore_saved_emergency' 
       });
 
       return message;
 
-    } catch (constructorError) {
-      // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DEL CONSTRUCTOR ===
-      logger.error('❌ MESSAGE.CREATE - ERROR EN CONSTRUCTOR', {
+    } catch (error) {
+      console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE ERROR:', {
         requestId,
-        error: constructorError.message,
-        errorType: constructorError.constructor.name,
-        stack: constructorError.stack?.split('\n').slice(0, 20),
-        messageData: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-          senderIdentifier: messageData.senderIdentifier,
-          recipientIdentifier: messageData.recipientIdentifier,
-          content: messageData.content,
-          contentLength: messageData.content?.length || 0,
-          type: messageData.type,
-          direction: messageData.direction,
-          status: messageData.status,
-          mediaUrl: messageData.mediaUrl,
-          hasMetadata: !!messageData.metadata,
-          metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-        },
-        step: 'constructor_error'
+        error: error.message,
+        errorType: error.constructor.name,
+        timestamp: new Date().toISOString()
       });
-      throw constructorError;
+      
+      logger.error('❌ MESSAGE.CREATE - CRITICAL ERROR', {
+        requestId,
+        error: error.message,
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 20),
+        messageData: {
+          id: messageData?.id,
+          conversationId: messageData?.conversationId,
+          senderIdentifier: messageData?.senderIdentifier,
+          recipientIdentifier: messageData?.recipientIdentifier,
+          content: messageData?.content,
+          type: messageData?.type,
+          direction: messageData?.direction,
+          status: messageData?.status,
+          mediaUrl: messageData?.mediaUrl
+        },
+        step: 'message_create_error'
+      });
+      throw error;
     }
-
-  } catch (error) {
-    // LOG DE EMERGENCIA PARA RAILWAY
-    console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE ERROR:', {
-      requestId,
-      error: error.message,
-      errorType: error.constructor.name,
-      timestamp: new Date().toISOString()
-    });
-    
-    // === LOG EXTREMADAMENTE DETALLADO DEL ERROR CRÍTICO ===
-    logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
-      requestId,
-      error: error.message,
-      errorType: error.constructor.name,
-      stack: error.stack?.split('\n').slice(0, 20),
-      messageData: {
-        id: messageData?.id,
-        conversationId: messageData?.conversationId,
-        senderIdentifier: messageData?.senderIdentifier,
-        recipientIdentifier: messageData?.recipientIdentifier,
-        content: messageData?.content,
-        contentLength: messageData?.content?.length || 0,
-        type: messageData?.type,
-        direction: messageData?.direction,
-        status: messageData?.status,
-        mediaUrl: messageData?.mediaUrl,
-        hasMetadata: !!messageData?.metadata,
-        metadataKeys: messageData?.metadata ? Object.keys(messageData.metadata) : []
-      },
-      step: 'message_create_error'
-    });
-    throw error;
   }
-}
 
   /**
    * Obtener mensaje por Twilio SID
