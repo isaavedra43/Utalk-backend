@@ -659,6 +659,9 @@ class MessageService {
           step: 'conversation_search_start'
         });
 
+        // Declarar finalConversationId fuera del try-catch para que esté disponible en todo el scope
+        let finalConversationId = null;
+
         try {
           logger.info('🔄 MESSAGESERVICE - LLAMANDO Conversation.findByPhones', {
             requestId,
@@ -709,7 +712,7 @@ class MessageService {
           }
 
           // Usar el conversationId de la conversación encontrada o creada
-          const finalConversationId = conversation.id;
+          finalConversationId = conversation.id;
 
           logger.info('✅ MESSAGESERVICE - CONVERSATIONID FINAL ASIGNADO', {
             requestId,
@@ -730,6 +733,18 @@ class MessageService {
             step: 'conversation_search_error'
           });
           throw conversationError;
+        }
+
+        // Verificar que finalConversationId se asignó correctamente
+        if (!finalConversationId) {
+          logger.error('❌ MESSAGESERVICE - FINALCONVERSATIONID NO ASIGNADO', {
+            requestId,
+            fromPhone,
+            toPhone,
+            conversationId,
+            step: 'final_conversation_id_not_assigned'
+          });
+          throw new Error('No se pudo asignar finalConversationId');
         }
 
         // Determinar tipo de mensaje
