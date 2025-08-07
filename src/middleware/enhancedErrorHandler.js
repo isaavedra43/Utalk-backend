@@ -447,6 +447,10 @@ class EnhancedErrorHandler {
     }
 
     const logLevel = this.getLogLevel(classification.severity);
+    
+    // 🆕 MENSAJE ESPECÍFICO Y ÚTIL
+    const specificMessage = this.generateSpecificErrorMessage(error, context, classification);
+    
     const logData = {
       category: 'ERROR_HANDLED',
       error: {
@@ -455,24 +459,104 @@ class EnhancedErrorHandler {
         severity: classification.severity,
         name: error.name,
         message: error.message,
+        code: error.code,
         stack: error.stack
       },
       context: context,
       classification: classification,
-      tags: this.generateErrorTags(classification, context)
+      tags: this.generateErrorTags(classification, context),
+      // 🆕 INFORMACIÓN ESPECÍFICA PARA DEBUGGING
+      debugging: {
+        endpoint: context.url,
+        method: context.method,
+        userAgent: context.userAgent,
+        ip: context.ip,
+        timestamp: context.timestamp
+      }
     };
 
-    logger[logLevel](`Error ${classification.category}: ${error.message}`, logData);
+    logger[logLevel](specificMessage, logData);
 
-    // Log adicional para errores críticos
+    // 🆕 LOG ESPECÍFICO PARA ERRORES CRÍTICOS CON INFORMACIÓN ÚTIL
     if (classification.severity === 'critical') {
-      logger.error('🚨 ERROR CRÍTICO DETECTADO', {
-        category: 'CRITICAL_ERROR_ALERT',
+      const criticalMessage = this.generateCriticalErrorMessage(error, context, classification);
+      logger.error(criticalMessage, {
+        category: 'CRITICAL_ERROR_DETAILED',
         ...logData,
         requiresAttention: true,
-        severity: 'CRITICAL'
+        severity: 'CRITICAL',
+        actionRequired: this.getActionRequired(error, classification)
       });
     }
+  }
+
+  /**
+   * 🆕 GENERAR MENSAJE ESPECÍFICO DE ERROR
+   */
+  generateSpecificErrorMessage(error, context, classification) {
+    const endpoint = context.url || 'unknown';
+    const method = context.method || 'unknown';
+    
+    switch (classification.type) {
+      case ERROR_TYPES.DATABASE:
+        return `[DATABASE] Error en ${method} ${endpoint}: ${error.message}`;
+      case ERROR_TYPES.EXTERNAL_SERVICE:
+        return `[EXTERNAL] Error en ${method} ${endpoint}: ${error.message}`;
+      case ERROR_TYPES.NETWORK:
+        return `[NETWORK] Error en ${method} ${endpoint}: ${error.message}`;
+      case ERROR_TYPES.AUTHENTICATION:
+        return `[AUTH] Error en ${method} ${endpoint}: ${error.message}`;
+      case ERROR_TYPES.AUTHORIZATION:
+        return `[PERMISSION] Error en ${method} ${endpoint}: ${error.message}`;
+      case ERROR_TYPES.VALIDATION:
+        return `[VALIDATION] Error en ${method} ${endpoint}: ${error.message}`;
+      default:
+        return `[${classification.type}] Error en ${method} ${endpoint}: ${error.message}`;
+    }
+  }
+
+  /**
+   * 🆕 GENERAR MENSAJE CRÍTICO CON INFORMACIÓN ÚTIL
+   */
+  generateCriticalErrorMessage(error, context, classification) {
+    const endpoint = context.url || 'unknown';
+    const method = context.method || 'unknown';
+    const action = this.getActionRequired(error, classification);
+    
+    return `🚨 ERROR CRÍTICO: ${method} ${endpoint} | ${error.message} | Acción: ${action}`;
+  }
+
+  /**
+   * 🆕 OBTENER ACCIÓN REQUERIDA SEGÚN EL ERROR
+   */
+  getActionRequired(error, classification) {
+    // Firestore index error
+    if (error.message && error.message.includes('FAILED_PRECONDITION: The query requires an index')) {
+      return 'Crear índice en Firebase Console desde el link en el error';
+    }
+    
+    // Firestore permission error
+    if (error.message && error.message.includes('PERMISSION_DENIED')) {
+      return 'Verificar reglas de Firestore y permisos del usuario';
+    }
+    
+    // Network timeout
+    if (error.code === 'ETIMEDOUT') {
+      return 'Verificar conectividad de red y latencia';
+    }
+    
+    // Database connection
+    if (error.code === 'ECONNREFUSED') {
+      return 'Verificar estado de la base de datos';
+    }
+    
+    // Memory pressure
+    if (error.message && error.message.includes('memory')) {
+      return 'Optimizar uso de memoria o escalar recursos';
+    }
+    
+    // Generic critical error
+    return 'Revisar logs detallados para más información';
   }
 
   /**
@@ -565,7 +649,12 @@ class EnhancedErrorHandler {
     const timeSinceFirst = Math.round((Date.now() - data.firstOccurrence) / 1000);
     const timeSinceLast = Math.round((Date.now() - data.lastOccurrence) / 1000);
     
-    const summaryMessage = `[CRITICAL] ${pattern?.category || 'ERROR_REPETITIVO'} en ${data.context.url} | Ocurrencias: ${data.occurrences} | Última vez: ${timeSinceLast}s | Solución: ${suggestion}`;
+    // 🆕 MENSAJE ESPECÍFICO Y ÚTIL
+    const category = pattern?.category || 'ERROR_REPETITIVO';
+    const endpoint = data.context.url || 'unknown';
+    const method = data.context.method || 'unknown';
+    
+    const summaryMessage = `[${category}] ${method} ${endpoint} | Ocurrencias: ${data.occurrences} | Última vez: ${timeSinceLast}s | Solución: ${suggestion}`;
     
     logger.error(summaryMessage, {
       category: 'ERROR_DEDUPLICATION_SUMMARY',
@@ -579,7 +668,15 @@ class EnhancedErrorHandler {
       suggestion: suggestion,
       context: data.context,
       severity: 'CRITICAL',
-      requiresAttention: true
+      requiresAttention: true,
+      // 🆕 INFORMACIÓN ESPECÍFICA PARA DEBUGGING
+      debugging: {
+        endpoint: endpoint,
+        method: method,
+        errorType: data.error.name,
+        errorMessage: data.error.message,
+        errorCode: data.error.code
+      }
     });
   }
 
@@ -749,14 +846,14 @@ class EnhancedErrorHandler {
   isExternalServiceError(error) {
     return (error.code && typeof error.code === 'number' && error.code >= 20000) || // Twilio
            error.name === 'TwilioError' ||
-           (error.code && error.code.startsWith('firestore/')) ||
+           (error.code && typeof error.code === 'string' && error.code.startsWith('firestore/')) ||
            error.name === 'FirebaseError';
   }
 
   isDatabaseError(error) {
     return error.name === 'MongoError' ||
            error.name === 'DatabaseError' ||
-           (error.code && error.code.startsWith('firestore/'));
+           (error.code && typeof error.code === 'string' && error.code.startsWith('firestore/'));
   }
 
   isNetworkError(error) {
@@ -824,7 +921,7 @@ class EnhancedErrorHandler {
     if (error.name === 'TwilioError' || (error.code && typeof error.code === 'number')) {
       return 'twilio';
     }
-    if (error.code && error.code.startsWith('firestore/')) {
+    if (error.code && typeof error.code === 'string' && error.code.startsWith('firestore/')) {
       return 'firebase';
     }
     return 'unknown';
