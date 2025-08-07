@@ -652,6 +652,33 @@ class MessageService {
           step: 'message_creation_start'
         });
 
+        // === DEBUG DETALLADO ANTES DE GUARDAR ===
+        logger.info('=== DATA ANTES DE GUARDAR ===', {
+          requestId,
+          messageData: JSON.stringify(messageData, null, 2),
+          tipos: {
+            id: typeof messageData.id,
+            conversationId: typeof messageData.conversationId,
+            senderIdentifier: typeof messageData.senderIdentifier,
+            recipientIdentifier: typeof messageData.recipientIdentifier,
+            content: typeof messageData.content,
+            type: typeof messageData.type,
+            direction: typeof messageData.direction,
+            status: typeof messageData.status,
+            hasMetadata: !!messageData.metadata
+          },
+          valores: {
+            id: messageData.id,
+            conversationId: messageData.conversationId,
+            senderIdentifier: messageData.senderIdentifier,
+            recipientIdentifier: messageData.recipientIdentifier,
+            content: messageData.content,
+            type: messageData.type,
+            direction: messageData.direction,
+            status: messageData.status
+          }
+        });
+
         try {
           logger.info('🔄 MESSAGESERVICE - LLAMANDO this.createMessage', {
             requestId,

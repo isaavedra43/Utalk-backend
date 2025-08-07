@@ -21,6 +21,11 @@ service cloud.firestore {
       return request.auth.token.role in ['admin', 'agent'];
     }
     
+    // TEMPORAL: Permitir webhook sin autenticación para debugging
+    function isWebhookRequest() {
+      return request.auth == null;
+    }
+    
     // Usuarios - solo pueden acceder a su propia información
     match /users/{userId} {
       allow read, write: if isAuthenticated() && 
@@ -34,15 +39,15 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid;
     }
     
-    // Conversaciones - agentes y admins pueden leer/escribir
+    // Conversaciones - agentes y admins pueden leer/escribir, webhook puede crear
     match /conversations/{conversationId} {
       allow read, write: if isAuthenticated() && isAgentOrAbove();
-      allow create: if isAuthenticated() && isAgentOrAbove();
+      allow create: if isAuthenticated() && isAgentOrAbove() || isWebhookRequest();
       
-      // Mensajes dentro de conversaciones
+      // Mensajes dentro de conversaciones - webhook puede crear sin autenticación
       match /messages/{messageId} {
         allow read, write: if isAuthenticated() && isAgentOrAbove();
-        allow create: if isAuthenticated() && isAgentOrAbove();
+        allow create: if isAuthenticated() && isAgentOrAbove() || isWebhookRequest();
       }
     }
     

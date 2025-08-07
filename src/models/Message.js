@@ -101,9 +101,26 @@ class Message {
         hasMediaUrl: !!data.mediaUrl,
         content: data.content,
         mediaUrl: data.mediaUrl,
+        contentType: typeof data.content,
+        contentLength: data.content?.length || 0,
         step: 'content_validation_start'
       });
 
+      // CORREGIDO: Permitir contenido vacío pero no null/undefined
+      if (data.content === null || data.content === undefined) {
+        logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO NULL/UNDEFINED', {
+          requestId,
+          hasContent: !!data.content,
+          hasMediaUrl: !!data.mediaUrl,
+          content: data.content,
+          mediaUrl: data.mediaUrl,
+          contentType: typeof data.content,
+          step: 'validation_failed_content_null'
+        });
+        throw new Error('Message debe tener content (no puede ser null/undefined)');
+      }
+
+      // Si no hay contenido ni mediaUrl, entonces es un error
       if (!data.content && !data.mediaUrl) {
         logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO FALTANTE', {
           requestId,
@@ -111,7 +128,8 @@ class Message {
           hasMediaUrl: !!data.mediaUrl,
           content: data.content,
           mediaUrl: data.mediaUrl,
-          step: 'validation_failed_content'
+          contentType: typeof data.content,
+          step: 'validation_failed_content_missing'
         });
         throw new Error('Message debe tener content o mediaUrl');
       }
@@ -120,10 +138,12 @@ class Message {
         requestId,
         hasContent: !!data.content,
         hasMediaUrl: !!data.mediaUrl,
+        contentLength: data.content?.length || 0,
         step: 'content_validation_passed'
       });
 
-      this.content = data.content || null;
+      // CORREGIDO: Asignar contenido como string (puede ser vacío)
+      this.content = data.content || '';
       this.mediaUrl = data.mediaUrl || null;
 
       logger.info('✅ MESSAGE.CONSTRUCTOR - CONTENIDO ASIGNADO', {
@@ -322,6 +342,23 @@ class Message {
           step: 'firestore_preparation_complete'
         });
 
+        // === DEBUG DETALLADO ANTES DE FIRESTORE ===
+        logger.info('=== FIRESTORE DEBUG ===', {
+          requestId,
+          path: `conversations/${message.conversationId}/messages/${message.id}`,
+          cleanData: JSON.stringify(cleanData, null, 2),
+          messageData: {
+            id: message.id,
+            conversationId: message.conversationId,
+            senderIdentifier: message.senderIdentifier,
+            recipientIdentifier: message.recipientIdentifier,
+            content: message.content,
+            type: message.type,
+            direction: message.direction,
+            status: message.status
+          }
+        });
+
         // Guardar en la subcolección de la conversación
         logger.info('💾 MESSAGE.CREATE - INICIANDO GUARDADO EN FIRESTORE', {
           requestId,
@@ -399,6 +436,17 @@ class Message {
             step: 'firestore_save_complete'
           });
 
+          // === LOG DE ÉXITO DETALLADO ===
+          logger.info('=== MENSAJE GUARDADO CORRECTAMENTE ===', {
+            requestId,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            content: message.content,
+            type: message.type,
+            direction: message.direction,
+            timestamp: new Date().toISOString()
+          });
+
         } catch (firestoreError) {
           logger.error('❌ MESSAGE.CREATE - ERROR EN FIRESTORE SET', {
             requestId,
@@ -408,6 +456,26 @@ class Message {
             cleanDataKeys: Object.keys(cleanData),
             step: 'firestore_set_error'
           });
+
+          // === ERROR DETALLADO ===
+          logger.error('=== ERROR DETALLADO EN FIRESTORE ===', {
+            requestId,
+            errorMessage: firestoreError.message,
+            errorCode: firestoreError.code,
+            errorDetails: firestoreError.details,
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            cleanData: JSON.stringify(cleanData, null, 2),
+            messageData: {
+              id: message.id,
+              conversationId: message.conversationId,
+              senderIdentifier: message.senderIdentifier,
+              recipientIdentifier: message.recipientIdentifier,
+              content: message.content,
+              type: message.type,
+              direction: message.direction
+            }
+          });
+
           throw firestoreError;
         }
 
