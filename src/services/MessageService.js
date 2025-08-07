@@ -797,6 +797,7 @@ class MessageService {
           direction: 'inbound',
           status: 'received',
           mediaUrl: null, // Inicializar mediaUrl para validación
+          timestamp: new Date(), // Agregar timestamp para ordenamiento
           metadata: {
             twilioSid: MessageSid, // MOVIDO AQUÍ
             webhookProcessedAt: new Date().toISOString(),
@@ -804,6 +805,7 @@ class MessageService {
             numMedia: parseInt(NumMedia || '0'),
             originalMessageSid: MessageSid, // Guardar el MessageSid original de Twilio
             generatedId: MessageSid ? false : true, // Indicar si el ID fue generado
+            uniqueTimestamp: Date.now(), // Timestamp único para evitar colisiones
           },
         };
 

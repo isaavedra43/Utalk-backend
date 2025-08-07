@@ -526,23 +526,40 @@ class Message {
             step: 'before_firestore_set'
           });
 
-                  // LOG DE EMERGENCIA ANTES DE GUARDAR EN FIRESTORE
-        console.log('🚨 EMERGENCY LOG - ANTES DE GUARDAR EN FIRESTORE:', {
-          requestId,
-          path: `conversations/${message.conversationId}/messages/${message.id}`,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          content: message.content,
-          timestamp: new Date().toISOString()
-        });
+          // === LIMPIEZA ADICIONAL PARA ELIMINAR VALORES UNDEFINED ===
+          const firestoreData = {};
+          for (const [key, value] of Object.entries(cleanData)) {
+            if (value !== undefined && value !== null) {
+              firestoreData[key] = value;
+            }
+          }
 
-        // Ahora guardar el mensaje en la subcolección
-        await firestore
-          .collection('conversations')
-          .doc(message.conversationId)
-          .collection('messages')
-          .doc(message.id)
-          .set(cleanData);
+          // === LOG DE EMERGENCIA PARA VERIFICAR DATOS LIMPIOS ===
+          console.log('🚨 EMERGENCY CLEANED DATA FOR FIRESTORE:', {
+            requestId,
+            originalKeys: Object.keys(cleanData),
+            cleanedKeys: Object.keys(firestoreData),
+            removedKeys: Object.keys(cleanData).filter(key => cleanData[key] === undefined || cleanData[key] === null),
+            step: 'data_cleaning_complete'
+          });
+
+          // LOG DE EMERGENCIA ANTES DE GUARDAR EN FIRESTORE
+          console.log('🚨 EMERGENCY LOG - ANTES DE GUARDAR EN FIRESTORE:', {
+            requestId,
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            content: message.content,
+            timestamp: new Date().toISOString()
+          });
+
+          // Ahora guardar el mensaje en la subcolección con datos limpios
+          await firestore
+            .collection('conversations')
+            .doc(message.conversationId)
+            .collection('messages')
+            .doc(message.id)
+            .set(firestoreData);
 
         // === LOG DE EMERGENCIA DESPUÉS DE GUARDAR EN FIRESTORE ===
         console.log('🚨 EMERGENCY LOG - DESPUÉS DE GUARDAR EN FIRESTORE:', {
