@@ -190,6 +190,19 @@ class MessageService {
           messageDataId: messageData.id,
           messageDataConversationId: messageData.conversationId,
           messageDataKeys: Object.keys(messageData),
+          messageDataValues: {
+            id: messageData.id,
+            conversationId: messageData.conversationId,
+            senderIdentifier: messageData.senderIdentifier,
+            recipientIdentifier: messageData.recipientIdentifier,
+            content: messageData.content,
+            type: messageData.type,
+            direction: messageData.direction,
+            status: messageData.status,
+            mediaUrl: messageData.mediaUrl,
+            timestamp: messageData.timestamp,
+            metadata: messageData.metadata
+          },
           step: 'before_message_create_call'
         });
 
