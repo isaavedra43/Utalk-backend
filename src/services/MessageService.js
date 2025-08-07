@@ -151,6 +151,27 @@ class MessageService {
       });
 
       try {
+        // === LOG EXTREMADAMENTE DETALLADO ANTES DE Message.create ===
+        logger.info('🔍 CREATEMESSAGE - ANTES DE LLAMAR Message.create', {
+          requestId,
+          messageDataKeys: Object.keys(messageData),
+          messageDataValues: {
+            id: messageData.id,
+            conversationId: messageData.conversationId,
+            senderIdentifier: messageData.senderIdentifier,
+            recipientIdentifier: messageData.recipientIdentifier,
+            content: messageData.content,
+            contentLength: messageData.content?.length || 0,
+            type: messageData.type,
+            direction: messageData.direction,
+            status: messageData.status,
+            mediaUrl: messageData.mediaUrl,
+            hasMetadata: !!messageData.metadata,
+            metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
+          },
+          step: 'before_message_create_call'
+        });
+
         logger.info('🔄 CREATEMESSAGE - LLAMANDO Message.create', {
           requestId,
           messageDataKeys: Object.keys(messageData),
@@ -158,6 +179,25 @@ class MessageService {
         });
 
         const message = await Message.create(messageData);
+
+        // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE Message.create ===
+        logger.info('✅ CREATEMESSAGE - DESPUÉS DE Message.create EXITOSO', {
+          requestId,
+          messageId: message.id,
+          conversationId: message.conversationId,
+          messageKeys: Object.keys(message),
+          messageValues: {
+            id: message.id,
+            conversationId: message.conversationId,
+            senderIdentifier: message.senderIdentifier,
+            recipientIdentifier: message.recipientIdentifier,
+            content: message.content,
+            type: message.type,
+            direction: message.direction,
+            status: message.status
+          },
+          step: 'after_message_create_success'
+        });
 
         logger.info('✅ CREATEMESSAGE - MENSAJE CREADO EN FIRESTORE', {
           requestId,
@@ -221,18 +261,30 @@ class MessageService {
         return message;
 
       } catch (messageCreateError) {
+        // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DE Message.create ===
         logger.error('❌ CREATEMESSAGE - ERROR EN Message.create', {
           requestId,
           error: messageCreateError.message,
-          stack: messageCreateError.stack?.split('\n').slice(0, 10),
+          errorType: messageCreateError.constructor.name,
+          stack: messageCreateError.stack?.split('\n').slice(0, 20),
           messageData: {
             id: messageData.id,
             conversationId: messageData.conversationId,
             senderIdentifier: messageData.senderIdentifier,
             recipientIdentifier: messageData.recipientIdentifier,
             content: messageData.content,
+            contentLength: messageData.content?.length || 0,
             type: messageData.type,
-            direction: messageData.direction
+            direction: messageData.direction,
+            status: messageData.status,
+            mediaUrl: messageData.mediaUrl,
+            hasMetadata: !!messageData.metadata,
+            metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
+          },
+          options: {
+            updateConversation,
+            updateContact,
+            validateInput
           },
           step: 'message_create_error'
         });
@@ -752,6 +804,33 @@ class MessageService {
         });
 
         try {
+          // === LOG EXTREMADAMENTE DETALLADO ANTES DE createMessage ===
+          logger.info('🔍 MESSAGESERVICE - ANTES DE LLAMAR createMessage', {
+            requestId,
+            conversationId,
+            messageDataKeys: Object.keys(messageData),
+            messageDataValues: {
+              id: messageData.id,
+              conversationId: messageData.conversationId,
+              senderIdentifier: messageData.senderIdentifier,
+              recipientIdentifier: messageData.recipientIdentifier,
+              content: messageData.content,
+              contentLength: messageData.content?.length || 0,
+              type: messageData.type,
+              direction: messageData.direction,
+              status: messageData.status,
+              mediaUrl: messageData.mediaUrl,
+              hasMetadata: !!messageData.metadata,
+              metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
+            },
+            options: {
+              updateConversation: true,
+              updateContact: true,
+              validateInput: true
+            },
+            step: 'before_createMessage_call'
+          });
+
           logger.info('🔄 MESSAGESERVICE - LLAMANDO this.createMessage', {
             requestId,
             conversationId,
@@ -762,6 +841,27 @@ class MessageService {
             updateConversation: true,
             updateContact: true,
             validateInput: true,
+          });
+
+          // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE createMessage ===
+          logger.info('✅ MESSAGESERVICE - DESPUÉS DE createMessage EXITOSO', {
+            requestId,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            messageKeys: Object.keys(message),
+            messageValues: {
+              id: message.id,
+              conversationId: message.conversationId,
+              senderIdentifier: message.senderIdentifier,
+              recipientIdentifier: message.recipientIdentifier,
+              content: message.content,
+              type: message.type,
+              direction: message.direction,
+              status: message.status
+            },
+            from: fromPhone,
+            hasMedia,
+            step: 'after_createMessage_success'
           });
 
           logger.info('✅ MESSAGESERVICE - MENSAJE CREADO EXITOSAMENTE', {
@@ -776,17 +876,38 @@ class MessageService {
           return message;
 
         } catch (createMessageError) {
+          // === LOG EXTREMADAMENTE DETALLADO DEL ERROR ===
           logger.error('❌ MESSAGESERVICE - ERROR EN CREACIÓN DE MENSAJE', {
             requestId,
             error: createMessageError.message,
-            stack: createMessageError.stack?.split('\n').slice(0, 10),
+            errorType: createMessageError.constructor.name,
+            stack: createMessageError.stack?.split('\n').slice(0, 15),
             messageData: {
               id: messageData.id,
               conversationId: messageData.conversationId,
               senderIdentifier: messageData.senderIdentifier,
               recipientIdentifier: messageData.recipientIdentifier,
-              contentLength: messageData.content.length,
-              type: messageData.type
+              content: messageData.content,
+              contentLength: messageData.content?.length || 0,
+              type: messageData.type,
+              direction: messageData.direction,
+              status: messageData.status,
+              mediaUrl: messageData.mediaUrl,
+              hasMetadata: !!messageData.metadata,
+              metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
+            },
+            options: {
+              updateConversation: true,
+              updateContact: true,
+              validateInput: true
+            },
+            webhookData: {
+              From: webhookData.From,
+              To: webhookData.To,
+              MessageSid: webhookData.MessageSid,
+              Body: webhookData.Body,
+              NumMedia: webhookData.NumMedia,
+              hasMedia: parseInt(webhookData.NumMedia || '0') > 0
             },
             step: 'create_message_error'
           });

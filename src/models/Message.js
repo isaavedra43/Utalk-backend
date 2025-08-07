@@ -242,10 +242,12 @@ class Message {
       });
 
     } catch (error) {
+      // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DEL CONSTRUCTOR ===
       logger.error('❌ MESSAGE.CONSTRUCTOR - ERROR CRÍTICO', {
         requestId,
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 10),
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 20),
         data: {
           hasId: !!data.id,
           hasMessageId: !!data.messageId,
@@ -260,7 +262,13 @@ class Message {
           senderIdentifier: data.senderIdentifier,
           recipientIdentifier: data.recipientIdentifier,
           content: data.content,
-          mediaUrl: data.mediaUrl
+          contentLength: data.content?.length || 0,
+          mediaUrl: data.mediaUrl,
+          type: data.type,
+          direction: data.direction,
+          status: data.status,
+          hasMetadata: !!data.metadata,
+          metadataKeys: data.metadata ? Object.keys(data.metadata) : []
         },
         step: 'constructor_error'
       });
@@ -419,6 +427,27 @@ class Message {
             });
           }
 
+          // === LOG EXTREMADAMENTE DETALLADO ANTES DEL SET EN FIRESTORE ===
+          logger.info('🔍 MESSAGE.CREATE - ANTES DE EJECUTAR SET EN FIRESTORE', {
+            requestId,
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            cleanDataKeys: Object.keys(cleanData),
+            cleanDataValues: {
+              id: cleanData.id,
+              conversationId: cleanData.conversationId,
+              senderIdentifier: cleanData.senderIdentifier,
+              recipientIdentifier: cleanData.recipientIdentifier,
+              content: cleanData.content,
+              type: cleanData.type,
+              direction: cleanData.direction,
+              status: cleanData.status,
+              mediaUrl: cleanData.mediaUrl,
+              hasMetadata: !!cleanData.metadata,
+              metadataKeys: cleanData.metadata ? Object.keys(cleanData.metadata) : []
+            },
+            step: 'before_firestore_set'
+          });
+
           // Ahora guardar el mensaje en la subcolección
           await firestore
             .collection('conversations')
@@ -426,6 +455,15 @@ class Message {
             .collection('messages')
             .doc(message.id)
             .set(cleanData);
+
+          // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DEL SET EN FIRESTORE ===
+          logger.info('✅ MESSAGE.CREATE - DESPUÉS DE SET EN FIRESTORE EXITOSO', {
+            requestId,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            step: 'after_firestore_set_success'
+          });
 
           logger.info('✅ MESSAGE.CREATE - MENSAJE GUARDADO EN FIRESTORE', {
             requestId,
@@ -448,12 +486,29 @@ class Message {
           });
 
         } catch (firestoreError) {
+          // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DE FIRESTORE ===
           logger.error('❌ MESSAGE.CREATE - ERROR EN FIRESTORE SET', {
             requestId,
             error: firestoreError.message,
-            stack: firestoreError.stack?.split('\n').slice(0, 10),
+            errorType: firestoreError.constructor.name,
+            errorCode: firestoreError.code,
+            errorDetails: firestoreError.details,
+            stack: firestoreError.stack?.split('\n').slice(0, 20),
             path: `conversations/${message.conversationId}/messages/${message.id}`,
             cleanDataKeys: Object.keys(cleanData),
+            cleanDataValues: {
+              id: cleanData.id,
+              conversationId: cleanData.conversationId,
+              senderIdentifier: cleanData.senderIdentifier,
+              recipientIdentifier: cleanData.recipientIdentifier,
+              content: cleanData.content,
+              type: cleanData.type,
+              direction: cleanData.direction,
+              status: cleanData.status,
+              mediaUrl: cleanData.mediaUrl,
+              hasMetadata: !!cleanData.metadata,
+              metadataKeys: cleanData.metadata ? Object.keys(cleanData.metadata) : []
+            },
             step: 'firestore_set_error'
           });
 
@@ -472,7 +527,9 @@ class Message {
               recipientIdentifier: message.recipientIdentifier,
               content: message.content,
               type: message.type,
-              direction: message.direction
+              direction: message.direction,
+              status: message.status,
+              mediaUrl: message.mediaUrl
             }
           });
 
@@ -557,18 +614,25 @@ class Message {
         return message;
 
       } catch (constructorError) {
+        // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DEL CONSTRUCTOR ===
         logger.error('❌ MESSAGE.CREATE - ERROR EN CONSTRUCTOR', {
           requestId,
           error: constructorError.message,
-          stack: constructorError.stack?.split('\n').slice(0, 10),
+          errorType: constructorError.constructor.name,
+          stack: constructorError.stack?.split('\n').slice(0, 20),
           messageData: {
             id: messageData.id,
             conversationId: messageData.conversationId,
             senderIdentifier: messageData.senderIdentifier,
             recipientIdentifier: messageData.recipientIdentifier,
             content: messageData.content,
+            contentLength: messageData.content?.length || 0,
             type: messageData.type,
-            direction: messageData.direction
+            direction: messageData.direction,
+            status: messageData.status,
+            mediaUrl: messageData.mediaUrl,
+            hasMetadata: !!messageData.metadata,
+            metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
           },
           step: 'constructor_error'
         });
@@ -576,18 +640,25 @@ class Message {
       }
 
     } catch (error) {
+      // === LOG EXTREMADAMENTE DETALLADO DEL ERROR CRÍTICO ===
       logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
         requestId,
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 10),
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 20),
         messageData: {
           id: messageData.id,
           conversationId: messageData.conversationId,
           senderIdentifier: messageData.senderIdentifier,
           recipientIdentifier: messageData.recipientIdentifier,
           content: messageData.content,
+          contentLength: messageData.content?.length || 0,
           type: messageData.type,
-          direction: messageData.direction
+          direction: messageData.direction,
+          status: messageData.status,
+          mediaUrl: messageData.mediaUrl,
+          hasMetadata: !!messageData.metadata,
+          metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
         },
         step: 'message_create_error'
       });
