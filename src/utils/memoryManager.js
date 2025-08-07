@@ -278,7 +278,8 @@ class AdvancedMemoryManager extends EventEmitter {
       type,
       data,
       timestamp: new Date().toISOString(),
-      severity: 'CRITICAL'
+      severity: 'CRITICAL',
+      requiresAttention: true
     });
     
     // Forzar limpieza inmediata

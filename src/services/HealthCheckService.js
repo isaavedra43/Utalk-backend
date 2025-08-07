@@ -122,13 +122,15 @@ class ProductionHealthCheckService {
           dep.backoffMs = Math.min(dep.backoffMs * this.config.backoffMultiplier, this.config.maxBackoffMs);
           dep.nextCheckAt = Date.now() + dep.backoffMs;
 
-          // Enviar alerta CRÍTICA (controlada por el logger) solo cuando el circuit se abre
-          logger.triggerCriticalAlert(`El servicio ${dep.name} está fallando repetidamente. Circuit breaker abierto.`, {
+          // Enviar alerta CRÍTICA usando logger.error
+          logger.error(`CRÍTICO: El servicio ${dep.name} está fallando repetidamente. Circuit breaker abierto.`, {
             category: 'HEALTH_CIRCUIT_BREAKER_OPEN',
             dependency: dep.name,
             failures: dep.consecutiveFailures,
             nextCheckIn: `${dep.backoffMs}ms`,
-            error: error.message
+            error: error.message,
+            severity: 'CRITICAL',
+            requiresAttention: true
           });
         }
       }
