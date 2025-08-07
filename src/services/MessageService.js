@@ -581,6 +581,15 @@ class MessageService {
         });
         
         if (existingMessage) {
+          // === LOG DE EMERGENCIA PARA MENSAJE DUPLICADO ===
+          console.log('🚨 EMERGENCY DUPLICATE MESSAGE DETECTED:', {
+            requestId,
+            messageSid: MessageSid,
+            existingMessageId: existingMessage.id,
+            existingMessageConversationId: existingMessage.conversationId,
+            step: 'duplicate_detected'
+          });
+          
           logger.warn('⚠️ MESSAGESERVICE - MENSAJE DUPLICADO DETECTADO', {
             requestId,
             twilioSid: MessageSid,
@@ -589,6 +598,13 @@ class MessageService {
           });
           return existingMessage;
         }
+
+        // === LOG DE EMERGENCIA PARA MENSAJE NUEVO ===
+        console.log('🚨 EMERGENCY NEW MESSAGE CONFIRMED:', {
+          requestId,
+          messageSid: MessageSid,
+          step: 'new_message_confirmed'
+        });
 
         logger.info('✅ MESSAGESERVICE - SIN DUPLICADOS', {
           requestId,
@@ -772,7 +788,7 @@ class MessageService {
         });
 
         const messageData = {
-          id: MessageSid, // ID del mensaje (Twilio SID)
+          id: MessageSid || `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ID único para cada mensaje
           conversationId: finalConversationId, // Usar el conversationId final
           senderIdentifier: fromPhone, // Campo requerido por Message
           recipientIdentifier: toPhone, // Campo requerido por Message
@@ -786,6 +802,8 @@ class MessageService {
             webhookProcessedAt: new Date().toISOString(),
             hasMedia,
             numMedia: parseInt(NumMedia || '0'),
+            originalMessageSid: MessageSid, // Guardar el MessageSid original de Twilio
+            generatedId: MessageSid ? false : true, // Indicar si el ID fue generado
           },
         };
 
@@ -803,6 +821,16 @@ class MessageService {
             metadataKeys: Object.keys(messageData.metadata)
           },
           step: 'message_data_prepared'
+        });
+
+        // === LOG DE EMERGENCIA PARA VERIFICAR ID ÚNICO ===
+        console.log('🚨 EMERGENCY MESSAGE ID VERIFICATION:', {
+          requestId,
+          messageId: messageData.id,
+          originalMessageSid: MessageSid,
+          isGeneratedId: !MessageSid,
+          timestamp: new Date().toISOString(),
+          step: 'message_id_verification'
         });
 
         // Procesar media si existe
