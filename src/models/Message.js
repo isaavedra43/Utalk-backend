@@ -47,33 +47,123 @@ class Message {
    * Crear mensaje en Firestore (EMAIL-FIRST)
    */
   static async create (messageData) {
-    const message = new Message(messageData);
+    const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      logger.info('🔄 MESSAGE.CREATE - INICIANDO CREACIÓN', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        messageData: {
+          id: messageData.id,
+          conversationId: messageData.conversationId,
+          senderIdentifier: messageData.senderIdentifier,
+          recipientIdentifier: messageData.recipientIdentifier,
+          direction: messageData.direction,
+          type: messageData.type,
+          hasContent: !!messageData.content,
+          hasMediaUrl: !!messageData.mediaUrl
+        },
+        step: 'message_create_start'
+      });
 
-    const cleanData = prepareForFirestore({ ...message });
+      const message = new Message(messageData);
 
-    // Guardar en la subcolección de la conversación
-    await firestore
-      .collection('conversations')
-      .doc(message.conversationId)
-      .collection('messages')
-      .doc(message.id)
-      .set(cleanData);
+      logger.info('✅ MESSAGE.CREATE - INSTANCIA CREADA', {
+        requestId,
+        messageId: message.id,
+        conversationId: message.conversationId,
+        step: 'message_instance_created'
+      });
 
-    logger.info('Mensaje guardado (EMAIL-FIRST)', {
-      messageId: message.id,
-      conversationId: message.conversationId,
-      sender: message.senderIdentifier,
-      recipient: message.recipientIdentifier,
-    });
+      const cleanData = prepareForFirestore({ ...message });
 
-    // Actualizar conversación
-    const Conversation = require('./Conversation');
-    const conversation = await Conversation.getById(message.conversationId);
-    if (conversation) {
-      await conversation.updateLastMessage(message);
+      logger.info('🧹 MESSAGE.CREATE - DATOS LIMPIOS PREPARADOS', {
+        requestId,
+        cleanDataKeys: Object.keys(cleanData),
+        step: 'firestore_preparation_complete'
+      });
+
+      // Guardar en la subcolección de la conversación
+      logger.info('💾 MESSAGE.CREATE - GUARDANDO EN FIRESTORE', {
+        requestId,
+        collection: 'conversations',
+        documentId: message.conversationId,
+        subcollection: 'messages',
+        messageId: message.id,
+        step: 'firestore_save_start'
+      });
+
+      await firestore
+        .collection('conversations')
+        .doc(message.conversationId)
+        .collection('messages')
+        .doc(message.id)
+        .set(cleanData);
+
+      logger.info('✅ MESSAGE.CREATE - MENSAJE GUARDADO EN FIRESTORE', {
+        requestId,
+        messageId: message.id,
+        conversationId: message.conversationId,
+        sender: message.senderIdentifier,
+        recipient: message.recipientIdentifier,
+        step: 'firestore_save_complete'
+      });
+
+      // Actualizar conversación
+      logger.info('🔄 MESSAGE.CREATE - ACTUALIZANDO CONVERSACIÓN', {
+        requestId,
+        conversationId: message.conversationId,
+        step: 'conversation_update_start'
+      });
+
+      const Conversation = require('./Conversation');
+      const conversation = await Conversation.getById(message.conversationId);
+      
+      if (conversation) {
+        logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ENCONTRADA', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'conversation_found'
+        });
+
+        await conversation.updateLastMessage(message);
+
+        logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ACTUALIZADA', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'conversation_update_complete'
+        });
+      } else {
+        logger.warn('⚠️ MESSAGE.CREATE - CONVERSACIÓN NO ENCONTRADA', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'conversation_not_found'
+        });
+      }
+
+      logger.info('✅ MESSAGE.CREATE - CREACIÓN COMPLETADA', {
+        requestId,
+        messageId: message.id,
+        conversationId: message.conversationId,
+        step: 'message_create_complete'
+      });
+
+      return message;
+    } catch (error) {
+      logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        messageData: {
+          id: messageData.id,
+          conversationId: messageData.conversationId,
+          senderIdentifier: messageData.senderIdentifier,
+          recipientIdentifier: messageData.recipientIdentifier
+        },
+        step: 'message_create_error'
+      });
+      throw error;
     }
-
-    return message;
   }
 
   /**

@@ -729,29 +729,46 @@ class MessageController {
    */
   static async handleWebhookSafe(req, res) {
     const startTime = Date.now();
+    const requestId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
+      logger.info('🔗 WEBHOOK INICIADO', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        userAgent: req.headers['user-agent'],
+        ip: req.ip,
+        method: req.method,
+        path: req.path,
+        headers: {
+          'content-type': req.headers['content-type'],
+          'x-forwarded-for': req.headers['x-forwarded-for'],
+          'x-real-ip': req.headers['x-real-ip']
+        }
+      });
+
       const { From: fromPhone, To: twilioPhone, Body: content, MessageSid: messageSid, NumMedia: numMedia } = req.body;
 
-      // 📝 LOG CRÍTICO PARA RAILWAY
-      logger.info('🔗 WEBHOOK TWILIO - Mensaje recibido', {
-        timestamp: new Date().toISOString(),
-        from: fromPhone,
-        to: twilioPhone,
+      logger.info('📥 PAYLOAD WEBHOOK RECIBIDO', {
+        requestId,
+        fromPhone,
+        twilioPhone,
         messageSid,
         hasContent: !!content,
+        contentLength: content?.length || 0,
+        contentPreview: content?.substring(0, 100) || null,
         mediaCount: parseInt(numMedia) || 0,
-        userAgent: req.headers['user-agent'],
-        ip: req.ip
+        fullBody: req.body
       });
 
       // 🔍 VALIDACIÓN BÁSICA
       if (!fromPhone || !content) {
-        logger.warn('Webhook con datos faltantes', {
+        logger.warn('❌ WEBHOOK DATOS FALTANTES', {
+          requestId,
           hasFrom: !!fromPhone,
           hasContent: !!content,
           messageSid,
-          body: req.body
+          body: req.body,
+          validationFailed: true
         });
         
         // RESPONDER 200 OK SIEMPRE A TWILIO
@@ -762,30 +779,56 @@ class MessageController {
         }, 'Datos incompletos procesados', 200);
       }
 
+      logger.info('✅ WEBHOOK VALIDACIÓN BÁSICA PASADA', {
+        requestId,
+        fromPhone,
+        twilioPhone,
+        messageSid,
+        hasContent: !!content
+      });
+
       // 🔍 NORMALIZAR TELÉFONO
-      // 🔧 CORREGIDO: Usar middleware de validación centralizada
-      // La validación de teléfono debe realizarse en las rutas usando middleware
       const normalizedPhone = fromPhone;
+      
+      logger.info('📱 TELÉFONOS PROCESADOS', {
+        requestId,
+        originalFrom: fromPhone,
+        normalizedFrom: normalizedPhone,
+        to: twilioPhone,
+        messageSid
+      });
 
       // 🎯 USAR MESSAGESERVICE CENTRALIZADO
-      logger.info('🔄 Procesando mensaje entrante con MessageService', {
+      logger.info('🔄 INICIANDO PROCESAMIENTO CON MESSAGESERVICE', {
+        requestId,
         messageSid,
         fromPhone: normalizedPhone,
         hasContent: !!content,
-        hasMedia: parseInt(numMedia) > 0
+        hasMedia: parseInt(numMedia) > 0,
+        step: 'before_message_service'
       });
 
       // Procesar mensaje usando MessageService (que incluye ContactService)
       const message = await MessageService.processIncomingMessage(req.body);
 
-      logger.info('✅ Mensaje entrante procesado exitosamente', {
+      logger.info('✅ MESSAGESERVICE PROCESAMIENTO COMPLETADO', {
+        requestId,
         messageId: message.id,
         conversationId: message.conversationId,
         contactUpdated: true,
-        processTime: Date.now() - startTime
+        processTime: Date.now() - startTime,
+        step: 'message_service_completed'
       });
 
       // 📤 RESPUESTA EXITOSA A TWILIO
+      logger.info('📤 ENVIANDO RESPUESTA EXITOSA A TWILIO', {
+        requestId,
+        messageId: message.id,
+        conversationId: message.conversationId,
+        processTime: Date.now() - startTime,
+        step: 'sending_success_response'
+      });
+
       return ResponseHandler.success(res, {
         status: 'success',
         message: 'Mensaje procesado correctamente',
@@ -795,11 +838,13 @@ class MessageController {
       }, 'Mensaje procesado correctamente', 200);
 
     } catch (error) {
-      logger.error('❌ Error procesando webhook de Twilio', {
+      logger.error('❌ ERROR CRÍTICO EN WEBHOOK', {
+        requestId,
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 3),
+        stack: error.stack?.split('\n').slice(0, 5),
         body: req.body,
-        processTime: Date.now() - startTime
+        processTime: Date.now() - startTime,
+        step: 'webhook_error_handling'
       });
 
       // SIEMPRE RESPONDER 200 OK A TWILIO (no retry)

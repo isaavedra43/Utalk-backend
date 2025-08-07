@@ -35,15 +35,19 @@ class TwilioService {
    * Versión mejorada con manejo de fotos de perfil y metadatos avanzados
    */
   async processIncomingMessage(webhookData) {
+    const requestId = `twilio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
-      logger.info('🔄 INICIANDO procesamiento de mensaje entrante mejorado', {
+      logger.info('🔄 TWILIOSERVICE - INICIANDO PROCESAMIENTO', {
+        requestId,
+        timestamp: new Date().toISOString(),
         messageSid: webhookData.MessageSid,
         from: webhookData.From,
         to: webhookData.To,
         hasBody: !!webhookData.Body,
         hasProfileName: !!webhookData.ProfileName,
         hasWaId: !!webhookData.WaId,
-        timestamp: safeDateToISOString(new Date()),
+        step: 'twilio_process_start'
       });
 
       // PASO 1: Extraer y validar datos del webhook
@@ -77,26 +81,89 @@ class TwilioService {
         ReferralMediaSid: referralMediaSid,
       } = webhookData;
 
+      logger.info('📋 TWILIOSERVICE - DATOS EXTRAÍDOS', {
+        requestId,
+        twilioSid,
+        rawFromPhone,
+        rawToPhone,
+        hasContent: !!content,
+        contentLength: content?.length || 0,
+        hasMedia: !!mediaUrl,
+        mediaType,
+        numMedia,
+        hasProfileName: !!profileName,
+        hasWaId: !!waId,
+        step: 'data_extraction'
+      });
+
       // VALIDACIÓN: Campos obligatorios
+      logger.info('🔍 TWILIOSERVICE - VALIDANDO CAMPOS OBLIGATORIOS', {
+        requestId,
+        hasTwilioSid: !!twilioSid,
+        hasRawFromPhone: !!rawFromPhone,
+        hasRawToPhone: !!rawToPhone,
+        step: 'validation_start'
+      });
+
       if (!twilioSid) {
+        logger.error('❌ TWILIOSERVICE - MESSAGESID FALTANTE', {
+          requestId,
+          step: 'validation_failed_messagesid'
+        });
         throw new Error('MessageSid es requerido del webhook');
       }
 
       if (!rawFromPhone) {
+        logger.error('❌ TWILIOSERVICE - FROM FALTANTE', {
+          requestId,
+          step: 'validation_failed_from'
+        });
         throw new Error('From es requerido del webhook');
       }
 
       if (!rawToPhone) {
+        logger.error('❌ TWILIOSERVICE - TO FALTANTE', {
+          requestId,
+          step: 'validation_failed_to'
+        });
         throw new Error('To es requerido del webhook');
       }
 
+      logger.info('✅ TWILIOSERVICE - VALIDACIÓN PASADA', {
+        requestId,
+        step: 'validation_passed'
+      });
+
       // PASO 2: Normalizar números de teléfono
+      logger.info('📱 TWILIOSERVICE - NORMALIZANDO TELÉFONOS', {
+        requestId,
+        rawFromPhone,
+        rawToPhone,
+        step: 'phone_normalization_start'
+      });
+
       const fromPhone = rawFromPhone;
       const toPhone = rawToPhone;
+
+      logger.info('✅ TWILIOSERVICE - TELÉFONOS NORMALIZADOS', {
+        requestId,
+        fromPhone,
+        toPhone,
+        step: 'phone_normalization_complete'
+      });
 
       // PASO 3: Determinar quién es cliente y quién es agente
       const businessPhone = this.whatsappNumber.replace('whatsapp:', '');
       const normalizedBusinessPhone = businessPhone;
+
+      logger.info('🏢 TWILIOSERVICE - IDENTIFICANDO ROLES', {
+        requestId,
+        businessPhone,
+        normalizedBusinessPhone,
+        fromPhone,
+        toPhone,
+        step: 'role_identification_start'
+      });
 
       let customerPhone, agentPhone;
       
@@ -104,20 +171,44 @@ class TwilioService {
         // Mensaje saliente del negocio al cliente
         customerPhone = toPhone;
         agentPhone = fromPhone;
+        logger.info('📤 TWILIOSERVICE - MENSAJE SALIENTE DETECTADO', {
+          requestId,
+          customerPhone,
+          agentPhone,
+          direction: 'outbound',
+          step: 'outbound_detected'
+        });
       } else {
         // Mensaje entrante del cliente al negocio
         customerPhone = fromPhone;
         agentPhone = toPhone;
+        logger.info('📥 TWILIOSERVICE - MENSAJE ENTRANTE DETECTADO', {
+          requestId,
+          customerPhone,
+          agentPhone,
+          direction: 'inbound',
+          step: 'inbound_detected'
+        });
       }
 
-      logger.info('📱 Teléfonos identificados', {
+      logger.info('✅ TWILIOSERVICE - ROLES IDENTIFICADOS', {
+        requestId,
         customerPhone,
         agentPhone,
         businessPhone: normalizedBusinessPhone,
         direction: fromPhone === normalizedBusinessPhone ? 'outbound' : 'inbound',
+        step: 'role_identification_complete'
       });
 
       // PASO 4: Procesar información de contacto (foto de perfil, etc.)
+      logger.info('👤 TWILIOSERVICE - PROCESANDO INFORMACIÓN DE CONTACTO', {
+        requestId,
+        customerPhone,
+        profileName,
+        waId,
+        step: 'contact_info_start'
+      });
+
       const contactInfo = await this.processContactInfo(customerPhone, {
         profileName,
         waId,
@@ -125,11 +216,30 @@ class TwilioService {
         toPhone
       });
 
+      logger.info('✅ TWILIOSERVICE - INFORMACIÓN DE CONTACTO PROCESADA', {
+        requestId,
+        contactInfo: {
+          hasName: !!contactInfo.name,
+          hasPhoto: !!contactInfo.photoUrl,
+          hasMetadata: !!contactInfo.metadata
+        },
+        step: 'contact_info_complete'
+      });
+
       // PASO 5: Crear estructura del mensaje con metadatos avanzados
       const hasMedia = parseInt(numMedia || 0) > 0;
       const messageType = hasMedia ? 'media' : 'text';
       const direction = fromPhone === normalizedBusinessPhone ? 'outbound' : 'inbound';
       const sender = direction === 'inbound' ? 'customer' : 'agent';
+
+      logger.info('📝 TWILIOSERVICE - CREANDO ESTRUCTURA DE MENSAJE', {
+        requestId,
+        hasMedia,
+        messageType,
+        direction,
+        sender,
+        step: 'message_structure_start'
+      });
 
       const messageData = {
         id: twilioSid,
@@ -744,27 +854,77 @@ class TwilioService {
    * EMITIR EVENTO EN TIEMPO REAL (SOCKET.IO)
    */
   async emitRealTimeEvent(conversationId, savedMessage) {
+    const requestId = `realtime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
+      logger.info('📡 EMITREALTIMEEVENT - INICIANDO EMISIÓN', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        conversationId,
+        messageId: savedMessage.id,
+        direction: savedMessage.direction,
+        type: savedMessage.type,
+        step: 'realtime_emit_start'
+      });
+
       // Importar dinámicamente para evitar dependencias circulares
+      logger.info('🔄 EMITREALTIMEEVENT - IMPORTANDO SOCKET SERVICE', {
+        requestId,
+        step: 'socket_import_start'
+      });
+
       const socketService = require('../socket');
       
+      logger.info('✅ EMITREALTIMEEVENT - SOCKET SERVICE IMPORTADO', {
+        requestId,
+        hasSocketService: !!socketService,
+        hasEmitNewMessage: !!(socketService && typeof socketService.emitNewMessage === 'function'),
+        step: 'socket_import_complete'
+      });
+      
       if (socketService && typeof socketService.emitNewMessage === 'function') {
+        logger.info('📡 EMITREALTIMEEVENT - EMITIENDO MENSAJE', {
+          requestId,
+          conversationId,
+          messageId: savedMessage.id,
+          step: 'socket_emit_start'
+        });
+
         socketService.emitNewMessage(savedMessage);
         
-        logger.info('📡 Evento Socket.IO emitido', {
+        logger.info('✅ EMITREALTIMEEVENT - EVENTO SOCKET.IO EMITIDO', {
+          requestId,
           conversationId,
           messageId: savedMessage.id,
           direction: savedMessage.direction,
+          step: 'socket_emit_complete'
         });
       } else {
-        logger.warn('⚠️ Socket.IO no disponible - mensaje guardado sin tiempo real');
+        logger.warn('⚠️ EMITREALTIMEEVENT - SOCKET.IO NO DISPONIBLE', {
+          requestId,
+          conversationId,
+          messageId: savedMessage.id,
+          hasSocketService: !!socketService,
+          hasEmitNewMessage: !!(socketService && typeof socketService.emitNewMessage === 'function'),
+          step: 'socket_not_available'
+        });
       }
 
-    } catch (socketError) {
-      logger.error('❌ Error emitiendo evento Socket.IO', {
-        error: socketError.message,
+      logger.info('✅ EMITREALTIMEEVENT - PROCESO COMPLETADO', {
+        requestId,
         conversationId,
         messageId: savedMessage.id,
+        step: 'realtime_emit_complete'
+      });
+
+    } catch (socketError) {
+      logger.error('❌ EMITREALTIMEEVENT - ERROR CRÍTICO', {
+        requestId,
+        error: socketError.message,
+        stack: socketError.stack?.split('\n').slice(0, 5),
+        conversationId,
+        messageId: savedMessage.id,
+        step: 'realtime_emit_error'
       });
       // No lanzar error, es una operación secundaria
     }

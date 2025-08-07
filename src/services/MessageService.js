@@ -18,7 +18,21 @@ class MessageService {
    * Crear mensaje con validación completa y efectos secundarios
    */
   static async createMessage (messageData, options = {}) {
+    const requestId = `create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
+      logger.info('🔄 CREATEMESSAGE - INICIANDO CREACIÓN', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        conversationId: messageData.conversationId,
+        from: messageData.from,
+        to: messageData.to,
+        type: messageData.type,
+        direction: messageData.direction,
+        options,
+        step: 'create_message_start'
+      });
+
       const {
         updateConversation = true,
         updateContact = true,
@@ -27,44 +41,132 @@ class MessageService {
 
       // Validación estricta de entrada
       if (validateInput) {
+        logger.info('🔍 CREATEMESSAGE - VALIDANDO ENTRADA', {
+          requestId,
+          hasConversationId: !!messageData.conversationId,
+          hasFrom: !!messageData.from,
+          hasTo: !!messageData.to,
+          hasDirection: !!messageData.direction,
+          direction: messageData.direction,
+          step: 'input_validation_start'
+        });
+
         if (!messageData.conversationId) {
+          logger.error('❌ CREATEMESSAGE - CONVERSATIONID FALTANTE', {
+            requestId,
+            step: 'validation_failed_conversation_id'
+          });
           throw new Error('conversationId es obligatorio');
         }
         if (!messageData.from || !messageData.to) {
+          logger.error('❌ CREATEMESSAGE - FROM/TO FALTANTES', {
+            requestId,
+            hasFrom: !!messageData.from,
+            hasTo: !!messageData.to,
+            step: 'validation_failed_from_to'
+          });
           throw new Error('from y to son obligatorios');
         }
         if (!messageData.direction || !['inbound', 'outbound'].includes(messageData.direction)) {
+          logger.error('❌ CREATEMESSAGE - DIRECTION INVÁLIDO', {
+            requestId,
+            direction: messageData.direction,
+            validDirections: ['inbound', 'outbound'],
+            step: 'validation_failed_direction'
+          });
           throw new Error('direction debe ser inbound o outbound');
         }
+
+        logger.info('✅ CREATEMESSAGE - VALIDACIÓN PASADA', {
+          requestId,
+          step: 'input_validation_passed'
+        });
       }
 
       // Crear mensaje en Firestore
+      logger.info('💾 CREATEMESSAGE - CREANDO EN FIRESTORE', {
+        requestId,
+        conversationId: messageData.conversationId,
+        step: 'firestore_creation_start'
+      });
+
       const message = await Message.create(messageData);
+
+      logger.info('✅ CREATEMESSAGE - MENSAJE CREADO EN FIRESTORE', {
+        requestId,
+        messageId: message.id,
+        conversationId: message.conversationId,
+        step: 'firestore_creation_complete'
+      });
 
       // Efectos secundarios en paralelo
       const sideEffects = [];
 
       if (updateConversation) {
+        logger.info('🔄 CREATEMESSAGE - AGREGANDO UPDATE CONVERSATION', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'side_effects_conversation_added'
+        });
         sideEffects.push(this.updateConversationWithMessage(message));
       }
 
       if (updateContact) {
+        logger.info('🔄 CREATEMESSAGE - AGREGANDO UPDATE CONTACT', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'side_effects_contact_added'
+        });
         sideEffects.push(this.updateContactFromMessage(message));
       }
 
-      // Ejecutar efectos secundarios sin bloquear
-      await Promise.allSettled(sideEffects);
+      logger.info('🔄 CREATEMESSAGE - EJECUTANDO EFECTOS SECUNDARIOS', {
+        requestId,
+        sideEffectsCount: sideEffects.length,
+        updateConversation,
+        updateContact,
+        step: 'side_effects_execution_start'
+      });
 
-      logger.info('Mensaje creado exitosamente', {
+      // Ejecutar efectos secundarios sin bloquear
+      const sideEffectsResults = await Promise.allSettled(sideEffects);
+
+      logger.info('✅ CREATEMESSAGE - EFECTOS SECUNDARIOS COMPLETADOS', {
+        requestId,
+        results: sideEffectsResults.map((result, index) => ({
+          index,
+          status: result.status,
+          value: result.value,
+          reason: result.reason?.message
+        })),
+        step: 'side_effects_execution_complete'
+      });
+
+      logger.info('✅ CREATEMESSAGE - MENSAJE CREADO EXITOSAMENTE', {
+        requestId,
         messageId: message.id,
         conversationId: message.conversationId,
         direction: message.direction,
         type: message.type,
+        step: 'create_message_complete'
       });
 
       return message;
     } catch (error) {
-      logger.error('Error creando mensaje:', error);
+      logger.error('❌ CREATEMESSAGE - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        messageData: {
+          conversationId: messageData.conversationId,
+          from: messageData.from,
+          to: messageData.to,
+          type: messageData.type,
+          direction: messageData.direction
+        },
+        options,
+        step: 'create_message_error'
+      });
       throw error;
     }
   }
@@ -168,29 +270,105 @@ class MessageService {
    * Procesar mensaje entrante de webhook con lógica centralizada
    */
   static async processIncomingMessage (webhookData) {
+    const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
+      logger.info('🔄 MESSAGESERVICE - INICIANDO PROCESAMIENTO', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        webhookDataKeys: Object.keys(webhookData),
+        step: 'process_incoming_start'
+      });
+
       const { From, To, Body, MessageSid, NumMedia } = webhookData;
+
+      logger.info('📋 MESSAGESERVICE - DATOS EXTRAÍDOS', {
+        requestId,
+        from: From,
+        to: To,
+        messageSid: MessageSid,
+        hasBody: !!Body,
+        bodyLength: Body?.length || 0,
+        numMedia: NumMedia,
+        step: 'data_extraction'
+      });
 
       // Validar webhook data
       if (!From || !To || !MessageSid) {
+        logger.error('❌ MESSAGESERVICE - DATOS INCOMPLETOS', {
+          requestId,
+          hasFrom: !!From,
+          hasTo: !!To,
+          hasMessageSid: !!MessageSid,
+          webhookData,
+          step: 'validation_failed'
+        });
         throw new Error('Datos de webhook incompletos');
       }
 
+      logger.info('✅ MESSAGESERVICE - VALIDACIÓN PASADA', {
+        requestId,
+        step: 'validation_passed'
+      });
+
       // Verificar duplicados
+      logger.info('🔍 MESSAGESERVICE - VERIFICANDO DUPLICADOS', {
+        requestId,
+        messageSid: MessageSid,
+        step: 'duplicate_check_start'
+      });
+
       const existingMessage = await Message.getByTwilioSid(MessageSid);
+      
       if (existingMessage) {
-        logger.warn('Mensaje duplicado detectado', { twilioSid: MessageSid });
+        logger.warn('⚠️ MESSAGESERVICE - MENSAJE DUPLICADO DETECTADO', {
+          requestId,
+          twilioSid: MessageSid,
+          existingMessageId: existingMessage.id,
+          step: 'duplicate_found'
+        });
         return existingMessage;
       }
 
+      logger.info('✅ MESSAGESERVICE - SIN DUPLICADOS', {
+        requestId,
+        messageSid: MessageSid,
+        step: 'duplicate_check_passed'
+      });
+
       // Procesar datos del mensaje
+      logger.info('📱 MESSAGESERVICE - NORMALIZANDO TELÉFONOS', {
+        requestId,
+        originalFrom: From,
+        originalTo: To,
+        step: 'phone_normalization_start'
+      });
+
       const fromPhone = normalizePhoneNumber(From);
       const toPhone = normalizePhoneNumber(To);
       const conversationId = generateConversationId(fromPhone, toPhone);
 
+      logger.info('✅ MESSAGESERVICE - TELÉFONOS NORMALIZADOS', {
+        requestId,
+        originalFrom: From,
+        normalizedFrom: fromPhone,
+        originalTo: To,
+        normalizedTo: toPhone,
+        conversationId,
+        step: 'phone_normalization_complete'
+      });
+
       // Determinar tipo de mensaje
       const hasMedia = parseInt(NumMedia || '0') > 0;
       const messageType = hasMedia ? 'media' : 'text';
+
+      logger.info('📊 MESSAGESERVICE - TIPO DE MENSAJE DETERMINADO', {
+        requestId,
+        hasMedia,
+        messageType,
+        numMedia: parseInt(NumMedia || '0'),
+        step: 'message_type_determined'
+      });
 
       // Preparar datos básicos del mensaje
       const messageData = {
@@ -209,35 +387,83 @@ class MessageService {
         },
       };
 
+      logger.info('📝 MESSAGESERVICE - DATOS DE MENSAJE PREPARADOS', {
+        requestId,
+        conversationId,
+        from: fromPhone,
+        to: toPhone,
+        contentLength: messageData.content.length,
+        type: messageType,
+        direction: 'inbound',
+        step: 'message_data_prepared'
+      });
+
       // Procesar media si existe
       if (hasMedia) {
+        logger.info('🖼️ MESSAGESERVICE - PROCESANDO MEDIA', {
+          requestId,
+          numMedia: parseInt(NumMedia || '0'),
+          step: 'media_processing_start'
+        });
+
         try {
           const mediaData = await this.processWebhookMedia(webhookData);
           messageData.mediaUrls = mediaData.urls;
           messageData.metadata.media = mediaData.processed;
           messageData.type = mediaData.primaryType || 'media';
+
+          logger.info('✅ MESSAGESERVICE - MEDIA PROCESADA EXITOSAMENTE', {
+            requestId,
+            mediaUrlsCount: mediaData.urls?.length || 0,
+            primaryType: mediaData.primaryType,
+            step: 'media_processing_complete'
+          });
         } catch (mediaError) {
-          logger.warn('Error procesando media, continuando sin media:', mediaError);
+          logger.warn('⚠️ MESSAGESERVICE - ERROR PROCESANDO MEDIA', {
+            requestId,
+            error: mediaError.message,
+            step: 'media_processing_error'
+          });
           messageData.metadata.mediaProcessingError = mediaError.message;
         }
       }
 
       // Crear mensaje con efectos secundarios
+      logger.info('💾 MESSAGESERVICE - CREANDO MENSAJE EN FIRESTORE', {
+        requestId,
+        conversationId,
+        step: 'message_creation_start'
+      });
+
       const message = await this.createMessage(messageData, {
         updateConversation: true,
         updateContact: true,
         validateInput: true,
       });
 
-      logger.info('Mensaje entrante procesado', {
+      logger.info('✅ MESSAGESERVICE - MENSAJE CREADO EXITOSAMENTE', {
+        requestId,
         messageId: message.id,
         conversationId,
         from: fromPhone,
         hasMedia,
+        step: 'message_creation_complete'
       });
 
       return message;
     } catch (error) {
+      logger.error('❌ MESSAGESERVICE - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        webhookData: {
+          From: webhookData.From,
+          To: webhookData.To,
+          MessageSid: webhookData.MessageSid,
+          hasBody: !!webhookData.Body
+        },
+        step: 'process_incoming_error'
+      });
       logger.error('Error procesando mensaje entrante:', error);
       throw error;
     }
@@ -537,36 +763,97 @@ class MessageService {
    * Actualizar conversación con nuevo mensaje
    */
   static async updateConversationWithMessage (message) {
+    const requestId = `conv_update_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
-      let conversation = await Conversation.getById(message.conversationId);
+      logger.info('🔄 UPDATECONVERSATION - INICIANDO ACTUALIZACIÓN', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        messageId: message.id,
+        conversationId: message.conversationId,
+        direction: message.direction,
+        type: message.type,
+        step: 'conversation_update_start'
+      });
 
+      // Obtener conversación
+      logger.info('🔍 UPDATECONVERSATION - BUSCANDO CONVERSACIÓN', {
+        requestId,
+        conversationId: message.conversationId,
+        step: 'conversation_lookup_start'
+      });
+
+      const conversation = await Conversation.getById(message.conversationId);
+      
       if (!conversation) {
-        // Crear conversación si no existe
-        conversation = await Conversation.create({
-          id: message.conversationId,
-          contactId: message.direction === 'inbound' ? message.from : message.to,
-          lastMessage: message.content,
-          lastMessageAt: message.timestamp,
-          messageCount: 1,
-          status: 'open',
+        logger.warn('⚠️ UPDATECONVERSATION - CONVERSACIÓN NO ENCONTRADA', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'conversation_not_found'
         });
-      } else {
-        // Actualizar conversación existente
-        await conversation.update({
-          lastMessage: message.content,
-          lastMessageAt: message.timestamp,
-          updatedAt: new Date(),
-        });
-
-        // Incrementar contador si es necesario
-        if (message.direction === 'inbound') {
-          await conversation.incrementMessageCount();
-        }
+        return;
       }
 
-      return conversation;
+      logger.info('✅ UPDATECONVERSATION - CONVERSACIÓN ENCONTRADA', {
+        requestId,
+        conversationId: conversation.id,
+        lastMessageAt: conversation.lastMessageAt,
+        messageCount: conversation.messageCount,
+        step: 'conversation_found'
+      });
+
+      // Actualizar último mensaje
+      logger.info('📝 UPDATECONVERSATION - ACTUALIZANDO ÚLTIMO MENSAJE', {
+        requestId,
+        conversationId: conversation.id,
+        messageId: message.id,
+        messageTimestamp: message.timestamp,
+        step: 'last_message_update_start'
+      });
+
+      await conversation.updateLastMessage(message);
+
+      logger.info('✅ UPDATECONVERSATION - ÚLTIMO MENSAJE ACTUALIZADO', {
+        requestId,
+        conversationId: conversation.id,
+        messageId: message.id,
+        step: 'last_message_update_complete'
+      });
+
+      // Emitir evento en tiempo real
+      logger.info('📡 UPDATECONVERSATION - EMITIENDO EVENTO TIEMPO REAL', {
+        requestId,
+        conversationId: conversation.id,
+        messageId: message.id,
+        step: 'realtime_emit_start'
+      });
+
+      const { emitRealTimeEvent } = require('./TwilioService');
+      await emitRealTimeEvent(conversation.id, message);
+
+      logger.info('✅ UPDATECONVERSATION - EVENTO EMITIDO', {
+        requestId,
+        conversationId: conversation.id,
+        messageId: message.id,
+        step: 'realtime_emit_complete'
+      });
+
+      logger.info('✅ UPDATECONVERSATION - ACTUALIZACIÓN COMPLETADA', {
+        requestId,
+        conversationId: conversation.id,
+        messageId: message.id,
+        step: 'conversation_update_complete'
+      });
+
     } catch (error) {
-      logger.error('Error actualizando conversación:', error);
+      logger.error('❌ UPDATECONVERSATION - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        messageId: message.id,
+        conversationId: message.conversationId,
+        step: 'conversation_update_error'
+      });
       throw error;
     }
   }
