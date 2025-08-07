@@ -57,7 +57,7 @@ class MessageController {
       } = req.query;
 
       // ✅ NUEVO: Log de inicio de búsqueda
-      req.logger.message('search_executed', {
+      logger.message('search_executed', {
         conversationId,
         filters: {
           limit: Math.min(parseInt(limit), 100),
@@ -70,14 +70,14 @@ class MessageController {
       });
 
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      req.logger.database('query_started', {
+      logger.database('query_started', {
         operation: 'conversation_exists_check',
         conversationId
       });
 
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
-        req.logger.database('document_not_found', {
+        logger.database('document_not_found', {
           operation: 'conversation_by_id',
           conversationId
         });
@@ -86,7 +86,7 @@ class MessageController {
 
       // 🔒 VALIDAR PERMISOS DE ACCESO
       if (req.user.role === 'viewer' && conversation.assignedTo !== req.user.email) {
-        req.logger.security('unauthorized_access', {
+        logger.security('unauthorized_access', {
           operation: 'view_messages',
           conversationId,
           userEmail: req.user.email,
@@ -109,7 +109,7 @@ class MessageController {
         order
       };
 
-      req.logger.database('query_started', {
+      logger.database('query_started', {
         operation: 'messages_by_conversation',
         conversationId,
         searchOptions
@@ -118,7 +118,7 @@ class MessageController {
       // 📊 EJECUTAR BÚSQUEDA
       const result = await Message.getByConversation(conversationId, searchOptions);
 
-      req.logger.message('search_completed', {
+      logger.message('search_completed', {
         conversationId,
         messagesFound: result.messages.length,
         hasNextPage: !!result.pagination.nextCursor,
@@ -134,7 +134,7 @@ class MessageController {
         200
       );
     } catch (error) {
-      req.logger.error('Error obteniendo mensajes', {
+      logger.error('Error obteniendo mensajes', {
         conversationId: req.params.conversationId,
         error: error.message,
         userEmail: req.user?.email,
@@ -162,7 +162,7 @@ class MessageController {
       } = req.body;
 
       // ✅ NUEVO: Log de inicio de creación
-      req.logger.message('processing_started', {
+      logger.message('processing_started', {
         conversationId,
         messageId: messageId || 'auto-generated',
         type,
@@ -172,14 +172,14 @@ class MessageController {
       });
 
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      req.logger.database('query_started', {
+      logger.database('query_started', {
         operation: 'conversation_validation',
         conversationId
       });
 
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
-        req.logger.database('document_not_found', {
+        logger.database('document_not_found', {
           operation: 'conversation_by_id_for_message',
           conversationId
         });
@@ -188,7 +188,7 @@ class MessageController {
 
       // 🔒 VALIDAR PERMISOS DE ESCRITURA
       if (req.user.role === 'viewer') {
-        req.logger.security('unauthorized_access', {
+        logger.security('unauthorized_access', {
           operation: 'create_message',
           conversationId,
           userEmail: req.user.email,
@@ -199,7 +199,7 @@ class MessageController {
 
       // VALIDAR QUE HAY CONTENIDO O MEDIA
       if (!content && !mediaUrl) {
-        req.logger.message('validation_failed', {
+        logger.message('validation_failed', {
           reason: 'missing_content_and_media',
           conversationId,
           senderEmail: req.user.email
@@ -212,7 +212,7 @@ class MessageController {
       if (!finalMessageId) {
         // Generar UUID si el frontend no lo envía
         finalMessageId = uuidv4();
-        req.logger.message('id_generated', {
+        logger.message('id_generated', {
           conversationId,
           generatedMessageId: finalMessageId,
           senderEmail: req.user.email
@@ -225,7 +225,7 @@ class MessageController {
                                   mediaUrl.includes('storage.googleapis.com');
         
         if (!isValidFirebaseUrl) {
-          req.logger.media('invalid_format', {
+          logger.media('invalid_format', {
             reason: 'non_firebase_storage_url',
             providedUrl: mediaUrl.substring(0, 100),
             conversationId
@@ -233,7 +233,7 @@ class MessageController {
           throw new ApiError('INVALID_MEDIA_URL', 'URL de media inválida', 'Usa solo URLs de Firebase Storage', 400);
         }
 
-        req.logger.media('url_validated', {
+        logger.media('url_validated', {
           mediaUrl: mediaUrl.substring(0, 100) + '...',
           conversationId,
           messageId: finalMessageId
@@ -274,7 +274,7 @@ class MessageController {
       if (type === 'text' && !mediaUrl) {
         // Enviar mensaje de texto
         try {
-          req.logger.twilio('message_sending', {
+          logger.twilio('message_sending', {
             conversationId,
             messageId: finalMessageId,
             recipientPhone: conversation.customerPhone,
@@ -290,7 +290,7 @@ class MessageController {
           messageData.metadata.twilioSid = sentMessage.sid;
           messageData.metadata.sentViaWhatsApp = true;
 
-          req.logger.twilio('message_sent', {
+          logger.twilio('message_sent', {
             conversationId,
             messageId: finalMessageId,
             twilioSid: sentMessage.sid,
@@ -298,7 +298,7 @@ class MessageController {
           });
 
         } catch (twilioError) {
-          req.logger.twilio('message_failed', {
+          logger.twilio('message_failed', {
             conversationId,
             messageId: finalMessageId,
             error: twilioError.message,
@@ -312,7 +312,7 @@ class MessageController {
       } else if (mediaUrl) {
         // MENSAJE CON ARCHIVO MULTIMEDIA
         try {
-          req.logger.media('whatsapp_compatibility_check', {
+          logger.media('whatsapp_compatibility_check', {
             category: fileMetadata.category,
             conversationId,
             messageId: finalMessageId
@@ -324,7 +324,7 @@ class MessageController {
           const isWhatsAppCompatible = MediaUploadController.isWhatsAppCompatible(fileMetadata.category, fileMetadata);
           
           if (isWhatsAppCompatible) {
-            req.logger.media('whatsapp_compatible', {
+            logger.media('whatsapp_compatible', {
               category: fileMetadata.category,
               messageId: finalMessageId
             });
@@ -339,7 +339,7 @@ class MessageController {
             messageData.metadata.twilioSid = sentMessage.sid;
             messageData.metadata.sentViaWhatsApp = true;
 
-            req.logger.twilio('media_sent', {
+            logger.twilio('media_sent', {
               conversationId,
               messageId: finalMessageId,
               twilioSid: sentMessage.sid,
@@ -351,14 +351,14 @@ class MessageController {
             messageData.metadata.sentViaWhatsApp = false;
             messageData.metadata.reason = 'Tipo de archivo no compatible con WhatsApp';
             
-            req.logger.media('whatsapp_incompatible', {
+            logger.media('whatsapp_incompatible', {
               category: fileMetadata.category,
               messageId: finalMessageId,
               reason: 'file_type_not_supported'
             });
           }
         } catch (twilioError) {
-          req.logger.twilio('media_failed', {
+          logger.twilio('media_failed', {
             conversationId,
             messageId: finalMessageId,
             error: twilioError.message,
@@ -371,7 +371,7 @@ class MessageController {
       }
 
       // 💾 GUARDAR EN BASE DE DATOS
-      req.logger.message('creating', {
+      logger.message('creating', {
         messageId: messageData.id,
         conversationId,
         senderEmail: req.user.email,
@@ -382,7 +382,7 @@ class MessageController {
 
       const message = await Message.create(messageData);
 
-      req.logger.message('created', {
+      logger.message('created', {
         messageId: message.id,
         conversationId,
         status: 'success',
@@ -393,7 +393,7 @@ class MessageController {
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
         try {
-          req.logger.socket('message_emitting', {
+          logger.socket('message_emitting', {
             messageId: message.id,
             conversationId,
             connectedUsers: socketManager.getConnectedUsers().length,
@@ -418,7 +418,7 @@ class MessageController {
             });
           }
           
-          req.logger.socket('message_emitted', {
+          logger.socket('message_emitted', {
             messageId: message.id,
             conversationId,
             connectedUsers: socketManager.getConnectedUsers().length,
@@ -426,7 +426,7 @@ class MessageController {
           });
 
         } catch (socketError) {
-          req.logger.socket('message_emit_failed', {
+          logger.socket('message_emit_failed', {
             error: socketError.message,
             messageId: message.id,
             conversationId,
@@ -435,14 +435,14 @@ class MessageController {
           // Continuar aunque falle Socket.IO
         }
       } else {
-        req.logger.socket('manager_unavailable', {
+        logger.socket('manager_unavailable', {
           messageId: message.id,
           conversationId,
           operation: 'message_emit'
         });
       }
 
-      req.logger.message('processing_completed', {
+      logger.message('processing_completed', {
         messageId: message.id,
         conversationId,
         type: messageData.type,
@@ -456,7 +456,7 @@ class MessageController {
       // 📤 RESPUESTA EXITOSA
       return ResponseHandler.success(res, message.toJSON(), 'Mensaje creado exitosamente', 201);
     } catch (error) {
-      req.logger.error('Error creando mensaje en conversación', {
+      logger.error('Error creando mensaje en conversación', {
         conversationId: req.params?.conversationId,
         error: error.message,
         senderEmail: req.user?.email,

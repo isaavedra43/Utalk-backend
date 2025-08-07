@@ -49,7 +49,7 @@ class ConversationController {
     const startTime = Date.now();
     
     try {
-      req.logger.info('get_conversations_start', {
+      logger.info('get_conversations_start', {
         userEmail: req.user.email,
         userId: req.user.uid,
         query: req.query
@@ -84,7 +84,7 @@ class ConversationController {
       query = query.limit(limitNum);
 
       // Ejecutar query
-      req.logger.database('executing_conversations_query', {
+      logger.database('executing_conversations_query', {
         userEmail,
         pageNum,
         limitNum,
@@ -94,7 +94,7 @@ class ConversationController {
 
       const snapshot = await query.get();
 
-      req.logger.database('conversations_query_executed', {
+      logger.database('conversations_query_executed', {
         docsCount: snapshot.docs.length,
         isEmpty: snapshot.empty,
         userEmail
@@ -137,7 +137,7 @@ class ConversationController {
           conversations.push(conversationJSON);
 
         } catch (docError) {
-          req.logger.error('doc_processing_error', {
+          logger.error('doc_processing_error', {
             docId: doc.id,
             error: docError.message,
             stack: docError.stack
@@ -164,7 +164,7 @@ class ConversationController {
 
             return matchesContact || matchesParticipants || matchesLastMessage;
           } catch (filterError) {
-            req.logger.error('search_filter_error', {
+            logger.error('search_filter_error', {
               conversationId: conv.id,
               error: filterError.message,
               conv
@@ -177,7 +177,7 @@ class ConversationController {
 
       const responseTime = Date.now() - startTime;
 
-      req.logger.success('get_conversations_success', {
+      logger.success('get_conversations_success', {
         conversationsCount: filteredConversations.length,
         userEmail,
         pageNum,
@@ -195,7 +195,7 @@ class ConversationController {
       });
 
     } catch (error) {
-      req.logger.error('get_conversations_error', {
+      logger.error('get_conversations_error', {
         error: error.message,
         stack: error.stack,
         userEmail: req.user?.email,
