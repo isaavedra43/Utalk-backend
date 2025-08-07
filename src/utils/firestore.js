@@ -23,7 +23,18 @@ function cleanFirestoreObject (obj) {
   const cleaned = {};
 
   for (const [key, value] of Object.entries(obj)) {
-    // Saltar valores undefined o null, pero PERMITIR cadenas vacías para mensajes
+    // NUNCA eliminar campos críticos como id, conversationId, senderIdentifier, etc.
+    const criticalFields = ['id', 'conversationId', 'senderIdentifier', 'recipientIdentifier', 'content', 'type', 'direction', 'status', 'mediaUrl', 'timestamp', 'metadata'];
+    
+    if (criticalFields.includes(key)) {
+      // Para campos críticos, permitir valores válidos incluyendo cadenas vacías
+      if (value !== undefined && value !== null) {
+        cleaned[key] = value;
+      }
+      continue;
+    }
+
+    // Saltar valores undefined o null para campos no críticos
     if (value === undefined || value === null) {
       continue;
     }
@@ -50,7 +61,45 @@ function cleanFirestoreObject (obj) {
  * @returns {Object} - Objeto listo para Firestore
  */
 function prepareForFirestore (obj) {
+  // === LOG DE EMERGENCIA ANTES DE LIMPIAR ===
+  console.log('🚨 EMERGENCY BEFORE CLEANING:', {
+    originalKeys: Object.keys(obj),
+    originalValues: {
+      id: obj.id,
+      conversationId: obj.conversationId,
+      senderIdentifier: obj.senderIdentifier,
+      recipientIdentifier: obj.recipientIdentifier,
+      content: obj.content,
+      type: obj.type,
+      direction: obj.direction,
+      status: obj.status,
+      mediaUrl: obj.mediaUrl,
+      timestamp: obj.timestamp,
+      hasMetadata: !!obj.metadata
+    },
+    step: 'before_cleaning'
+  });
+
   const cleaned = cleanFirestoreObject(obj);
+
+  // === LOG DE EMERGENCIA DESPUÉS DE LIMPIAR ===
+  console.log('🚨 EMERGENCY AFTER CLEANING:', {
+    cleanedKeys: Object.keys(cleaned),
+    cleanedValues: {
+      id: cleaned.id,
+      conversationId: cleaned.conversationId,
+      senderIdentifier: cleaned.senderIdentifier,
+      recipientIdentifier: cleaned.recipientIdentifier,
+      content: cleaned.content,
+      type: cleaned.type,
+      direction: cleaned.direction,
+      status: cleaned.status,
+      mediaUrl: cleaned.mediaUrl,
+      timestamp: cleaned.timestamp,
+      hasMetadata: !!cleaned.metadata
+    },
+    step: 'after_cleaning'
+  });
 
   // Log para debugging en desarrollo
   if (process.env.NODE_ENV !== 'production') {
