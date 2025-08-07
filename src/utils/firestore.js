@@ -23,8 +23,8 @@ function cleanFirestoreObject (obj) {
   const cleaned = {};
 
   for (const [key, value] of Object.entries(obj)) {
-    // Saltar valores undefined, null o cadenas vacías
-    if (value === undefined || value === null || value === '') {
+    // Saltar valores undefined o null, pero PERMITIR cadenas vacías para mensajes
+    if (value === undefined || value === null) {
       continue;
     }
 

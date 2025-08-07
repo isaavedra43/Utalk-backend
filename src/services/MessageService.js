@@ -115,6 +115,7 @@ class MessageService {
           step: 'content_validation_check'
         });
         
+        // PERMITIR MENSAJES DE TEXTO CON CONTENIDO VACÍO
         if (noContent && noMedia) {
           logger.error('❌ CREATEMESSAGE - CONTENIDO FALTANTE', {
             requestId,
@@ -134,6 +135,11 @@ class MessageService {
             step: 'validation_failed_content'
           });
           throw new Error('Message debe tener content o mediaUrl (no pueden ser ambos null/undefined)');
+        }
+
+        // ASEGURAR QUE CONTENT SEA STRING VÁLIDO
+        if (messageData.content === null || messageData.content === undefined) {
+          messageData.content = '';
         }
 
         logger.info('✅ CREATEMESSAGE - VALIDACIÓN PASADA', {

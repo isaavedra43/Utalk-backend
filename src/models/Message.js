@@ -120,7 +120,8 @@ class Message {
         throw new Error('Message debe tener content (no puede ser null/undefined)');
       }
 
-      // Si no hay contenido ni mediaUrl, entonces es un error
+      // PERMITIR MENSAJES DE TEXTO CON CONTENIDO VACÍO
+      // Solo rechazar si no hay contenido Y no hay mediaUrl
       if (!data.content && !data.mediaUrl) {
         logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO FALTANTE', {
           requestId,
