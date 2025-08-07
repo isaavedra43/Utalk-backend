@@ -7,36 +7,145 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Message {
   constructor (data) {
-    // ID y ConversationID (UUIDs) - ACEPTAR AMBOS FORMATOS
-    const messageId = data.id || data.messageId;
-    if (!messageId) throw new Error('Message ID es requerido');
-    if (!data.conversationId) throw new Error('conversationId (UUID) es requerido');
-    this.id = messageId;
-    this.conversationId = data.conversationId;
+    const requestId = `msg_constructor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      logger.info('🔄 MESSAGE.CONSTRUCTOR - INICIANDO CONSTRUCCIÓN', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        dataKeys: Object.keys(data),
+        data: {
+          hasId: !!data.id,
+          hasMessageId: !!data.messageId,
+          hasConversationId: !!data.conversationId,
+          hasSenderIdentifier: !!data.senderIdentifier,
+          hasRecipientIdentifier: !!data.recipientIdentifier,
+          hasContent: !!data.content,
+          hasMediaUrl: !!data.mediaUrl,
+          direction: data.direction,
+          type: data.type
+        },
+        step: 'constructor_start'
+      });
 
-    // Contenido
-    if (!data.content && !data.mediaUrl) {
-      throw new Error('Message debe tener content o mediaUrl');
+      // ID y ConversationID (UUIDs) - ACEPTAR AMBOS FORMATOS
+      const messageId = data.id || data.messageId;
+      if (!messageId) {
+        logger.error('❌ MESSAGE.CONSTRUCTOR - ID FALTANTE', {
+          requestId,
+          data: {
+            hasId: !!data.id,
+            hasMessageId: !!data.messageId,
+            id: data.id,
+            messageId: data.messageId
+          },
+          step: 'validation_failed_id'
+        });
+        throw new Error('Message ID es requerido');
+      }
+
+      if (!data.conversationId) {
+        logger.error('❌ MESSAGE.CONSTRUCTOR - CONVERSATIONID FALTANTE', {
+          requestId,
+          conversationId: data.conversationId,
+          step: 'validation_failed_conversation_id'
+        });
+        throw new Error('conversationId (UUID) es requerido');
+      }
+
+      this.id = messageId;
+      this.conversationId = data.conversationId;
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - ID Y CONVERSATIONID ASIGNADOS', {
+        requestId,
+        id: this.id,
+        conversationId: this.conversationId,
+        step: 'id_assigned'
+      });
+
+      // Contenido
+      if (!data.content && !data.mediaUrl) {
+        logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO FALTANTE', {
+          requestId,
+          hasContent: !!data.content,
+          hasMediaUrl: !!data.mediaUrl,
+          content: data.content,
+          mediaUrl: data.mediaUrl,
+          step: 'validation_failed_content'
+        });
+        throw new Error('Message debe tener content o mediaUrl');
+      }
+      this.content = data.content || null;
+      this.mediaUrl = data.mediaUrl || null;
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - CONTENIDO ASIGNADO', {
+        requestId,
+        hasContent: !!this.content,
+        hasMediaUrl: !!this.mediaUrl,
+        step: 'content_assigned'
+      });
+
+      // EMAIL-FIRST: Identificadores de remitente y destinatario.
+      this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
+      this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - IDENTIFICADORES ASIGNADOS', {
+        requestId,
+        senderIdentifier: this.senderIdentifier,
+        recipientIdentifier: this.recipientIdentifier,
+        step: 'identifiers_assigned'
+      });
+
+      // DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
+      // this.senderPhone = ...
+      // this.recipientPhone = ...
+
+      // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
+      this.direction = data.direction || 'inbound';
+      this.type = data.type || (this.mediaUrl ? 'media' : 'text');
+      this.status = data.status || 'sent';
+      this.timestamp = data.timestamp || Timestamp.now();
+      this.metadata = data.metadata || {};
+      this.createdAt = data.createdAt || Timestamp.now();
+      this.updatedAt = data.updatedAt || Timestamp.now();
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - CAMPOS OBLIGATORIOS ASIGNADOS', {
+        requestId,
+        direction: this.direction,
+        type: this.type,
+        status: this.status,
+        hasTimestamp: !!this.timestamp,
+        hasMetadata: !!this.metadata,
+        hasCreatedAt: !!this.createdAt,
+        hasUpdatedAt: !!this.updatedAt,
+        step: 'required_fields_assigned'
+      });
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - CONSTRUCCIÓN COMPLETADA', {
+        requestId,
+        messageId: this.id,
+        conversationId: this.conversationId,
+        step: 'constructor_complete'
+      });
+
+    } catch (error) {
+      logger.error('❌ MESSAGE.CONSTRUCTOR - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        data: {
+          hasId: !!data.id,
+          hasMessageId: !!data.messageId,
+          hasConversationId: !!data.conversationId,
+          hasSenderIdentifier: !!data.senderIdentifier,
+          hasRecipientIdentifier: !!data.recipientIdentifier,
+          hasContent: !!data.content,
+          hasMediaUrl: !!data.mediaUrl
+        },
+        step: 'constructor_error'
+      });
+      throw error;
     }
-    this.content = data.content || null;
-    this.mediaUrl = data.mediaUrl || null;
-
-    // EMAIL-FIRST: Identificadores de remitente y destinatario.
-    this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
-    this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
-
-    // DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
-    // this.senderPhone = ...
-    // this.recipientPhone = ...
-
-    // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
-    this.direction = data.direction || 'inbound';
-    this.type = data.type || (this.mediaUrl ? 'media' : 'text');
-    this.status = data.status || 'sent';
-    this.timestamp = data.timestamp || Timestamp.now();
-    this.metadata = data.metadata || {};
-    this.createdAt = data.createdAt || Timestamp.now();
-    this.updatedAt = data.updatedAt || Timestamp.now();
   }
 
   isPhone(identifier) {
