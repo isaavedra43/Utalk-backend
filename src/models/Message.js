@@ -14,21 +14,33 @@ class Message {
         requestId,
         timestamp: new Date().toISOString(),
         dataKeys: Object.keys(data),
-        data: {
-          hasId: !!data.id,
-          hasMessageId: !!data.messageId,
-          hasConversationId: !!data.conversationId,
-          hasSenderIdentifier: !!data.senderIdentifier,
-          hasRecipientIdentifier: !!data.recipientIdentifier,
-          hasContent: !!data.content,
-          hasMediaUrl: !!data.mediaUrl,
+        dataValues: {
+          id: data.id,
+          messageId: data.messageId,
+          conversationId: data.conversationId,
+          senderIdentifier: data.senderIdentifier,
+          recipientIdentifier: data.recipientIdentifier,
+          content: data.content,
+          mediaUrl: data.mediaUrl,
           direction: data.direction,
-          type: data.type
+          type: data.type,
+          status: data.status,
+          hasMetadata: !!data.metadata,
+          metadataKeys: data.metadata ? Object.keys(data.metadata) : []
         },
         step: 'constructor_start'
       });
 
       // ID y ConversationID (UUIDs) - ACEPTAR AMBOS FORMATOS
+      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO ID', {
+        requestId,
+        hasId: !!data.id,
+        hasMessageId: !!data.messageId,
+        id: data.id,
+        messageId: data.messageId,
+        step: 'id_validation_start'
+      });
+
       const messageId = data.id || data.messageId;
       if (!messageId) {
         logger.error('❌ MESSAGE.CONSTRUCTOR - ID FALTANTE', {
@@ -44,6 +56,19 @@ class Message {
         throw new Error('Message ID es requerido');
       }
 
+      logger.info('✅ MESSAGE.CONSTRUCTOR - ID VÁLIDO', {
+        requestId,
+        messageId,
+        step: 'id_validation_passed'
+      });
+
+      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO CONVERSATIONID', {
+        requestId,
+        hasConversationId: !!data.conversationId,
+        conversationId: data.conversationId,
+        step: 'conversation_id_validation_start'
+      });
+
       if (!data.conversationId) {
         logger.error('❌ MESSAGE.CONSTRUCTOR - CONVERSATIONID FALTANTE', {
           requestId,
@@ -52,6 +77,12 @@ class Message {
         });
         throw new Error('conversationId (UUID) es requerido');
       }
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - CONVERSATIONID VÁLIDO', {
+        requestId,
+        conversationId: data.conversationId,
+        step: 'conversation_id_validation_passed'
+      });
 
       this.id = messageId;
       this.conversationId = data.conversationId;
@@ -64,6 +95,15 @@ class Message {
       });
 
       // Contenido
+      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO CONTENIDO', {
+        requestId,
+        hasContent: !!data.content,
+        hasMediaUrl: !!data.mediaUrl,
+        content: data.content,
+        mediaUrl: data.mediaUrl,
+        step: 'content_validation_start'
+      });
+
       if (!data.content && !data.mediaUrl) {
         logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO FALTANTE', {
           requestId,
@@ -75,6 +115,14 @@ class Message {
         });
         throw new Error('Message debe tener content o mediaUrl');
       }
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - CONTENIDO VÁLIDO', {
+        requestId,
+        hasContent: !!data.content,
+        hasMediaUrl: !!data.mediaUrl,
+        step: 'content_validation_passed'
+      });
+
       this.content = data.content || null;
       this.mediaUrl = data.mediaUrl || null;
 
@@ -86,6 +134,34 @@ class Message {
       });
 
       // EMAIL-FIRST: Identificadores de remitente y destinatario.
+      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO IDENTIFICADORES', {
+        requestId,
+        hasSenderIdentifier: !!data.senderIdentifier,
+        hasRecipientIdentifier: !!data.recipientIdentifier,
+        senderIdentifier: data.senderIdentifier,
+        recipientIdentifier: data.recipientIdentifier,
+        step: 'identifiers_validation_start'
+      });
+
+      if (!data.senderIdentifier || !data.recipientIdentifier) {
+        logger.error('❌ MESSAGE.CONSTRUCTOR - IDENTIFICADORES FALTANTES', {
+          requestId,
+          hasSenderIdentifier: !!data.senderIdentifier,
+          hasRecipientIdentifier: !!data.recipientIdentifier,
+          senderIdentifier: data.senderIdentifier,
+          recipientIdentifier: data.recipientIdentifier,
+          step: 'validation_failed_identifiers'
+        });
+        throw new Error('senderIdentifier y recipientIdentifier son requeridos');
+      }
+
+      logger.info('✅ MESSAGE.CONSTRUCTOR - IDENTIFICADORES VÁLIDOS', {
+        requestId,
+        senderIdentifier: data.senderIdentifier,
+        recipientIdentifier: data.recipientIdentifier,
+        step: 'identifiers_validation_passed'
+      });
+
       this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
       this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
 
@@ -101,6 +177,18 @@ class Message {
       // this.recipientPhone = ...
 
       // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
+      logger.info('🔍 MESSAGE.CONSTRUCTOR - ASIGNANDO CAMPOS OBLIGATORIOS', {
+        requestId,
+        direction: data.direction,
+        type: data.type,
+        status: data.status,
+        hasTimestamp: !!data.timestamp,
+        hasMetadata: !!data.metadata,
+        hasCreatedAt: !!data.createdAt,
+        hasUpdatedAt: !!data.updatedAt,
+        step: 'required_fields_assignment_start'
+      });
+
       this.direction = data.direction || 'inbound';
       this.type = data.type || (this.mediaUrl ? 'media' : 'text');
       this.status = data.status || 'sent';
@@ -125,6 +213,11 @@ class Message {
         requestId,
         messageId: this.id,
         conversationId: this.conversationId,
+        senderIdentifier: this.senderIdentifier,
+        recipientIdentifier: this.recipientIdentifier,
+        content: this.content,
+        type: this.type,
+        direction: this.direction,
         step: 'constructor_complete'
       });
 
@@ -132,7 +225,7 @@ class Message {
       logger.error('❌ MESSAGE.CONSTRUCTOR - ERROR CRÍTICO', {
         requestId,
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 5),
+        stack: error.stack?.split('\n').slice(0, 10),
         data: {
           hasId: !!data.id,
           hasMessageId: !!data.messageId,
@@ -140,7 +233,14 @@ class Message {
           hasSenderIdentifier: !!data.senderIdentifier,
           hasRecipientIdentifier: !!data.recipientIdentifier,
           hasContent: !!data.content,
-          hasMediaUrl: !!data.mediaUrl
+          hasMediaUrl: !!data.mediaUrl,
+          id: data.id,
+          messageId: data.messageId,
+          conversationId: data.conversationId,
+          senderIdentifier: data.senderIdentifier,
+          recipientIdentifier: data.recipientIdentifier,
+          content: data.content,
+          mediaUrl: data.mediaUrl
         },
         step: 'constructor_error'
       });
@@ -162,112 +262,220 @@ class Message {
       logger.info('🔄 MESSAGE.CREATE - INICIANDO CREACIÓN', {
         requestId,
         timestamp: new Date().toISOString(),
+        messageDataKeys: Object.keys(messageData),
+        messageDataValues: {
+          id: messageData.id,
+          conversationId: messageData.conversationId,
+          senderIdentifier: messageData.senderIdentifier,
+          recipientIdentifier: messageData.recipientIdentifier,
+          content: messageData.content,
+          type: messageData.type,
+          direction: messageData.direction,
+          status: messageData.status,
+          hasMetadata: !!messageData.metadata,
+          metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
+        },
+        step: 'message_create_start'
+      });
+
+      logger.info('🔄 MESSAGE.CREATE - INICIANDO CONSTRUCCIÓN DE INSTANCIA', {
+        requestId,
+        step: 'constructor_start'
+      });
+
+      try {
+        const message = new Message(messageData);
+
+        logger.info('✅ MESSAGE.CREATE - INSTANCIA CREADA', {
+          requestId,
+          messageId: message.id,
+          conversationId: message.conversationId,
+          senderIdentifier: message.senderIdentifier,
+          recipientIdentifier: message.recipientIdentifier,
+          content: message.content,
+          type: message.type,
+          direction: message.direction,
+          step: 'message_instance_created'
+        });
+
+        logger.info('🧹 MESSAGE.CREATE - INICIANDO PREPARACIÓN PARA FIRESTORE', {
+          requestId,
+          step: 'firestore_preparation_start'
+        });
+
+        const cleanData = prepareForFirestore({ ...message });
+
+        logger.info('🧹 MESSAGE.CREATE - DATOS LIMPIOS PREPARADOS', {
+          requestId,
+          cleanDataKeys: Object.keys(cleanData),
+          cleanDataValues: {
+            id: cleanData.id,
+            conversationId: cleanData.conversationId,
+            senderIdentifier: cleanData.senderIdentifier,
+            recipientIdentifier: cleanData.recipientIdentifier,
+            content: cleanData.content,
+            type: cleanData.type,
+            direction: cleanData.direction,
+            hasMetadata: !!cleanData.metadata,
+            metadataKeys: cleanData.metadata ? Object.keys(cleanData.metadata) : []
+          },
+          step: 'firestore_preparation_complete'
+        });
+
+        // Guardar en la subcolección de la conversación
+        logger.info('💾 MESSAGE.CREATE - INICIANDO GUARDADO EN FIRESTORE', {
+          requestId,
+          collection: 'conversations',
+          documentId: message.conversationId,
+          subcollection: 'messages',
+          messageId: message.id,
+          step: 'firestore_save_start'
+        });
+
+        try {
+          logger.info('🔄 MESSAGE.CREATE - EJECUTANDO SET EN FIRESTORE', {
+            requestId,
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            step: 'firestore_set_execution'
+          });
+
+          await firestore
+            .collection('conversations')
+            .doc(message.conversationId)
+            .collection('messages')
+            .doc(message.id)
+            .set(cleanData);
+
+          logger.info('✅ MESSAGE.CREATE - MENSAJE GUARDADO EN FIRESTORE', {
+            requestId,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            sender: message.senderIdentifier,
+            recipient: message.recipientIdentifier,
+            step: 'firestore_save_complete'
+          });
+
+        } catch (firestoreError) {
+          logger.error('❌ MESSAGE.CREATE - ERROR EN FIRESTORE SET', {
+            requestId,
+            error: firestoreError.message,
+            stack: firestoreError.stack?.split('\n').slice(0, 10),
+            path: `conversations/${message.conversationId}/messages/${message.id}`,
+            cleanDataKeys: Object.keys(cleanData),
+            step: 'firestore_set_error'
+          });
+          throw firestoreError;
+        }
+
+        // Actualizar conversación
+        logger.info('🔄 MESSAGE.CREATE - INICIANDO ACTUALIZACIÓN DE CONVERSACIÓN', {
+          requestId,
+          conversationId: message.conversationId,
+          step: 'conversation_update_start'
+        });
+
+        try {
+          logger.info('🔄 MESSAGE.CREATE - IMPORTANDO CONVERSATION MODEL', {
+            requestId,
+            step: 'conversation_import_start'
+          });
+
+          const Conversation = require('./Conversation');
+          
+          logger.info('✅ MESSAGE.CREATE - CONVERSATION MODEL IMPORTADO', {
+            requestId,
+            step: 'conversation_import_complete'
+          });
+
+          logger.info('🔄 MESSAGE.CREATE - LLAMANDO Conversation.getById', {
+            requestId,
+            conversationId: message.conversationId,
+            step: 'calling_conversation_getById'
+          });
+
+          const conversation = await Conversation.getById(message.conversationId);
+          
+          if (conversation) {
+            logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ENCONTRADA', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'conversation_found'
+            });
+
+            logger.info('🔄 MESSAGE.CREATE - LLAMANDO conversation.updateLastMessage', {
+              requestId,
+              conversationId: message.conversationId,
+              messageId: message.id,
+              step: 'calling_updateLastMessage'
+            });
+
+            await conversation.updateLastMessage(message);
+
+            logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ACTUALIZADA', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'conversation_update_complete'
+            });
+          } else {
+            logger.warn('⚠️ MESSAGE.CREATE - CONVERSACIÓN NO ENCONTRADA', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'conversation_not_found'
+            });
+          }
+
+        } catch (conversationError) {
+          logger.error('❌ MESSAGE.CREATE - ERROR EN ACTUALIZACIÓN DE CONVERSACIÓN', {
+            requestId,
+            error: conversationError.message,
+            stack: conversationError.stack?.split('\n').slice(0, 10),
+            conversationId: message.conversationId,
+            step: 'conversation_update_error'
+          });
+          // No lanzar error, es una operación secundaria
+        }
+
+        logger.info('✅ MESSAGE.CREATE - CREACIÓN COMPLETADA', {
+          requestId,
+          messageId: message.id,
+          conversationId: message.conversationId,
+          step: 'message_create_complete'
+        });
+
+        return message;
+
+      } catch (constructorError) {
+        logger.error('❌ MESSAGE.CREATE - ERROR EN CONSTRUCTOR', {
+          requestId,
+          error: constructorError.message,
+          stack: constructorError.stack?.split('\n').slice(0, 10),
+          messageData: {
+            id: messageData.id,
+            conversationId: messageData.conversationId,
+            senderIdentifier: messageData.senderIdentifier,
+            recipientIdentifier: messageData.recipientIdentifier,
+            content: messageData.content,
+            type: messageData.type,
+            direction: messageData.direction
+          },
+          step: 'constructor_error'
+        });
+        throw constructorError;
+      }
+
+    } catch (error) {
+      logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 10),
         messageData: {
           id: messageData.id,
           conversationId: messageData.conversationId,
           senderIdentifier: messageData.senderIdentifier,
           recipientIdentifier: messageData.recipientIdentifier,
-          direction: messageData.direction,
+          content: messageData.content,
           type: messageData.type,
-          hasContent: !!messageData.content,
-          hasMediaUrl: !!messageData.mediaUrl
-        },
-        step: 'message_create_start'
-      });
-
-      const message = new Message(messageData);
-
-      logger.info('✅ MESSAGE.CREATE - INSTANCIA CREADA', {
-        requestId,
-        messageId: message.id,
-        conversationId: message.conversationId,
-        step: 'message_instance_created'
-      });
-
-      const cleanData = prepareForFirestore({ ...message });
-
-      logger.info('🧹 MESSAGE.CREATE - DATOS LIMPIOS PREPARADOS', {
-        requestId,
-        cleanDataKeys: Object.keys(cleanData),
-        step: 'firestore_preparation_complete'
-      });
-
-      // Guardar en la subcolección de la conversación
-      logger.info('💾 MESSAGE.CREATE - GUARDANDO EN FIRESTORE', {
-        requestId,
-        collection: 'conversations',
-        documentId: message.conversationId,
-        subcollection: 'messages',
-        messageId: message.id,
-        step: 'firestore_save_start'
-      });
-
-      await firestore
-        .collection('conversations')
-        .doc(message.conversationId)
-        .collection('messages')
-        .doc(message.id)
-        .set(cleanData);
-
-      logger.info('✅ MESSAGE.CREATE - MENSAJE GUARDADO EN FIRESTORE', {
-        requestId,
-        messageId: message.id,
-        conversationId: message.conversationId,
-        sender: message.senderIdentifier,
-        recipient: message.recipientIdentifier,
-        step: 'firestore_save_complete'
-      });
-
-      // Actualizar conversación
-      logger.info('🔄 MESSAGE.CREATE - ACTUALIZANDO CONVERSACIÓN', {
-        requestId,
-        conversationId: message.conversationId,
-        step: 'conversation_update_start'
-      });
-
-      const Conversation = require('./Conversation');
-      const conversation = await Conversation.getById(message.conversationId);
-      
-      if (conversation) {
-        logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ENCONTRADA', {
-          requestId,
-          conversationId: message.conversationId,
-          step: 'conversation_found'
-        });
-
-        await conversation.updateLastMessage(message);
-
-        logger.info('✅ MESSAGE.CREATE - CONVERSACIÓN ACTUALIZADA', {
-          requestId,
-          conversationId: message.conversationId,
-          step: 'conversation_update_complete'
-        });
-      } else {
-        logger.warn('⚠️ MESSAGE.CREATE - CONVERSACIÓN NO ENCONTRADA', {
-          requestId,
-          conversationId: message.conversationId,
-          step: 'conversation_not_found'
-        });
-      }
-
-      logger.info('✅ MESSAGE.CREATE - CREACIÓN COMPLETADA', {
-        requestId,
-        messageId: message.id,
-        conversationId: message.conversationId,
-        step: 'message_create_complete'
-      });
-
-      return message;
-    } catch (error) {
-      logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
-        requestId,
-        error: error.message,
-        stack: error.stack?.split('\n').slice(0, 5),
-        messageData: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-          senderIdentifier: messageData.senderIdentifier,
-          recipientIdentifier: messageData.recipientIdentifier
+          direction: messageData.direction
         },
         step: 'message_create_error'
       });
