@@ -58,15 +58,42 @@ class ProductionHealthCheckService {
    */
   async initialize() {
     if (this.isRunning) return;
-    this.isRunning = true;
-
+    
     logger.info('🏥 Iniciando Health Check Service con Circuit Breaker...', {
       category: 'HEALTH_INIT'
     });
 
+    // Esperar un poco para que Firebase se inicialice completamente
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Verificar que Firebase esté disponible
+    if (!firestore || !storage) {
+      logger.warn('Firebase no está completamente inicializado, retrasando health checks...', {
+        category: 'HEALTH_FIREBASE_NOT_READY',
+        hasFirestore: !!firestore,
+        hasStorage: !!storage
+      });
+      
+      // Esperar un poco más y verificar nuevamente
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      if (!firestore || !storage) {
+        logger.error('Firebase no está disponible después del retraso', {
+          category: 'HEALTH_FIREBASE_UNAVAILABLE',
+          hasFirestore: !!firestore,
+          hasStorage: !!storage
+        });
+      }
+    }
+
+    this.isRunning = true;
+
     // Realizar un check inicial no bloqueante
     this.performHealthCheck().catch(err => {
-      logger.error('Error en el health check inicial (no bloqueante)', { category: 'HEALTH_INIT_ERROR' });
+      logger.error('Error en el health check inicial (no bloqueante)', { 
+        category: 'HEALTH_INIT_ERROR',
+        error: err.message 
+      });
     });
 
     // Iniciar monitoreo periódico
@@ -144,6 +171,11 @@ class ProductionHealthCheckService {
    * 🔥 VERIFICAR FIRESTORE (Ejemplo)
    */
   async checkFirebaseHealth() {
+    // Verificar que firestore esté disponible
+    if (!firestore) {
+      throw new Error('Firestore no está inicializado');
+    }
+    
     // Test de lectura simple y rápido
     await firestore.collection('_health_check').limit(1).get();
     return true; // Si no hay error, está saludable
@@ -153,9 +185,14 @@ class ProductionHealthCheckService {
    * 📦 VERIFICAR DATABASE (Ejemplo)
    */
   async checkDatabaseHealth() {
-    // Aquí iría la lógica para hacer ping a tu base de datos (ej. Mongoose, Sequelize)
-    // await mongoose.connection.db.admin().ping();
-    return true; // Asumimos que está bien para el ejemplo
+    // Verificar que storage esté disponible
+    if (!storage) {
+      throw new Error('Storage no está inicializado');
+    }
+    
+    // Test simple de storage
+    await storage.bucket().getMetadata();
+    return true; // Si no hay error, está saludable
   }
 
   /**
