@@ -167,6 +167,69 @@ class Message {
   }
 
   /**
+   * Obtener mensaje por Twilio SID
+   * @param {string} twilioSid - SID de Twilio del mensaje
+   * @returns {Message|null} - Mensaje encontrado o null
+   */
+  static async getByTwilioSid(twilioSid) {
+    try {
+      logger.info('🔍 MESSAGE.GETBYTWILIOSID - BUSCANDO MENSAJE', {
+        twilioSid,
+        step: 'search_start'
+      });
+
+      // Buscar en todas las conversaciones
+      const conversationsRef = firestore.collection('conversations');
+      const conversationsSnapshot = await conversationsRef.get();
+
+      logger.info('📋 MESSAGE.GETBYTWILIOSID - CONVERSACIONES ENCONTRADAS', {
+        twilioSid,
+        conversationsCount: conversationsSnapshot.size,
+        step: 'conversations_loaded'
+      });
+
+      // Buscar en cada conversación
+      for (const conversationDoc of conversationsSnapshot.docs) {
+        const messagesRef = conversationDoc.ref.collection('messages');
+        const messagesSnapshot = await messagesRef
+          .where('metadata.twilioSid', '==', twilioSid)
+          .limit(1)
+          .get();
+
+        if (!messagesSnapshot.empty) {
+          const messageDoc = messagesSnapshot.docs[0];
+          const message = new Message({ id: messageDoc.id, ...messageDoc.data() });
+
+          logger.info('✅ MESSAGE.GETBYTWILIOSID - MENSAJE ENCONTRADO', {
+            twilioSid,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            step: 'message_found'
+          });
+
+          return message;
+        }
+      }
+
+      logger.info('❌ MESSAGE.GETBYTWILIOSID - MENSAJE NO ENCONTRADO', {
+        twilioSid,
+        step: 'message_not_found'
+      });
+
+      return null;
+
+    } catch (error) {
+      logger.error('❌ MESSAGE.GETBYTWILIOSID - ERROR CRÍTICO', {
+        twilioSid,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        step: 'search_error'
+      });
+      throw error;
+    }
+  }
+
+  /**
    * OPTIMIZADO: Obtener mensajes por conversación con paginación basada en cursor
    * @param {string} conversationId - ID de la conversación
    * @param {Object} options - Opciones de paginación y filtros

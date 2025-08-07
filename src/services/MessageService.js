@@ -379,8 +379,8 @@ class MessageService {
         type: messageType,
         direction: 'inbound',
         status: 'received',
-        twilioSid: MessageSid,
         metadata: {
+          twilioSid: MessageSid, // MOVIDO AQUÍ
           webhookProcessedAt: new Date().toISOString(),
           hasMedia,
           numMedia: parseInt(NumMedia || '0'),

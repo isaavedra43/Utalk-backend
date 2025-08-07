@@ -1,3 +1,5 @@
+const { v4: uuidv4 } = require('uuid');
+
 /**
  * Utilidades para gestión de conversaciones
  */
@@ -6,7 +8,7 @@
  * Genera un conversationId único y consistente para dos números de teléfono
  * @param {string} phone1 - Primer número de teléfono (ya validado)
  * @param {string} phone2 - Segundo número de teléfono (ya validado)
- * @returns {string} - conversationId único y consistente
+ * @returns {string} - conversationId único (UUID)
  */
 function generateConversationId (phone1, phone2) {
   if (!phone1 || !phone2) {
@@ -22,10 +24,8 @@ function generateConversationId (phone1, phone2) {
     throw new Error('Los números de teléfono deben tener al menos 10 dígitos');
   }
 
-  // Ordenar consistentemente para que siempre genere el mismo ID
-  const sorted = [normalized1, normalized2].sort();
-
-  return `conv_${sorted.join('_')}`;
+  // Generar UUID único para la conversación
+  return uuidv4();
 }
 
 /**
