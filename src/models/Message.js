@@ -88,6 +88,17 @@ class Message {
       this.id = messageId;
       this.conversationId = data.conversationId;
 
+      // === LOG CRÍTICO PARA VERIFICAR ASIGNACIÓN DE ID ===
+      console.log('🚨 EMERGENCY CONSTRUCTOR ID ASSIGNMENT:', {
+        requestId,
+        originalDataId: data.id,
+        originalDataConversationId: data.conversationId,
+        assignedMessageId: this.id,
+        assignedConversationId: this.conversationId,
+        areIdsSame: this.id === this.conversationId,
+        step: 'constructor_id_assignment'
+      });
+
       logger.info('✅ MESSAGE.CONSTRUCTOR - ID Y CONVERSATIONID ASIGNADOS', {
         requestId,
         id: this.id,
