@@ -106,47 +106,42 @@ class ConversationController {
       for (const doc of snapshot.docs) {
         try {
           // ✅ NUEVO: Debug logging para cada documento
-          logger.logObject('doc_data', doc.data(), `processing_doc_${doc.id}`);
+          logger.debug('doc_data', {
+            docId: doc.id,
+            data: doc.data()
+          }, 'processing_doc');
 
           const conversationData = doc.data();
 
           // ✅ NUEVO: Validación de datos de conversación
-          logger.logObject('conversationData', conversationData, `before_processing_${doc.id}`);
-          logger.validateArrayAccess('conversationData.participants', conversationData.participants, `doc_${doc.id}`);
+          logger.debug('conversationData', {
+            docId: doc.id,
+            conversationData
+          }, 'before_processing');
 
-          const conversation = new Conversation({
-            id: doc.id,
-            ...conversationData
-          });
-
-          // ✅ NUEVO: Debug logging después de crear la conversación
-          logger.logObject('created_conversation', conversation, `after_creation_${doc.id}`);
-
+          const conversation = new Conversation(doc.id, conversationData);
           const conversationJSON = conversation.toJSON();
 
-          // ✅ NUEVO: Debug logging del JSON
-          logger.logObject('conversation_json', conversationJSON, `after_toJSON_${doc.id}`);
-          logger.validateArrayAccess('conversationJSON.participants', conversationJSON.participants, `json_${doc.id}`);
+          // ✅ NUEVO: Logging después de procesamiento
+          logger.debug('created_conversation', {
+            docId: doc.id,
+            conversation: conversationJSON
+          }, 'after_creation');
+
+          // ✅ NUEVO: Logging del JSON final
+          logger.debug('conversation_json', {
+            docId: doc.id,
+            conversationJSON
+          }, 'after_toJSON');
 
           conversations.push(conversationJSON);
 
-          // ✅ NUEVO: Debug logging después de push
-          logger.logArray('conversations_after_push', conversations, `after_push_${doc.id}`);
-
-          req.logger.debug('conversation_processed', {
-            conversationId: doc.id,
-            participantsCount: conversationJSON.participants?.length || 0,
-            status: conversationJSON.status,
-            lastMessageAt: conversationJSON.lastMessageAt
-          });
-
         } catch (docError) {
-          req.logger.error('error_processing_conversation_doc', {
+          req.logger.error('doc_processing_error', {
             docId: doc.id,
             error: docError.message,
             stack: docError.stack
           });
-          
           continue;
         }
       }
@@ -208,7 +203,7 @@ class ConversationController {
       });
 
       // ✅ NUEVO: Debug logging del error general
-      logger.logObject('general_error', {
+      logger.error('general_error', {
         error: error.message,
         stack: error.stack,
         userEmail: req.user?.email,
