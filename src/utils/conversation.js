@@ -14,18 +14,19 @@ function generateConversationId (phone1, phone2) {
   if (!phone1 || !phone2) {
     throw new Error('Se requieren ambos números de teléfono para generar conversationId');
   }
-
-  // Los números ya deben estar validados por el middleware
-  const normalized1 = phone1.replace(/[^\d]/g, '');
-  const normalized2 = phone2.replace(/[^\d]/g, '');
-
-  // Validar que los números tengan formato válido
-  if (normalized1.length < 10 || normalized2.length < 10) {
+  
+  const normalized1 = normalizePhoneNumber(phone1);
+  const normalized2 = normalizePhoneNumber(phone2);
+  
+  if (!normalized1 || !normalized2) {
     throw new Error('Los números de teléfono deben tener al menos 10 dígitos');
   }
-
-  // Generar UUID único para la conversación
-  return uuidv4();
+  
+  // Ordenar los números para asegurar consistencia
+  const sorted = [normalized1, normalized2].sort();
+  
+  // Generar ID determinístico basado en los números
+  return `conv_${sorted[0]}_${sorted[1]}`;
 }
 
 /**
@@ -73,19 +74,22 @@ function isValidConversationId (conversationId) {
  * @returns {string} - Número normalizado
  */
 function normalizePhoneNumber (phone) {
-  if (!phone) return '';
-
-  // Remover prefijos de WhatsApp y otros caracteres
-  let normalized = phone
-    .replace('whatsapp:', '')
-    .replace(/\D/g, ''); // Solo dígitos
-
-  // Asegurar formato internacional (agregar 1 si es US y falta)
-  if (normalized.length === 10 && !normalized.startsWith('1')) {
-    normalized = '1' + normalized;
+  if (!phone) return null;
+  
+  // Remover todos los caracteres no numéricos
+  let normalized = phone.replace(/[^\d]/g, '');
+  
+  // Manejar prefijos de WhatsApp
+  if (phone.startsWith('whatsapp:')) {
+    normalized = phone.replace('whatsapp:', '').replace(/[^\d]/g, '');
   }
-
-  return '+' + normalized;
+  
+  // Asegurar que tenga al menos 10 dígitos
+  if (normalized.length < 10) {
+    return null;
+  }
+  
+  return normalized;
 }
 
 module.exports = {

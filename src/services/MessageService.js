@@ -475,6 +475,89 @@ class MessageService {
           step: 'conversation_id_generated'
         });
 
+        // Buscar o crear conversación
+        logger.info('🔍 MESSAGESERVICE - BUSCANDO/CREANDO CONVERSACIÓN', {
+          requestId,
+          fromPhone,
+          toPhone,
+          conversationId,
+          step: 'conversation_search_start'
+        });
+
+        try {
+          logger.info('🔄 MESSAGESERVICE - LLAMANDO Conversation.findByPhones', {
+            requestId,
+            fromPhone,
+            toPhone,
+            step: 'calling_findByPhones'
+          });
+
+          const Conversation = require('../models/Conversation');
+          let conversation = await Conversation.findByPhones(fromPhone, toPhone);
+
+          if (conversation) {
+            logger.info('✅ MESSAGESERVICE - CONVERSACIÓN ENCONTRADA', {
+              requestId,
+              conversationId: conversation.id,
+              fromPhone,
+              toPhone,
+              step: 'conversation_found'
+            });
+          } else {
+            logger.info('❌ MESSAGESERVICE - CONVERSACIÓN NO ENCONTRADA, CREANDO NUEVA', {
+              requestId,
+              conversationId,
+              fromPhone,
+              toPhone,
+              step: 'conversation_not_found_creating'
+            });
+
+            logger.info('🔄 MESSAGESERVICE - LLAMANDO Conversation.create', {
+              requestId,
+              fromPhone,
+              toPhone,
+              step: 'calling_conversation_create'
+            });
+
+            conversation = await Conversation.create({
+              customerPhone: fromPhone,
+              agentPhone: toPhone,
+              id: conversationId
+            });
+
+            logger.info('✅ MESSAGESERVICE - CONVERSACIÓN CREADA', {
+              requestId,
+              conversationId: conversation.id,
+              fromPhone,
+              toPhone,
+              step: 'conversation_created'
+            });
+          }
+
+          // Usar el conversationId de la conversación encontrada o creada
+          const finalConversationId = conversation.id;
+
+          logger.info('✅ MESSAGESERVICE - CONVERSATIONID FINAL ASIGNADO', {
+            requestId,
+            finalConversationId,
+            fromPhone,
+            toPhone,
+            step: 'conversation_id_finalized'
+          });
+
+        } catch (conversationError) {
+          logger.error('❌ MESSAGESERVICE - ERROR EN BÚSQUEDA/CREACIÓN DE CONVERSACIÓN', {
+            requestId,
+            error: conversationError.message,
+            stack: conversationError.stack?.split('\n').slice(0, 10),
+            fromPhone,
+            toPhone,
+            conversationId,
+            step: 'conversation_search_error'
+          });
+          throw conversationError;
+        }
+
         // Determinar tipo de mensaje
         const hasMedia = parseInt(NumMedia || '0') > 0;
         const messageType = hasMedia ? 'media' : 'text';
@@ -490,7 +573,7 @@ class MessageService {
         // Preparar datos básicos del mensaje
         logger.info('📝 MESSAGESERVICE - PREPARANDO DATOS DEL MENSAJE', {
           requestId,
-          conversationId,
+          conversationId: finalConversationId,
           fromPhone,
           toPhone,
           messageSid: MessageSid,
@@ -501,7 +584,7 @@ class MessageService {
 
         const messageData = {
           id: MessageSid, // ID del mensaje (Twilio SID)
-          conversationId,
+          conversationId: finalConversationId, // Usar el conversationId final
           senderIdentifier: fromPhone, // Campo requerido por Message
           recipientIdentifier: toPhone, // Campo requerido por Message
           content: Body || '',

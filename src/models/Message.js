@@ -339,6 +339,51 @@ class Message {
             step: 'firestore_set_execution'
           });
 
+          // Asegurar que el documento padre de la conversación exista
+          logger.info('🔄 MESSAGE.CREATE - VERIFICANDO DOCUMENTO PADRE DE CONVERSACIÓN', {
+            requestId,
+            conversationId: message.conversationId,
+            step: 'parent_document_check'
+          });
+
+          const conversationRef = firestore.collection('conversations').doc(message.conversationId);
+          const conversationDoc = await conversationRef.get();
+
+          if (!conversationDoc.exists) {
+            logger.info('❌ MESSAGE.CREATE - DOCUMENTO PADRE NO EXISTE, CREÁNDOLO', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'parent_document_creation'
+            });
+
+            // Crear el documento padre de la conversación
+            await conversationRef.set({
+              id: message.conversationId,
+              customerPhone: message.senderIdentifier,
+              agentPhone: message.recipientIdentifier,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lastMessage: {
+                content: message.content,
+                timestamp: new Date(),
+                sender: message.senderIdentifier
+              }
+            });
+
+            logger.info('✅ MESSAGE.CREATE - DOCUMENTO PADRE CREADO', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'parent_document_created'
+            });
+          } else {
+            logger.info('✅ MESSAGE.CREATE - DOCUMENTO PADRE EXISTE', {
+              requestId,
+              conversationId: message.conversationId,
+              step: 'parent_document_exists'
+            });
+          }
+
+          // Ahora guardar el mensaje en la subcolección
           await firestore
             .collection('conversations')
             .doc(message.conversationId)

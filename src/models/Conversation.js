@@ -1005,6 +1005,59 @@ class Conversation {
 
     return conversations;
   }
+
+  /**
+   * Buscar conversación por números de teléfono
+   */
+  static async findByPhones (phone1, phone2) {
+    try {
+      logger.info('🔍 CONVERSATION.FINDBYPHONES - BUSCANDO CONVERSACIÓN', {
+        phone1,
+        phone2,
+        step: 'search_start'
+      });
+
+      const { generateConversationId } = require('../utils/conversation');
+      const conversationId = generateConversationId(phone1, phone2);
+
+      logger.info('🔍 CONVERSATION.FINDBYPHONES - CONVERSATIONID GENERADO', {
+        conversationId,
+        phone1,
+        phone2,
+        step: 'conversation_id_generated'
+      });
+
+      const conversation = await this.getById(conversationId);
+
+      if (conversation) {
+        logger.info('✅ CONVERSATION.FINDBYPHONES - CONVERSACIÓN ENCONTRADA', {
+          conversationId,
+          phone1,
+          phone2,
+          step: 'conversation_found'
+        });
+      } else {
+        logger.info('❌ CONVERSATION.FINDBYPHONES - CONVERSACIÓN NO ENCONTRADA', {
+          conversationId,
+          phone1,
+          phone2,
+          step: 'conversation_not_found'
+        });
+      }
+
+      return conversation;
+
+    } catch (error) {
+      logger.error('❌ CONVERSATION.FINDBYPHONES - ERROR CRÍTICO', {
+        phone1,
+        phone2,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        step: 'search_error'
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = Conversation;
