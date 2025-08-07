@@ -360,7 +360,6 @@ class Message {
             await conversationRef.set({
               id: message.conversationId,
               customerPhone: message.senderIdentifier,
-              agentPhone: message.recipientIdentifier,
               createdAt: new Date(),
               updatedAt: new Date(),
               lastMessage: {
