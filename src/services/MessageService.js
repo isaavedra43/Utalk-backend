@@ -372,9 +372,10 @@ class MessageService {
 
       // Preparar datos básicos del mensaje
       const messageData = {
+        id: MessageSid, // ID del mensaje (Twilio SID)
         conversationId,
-        from: fromPhone,
-        to: toPhone,
+        senderIdentifier: fromPhone, // Campo requerido por Message
+        recipientIdentifier: toPhone, // Campo requerido por Message
         content: Body || '',
         type: messageType,
         direction: 'inbound',
