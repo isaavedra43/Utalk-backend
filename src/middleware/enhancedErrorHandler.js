@@ -15,8 +15,9 @@
  * - Métricas y monitoreo automático
  * - Códigos de error descriptivos y consistentes
  * - Rate limiting para prevenir spam de errores
+ * - 🆕 SISTEMA DE DEDUPLICACIÓN DE LOGS CRÍTICOS
  * 
- * @version 3.0.0 ENTERPRISE
+ * @version 3.1.0 ENTERPRISE
  * @author Error Handling Team
  */
 
@@ -71,6 +72,85 @@ class EnhancedErrorHandler {
       maxEntries: 50000,
       defaultTTL: 60 * 60 * 1000, // 1 hora
     });
+
+    // 🆕 SISTEMA DE DEDUPLICACIÓN DE LOGS CRÍTICOS
+    this.errorDeduplication = memoryManager.createManagedMap('errorDeduplication', {
+      maxEntries: 10000,
+      defaultTTL: 30 * 60 * 1000, // 30 minutos
+      onEviction: (key, data, reason) => {
+        if (reason === 'expired') {
+          // Log resumen cuando expira un grupo de errores
+          this.logDeduplicationSummary(key, data);
+        }
+      }
+    });
+
+    // 🆕 CONFIGURACIÓN DE ERRORES REPETITIVOS CONOCIDOS
+    this.repetitiveErrorPatterns = {
+      // Firestore index errors
+      'FAILED_PRECONDITION: The query requires an index': {
+        category: 'FIRESTORE_INDEX_ERROR',
+        suggestion: 'Crear índice en Firebase Console desde el link proporcionado',
+        deduplicationWindow: 15 * 60 * 1000, // 15 minutos
+        maxOccurrences: 3 // Solo log 3 veces antes de deduplicar
+      },
+      // Firestore permission errors
+      'PERMISSION_DENIED': {
+        category: 'FIRESTORE_PERMISSION_ERROR',
+        suggestion: 'Verificar reglas de Firestore y permisos del usuario',
+        deduplicationWindow: 10 * 60 * 1000, // 10 minutos
+        maxOccurrences: 3
+      },
+      // Network timeouts
+      'ETIMEDOUT': {
+        category: 'NETWORK_TIMEOUT_ERROR',
+        suggestion: 'Verificar conectividad de red y latencia',
+        deduplicationWindow: 5 * 60 * 1000, // 5 minutos
+        maxOccurrences: 5
+      },
+      // Database connection errors
+      'ECONNREFUSED': {
+        category: 'DATABASE_CONNECTION_ERROR',
+        suggestion: 'Verificar estado de la base de datos y configuración',
+        deduplicationWindow: 10 * 60 * 1000,
+        maxOccurrences: 3
+      },
+      // Firestore resource exhausted
+      'RESOURCE_EXHAUSTED': {
+        category: 'FIRESTORE_RESOURCE_ERROR',
+        suggestion: 'Optimizar consultas o escalar recursos de Firestore',
+        deduplicationWindow: 20 * 60 * 1000, // 20 minutos
+        maxOccurrences: 2
+      },
+      // Firestore unauthenticated
+      'UNAUTHENTICATED': {
+        category: 'FIRESTORE_AUTH_ERROR',
+        suggestion: 'Verificar credenciales de Firebase y configuración',
+        deduplicationWindow: 10 * 60 * 1000,
+        maxOccurrences: 3
+      },
+      // Generic Firestore errors
+      'firestore/': {
+        category: 'FIRESTORE_GENERIC_ERROR',
+        suggestion: 'Revisar configuración de Firestore y permisos',
+        deduplicationWindow: 10 * 60 * 1000,
+        maxOccurrences: 5
+      },
+      // Memory pressure errors
+      'High memory pressure': {
+        category: 'MEMORY_PRESSURE_ERROR',
+        suggestion: 'Optimizar uso de memoria o escalar recursos',
+        deduplicationWindow: 5 * 60 * 1000,
+        maxOccurrences: 10
+      },
+      // Rate limiting errors
+      'rate limit': {
+        category: 'RATE_LIMIT_ERROR',
+        suggestion: 'Reducir frecuencia de requests o ajustar límites',
+        deduplicationWindow: 5 * 60 * 1000,
+        maxOccurrences: 5
+      }
+    };
 
     this.sensitiveFields = [
       'password', 'token', 'authorization', 'secret', 'key',
@@ -356,6 +436,16 @@ class EnhancedErrorHandler {
    * 📝 LOGGING ESTRUCTURADO DEL ERROR
    */
   logError(error, context, classification) {
+    // 🆕 VERIFICAR SI ES UN ERROR REPETITIVO
+    const deduplicationKey = this.generateDeduplicationKey(error, context);
+    const isDeduplicated = this.shouldDeduplicateError(error, context, deduplicationKey);
+    
+    if (isDeduplicated) {
+      // Solo incrementar contador, no log completo
+      this.incrementDeduplicationCounter(deduplicationKey, error, context, classification);
+      return;
+    }
+
     const logLevel = this.getLogLevel(classification.severity);
     const logData = {
       category: 'ERROR_HANDLED',
@@ -383,6 +473,114 @@ class EnhancedErrorHandler {
         severity: 'CRITICAL'
       });
     }
+  }
+
+  /**
+   * 🆕 GENERAR CLAVE DE DEDUPLICACIÓN
+   */
+  generateDeduplicationKey(error, context) {
+    const errorSignature = `${error.name}:${error.message}:${error.code || 'NO_CODE'}`;
+    const contextSignature = `${context.url}:${context.method}:${context.ip}`;
+    return `${errorSignature}|${contextSignature}`;
+  }
+
+  /**
+   * 🆕 VERIFICAR SI DEBE DEDUPLICAR EL ERROR
+   */
+  shouldDeduplicateError(error, context, deduplicationKey) {
+    const existingData = this.errorDeduplication.get(deduplicationKey);
+    
+    if (!existingData) {
+      return false; // Primera vez, no deduplicar
+    }
+
+    // Verificar si es un error repetitivo conocido
+    const pattern = this.findRepetitiveErrorPattern(error);
+    if (pattern && existingData.occurrences >= pattern.maxOccurrences) {
+      return true; // Deduplicar después del límite
+    }
+
+    // Verificar tiempo desde la última ocurrencia
+    const timeSinceLastOccurrence = Date.now() - existingData.lastOccurrence;
+    const deduplicationWindow = pattern?.deduplicationWindow || 5 * 60 * 1000; // 5 min por defecto
+    
+    return timeSinceLastOccurrence < deduplicationWindow;
+  }
+
+  /**
+   * 🆕 ENCONTRAR PATRÓN DE ERROR REPETITIVO
+   */
+  findRepetitiveErrorPattern(error) {
+    for (const [pattern, config] of Object.entries(this.repetitiveErrorPatterns)) {
+      if (error.message && error.message.includes(pattern)) {
+        return config;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 🆕 INCREMENTAR CONTADOR DE DEDUPLICACIÓN
+   */
+  incrementDeduplicationCounter(deduplicationKey, error, context, classification) {
+    const existingData = this.errorDeduplication.get(deduplicationKey);
+    const pattern = this.findRepetitiveErrorPattern(error);
+    
+    if (existingData) {
+      existingData.occurrences++;
+      existingData.lastOccurrence = Date.now();
+      existingData.lastContext = context;
+      existingData.lastClassification = classification;
+      
+      // Log resumen cada 10 ocurrencias
+      if (existingData.occurrences % 10 === 0) {
+        this.logDeduplicationSummary(deduplicationKey, existingData);
+      }
+    } else {
+      // Primera ocurrencia
+      const newData = {
+        error: {
+          name: error.name,
+          message: error.message,
+          code: error.code
+        },
+        context: context,
+        classification: classification,
+        occurrences: 1,
+        firstOccurrence: Date.now(),
+        lastOccurrence: Date.now(),
+        pattern: pattern
+      };
+      
+      this.errorDeduplication.set(deduplicationKey, newData);
+    }
+  }
+
+  /**
+   * 🆕 LOG RESUMEN DE DEDUPLICACIÓN
+   */
+  logDeduplicationSummary(deduplicationKey, data) {
+    const pattern = data.pattern;
+    const suggestion = pattern?.suggestion || 'Revisar logs para más detalles';
+    const timeSinceFirst = Math.round((Date.now() - data.firstOccurrence) / 1000);
+    const timeSinceLast = Math.round((Date.now() - data.lastOccurrence) / 1000);
+    
+    const summaryMessage = `[CRITICAL] ${pattern?.category || 'ERROR_REPETITIVO'} en ${data.context.url} | Ocurrencias: ${data.occurrences} | Última vez: ${timeSinceLast}s | Solución: ${suggestion}`;
+    
+    logger.error(summaryMessage, {
+      category: 'ERROR_DEDUPLICATION_SUMMARY',
+      deduplicationKey,
+      occurrences: data.occurrences,
+      firstOccurrence: new Date(data.firstOccurrence).toISOString(),
+      lastOccurrence: new Date(data.lastOccurrence).toISOString(),
+      timeSinceFirst: `${timeSinceFirst}s`,
+      timeSinceLast: `${timeSinceLast}s`,
+      pattern: pattern,
+      suggestion: suggestion,
+      context: data.context,
+      severity: 'CRITICAL',
+      requiresAttention: true
+    });
   }
 
   /**
@@ -532,7 +730,7 @@ class EnhancedErrorHandler {
            error.name === 'TokenExpiredError' ||
            error.name === 'NotBeforeError' ||
            error.name === 'UnauthorizedError' ||
-           (error.code && error.code.startsWith('auth/'));
+           (error.code && typeof error.code === 'string' && error.code.startsWith('auth/'));
   }
 
   isAuthorizationError(error) {
