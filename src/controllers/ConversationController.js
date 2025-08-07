@@ -25,6 +25,7 @@
  */
 
 const ConversationService = require('../services/ConversationService');
+const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');

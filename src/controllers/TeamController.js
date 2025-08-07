@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Campaign = require('../models/Campaign');
+const { firestore } = require('../config/firebase');
 const moment = require('moment');
 
 class TeamController {
