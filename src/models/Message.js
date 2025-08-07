@@ -287,6 +287,14 @@ class Message {
   static async create (messageData) {
     const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // LOG DE EMERGENCIA PARA RAILWAY
+    console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE INICIADO:', {
+      requestId,
+      messageDataId: messageData.id,
+      conversationId: messageData.conversationId,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       logger.info('🔄 MESSAGE.CREATE - INICIANDO CREACIÓN', {
         requestId,
@@ -640,9 +648,17 @@ class Message {
         throw constructorError;
       }
 
-    } catch (error) {
-      // === LOG EXTREMADAMENTE DETALLADO DEL ERROR CRÍTICO ===
-      logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
+            } catch (error) {
+          // LOG DE EMERGENCIA PARA RAILWAY
+          console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE ERROR:', {
+            requestId,
+            error: error.message,
+            errorType: error.constructor.name,
+            timestamp: new Date().toISOString()
+          });
+          
+          // === LOG EXTREMADAMENTE DETALLADO DEL ERROR CRÍTICO ===
+          logger.error('❌ MESSAGE.CREATE - ERROR CRÍTICO', {
         requestId,
         error: error.message,
         errorType: error.constructor.name,

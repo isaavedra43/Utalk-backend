@@ -182,6 +182,24 @@ class AdvancedLogger {
       silent: process.env.NODE_ENV === 'test'
     });
 
+    // FORZAR LOGS A STDOUT PARA RAILWAY
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      console.log('🚀 CONFIGURANDO LOGGER PARA RAILWAY');
+      
+      // Agregar transport adicional para Railway
+      this.winston.add(new winston.transports.Console({
+        level: 'debug',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.colorize(),
+          winston.format.printf(({ timestamp, level, message, ...meta }) => {
+            const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+            return `[RAILWAY] ${timestamp} ${level}: ${message}${metaStr}`;
+          })
+        )
+      }));
+    }
+
     // Manejar errores del logger
     this.winston.on('error', (error) => {
       // Fallback seguro: solo en desarrollo

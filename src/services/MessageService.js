@@ -824,6 +824,14 @@ class MessageService {
           step: 'message_creation_start'
         });
 
+        // LOG DE EMERGENCIA PARA RAILWAY
+        console.log('🚨 EMERGENCY LOG - ANTES DE createMessage:', {
+          requestId,
+          conversationId,
+          messageDataKeys: Object.keys(messageData),
+          timestamp: new Date().toISOString()
+        });
+
         // === DEBUG DETALLADO ANTES DE GUARDAR ===
         logger.info('=== DATA ANTES DE GUARDAR ===', {
           requestId,
@@ -885,10 +893,26 @@ class MessageService {
             step: 'calling_createMessage'
           });
 
+          // LOG DE EMERGENCIA ANTES DE LLAMAR createMessage
+          console.log('🚨 EMERGENCY LOG - LLAMANDO createMessage:', {
+            requestId,
+            conversationId,
+            messageDataId: messageData.id,
+            timestamp: new Date().toISOString()
+          });
+
           const message = await this.createMessage(messageData, {
             updateConversation: true,
             updateContact: true,
             validateInput: true,
+          });
+
+          // LOG DE EMERGENCIA DESPUÉS DE createMessage
+          console.log('🚨 EMERGENCY LOG - createMessage COMPLETADO:', {
+            requestId,
+            messageId: message.id,
+            conversationId: message.conversationId,
+            timestamp: new Date().toISOString()
           });
 
           // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE createMessage ===
