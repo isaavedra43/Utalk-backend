@@ -11,79 +11,12 @@ class Message {
     const requestId = `msg_constructor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
-      logger.info('🔄 MESSAGE.CONSTRUCTOR - INICIANDO CONSTRUCCIÓN', {
-        requestId,
-        timestamp: new Date().toISOString(),
-        dataKeys: Object.keys(data),
-        dataValues: {
-          id: data.id,
-          messageId: data.messageId,
-          conversationId: data.conversationId,
-          senderIdentifier: data.senderIdentifier,
-          recipientIdentifier: data.recipientIdentifier,
-          content: data.content,
-          mediaUrl: data.mediaUrl,
-          direction: data.direction,
-          type: data.type,
-          status: data.status,
-          hasMetadata: !!data.metadata,
-          metadataKeys: data.metadata ? Object.keys(data.metadata) : []
-        },
-        step: 'constructor_start'
-      });
-
       // ID y ConversationID (UUIDs) - ACEPTAR AMBOS FORMATOS
-      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO ID', {
-        requestId,
-        hasId: !!data.id,
-        hasMessageId: !!data.messageId,
-        id: data.id,
-        messageId: data.messageId,
-        step: 'id_validation_start'
-      });
-
-      const messageId = data.id || data.messageId;
-      if (!messageId) {
-        logger.error('❌ MESSAGE.CONSTRUCTOR - ID FALTANTE', {
-          requestId,
-          data: {
-            hasId: !!data.id,
-            hasMessageId: !!data.messageId,
-            id: data.id,
-            messageId: data.messageId
-          },
-          step: 'validation_failed_id'
-        });
-        throw new Error('Message ID es requerido');
-      }
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - ID VÁLIDO', {
-        requestId,
-        messageId,
-        step: 'id_validation_passed'
-      });
-
-      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO CONVERSATIONID', {
-        requestId,
-        hasConversationId: !!data.conversationId,
-        conversationId: data.conversationId,
-        step: 'conversation_id_validation_start'
-      });
+      const messageId = data.id || data.messageId || `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       if (!data.conversationId) {
-        logger.error('❌ MESSAGE.CONSTRUCTOR - CONVERSATIONID FALTANTE', {
-          requestId,
-          conversationId: data.conversationId,
-          step: 'validation_failed_conversation_id'
-        });
         throw new Error('conversationId (UUID) es requerido');
       }
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - CONVERSATIONID VÁLIDO', {
-        requestId,
-        conversationId: data.conversationId,
-        step: 'conversation_id_validation_passed'
-      });
 
       this.id = messageId;
       this.conversationId = data.conversationId;
@@ -92,193 +25,40 @@ class Message {
       console.log('🚨 MESSAGE CONSTRUCTOR:', {
         requestId,
         originalDataId: data.id,
-        originalDataConversationId: data.conversationId,
         assignedMessageId: this.id,
         assignedConversationId: this.conversationId,
-        areIdsSame: this.id === this.conversationId,
-        content: this.content?.substring(0, 30) + (this.content?.length > 30 ? '...' : ''),
-        type: this.type,
-        direction: this.direction,
+        content: data.content?.substring(0, 30) + (data.content?.length > 30 ? '...' : ''),
+        type: data.type,
+        direction: data.direction,
         step: 'constructor_completed'
       });
 
       // Contenido
-      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO CONTENIDO', {
-        requestId,
-        hasContent: !!data.content,
-        hasMediaUrl: !!data.mediaUrl,
-        content: data.content,
-        mediaUrl: data.mediaUrl,
-        contentType: typeof data.content,
-        contentLength: data.content?.length || 0,
-        step: 'content_validation_start'
-      });
+      const noContent = data.content === null || data.content === undefined;
+      const noMedia = !data.mediaUrl || data.mediaUrl === null || data.mediaUrl === undefined;
 
-      // CORREGIDO: Permitir contenido vacío pero no null/undefined
-      if (data.content === null || data.content === undefined) {
-        logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO NULL/UNDEFINED', {
-          requestId,
-          hasContent: !!data.content,
-          hasMediaUrl: !!data.mediaUrl,
-          content: data.content,
-          mediaUrl: data.mediaUrl,
-          contentType: typeof data.content,
-          step: 'validation_failed_content_null'
-        });
-        throw new Error('Message debe tener content (no puede ser null/undefined)');
+      if (noContent && noMedia) {
+        throw new Error('El mensaje debe tener contenido o mediaUrl');
       }
 
-      // PERMITIR MENSAJES DE TEXTO CON CONTENIDO VACÍO
-      // Solo rechazar si no hay contenido Y no hay mediaUrl
-      if (!data.content && !data.mediaUrl) {
-        logger.error('❌ MESSAGE.CONSTRUCTOR - CONTENIDO FALTANTE', {
-          requestId,
-          hasContent: !!data.content,
-          hasMediaUrl: !!data.mediaUrl,
-          content: data.content,
-          mediaUrl: data.mediaUrl,
-          contentType: typeof data.content,
-          step: 'validation_failed_content_missing'
-        });
-        throw new Error('Message debe tener content o mediaUrl');
-      }
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - CONTENIDO VÁLIDO', {
-        requestId,
-        hasContent: !!data.content,
-        hasMediaUrl: !!data.mediaUrl,
-        contentLength: data.content?.length || 0,
-        step: 'content_validation_passed'
-      });
-
-      // CORREGIDO: Asignar contenido como string (puede ser vacío)
+      // Asignar campos básicos
       this.content = data.content || '';
       this.mediaUrl = data.mediaUrl || null;
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - CONTENIDO ASIGNADO', {
-        requestId,
-        hasContent: !!this.content,
-        hasMediaUrl: !!this.mediaUrl,
-        step: 'content_assigned'
-      });
-
-      // EMAIL-FIRST: Identificadores de remitente y destinatario.
-      logger.info('🔍 MESSAGE.CONSTRUCTOR - VALIDANDO IDENTIFICADORES', {
-        requestId,
-        hasSenderIdentifier: !!data.senderIdentifier,
-        hasRecipientIdentifier: !!data.recipientIdentifier,
-        senderIdentifier: data.senderIdentifier,
-        recipientIdentifier: data.recipientIdentifier,
-        step: 'identifiers_validation_start'
-      });
-
-      if (!data.senderIdentifier || !data.recipientIdentifier) {
-        logger.error('❌ MESSAGE.CONSTRUCTOR - IDENTIFICADORES FALTANTES', {
-          requestId,
-          hasSenderIdentifier: !!data.senderIdentifier,
-          hasRecipientIdentifier: !!data.recipientIdentifier,
-          senderIdentifier: data.senderIdentifier,
-          recipientIdentifier: data.recipientIdentifier,
-          step: 'validation_failed_identifiers'
-        });
-        throw new Error('senderIdentifier y recipientIdentifier son requeridos');
-      }
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - IDENTIFICADORES VÁLIDOS', {
-        requestId,
-        senderIdentifier: data.senderIdentifier,
-        recipientIdentifier: data.recipientIdentifier,
-        step: 'identifiers_validation_passed'
-      });
-
-      this.senderIdentifier = data.senderIdentifier; // Puede ser EMAIL o teléfono.
-      this.recipientIdentifier = data.recipientIdentifier; // Puede ser EMAIL o teléfono.
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - IDENTIFICADORES ASIGNADOS', {
-        requestId,
-        senderIdentifier: this.senderIdentifier,
-        recipientIdentifier: this.recipientIdentifier,
-        step: 'identifiers_assigned'
-      });
-
-      // DEPRECATED: Se eliminan los campos específicos de teléfono. La lógica se basa en los identifiers.
-      // this.senderPhone = ...
-      // this.recipientPhone = ...
-
-      // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
-      logger.info('🔍 MESSAGE.CONSTRUCTOR - ASIGNANDO CAMPOS OBLIGATORIOS', {
-        requestId,
-        direction: data.direction,
-        type: data.type,
-        status: data.status,
-        hasTimestamp: !!data.timestamp,
-        hasMetadata: !!data.metadata,
-        hasCreatedAt: !!data.createdAt,
-        hasUpdatedAt: !!data.updatedAt,
-        step: 'required_fields_assignment_start'
-      });
-
+      this.type = data.type || 'text';
       this.direction = data.direction || 'inbound';
-      this.type = data.type || (this.mediaUrl ? 'media' : 'text');
-      this.status = data.status || 'sent';
-      this.timestamp = data.timestamp || Timestamp.now();
+      this.status = data.status || 'received';
+      this.senderIdentifier = data.senderIdentifier;
+      this.recipientIdentifier = data.recipientIdentifier;
+      this.timestamp = data.timestamp || new Date();
       this.metadata = data.metadata || {};
-      this.createdAt = data.createdAt || Timestamp.now();
-      this.updatedAt = data.updatedAt || Timestamp.now();
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - CAMPOS OBLIGATORIOS ASIGNADOS', {
-        requestId,
-        direction: this.direction,
-        type: this.type,
-        status: this.status,
-        hasTimestamp: !!this.timestamp,
-        hasMetadata: !!this.metadata,
-        hasCreatedAt: !!this.createdAt,
-        hasUpdatedAt: !!this.updatedAt,
-        step: 'required_fields_assigned'
-      });
-
-      logger.info('✅ MESSAGE.CONSTRUCTOR - CONSTRUCCIÓN COMPLETADA', {
-        requestId,
-        messageId: this.id,
-        conversationId: this.conversationId,
-        senderIdentifier: this.senderIdentifier,
-        recipientIdentifier: this.recipientIdentifier,
-        content: this.content,
-        type: this.type,
-        direction: this.direction,
-        step: 'constructor_complete'
-      });
+      this.createdAt = data.createdAt || new Date();
+      this.updatedAt = data.updatedAt || new Date();
 
     } catch (error) {
-      // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DEL CONSTRUCTOR ===
       logger.error('❌ MESSAGE.CONSTRUCTOR - ERROR CRÍTICO', {
         requestId,
         error: error.message,
-        errorType: error.constructor.name,
-        stack: error.stack?.split('\n').slice(0, 20),
-        data: {
-          hasId: !!data.id,
-          hasMessageId: !!data.messageId,
-          hasConversationId: !!data.conversationId,
-          hasSenderIdentifier: !!data.senderIdentifier,
-          hasRecipientIdentifier: !!data.recipientIdentifier,
-          hasContent: !!data.content,
-          hasMediaUrl: !!data.mediaUrl,
-          id: data.id,
-          messageId: data.messageId,
-          conversationId: data.conversationId,
-          senderIdentifier: data.senderIdentifier,
-          recipientIdentifier: data.recipientIdentifier,
-          content: data.content,
-          contentLength: data.content?.length || 0,
-          mediaUrl: data.mediaUrl,
-          type: data.type,
-          direction: data.direction,
-          status: data.status,
-          hasMetadata: !!data.metadata,
-          metadataKeys: data.metadata ? Object.keys(data.metadata) : []
-        },
+        dataKeys: Object.keys(data),
         step: 'constructor_error'
       });
       throw error;
@@ -295,37 +75,14 @@ class Message {
   static async create (messageData, uniqueMessageId) {
     const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log('🚨 MESSAGE.CREATE STARTED:', {
-      requestId,
-      messageDataId: messageData?.id,
-      conversationId: messageData?.conversationId,
-      uniqueMessageId,
-      step: 'message_create_start'
-    });
-    
     try {
       const message = new Message(messageData);
-
-      console.log('🚨 MESSAGE CONSTRUCTOR:', {
-        requestId,
-        originalDataId: messageData.id,
-        assignedMessageId: message.id,
-        assignedConversationId: message.conversationId,
-        areIdsSame: message.id === message.conversationId,
-        step: 'constructor_completed'
-      });
 
       // Check if conversation exists, if not, create it
       const conversationRef = firestore.collection('conversations').doc(message.conversationId);
       const conversationDoc = await conversationRef.get();
 
       if (!conversationDoc.exists) {
-        console.log('🚨 CONVERSATION NOT EXISTS:', {
-          requestId,
-          conversationId: message.conversationId,
-          step: 'conversation_not_exists'
-        });
-        
         // Create the parent conversation document
         await conversationRef.set({
           id: message.conversationId,
@@ -338,12 +95,6 @@ class Message {
             sender: message.senderIdentifier
           },
           messageCount: 1
-        });
-        
-        console.log('🚨 CONVERSATION CREATED:', {
-          requestId,
-          conversationId: message.conversationId,
-          step: 'conversation_created'
         });
       }
 
@@ -362,14 +113,6 @@ class Message {
       // Prepare data for Firestore, ensuring no undefined values
       const cleanData = prepareForFirestore({ ...message });
 
-      console.log('🚨 FIRESTORE PREPARATION:', {
-        requestId,
-        originalMessageId: message.id,
-        cleanDataId: cleanData.id,
-        areIdsSame: message.id === cleanData.id,
-        step: 'firestore_prepared'
-      });
-
       // Aggressive cleaning of undefined/null values
       const firestoreData = {};
       for (const [key, value] of Object.entries(cleanData)) {
@@ -378,47 +121,34 @@ class Message {
         }
       }
 
-      console.log('🚨 FIRESTORE CLEANED DATA:', {
-        requestId,
-        originalKeys: Object.keys(cleanData),
-        cleanedKeys: Object.keys(firestoreData),
-        removedKeys: Object.keys(cleanData).filter(key => !firestoreData.hasOwnProperty(key)),
-        hasId: !!firestoreData.id,
-        hasContent: !!firestoreData.content,
-        hasConversationId: !!firestoreData.conversationId,
-        step: 'data_cleaning_complete'
-      });
-
       // Critical verification before saving
       if (!firestoreData.id || !firestoreData.conversationId) {
         throw new Error(`CRITICAL DATA MISSING: id=${!!firestoreData.id}, conversationId=${!!firestoreData.conversationId}`);
       }
 
-      console.log('🚨 EMERGENCY CRITICAL ID CHECK:', {
-        requestId,
-        idForFirestore: uniqueMessageId,
-        path: `conversations/${message.conversationId}/messages/${uniqueMessageId}`,
-        step: 'before_firestore_set'
-      });
-
       // Save message to Firestore subcollection using the uniqueMessageId
       await firestore.collection('conversations').doc(message.conversationId).collection('messages').doc(uniqueMessageId).set(firestoreData);
 
-      console.log('🚨 EMERGENCY LOG - AFTER FIRESTORE SAVE:', { 
+      // === LOG CRÍTICO DESPUÉS DE FIRESTORE SAVE ===
+      console.log('🚨 MESSAGE SAVED SUCCESSFULLY:', { 
         requestId, 
         messageId: uniqueMessageId, 
-        conversationId: message.conversationId, 
-        step: 'firestore_saved_emergency' 
+        conversationId: message.conversationId,
+        firestorePath: `conversations/${message.conversationId}/messages/${uniqueMessageId}`,
+        dataKeys: Object.keys(firestoreData),
+        step: 'firestore_save_success' 
       });
 
       return message;
 
     } catch (error) {
-      console.log('🚨 EMERGENCY LOG - MESSAGE.CREATE ERROR:', {
+      console.log('🚨 MESSAGE.CREATE ERROR:', {
         requestId,
         error: error.message,
         errorType: error.constructor.name,
-        timestamp: new Date().toISOString()
+        messageId: uniqueMessageId,
+        conversationId: messageData?.conversationId,
+        step: 'firestore_save_error'
       });
       
       logger.error('❌ MESSAGE.CREATE - CRITICAL ERROR', {

@@ -21,81 +21,23 @@ class MessageService {
     const requestId = `create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
-      logger.info('🔄 CREATEMESSAGE - INICIANDO CREACIÓN', {
-        requestId,
-        timestamp: new Date().toISOString(),
-        messageDataKeys: Object.keys(messageData),
-        messageDataValues: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-          senderIdentifier: messageData.senderIdentifier,
-          recipientIdentifier: messageData.recipientIdentifier,
-          content: messageData.content,
-          type: messageData.type,
-          direction: messageData.direction,
-          status: messageData.status,
-          hasMetadata: !!messageData.metadata,
-          metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-        },
-        options,
-        step: 'create_message_start'
-      });
-
       const {
         updateConversation = true,
         updateContact = true,
         validateInput = true,
       } = options;
 
-      logger.info('✅ CREATEMESSAGE - OPCIONES EXTRAÍDAS', {
-        requestId,
-        updateConversation,
-        updateContact,
-        validateInput,
-        step: 'options_extracted'
-      });
-
       // Validación estricta de entrada
       if (validateInput) {
-        logger.info('🔍 CREATEMESSAGE - INICIANDO VALIDACIÓN DE ENTRADA', {
-          requestId,
-          hasConversationId: !!messageData.conversationId,
-          hasSenderIdentifier: !!messageData.senderIdentifier,
-          hasRecipientIdentifier: !!messageData.recipientIdentifier,
-          hasDirection: !!messageData.direction,
-          hasContent: !!messageData.content,
-          hasType: !!messageData.type,
-          step: 'input_validation_start'
-        });
-
         if (!messageData.conversationId) {
-          logger.error('❌ CREATEMESSAGE - CONVERSATIONID FALTANTE', {
-            requestId,
-            conversationId: messageData.conversationId,
-            step: 'validation_failed_conversation_id'
-          });
           throw new Error('conversationId es obligatorio');
         }
 
         if (!messageData.senderIdentifier || !messageData.recipientIdentifier) {
-          logger.error('❌ CREATEMESSAGE - IDENTIFICADORES FALTANTES', {
-            requestId,
-            hasSenderIdentifier: !!messageData.senderIdentifier,
-            hasRecipientIdentifier: !!messageData.recipientIdentifier,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            step: 'validation_failed_identifiers'
-          });
           throw new Error('senderIdentifier y recipientIdentifier son obligatorios');
         }
 
         if (!messageData.direction || !['inbound', 'outbound'].includes(messageData.direction)) {
-          logger.error('❌ CREATEMESSAGE - DIRECTION INVÁLIDO', {
-            requestId,
-            direction: messageData.direction,
-            validDirections: ['inbound', 'outbound'],
-            step: 'validation_failed_direction'
-          });
           throw new Error('direction debe ser inbound o outbound');
         }
 
@@ -103,241 +45,52 @@ class MessageService {
         const noContent = messageData.content === null || messageData.content === undefined;
         const noMedia = !messageData.mediaUrl || messageData.mediaUrl === null || messageData.mediaUrl === undefined;
         
-        logger.info('🔍 CREATEMESSAGE - VALIDACIÓN DE CONTENIDO', {
-          requestId,
-          content: messageData.content,
-          contentType: typeof messageData.content,
-          contentLength: messageData.content?.length || 0,
-          hasMediaUrl: !!messageData.mediaUrl,
-          mediaUrl: messageData.mediaUrl,
-          noContent,
-          noMedia,
-          step: 'content_validation_check'
-        });
-        
-        // PERMITIR MENSAJES DE TEXTO CON CONTENIDO VACÍO
         if (noContent && noMedia) {
-          logger.error('❌ CREATEMESSAGE - CONTENIDO FALTANTE', {
-            requestId,
-            hasContent: !!messageData.content,
-            hasMediaUrl: !!messageData.mediaUrl,
-            content: messageData.content,
-            mediaUrl: messageData.mediaUrl,
-            contentType: typeof messageData.content,
-            messageDataKeys: Object.keys(messageData),
-            messageDataValues: {
-              id: messageData.id,
-              conversationId: messageData.conversationId,
-              type: messageData.type,
-              direction: messageData.direction,
-              status: messageData.status
-            },
-            step: 'validation_failed_content'
-          });
-          throw new Error('Message debe tener content o mediaUrl (no pueden ser ambos null/undefined)');
+          throw new Error('El mensaje debe tener contenido o mediaUrl');
         }
-
-        // ASEGURAR QUE CONTENT SEA STRING VÁLIDO
-        if (messageData.content === null || messageData.content === undefined) {
-          messageData.content = '';
-        }
-
-        logger.info('✅ CREATEMESSAGE - VALIDACIÓN PASADA', {
-          requestId,
-          step: 'input_validation_passed'
-        });
       }
 
-      // Crear mensaje en Firestore
-      logger.info('💾 CREATEMESSAGE - INICIANDO CREACIÓN EN FIRESTORE', {
-        requestId,
-        conversationId: messageData.conversationId,
-        messageId: messageData.id,
-        step: 'firestore_creation_start'
-      });
+      // Crear el mensaje
+      const message = await Message.create(messageData, messageData.id);
 
-      try {
-        // === LOG EXTREMADAMENTE DETALLADO ANTES DE Message.create ===
-        logger.info('🔍 CREATEMESSAGE - ANTES DE LLAMAR Message.create', {
-          requestId,
-          messageDataKeys: Object.keys(messageData),
-          messageDataValues: {
-            id: messageData.id,
-            conversationId: messageData.conversationId,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            content: messageData.content,
-            contentLength: messageData.content?.length || 0,
-            type: messageData.type,
-            direction: messageData.direction,
-            status: messageData.status,
-            mediaUrl: messageData.mediaUrl,
-            hasMetadata: !!messageData.metadata,
-            metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-          },
-          step: 'before_message_create_call'
-        });
+      // Efectos secundarios en paralelo
+      const sideEffects = [];
 
-        logger.info('🔄 CREATEMESSAGE - LLAMANDO Message.create', {
-          requestId,
-          messageDataKeys: Object.keys(messageData),
-          step: 'calling_message_create'
-        });
+      // ACTUALIZACIÓN DE CONVERSACIÓN DESHABILITADA (SE HACE EN Message.create)
+      // if (updateConversation) {
+      //   sideEffects.push(this.updateConversationWithMessage(message));
+      // }
 
-        // === LOG CRÍTICO ANTES DE LLAMAR MESSAGE.CREATE ===
-        console.log('🚨 EMERGENCY BEFORE MESSAGE.CREATE CALL:', {
-          requestId,
-          messageDataId: messageData.id,
-          messageDataConversationId: messageData.conversationId,
-          messageDataKeys: Object.keys(messageData),
-          messageDataValues: {
-            id: messageData.id,
-            conversationId: messageData.conversationId,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            content: messageData.content,
-            type: messageData.type,
-            direction: messageData.direction,
-            status: messageData.status,
-            mediaUrl: messageData.mediaUrl,
-            timestamp: messageData.timestamp,
-            metadata: messageData.metadata
-          },
-          step: 'before_message_create_call'
-        });
-
-        // Crear el mensaje
-        const message = await Message.create(messageData, messageData.id); // Pasar el ID único explícitamente
-
-        // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE Message.create ===
-        logger.info('✅ CREATEMESSAGE - DESPUÉS DE Message.create EXITOSO', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          messageKeys: Object.keys(message),
-          messageValues: {
-            id: message.id,
-            conversationId: message.conversationId,
-            senderIdentifier: message.senderIdentifier,
-            recipientIdentifier: message.recipientIdentifier,
-            content: message.content,
-            type: message.type,
-            direction: message.direction,
-            status: message.status
-          },
-          step: 'after_message_create_success'
-        });
-
-        logger.info('✅ CREATEMESSAGE - MENSAJE CREADO EN FIRESTORE', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          step: 'firestore_creation_complete'
-        });
-
-        // Efectos secundarios en paralelo
-        const sideEffects = [];
-
-        // ACTUALIZACIÓN DE CONVERSACIÓN DESHABILITADA (SE HACE EN Message.create)
-        // Evitar doble actualización que causa inconsistencias
-        if (updateConversation) {
-          logger.info('🔄 CREATEMESSAGE - ACTUALIZACIÓN DE CONVERSACIÓN DESHABILITADA', {
-            requestId,
-            conversationId: message.conversationId,
-            reason: 'Se actualiza directamente en Message.create para evitar doble actualización',
-            step: 'side_effects_conversation_disabled'
-          });
-          // sideEffects.push(this.updateConversationWithMessage(message)); // DESHABILITADO
-        }
-
-        if (updateContact) {
-          logger.info('🔄 CREATEMESSAGE - AGREGANDO UPDATE CONTACT', {
-            requestId,
-            conversationId: message.conversationId,
-            step: 'side_effects_contact_added'
-          });
-          sideEffects.push(this.updateContactFromMessage(message));
-        }
-
-        logger.info('🔄 CREATEMESSAGE - EJECUTANDO EFECTOS SECUNDARIOS', {
-          requestId,
-          sideEffectsCount: sideEffects.length,
-          updateConversation,
-          updateContact,
-          step: 'side_effects_execution_start'
-        });
-
-        // Ejecutar efectos secundarios sin bloquear
-        const sideEffectsResults = await Promise.allSettled(sideEffects);
-
-        logger.info('✅ CREATEMESSAGE - EFECTOS SECUNDARIOS COMPLETADOS', {
-          requestId,
-          results: sideEffectsResults.map((result, index) => ({
-            index,
-            status: result.status,
-            value: result.value,
-            reason: result.reason?.message
-          })),
-          step: 'side_effects_execution_complete'
-        });
-
-        logger.info('✅ CREATEMESSAGE - MENSAJE CREADO EXITOSAMENTE', {
-          requestId,
-          messageId: message.id,
-          conversationId: message.conversationId,
-          direction: message.direction,
-          type: message.type,
-          step: 'create_message_complete'
-        });
-
-        return message;
-
-      } catch (messageCreateError) {
-        // === LOG EXTREMADAMENTE DETALLADO DEL ERROR DE Message.create ===
-        logger.error('❌ CREATEMESSAGE - ERROR EN Message.create', {
-          requestId,
-          error: messageCreateError.message,
-          errorType: messageCreateError.constructor.name,
-          stack: messageCreateError.stack?.split('\n').slice(0, 20),
-          messageData: {
-            id: messageData.id,
-            conversationId: messageData.conversationId,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            content: messageData.content,
-            contentLength: messageData.content?.length || 0,
-            type: messageData.type,
-            direction: messageData.direction,
-            status: messageData.status,
-            mediaUrl: messageData.mediaUrl,
-            hasMetadata: !!messageData.metadata,
-            metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-          },
-          options: {
-            updateConversation,
-            updateContact,
-            validateInput
-          },
-          step: 'message_create_error'
-        });
-        throw messageCreateError;
+      if (updateContact) {
+        sideEffects.push(ContactService.updateOrCreateContact(message.senderIdentifier, {
+          lastMessageAt: new Date(),
+          lastMessageContent: message.content,
+          lastMessageDirection: message.direction
+        }));
       }
+
+      // Ejecutar efectos secundarios en paralelo
+      if (sideEffects.length > 0) {
+        await Promise.all(sideEffects);
+      }
+
+      return message;
 
     } catch (error) {
       logger.error('❌ CREATEMESSAGE - ERROR CRÍTICO', {
         requestId,
         error: error.message,
-        stack: error.stack?.split('\n').slice(0, 10),
         messageData: {
-          id: messageData.id,
-          conversationId: messageData.conversationId,
-          senderIdentifier: messageData.senderIdentifier,
-          recipientIdentifier: messageData.recipientIdentifier,
-          content: messageData.content,
-          type: messageData.type,
-          direction: messageData.direction
+          id: messageData?.id,
+          conversationId: messageData?.conversationId,
+          senderIdentifier: messageData?.senderIdentifier,
+          recipientIdentifier: messageData?.recipientIdentifier,
+          content: messageData?.content,
+          type: messageData?.type,
+          direction: messageData?.direction,
+          status: messageData?.status,
+          mediaUrl: messageData?.mediaUrl
         },
-        options,
         step: 'create_message_error'
       });
       throw error;
@@ -440,863 +193,96 @@ class MessageService {
   }
 
   /**
-   * Procesar mensaje entrante de webhook con lógica centralizada
+   * Procesar mensaje entrante desde webhook Twilio
    */
   static async processIncomingMessage (webhookData) {
     const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
-    console.log('🚨 EMERGENCY MESSAGESERVICE STARTED:', {
-      requestId,
-      timestamp: new Date().toISOString(),
-      webhookDataType: typeof webhookData,
-      webhookDataIsObject: webhookData && typeof webhookData === 'object',
-      webhookDataKeys: webhookData ? Object.keys(webhookData) : 'NO_DATA',
-      step: 'function_start'
-    });
-    
-    // === VERIFICACIÓN CRÍTICA DE FIREBASE ===
     try {
-      const { firestore, admin } = require('../config/firebase');
-      console.log('🚨 EMERGENCY FIREBASE CHECK:', {
-        requestId,
-        hasFirestore: !!firestore,
-        hasAdmin: !!admin,
-        firestoreType: typeof firestore,
-        adminType: typeof admin,
-        timestamp: new Date().toISOString(),
-        step: 'firebase_check'
-      });
-    } catch (firebaseError) {
-      console.log('🚨 EMERGENCY FIREBASE ERROR:', {
-        requestId,
-        error: firebaseError.message,
-        errorType: firebaseError.constructor.name,
-        timestamp: new Date().toISOString(),
-        step: 'firebase_error'
-      });
-    }
-    
-    // === LOG INMEDIATO AL INICIAR LA FUNCIÓN ===
-    logger.info('🚨 MESSAGESERVICE - FUNCIÓN INICIADA', {
-      requestId,
-      timestamp: new Date().toISOString(),
-      webhookDataType: typeof webhookData,
-      webhookDataIsObject: webhookData && typeof webhookData === 'object',
-      webhookDataKeys: webhookData ? Object.keys(webhookData) : 'NO_DATA',
-      step: 'function_start'
-    });
-    
-    try {
-      // === LOG ANTES DE CUALQUIER PROCESAMIENTO ===
-      logger.info('🔄 MESSAGESERVICE - INICIANDO PROCESAMIENTO', {
-        requestId,
-        timestamp: new Date().toISOString(),
-        webhookDataKeys: Object.keys(webhookData),
-        webhookDataValues: {
-          From: webhookData.From,
-          To: webhookData.To,
-          Body: webhookData.Body,
-          MessageSid: webhookData.MessageSid,
-          NumMedia: webhookData.NumMedia
-        },
-        step: 'process_incoming_start'
-      });
-
       const { From, To, Body, MessageSid, NumMedia } = webhookData;
 
-      // === LOG INMEDIATO DESPUÉS DE DESTRUCTURACIÓN ===
-      logger.info('📋 MESSAGESERVICE - DATOS EXTRAÍDOS', {
-        requestId,
-        from: From,
-        to: To,
-        messageSid: MessageSid,
-        hasBody: !!Body,
-        bodyLength: Body?.length || 0,
-        bodyPreview: Body?.substring(0, 50) || null,
-        numMedia: NumMedia,
-        step: 'data_extraction'
-      });
-
-      // === LOG INMEDIATO ANTES DE VALIDACIÓN ===
-      logger.info('🔍 MESSAGESERVICE - ANTES DE VALIDACIÓN', {
-        requestId,
-        from: From,
-        to: To,
-        messageSid: MessageSid,
-        body: Body,
-        numMedia: NumMedia,
-        step: 'before_validation'
-      });
-
       // Validar webhook data
-      logger.info('🔍 MESSAGESERVICE - INICIANDO VALIDACIÓN', {
-        requestId,
-        hasFrom: !!From,
-        hasTo: !!To,
-        hasMessageSid: !!MessageSid,
-        hasBody: !!Body,
-        step: 'validation_start'
-      });
-
       if (!From || !To || !MessageSid) {
-        // === LOG DE EMERGENCIA PARA VALIDACIÓN FALLIDA ===
-        console.log('🚨 EMERGENCY MESSAGESERVICE VALIDATION FAILED:', {
-          requestId,
-          hasFrom: !!From,
-          hasTo: !!To,
-          hasMessageSid: !!MessageSid,
-          from: From,
-          to: To,
-          messageSid: MessageSid,
-          step: 'validation_failed'
-        });
-        
-        logger.error('❌ MESSAGESERVICE - DATOS INCOMPLETOS', {
-          requestId,
-          hasFrom: !!From,
-          hasTo: !!To,
-          hasMessageSid: !!MessageSid,
-          from: From,
-          to: To,
-          messageSid: MessageSid,
-          step: 'validation_failed'
-        });
-        throw new Error('Datos de webhook incompletos');
+        throw new Error('From, To y MessageSid son requeridos');
       }
 
-      // === LOG DE EMERGENCIA DESPUÉS DE VALIDACIÓN ===
-      console.log('🚨 EMERGENCY MESSAGESERVICE VALIDATION PASSED:', {
-        requestId,
-        from: From,
-        to: To,
-        messageSid: MessageSid,
-        step: 'validation_passed'
-      });
-
-      logger.info('✅ MESSAGESERVICE - VALIDACIÓN PASADA', {
-        requestId,
-        step: 'validation_passed'
-      });
-
-      // Verificar duplicados
-      logger.info('🔍 MESSAGESERVICE - INICIANDO VERIFICACIÓN DE DUPLICADOS', {
-        requestId,
-        messageSid: MessageSid,
-        step: 'duplicate_check_start'
-      });
-
-      try {
-        logger.info('🔍 MESSAGESERVICE - LLAMANDO Message.getByTwilioSid', {
+      // Verificar si el mensaje ya existe (duplicados)
+      const existingMessage = await Message.getByTwilioSid(MessageSid);
+      if (existingMessage) {
+        console.log('🚨 MESSAGE DUPLICATE DETECTED:', {
           requestId,
           messageSid: MessageSid,
-          step: 'calling_getByTwilioSid'
+          existingMessageId: existingMessage.id,
+          step: 'duplicate_detected'
         });
-
-        const existingMessage = await Message.getByTwilioSid(MessageSid);
-        
-        logger.info('✅ MESSAGESERVICE - Message.getByTwilioSid COMPLETADO', {
-          requestId,
-          messageSid: MessageSid,
-          existingMessageFound: !!existingMessage,
-          existingMessageId: existingMessage?.id || null,
-          step: 'getByTwilioSid_completed'
-        });
-        
-        if (existingMessage) {
-          // === LOG DE EMERGENCIA PARA MENSAJE DUPLICADO ===
-          console.log('🚨 EMERGENCY DUPLICATE MESSAGE DETECTED:', {
-            requestId,
-            messageSid: MessageSid,
-            existingMessageId: existingMessage.id,
-            existingMessageConversationId: existingMessage.conversationId,
-            step: 'duplicate_detected'
-          });
-          
-          logger.warn('⚠️ MESSAGESERVICE - MENSAJE DUPLICADO DETECTADO', {
-            requestId,
-            twilioSid: MessageSid,
-            existingMessageId: existingMessage.id,
-            step: 'duplicate_found'
-          });
-          return existingMessage;
-        }
-
-        // === LOG DE EMERGENCIA PARA MENSAJE NUEVO ===
-        console.log('🚨 EMERGENCY NEW MESSAGE CONFIRMED:', {
-          requestId,
-          messageSid: MessageSid,
-          step: 'new_message_confirmed'
-        });
-
-        logger.info('✅ MESSAGESERVICE - SIN DUPLICADOS', {
-          requestId,
-          messageSid: MessageSid,
-          step: 'duplicate_check_passed'
-        });
-      } catch (duplicateError) {
-        logger.error('❌ MESSAGESERVICE - ERROR EN VERIFICACIÓN DE DUPLICADOS', {
-          requestId,
-          error: duplicateError.message,
-          stack: duplicateError.stack?.split('\n').slice(0, 5),
-          messageSid: MessageSid,
-          step: 'duplicate_check_error'
-        });
-        throw duplicateError;
+        return { success: true, duplicate: true };
       }
 
-      // Procesar datos del mensaje
-      logger.info('📱 MESSAGESERVICE - INICIANDO NORMALIZACIÓN DE TELÉFONOS', {
-        requestId,
-        originalFrom: From,
-        originalTo: To,
-        step: 'phone_normalization_start'
-      });
+      // Normalizar números de teléfono
+      const fromPhone = normalizePhoneNumber(From);
+      const toPhone = normalizePhoneNumber(To);
 
-      try {
-        const fromPhone = normalizePhoneNumber(From);
-        const toPhone = normalizePhoneNumber(To);
-        
-        // CORREGIDO: Validar que la normalización fue exitosa
-        if (!fromPhone || !toPhone) {
-          logger.error('❌ MESSAGESERVICE - ERROR EN NORMALIZACIÓN DE TELÉFONOS', {
-            requestId,
-            originalFrom: From,
-            originalTo: To,
-            normalizedFrom: fromPhone,
-            normalizedTo: toPhone,
-            step: 'phone_normalization_failed'
-          });
-          throw new Error('No se pudieron normalizar los números de teléfono');
-        }
-        
-        logger.info('✅ MESSAGESERVICE - TELÉFONOS NORMALIZADOS', {
-          requestId,
-          originalFrom: From,
-          normalizedFrom: fromPhone,
-          originalTo: To,
-          normalizedTo: toPhone,
-          step: 'phone_normalization_complete'
-        });
+      if (!fromPhone || !toPhone) {
+        throw new Error('Números de teléfono inválidos después de normalización');
+      }
 
-        const conversationId = generateConversationId(fromPhone, toPhone);
-        
-        logger.info('✅ MESSAGESERVICE - CONVERSATIONID GENERADO', {
-          requestId,
-          conversationId,
-          fromPhone,
-          toPhone,
-          step: 'conversation_id_generated'
-        });
+      // Generar conversationId
+      const conversationId = generateConversationId(fromPhone, toPhone);
 
-        // Buscar o crear conversación
-        logger.info('🔍 MESSAGESERVICE - BUSCANDO/CREANDO CONVERSACIÓN', {
-          requestId,
-          fromPhone,
-          toPhone,
-          conversationId,
-          step: 'conversation_search_start'
-        });
-
-        // Declarar finalConversationId fuera del try-catch para que esté disponible en todo el scope
-        let finalConversationId = null;
-
-        try {
-          logger.info('🔄 MESSAGESERVICE - LLAMANDO Conversation.findByPhones', {
-            requestId,
-            fromPhone,
-            toPhone,
-            step: 'calling_findByPhones'
-          });
-
-          const Conversation = require('../models/Conversation');
-          let conversation = await Conversation.findByPhones(fromPhone, toPhone);
-
-          if (conversation) {
-            logger.info('✅ MESSAGESERVICE - CONVERSACIÓN ENCONTRADA', {
-              requestId,
-              conversationId: conversation.id,
-              fromPhone,
-              toPhone,
-              step: 'conversation_found'
-            });
-          } else {
-            logger.info('❌ MESSAGESERVICE - CONVERSACIÓN NO ENCONTRADA, CREANDO NUEVA', {
-              requestId,
-              conversationId,
-              fromPhone,
-              toPhone,
-              step: 'conversation_not_found_creating'
-            });
-
-            logger.info('🔄 MESSAGESERVICE - LLAMANDO Conversation.create', {
-              requestId,
-              fromPhone,
-              toPhone,
-              step: 'calling_conversation_create'
-            });
-
-            conversation = await Conversation.create({
-              customerPhone: fromPhone,
-              id: conversationId
-            });
-
-            logger.info('✅ MESSAGESERVICE - CONVERSACIÓN CREADA', {
-              requestId,
-              conversationId: conversation.id,
-              fromPhone,
-              toPhone,
-              step: 'conversation_created'
-            });
-          }
-
-          // Usar el conversationId de la conversación encontrada o creada
-          finalConversationId = conversation.id;
-
-          logger.info('✅ MESSAGESERVICE - CONVERSATIONID FINAL ASIGNADO', {
-            requestId,
-            finalConversationId,
-            fromPhone,
-            toPhone,
-            step: 'conversation_id_finalized'
-          });
-
-        } catch (conversationError) {
-          logger.error('❌ MESSAGESERVICE - ERROR EN BÚSQUEDA/CREACIÓN DE CONVERSACIÓN', {
-            requestId,
-            error: conversationError.message,
-            stack: conversationError.stack?.split('\n').slice(0, 10),
-            fromPhone,
-            toPhone,
-            conversationId,
-            step: 'conversation_search_error'
-          });
-          throw conversationError;
-        }
-
-        // Verificar que finalConversationId se asignó correctamente
-        if (!finalConversationId) {
-          logger.error('❌ MESSAGESERVICE - FINALCONVERSATIONID NO ASIGNADO', {
-            requestId,
-            fromPhone,
-            toPhone,
-            conversationId,
-            step: 'final_conversation_id_not_assigned'
-          });
-          throw new Error('No se pudo asignar finalConversationId');
-        }
-
-        // Determinar tipo de mensaje
-        const hasMedia = parseInt(NumMedia || '0') > 0;
-        const messageType = hasMedia ? 'media' : 'text';
-
-        logger.info('📊 MESSAGESERVICE - TIPO DE MENSAJE DETERMINADO', {
-          requestId,
-          hasMedia,
-          messageType,
-          numMedia: parseInt(NumMedia || '0'),
-          step: 'message_type_determined'
-        });
-
-        // Preparar datos básicos del mensaje
-        logger.info('📝 MESSAGESERVICE - PREPARANDO DATOS DEL MENSAJE', {
-          requestId,
-          conversationId: finalConversationId,
-          fromPhone,
-          toPhone,
-          messageSid: MessageSid,
-          hasBody: !!Body,
-          bodyLength: Body?.length || 0,
-          step: 'message_data_preparation_start'
-        });
-
-        const messageData = {
-          id: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ID único SIEMPRE generado
-          conversationId: finalConversationId, // Usar el conversationId final
-          senderIdentifier: fromPhone, // Campo requerido por Message
-          recipientIdentifier: toPhone, // Campo requerido por Message
-          content: Body !== undefined && Body !== null ? Body : '', // CORREGIDO: Manejo explícito de contenido
-          type: messageType,
-          direction: 'inbound',
-          status: 'received',
-          mediaUrl: null, // Inicializar mediaUrl para validación
-          timestamp: new Date(), // Agregar timestamp para ordenamiento
-          metadata: {
-            twilioSid: MessageSid, // MOVIDO AQUÍ
-            webhookProcessedAt: new Date().toISOString(),
-            hasMedia,
-            numMedia: parseInt(NumMedia || '0'),
-            originalMessageSid: MessageSid, // Guardar el MessageSid original de Twilio
-            generatedId: true, // SIEMPRE generado para evitar colisiones
-            uniqueTimestamp: Date.now(), // Timestamp único para evitar colisiones
-          },
-        };
-
-        logger.info('✅ MESSAGESERVICE - DATOS DE MENSAJE PREPARADOS', {
-          requestId,
-          messageData: {
-            id: messageData.id,
-            conversationId: messageData.conversationId,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            contentLength: messageData.content.length,
-            type: messageData.type,
-            direction: messageData.direction,
-            hasMetadata: !!messageData.metadata,
-            metadataKeys: Object.keys(messageData.metadata)
-          },
-          step: 'message_data_prepared'
-        });
-
-        // === LOG DE EMERGENCIA PARA VERIFICAR ID ÚNICO ===
-        console.log('🚨 EMERGENCY MESSAGE ID VERIFICATION:', {
-          requestId,
-          messageId: messageData.id,
-          originalMessageSid: MessageSid,
-          isGeneratedId: true, // SIEMPRE generado
+      // Preparar messageData
+      const messageData = {
+        id: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        conversationId,
+        senderIdentifier: fromPhone,
+        recipientIdentifier: toPhone,
+        content: Body || '',
+        type: 'text',
+        direction: 'inbound',
+        status: 'received',
+        timestamp: new Date(),
+        metadata: {
+          twilioSid: MessageSid,
+          generatedId: true,
           timestamp: new Date().toISOString(),
-          step: 'message_id_verification'
-        });
-
-        // === LOG ADICIONAL PARA VERIFICAR UNICIDAD ===
-        console.log('🚨 EMERGENCY UNIQUE ID CONFIRMATION:', {
-          requestId,
-          messageId: messageData.id,
-          timestamp: Date.now(),
-          randomSuffix: Math.random().toString(36).substr(2, 9),
-          step: 'unique_id_confirmation'
-        });
-
-        // Procesar media si existe
-        if (hasMedia) {
-          logger.info('🖼️ MESSAGESERVICE - PROCESANDO MEDIA', {
-            requestId,
-            numMedia: parseInt(NumMedia || '0'),
-            step: 'media_processing_start'
-          });
-
-          try {
-            const mediaData = await this.processWebhookMedia(webhookData);
-            
-            // LOG ANTES DE ASIGNACIÓN
-            logger.info('🔍 MESSAGESERVICE - ANTES DE ASIGNAR MEDIA', {
-              requestId,
-              mediaDataUrls: mediaData.urls,
-              mediaDataUrlsLength: mediaData.urls?.length || 0,
-              messageDataMediaUrl: messageData.mediaUrl,
-              step: 'before_media_assignment'
-            });
-            
-            // ESTANDARIZADO: Usar solo mediaUrl como campo principal
-            if (mediaData.urls && mediaData.urls.length > 0) {
-              messageData.mediaUrl = mediaData.urls[0]; // URL principal
-              messageData.metadata.mediaUrls = mediaData.urls; // Array completo en metadata
-            }
-            
-            messageData.metadata.media = mediaData.processed;
-            messageData.type = mediaData.primaryType || 'media';
-            
-            // LOG DESPUÉS DE ASIGNACIÓN
-            logger.info('✅ MESSAGESERVICE - DESPUÉS DE ASIGNAR MEDIA', {
-              requestId,
-              messageDataMediaUrl: messageData.mediaUrl,
-              messageDataMediaUrls: messageData.metadata.mediaUrls,
-              messageDataType: messageData.type,
-              step: 'after_media_assignment'
-            });
-
-            logger.info('✅ MESSAGESERVICE - MEDIA PROCESADA EXITOSAMENTE', {
-              requestId,
-              mediaUrlsCount: mediaData.urls?.length || 0,
-              primaryType: mediaData.primaryType,
-              mediaUrl: messageData.mediaUrl,
-              step: 'media_processing_complete'
-            });
-          } catch (mediaError) {
-            logger.error('❌ MESSAGESERVICE - ERROR PROCESANDO MEDIA', {
-              requestId,
-              error: mediaError.message,
-              stack: mediaError.stack?.split('\n').slice(0, 5),
-              messageDataMediaUrl: messageData.mediaUrl,
-              step: 'media_processing_error'
-            });
-            messageData.metadata.mediaProcessingError = mediaError.message;
-            
-            // Continuar con el mensaje aunque falle el procesamiento de media
-            logger.info('⚠️ MESSAGESERVICE - CONTINUANDO SIN MEDIA PROCESADA', {
-              requestId,
-              step: 'continue_without_processed_media'
-            });
-          }
+          uniqueTimestamp: Date.now()
         }
+      };
 
-        // === LOG INMEDIATO ANTES DE CREAR MENSAJE ===
-        logger.info('🚨 MESSAGESERVICE - ANTES DE LLAMAR createMessage', {
-          requestId,
-          conversationId,
-          messageDataKeys: Object.keys(messageData),
-          messageDataValues: {
-            id: messageData.id,
-            conversationId: messageData.conversationId,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            content: messageData.content,
-            type: messageData.type,
-            direction: messageData.direction,
-            status: messageData.status,
-            mediaUrl: messageData.mediaUrl
-          },
-          step: 'before_create_message_call'
-        });
+      // Crear el mensaje
+      const createdMessage = await this.createMessage(messageData, {
+        updateConversation: true,
+        updateContact: true,
+        validateInput: true,
+      });
 
-        // ASEGURAR QUE SIEMPRE HAY UN ID VÁLIDO
-        if (!messageData.id) {
-          messageData.id = `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          console.log('🚨 EMERGENCY LOG - ID GENERADO:', {
-            requestId,
-            generatedId: messageData.id,
-            timestamp: new Date().toISOString()
-          });
-        }
+      console.log('🚨 MESSAGE PROCESSED SUCCESSFULLY:', {
+        requestId,
+        messageId: createdMessage.id,
+        conversationId: createdMessage.conversationId,
+        sender: createdMessage.senderIdentifier,
+        recipient: createdMessage.recipientIdentifier,
+        content: createdMessage.content?.substring(0, 50) + (createdMessage.content?.length > 50 ? '...' : ''),
+        type: createdMessage.type,
+        direction: createdMessage.direction,
+        hasMedia: !!createdMessage.mediaUrl,
+        timestamp: createdMessage.timestamp,
+        step: 'message_processed'
+      });
 
-        // Crear mensaje con efectos secundarios
-        logger.info('💾 MESSAGESERVICE - INICIANDO CREACIÓN DE MENSAJE', {
-          requestId,
-          conversationId,
-          messageDataKeys: Object.keys(messageData),
-          messageId: messageData.id,
-          step: 'message_creation_start'
-        });
-
-        // LOG DE EMERGENCIA PARA RAILWAY
-        console.log('🚨 EMERGENCY LOG - ANTES DE createMessage:', {
-          requestId,
-          conversationId,
-          messageDataKeys: Object.keys(messageData),
-          messageId: messageData.id,
-          timestamp: new Date().toISOString()
-        });
-
-        // === DEBUG DETALLADO ANTES DE GUARDAR ===
-        logger.info('=== DATA ANTES DE GUARDAR ===', {
-          requestId,
-          messageData: JSON.stringify(messageData, null, 2),
-          tipos: {
-            id: typeof messageData.id,
-            conversationId: typeof messageData.conversationId,
-            senderIdentifier: typeof messageData.senderIdentifier,
-            recipientIdentifier: typeof messageData.recipientIdentifier,
-            content: typeof messageData.content,
-            type: typeof messageData.type,
-            direction: typeof messageData.direction,
-            status: typeof messageData.status,
-            hasMetadata: !!messageData.metadata
-          },
-          valores: {
-            id: messageData.id,
-            conversationId: messageData.conversationId,
-            senderIdentifier: messageData.senderIdentifier,
-            recipientIdentifier: messageData.recipientIdentifier,
-            content: messageData.content,
-            type: messageData.type,
-            direction: messageData.direction,
-            status: messageData.status
-          }
-        });
-
-        try {
-          // === LOG EXTREMADAMENTE DETALLADO ANTES DE createMessage ===
-          logger.info('🔍 MESSAGESERVICE - ANTES DE LLAMAR createMessage', {
-            requestId,
-            conversationId,
-            messageDataKeys: Object.keys(messageData),
-            messageDataValues: {
-              id: messageData.id,
-              conversationId: messageData.conversationId,
-              senderIdentifier: messageData.senderIdentifier,
-              recipientIdentifier: messageData.recipientIdentifier,
-              content: messageData.content,
-              contentLength: messageData.content?.length || 0,
-              type: messageData.type,
-              direction: messageData.direction,
-              status: messageData.status,
-              mediaUrl: messageData.mediaUrl,
-              hasMetadata: !!messageData.metadata,
-              metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-            },
-            options: {
-              updateConversation: true,
-              updateContact: true,
-              validateInput: true
-            },
-            step: 'before_createMessage_call'
-          });
-
-          logger.info('🔄 MESSAGESERVICE - LLAMANDO this.createMessage', {
-            requestId,
-            conversationId,
-            step: 'calling_createMessage'
-          });
-
-          // LOG DE EMERGENCIA ANTES DE LLAMAR createMessage
-          console.log('🚨 EMERGENCY LOG - LLAMANDO createMessage:', {
-            requestId,
-            conversationId,
-            messageDataId: messageData.id,
-            timestamp: new Date().toISOString()
-          });
-
-          const message = await this.createMessage(messageData, {
-            updateConversation: true,
-            updateContact: true,
-            validateInput: true,
-          });
-
-          // === LOG CONSOLIDADO DE PREPARACIÓN DE MENSAJE ===
-          console.log('🚨 MESSAGE PREPARATION:', {
-            requestId,
-            messageId: message.id,
-            conversationId: message.conversationId,
-            sender: message.senderIdentifier,
-            recipient: message.recipientIdentifier,
-            content: message.content?.substring(0, 50) + (message.content?.length > 50 ? '...' : ''),
-            type: message.type,
-            direction: message.direction,
-            hasMedia: !!message.mediaUrl,
-            timestamp: message.timestamp,
-            step: 'message_prepared'
-          });
-
-          // === LOG CONSOLIDADO ANTES DE MESSAGE.CREATE ===
-          console.log('🚨 BEFORE MESSAGE.CREATE:', {
-            requestId,
-            messageDataId: message.id,
-            messageDataConversationId: message.conversationId,
-            messageDataKeys: Object.keys(message),
-            step: 'before_message_create_call'
-          });
-
-          // === DEBUG DETALLADO ANTES DE GUARDAR ===
-          logger.info('=== DATA ANTES DE GUARDAR ===', {
-            requestId,
-            messageData: JSON.stringify(message, null, 2),
-            tipos: {
-              id: typeof message.id,
-              conversationId: typeof message.conversationId,
-              senderIdentifier: typeof message.senderIdentifier,
-              recipientIdentifier: typeof message.recipientIdentifier,
-              content: typeof message.content,
-              type: typeof message.type,
-              direction: typeof message.direction,
-              status: typeof message.status,
-              hasMetadata: !!message.metadata
-            },
-            valores: {
-              id: message.id,
-              conversationId: message.conversationId,
-              senderIdentifier: message.senderIdentifier,
-              recipientIdentifier: message.recipientIdentifier,
-              content: message.content,
-              type: message.type,
-              direction: message.direction,
-              status: message.status
-            }
-          });
-
-          // Crear el mensaje
-          const createdMessage = await Message.create(messageData, messageData.id); // Pasar el ID único explícitamente
-
-          // === LOG CONSOLIDADO DESPUÉS DE MESSAGE.CREATE ===
-          console.log('🚨 AFTER MESSAGE.CREATE:', {
-            requestId,
-            messageCreated: !!createdMessage,
-            messageId: createdMessage?.id,
-            conversationId: createdMessage?.conversationId,
-            step: 'message_created'
-          });
-
-          // === LOG EXTREMADAMENTE DETALLADO DESPUÉS DE createMessage ===
-          logger.info('✅ MESSAGESERVICE - DESPUÉS DE createMessage EXITOSO', {
-            requestId,
-            messageId: message.id,
-            conversationId: message.conversationId,
-            messageKeys: Object.keys(message),
-            messageValues: {
-              id: message.id,
-              conversationId: message.conversationId,
-              senderIdentifier: message.senderIdentifier,
-              recipientIdentifier: message.recipientIdentifier,
-              content: message.content,
-              type: message.type,
-              direction: message.direction,
-              status: message.status
-            },
-            from: fromPhone,
-            hasMedia,
-            step: 'after_createMessage_success'
-          });
-
-          logger.info('✅ MESSAGESERVICE - MENSAJE CREADO EXITOSAMENTE', {
-            requestId,
-            messageId: message.id,
-            conversationId,
-            from: fromPhone,
-            hasMedia,
-            step: 'message_creation_complete'
-          });
-
-          // EMITIR EVENTO EN TIEMPO REAL PARA MENSAJES ENTRANTES
-          try {
-            logger.info('🔄 MESSAGESERVICE - EMITIENDO EVENTO EN TIEMPO REAL', {
-              requestId,
-              messageId: message.id,
-              conversationId: message.conversationId,
-              direction: message.direction,
-              step: 'realtime_emission_start'
-            });
-
-            // Obtener socket manager de la aplicación
-            const socketManager = global.socketManager || require('../socket/enterpriseSocketManager');
-            
-            if (socketManager && typeof socketManager.emitNewMessage === 'function') {
-              await socketManager.emitNewMessage(message.conversationId, message);
-              
-              logger.info('✅ MESSAGESERVICE - EVENTO EMITIDO EXITOSAMENTE', {
-                requestId,
-                messageId: message.id,
-                conversationId: message.conversationId,
-                step: 'realtime_emission_success'
-              });
-            } else {
-              logger.warn('⚠️ MESSAGESERVICE - SOCKET MANAGER NO DISPONIBLE', {
-                requestId,
-                hasSocketManager: !!socketManager,
-                hasEmitNewMessage: socketManager && typeof socketManager.emitNewMessage === 'function',
-                step: 'realtime_emission_warning'
-              });
-            }
-          } catch (emissionError) {
-            logger.error('❌ MESSAGESERVICE - ERROR EMITIENDO EVENTO', {
-              requestId,
-              error: emissionError.message,
-              messageId: message.id,
-              conversationId: message.conversationId,
-              step: 'realtime_emission_error'
-            });
-            // No lanzar error, es una operación secundaria
-          }
-
-          return message;
-
-        } catch (createMessageError) {
-          // === LOG EXTREMADAMENTE DETALLADO DEL ERROR ===
-          logger.error('❌ MESSAGESERVICE - ERROR EN CREACIÓN DE MENSAJE', {
-            requestId,
-            error: createMessageError.message,
-            errorType: createMessageError.constructor.name,
-            stack: createMessageError.stack?.split('\n').slice(0, 15),
-            messageData: {
-              id: messageData.id,
-              conversationId: messageData.conversationId,
-              senderIdentifier: messageData.senderIdentifier,
-              recipientIdentifier: messageData.recipientIdentifier,
-              content: messageData.content,
-              contentLength: messageData.content?.length || 0,
-              type: messageData.type,
-              direction: messageData.direction,
-              status: messageData.status,
-              mediaUrl: messageData.mediaUrl,
-              hasMetadata: !!messageData.metadata,
-              metadataKeys: messageData.metadata ? Object.keys(messageData.metadata) : []
-            },
-            options: {
-              updateConversation: true,
-              updateContact: true,
-              validateInput: true
-            },
-            webhookData: {
-              From: webhookData.From,
-              To: webhookData.To,
-              MessageSid: webhookData.MessageSid,
-              Body: webhookData.Body,
-              NumMedia: webhookData.NumMedia,
-              hasMedia: parseInt(webhookData.NumMedia || '0') > 0
-            },
-            step: 'create_message_error'
-          });
-          throw createMessageError;
-        }
-
-      } catch (error) {
-        // === LOG INMEDIATO DEL ERROR PRINCIPAL ===
-        logger.error('🚨 MESSAGESERVICE - ERROR CRÍTICO CAPTURADO', {
-          requestId,
-          error: error.message,
-          errorType: error.constructor.name,
-          stack: error.stack?.split('\n').slice(0, 20),
-          webhookData: {
-            From: webhookData.From,
-            To: webhookData.To,
-            MessageSid: webhookData.MessageSid,
-            Body: webhookData.Body,
-            NumMedia: webhookData.NumMedia
-          },
-          step: 'critical_error_captured'
-        });
-
-        // Determinar el tipo de error basado en el contexto
-        if (error.message && error.message.includes('normaliz')) {
-          logger.error('❌ MESSAGESERVICE - ERROR EN NORMALIZACIÓN DE TELÉFONOS', {
-            requestId,
-            error: error.message,
-            stack: error.stack?.split('\n').slice(0, 5),
-            originalFrom: From,
-            originalTo: To,
-            step: 'phone_normalization_error'
-          });
-        } else if (error.message && (error.message.includes('conversación') || error.message.includes('conversation'))) {
-          logger.error('❌ MESSAGESERVICE - ERROR EN BÚSQUEDA/CREACIÓN DE CONVERSACIÓN', {
-            requestId,
-            error: error.message,
-            stack: error.stack?.split('\n').slice(0, 10),
-            step: 'conversation_search_error'
-          });
-        } else {
-          logger.error('❌ MESSAGESERVICE - ERROR EN PROCESAMIENTO DE MENSAJE', {
-            requestId,
-            error: error.message,
-            stack: error.stack?.split('\n').slice(0, 10),
-            webhookData: {
-              From: webhookData.From,
-              To: webhookData.To,
-              MessageSid: webhookData.MessageSid,
-              hasBody: !!webhookData.Body,
-              bodyLength: webhookData.Body?.length || 0,
-              numMedia: webhookData.NumMedia
-            },
-            step: 'message_processing_error'
-          });
-        }
-        throw error;
-      }
+      return { success: true, message: createdMessage };
 
     } catch (error) {
-      // === LOG DE EMERGENCIA CRÍTICO EN CATCH PRINCIPAL ===
-      console.log('🚨 EMERGENCY MESSAGESERVICE CRITICAL ERROR:', {
+      console.log('🚨 MESSAGESERVICE ERROR:', {
         requestId,
         error: error.message,
         errorType: error.constructor.name,
-        errorStack: error.stack?.split('\n').slice(0, 10),
         webhookData: {
           From: webhookData?.From,
           To: webhookData?.To,
           MessageSid: webhookData?.MessageSid,
-          hasBody: !!webhookData?.Body,
-          bodyLength: webhookData?.Body?.length || 0,
-          numMedia: webhookData?.NumMedia
+          hasBody: !!webhookData?.Body
         },
-        timestamp: new Date().toISOString(),
-        step: 'critical_error'
+        step: 'process_incoming_error'
       });
       
       logger.error('❌ MESSAGESERVICE - ERROR CRÍTICO', {
@@ -1308,12 +294,12 @@ class MessageService {
           From: webhookData?.From,
           To: webhookData?.To,
           MessageSid: webhookData?.MessageSid,
-          hasBody: !!webhookData?.Body,
-          bodyLength: webhookData?.Body?.length || 0,
-          numMedia: webhookData?.NumMedia
+          Body: webhookData?.Body ? 'presente' : 'ausente',
+          NumMedia: webhookData?.NumMedia
         },
-        step: 'message_processing_error'
+        step: 'process_incoming_error'
       });
+      
       throw error;
     }
   }
