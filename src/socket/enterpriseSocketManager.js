@@ -86,6 +86,14 @@ const RATE_LIMITS = {
   [SOCKET_EVENTS.SYNC_STATE]: 5000            // 5 seconds
 };
 
+// 🔧 SOCKET ROBUSTO: Límites de configuración
+const SOCKET_LIMITS = {
+  MAX_ROOMS_PER_SOCKET: parseInt(process.env.SOCKET_MAX_ROOMS_PER_SOCKET) || 50,
+  MAX_JOINS_PER_10S: 10,
+  HEARTBEAT_INTERVAL: 25000,
+  HEARTBEAT_TIMEOUT: 60000
+};
+
 class EnterpriseSocketManager {
   constructor(server) {
     this.server = server;
@@ -245,9 +253,14 @@ class EnterpriseSocketManager {
       }
     });
 
+    // 🔧 SOCKET ROBUSTO: Estructuras adicionales para rooms y sesiones
+    this.rooms = new Map(); // roomId -> Set<socketId>
+    this.userSessions = new Map(); // userId/email -> Set<socketId>
+    this.socketConversations = new Map(); // socketId -> Set<roomId>
+
     logger.info('✅ Managed memory maps initialized successfully', {
       category: 'SOCKET_MEMORY_SUCCESS',
-      mapsCount: 6,
+      mapsCount: 9, // Actualizado para incluir las nuevas estructuras
       totalMaxEntries: 1460000
     });
   }
@@ -298,8 +311,8 @@ class EnterpriseSocketManager {
       transports: ['websocket', 'polling'],
       
       // Timeouts and intervals
-      pingTimeout: 60000,     // 60 seconds
-      pingInterval: 25000,    // 25 seconds
+      pingTimeout: SOCKET_LIMITS.HEARTBEAT_TIMEOUT,     // 60 seconds
+      pingInterval: SOCKET_LIMITS.HEARTBEAT_INTERVAL,   // 25 seconds
       
       // Connection limits
       maxHttpBufferSize: 2e6, // 2MB
@@ -469,6 +482,14 @@ class EnterpriseSocketManager {
         socket.decodedToken = decodedToken;
         socket.connectedAt = Date.now();
         socket.lastActivity = Date.now();
+
+        // 🔧 SOCKET ROBUSTO: Agregar scoping de workspace/tenant
+        socket.data = {
+          userId: decodedToken.userId || email,
+          emailMasked: email.substring(0, 20) + '...',
+          workspaceId: decodedToken.workspaceId || 'default',
+          tenantId: decodedToken.tenantId || 'na'
+        };
 
         logger.info('Socket.IO: Authentication successful', {
           category: 'SOCKET_AUTH_SUCCESS',
@@ -939,6 +960,10 @@ class EnterpriseSocketManager {
         throw new Error('conversationId is required');
       }
 
+      // 🔧 SOCKET ROBUSTO: Obtener workspaceId y tenantId del socket
+      const workspaceId = socket.decodedToken?.workspaceId || 'default';
+      const tenantId = socket.decodedToken?.tenantId || 'na';
+
       // Verify user has permission to join conversation
       const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
       if (!hasPermission) {
@@ -950,8 +975,38 @@ class EnterpriseSocketManager {
         return;
       }
 
+      // 🔧 SOCKET ROBUSTO: Construir roomId con convención establecida
+      const roomId = `ws:${workspaceId}:ten:${tenantId}:conv:${conversationId}`;
+
+      // 🔧 SOCKET ROBUSTO: Inicializar estructuras si no existen
+      if (!this.rooms.has(roomId)) {
+        this.rooms.set(roomId, new Set());
+      }
+      if (!this.userSessions.has(userEmail)) {
+        this.userSessions.set(userEmail, new Set());
+      }
+      if (!this.socketConversations.has(socket.id)) {
+        this.socketConversations.set(socket.id, new Set());
+      }
+
+      // 🔧 SOCKET ROBUSTO: Verificar límite de rooms por socket
+      const socketRooms = this.socketConversations.get(socket.id);
+      if (socketRooms && socketRooms.size >= SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'ROOM_LIMIT_EXCEEDED',
+          message: `Maximum rooms per socket exceeded (${SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET})`,
+          conversationId
+        });
+        return;
+      }
+
       // Join socket room
-      socket.join(`conversation-${conversationId}`);
+      socket.join(roomId);
+
+      // 🔧 SOCKET ROBUSTO: Registrar en estructuras de tracking
+      this.rooms.get(roomId).add(socket.id);
+      this.userSessions.get(userEmail).add(socket.id);
+      this.socketConversations.get(socket.id).add(roomId);
 
       // Update user session
       const session = this.connectedUsers.get(userEmail);
@@ -971,7 +1026,7 @@ class EnterpriseSocketManager {
       this.userConversations.set(userEmail, userConversations);
 
       // Notify other users in conversation
-      socket.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.USER_ONLINE, {
+      socket.to(roomId).emit(SOCKET_EVENTS.USER_ONLINE, {
         email: userEmail,
         conversationId,
         timestamp: new Date().toISOString()
@@ -980,16 +1035,23 @@ class EnterpriseSocketManager {
       // Confirm join to user
       socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, {
         conversationId,
+        roomId,
         onlineUsers: Array.from(conversationUsers),
         timestamp: new Date().toISOString()
       });
 
-      logger.info('User joined conversation', {
-        category: 'SOCKET_CONVERSATION_JOIN',
-        email: userEmail.substring(0, 20) + '...',
-        conversationId: conversationId.substring(0, 20) + '...',
-        onlineUsersCount: conversationUsers.size
-      });
+      // Logging estructurado sin PII
+      if (process.env.SOCKET_LOG_VERBOSE === 'true') {
+        logger.info('User joined conversation', {
+          category: 'SOCKET_CONVERSATION_JOIN',
+          email: userEmail.substring(0, 20) + '...',
+          conversationId: conversationId.substring(0, 20) + '...',
+          roomId: roomId.substring(0, 30) + '...',
+          onlineUsersCount: conversationUsers.size,
+          workspaceId: workspaceId ? 'present' : 'none',
+          tenantId: tenantId ? 'present' : 'none'
+        });
+      }
 
     } catch (error) {
       logger.error('Error joining conversation', {
@@ -1019,8 +1081,40 @@ class EnterpriseSocketManager {
         throw new Error('conversationId is required');
       }
 
+      // 🔧 SOCKET ROBUSTO: Obtener workspaceId y tenantId del socket
+      const workspaceId = socket.decodedToken?.workspaceId || 'default';
+      const tenantId = socket.decodedToken?.tenantId || 'na';
+
+      // 🔧 SOCKET ROBUSTO: Construir roomId con convención establecida
+      const roomId = `ws:${workspaceId}:ten:${tenantId}:conv:${conversationId}`;
+
       // Leave socket room
-      socket.leave(`conversation-${conversationId}`);
+      socket.leave(roomId);
+
+      // 🔧 SOCKET ROBUSTO: Limpiar estructuras de tracking
+      const roomSockets = this.rooms.get(roomId);
+      if (roomSockets) {
+        roomSockets.delete(socket.id);
+        if (roomSockets.size === 0) {
+          this.rooms.delete(roomId);
+        }
+      }
+
+      const userSocketIds = this.userSessions.get(userEmail);
+      if (userSocketIds) {
+        userSocketIds.delete(socket.id);
+        if (userSocketIds.size === 0) {
+          this.userSessions.delete(userEmail);
+        }
+      }
+
+      const socketRooms = this.socketConversations.get(socket.id);
+      if (socketRooms) {
+        socketRooms.delete(roomId);
+        if (socketRooms.size === 0) {
+          this.socketConversations.delete(socket.id);
+        }
+      }
 
       // Update user session
       const session = this.connectedUsers.get(userEmail);
@@ -1055,7 +1149,7 @@ class EnterpriseSocketManager {
       await this.handleTypingStop(socket, { conversationId });
 
       // Notify other users in conversation
-      socket.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.USER_OFFLINE, {
+      socket.to(roomId).emit(SOCKET_EVENTS.USER_OFFLINE, {
         email: userEmail,
         conversationId,
         timestamp: new Date().toISOString()
@@ -1064,14 +1158,21 @@ class EnterpriseSocketManager {
       // Confirm leave to user
       socket.emit(SOCKET_EVENTS.CONVERSATION_LEFT, {
         conversationId,
+        roomId,
         timestamp: new Date().toISOString()
       });
 
-      logger.info('User left conversation', {
-        category: 'SOCKET_CONVERSATION_LEAVE',
-        email: userEmail.substring(0, 20) + '...',
-        conversationId: conversationId.substring(0, 20) + '...'
-      });
+      // Logging estructurado sin PII
+      if (process.env.SOCKET_LOG_VERBOSE === 'true') {
+        logger.info('User left conversation', {
+          category: 'SOCKET_CONVERSATION_LEAVE',
+          email: userEmail.substring(0, 20) + '...',
+          conversationId: conversationId.substring(0, 20) + '...',
+          roomId: roomId.substring(0, 30) + '...',
+          workspaceId: workspaceId ? 'present' : 'none',
+          tenantId: tenantId ? 'present' : 'none'
+        });
+      }
 
     } catch (error) {
       logger.error('Error leaving conversation', {
@@ -1369,13 +1470,46 @@ class EnterpriseSocketManager {
     try {
       this.metrics.disconnectionsPerSecond++;
 
-      logger.info('User disconnected from Socket.IO', {
-        category: 'SOCKET_USER_DISCONNECTED',
-        email: userEmail?.substring(0, 20) + '...',
-        socketId,
-        reason,
-        connectedDuration: socket.connectedAt ? Date.now() - socket.connectedAt : 0
-      });
+      // 🔧 SOCKET ROBUSTO: Limpiar todas las rooms del socket
+      const socketRooms = this.socketConversations.get(socketId);
+      if (socketRooms) {
+        for (const roomId of socketRooms) {
+          // Salir de la room
+          socket.leave(roomId);
+          
+          // Limpiar de la estructura rooms
+          const roomSockets = this.rooms.get(roomId);
+          if (roomSockets) {
+            roomSockets.delete(socketId);
+            if (roomSockets.size === 0) {
+              this.rooms.delete(roomId);
+            }
+          }
+        }
+        // Limpiar el tracking del socket
+        this.socketConversations.delete(socketId);
+      }
+
+      // 🔧 SOCKET ROBUSTO: Limpiar de userSessions
+      const userSocketIds = this.userSessions.get(userEmail);
+      if (userSocketIds) {
+        userSocketIds.delete(socketId);
+        if (userSocketIds.size === 0) {
+          this.userSessions.delete(userEmail);
+        }
+      }
+
+      // Logging estructurado sin PII
+      if (process.env.SOCKET_LOG_VERBOSE === 'true') {
+        logger.info('User disconnected from Socket.IO', {
+          category: 'SOCKET_USER_DISCONNECTED',
+          email: userEmail?.substring(0, 20) + '...',
+          socketId,
+          reason,
+          connectedDuration: socket.connectedAt ? Date.now() - socket.connectedAt : 0,
+          roomsCleaned: socketRooms?.size || 0
+        });
+      }
 
       // Clean up user session
       await this.cleanupUserSession(userEmail, socketId);
@@ -2347,6 +2481,108 @@ class EnterpriseSocketManager {
         error: error.message
       });
       return [];
+    }
+  }
+
+  /**
+   * 📡 BROADCAST TO CONVERSATION (MÉTODO PÚBLICO PARA REPOSITORIO)
+   * Emite eventos a una conversación específica con autorización
+   */
+  broadcastToConversation({ workspaceId, tenantId, conversationId, event, payload }) {
+    try {
+      // Validar parámetros requeridos
+      if (!conversationId || !event) {
+        logger.error('broadcastToConversation: Parámetros requeridos faltantes', {
+          category: 'SOCKET_BROADCAST_ERROR',
+          conversationId: conversationId?.substring(0, 20) + '...',
+          event,
+          hasWorkspaceId: !!workspaceId,
+          hasTenantId: !!tenantId
+        });
+        return false;
+      }
+
+      // Construir roomId con la convención establecida
+      const roomId = `ws:${workspaceId || 'default'}:ten:${tenantId || 'na'}:conv:${conversationId}`;
+
+      // Verificar autorización previa (si el repo pasa workspaceId/tenantId, confiamos)
+      if (!workspaceId) {
+        logger.warn('broadcastToConversation: Sin workspaceId, omitiendo broadcast', {
+          category: 'SOCKET_BROADCAST_AUTH_WARNING',
+          conversationId: conversationId.substring(0, 20) + '...',
+          event
+        });
+        return false;
+      }
+
+      // Emitir solo a la room específica (nunca a todos)
+      this.io.to(roomId).emit(event, payload);
+
+      // Logging estructurado sin PII
+      if (process.env.SOCKET_LOG_VERBOSE === 'true') {
+        logger.info('broadcastToConversation: Evento emitido', {
+          category: 'SOCKET_BROADCAST_SUCCESS',
+          event,
+          roomId: roomId.substring(0, 30) + '...',
+          payloadSize: JSON.stringify(payload).length,
+          workspaceId: workspaceId ? 'present' : 'none',
+          tenantId: tenantId ? 'present' : 'none',
+          conversationId: conversationId.substring(0, 20) + '...'
+        });
+      }
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error en broadcastToConversation', {
+        category: 'SOCKET_BROADCAST_ERROR',
+        error: error.message,
+        stack: error.stack,
+        conversationId: conversationId?.substring(0, 20) + '...',
+        event
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🔧 REGISTER EVENT (MÉTODO SEGURO PARA REGISTRAR EVENTOS)
+   * Garantiza que las estructuras Map/Set estén inicializadas antes de usar
+   */
+  registerEvent(socketId, eventName, handler) {
+    try {
+      // 🔧 SOCKET ROBUSTO: Inicializar estructuras si no existen
+      if (!this.rooms) this.rooms = new Map();
+      if (!this.userSessions) this.userSessions = new Map();
+      if (!this.socketConversations) this.socketConversations = new Map();
+
+      // Inicializar Set para socketId si no existe
+      if (!this.socketConversations.has(socketId)) {
+        this.socketConversations.set(socketId, new Set());
+      }
+
+      // Registrar el evento
+      const listenersMap = this.eventListeners.get(socketId);
+      if (listenersMap) {
+        listenersMap.set(eventName, handler);
+      }
+
+      if (process.env.SOCKET_LOG_VERBOSE === 'true') {
+        logger.debug('Evento registrado exitosamente', {
+          category: 'SOCKET_EVENT_REGISTER',
+          socketId,
+          eventName,
+          totalEvents: listenersMap?.size || 0
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error registrando evento', {
+        category: 'SOCKET_EVENT_REGISTER_ERROR',
+        error: error.message,
+        socketId,
+        eventName
+      });
     }
   }
 }
