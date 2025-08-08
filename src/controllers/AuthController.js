@@ -62,7 +62,7 @@ class AuthController {
       
       if (req.logger && typeof req.logger.database === 'function') {
         console.log('🔍 [LOGIN] req.logger.database disponible, llamando...');
-        req.logger.info('query_started', {
+        req.logger.database('query_started', {
           operation: 'user_validation',
           email
         });
@@ -140,7 +140,7 @@ class AuthController {
       console.log('🔍 [LOGIN] Loggeando documento leído...');
       if (req.logger && typeof req.logger.database === 'function') {
         console.log('🔍 [LOGIN] req.logger.database disponible para document_read...');
-        req.logger.info('document_read', {
+        req.logger.database('document_read', {
           operation: 'user_by_email',
           email,
           found: !!user
@@ -159,7 +159,7 @@ class AuthController {
       console.log('🔍 [LOGIN] Loggeando documento actualizado...');
       if (req.logger && typeof req.logger.database === 'function') {
         console.log('🔍 [LOGIN] req.logger.database disponible para document_updated...');
-        req.logger.info('document_updated', {
+        req.logger.database('document_updated', {
           operation: 'last_login_update',
           email
         });
@@ -707,7 +707,7 @@ class AuthController {
       }
 
       // 👤 BUSCAR USUARIO EN FIRESTORE
-      req.logger.info('query_started', {
+      req.logger.database('query_started', {
         operation: 'user_by_email_for_validation',
         email: decodedToken.email
       });
