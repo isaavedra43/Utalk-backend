@@ -2,11 +2,11 @@
 
 ## 📋 Descripción
 
-Este documento describe el proceso de migración para agregar campos faltantes a las conversaciones existentes en Firestore, habilitando el soporte completo para multi-tenancy y compatibilidad con el nuevo repositorio unificado.
+Este documento describe el proceso de migración para normalizar todos los documentos de `conversations` existentes al modelo canónico requerido por el listado de conversaciones.
 
 ## 🎯 Objetivos
 
-- **Agregar campos faltantes:** `workspaceId`, `tenantId`, `status`, `unreadCount`, `participants`
+- **Normalizar campos faltantes:** `workspaceId`, `tenantId`, `status`, `unreadCount`, `messageCount`, `lastMessageAt`, `participants`
 - **Mantener compatibilidad:** No romper funcionalidad existente durante la migración
 - **Proceso seguro:** DRY-RUN por defecto, migración idempotente
 - **Documentación completa:** Reportes detallados y rollback plan
@@ -19,271 +19,300 @@ Este documento describe el proceso de migración para agregar campos faltantes a
 # Configuración de migración
 MIGRATE_DRY_RUN=true                    # Solo generar reporte (default)
 MIGRATION_BATCH_SIZE=200                # Tamaño del lote
-CONVERSATIONS_COLLECTION_PATH=conversations  # Ruta de la colección
-
-# Configuración de workspace/tenant (para inferencia)
-DEFAULT_WORKSPACE_ID=default            # Workspace por defecto
-DEFAULT_TENANT_ID=default               # Tenant por defecto
-
-# Configuración del repositorio
-TENANT_MODE=true                        # Habilitar filtros tenant
-LEGACY_COMPAT=true                      # Habilitar compatibilidad legacy
-LOG_VERBOSE_CONVERSATIONS=true          # Logs detallados
+MIGRATION_REPORT_DIR=/tmp               # Carpeta para reportes
+DEFAULT_WORKSPACE_ID=default            # Fallback para workspaceId
+DEFAULT_TENANT_ID=default               # Fallback para tenantId
+MIGRATION_MAX_MSGS_TO_COUNT=0           # Contar mensajes (0 = no contar)
+MIGRATION_INFER_PARTICIPANTS=true       # Inferir participants
+MIGRATION_RESUME_CURSOR_FILE=/tmp/migrate_conversations_v1.cursor.json
+MIGRATE_ALLOW_PROD=false                # Seguridad para producción
+MIGRATION_LOG_VERBOSE=true              # Logs detallados
 ```
 
-### Verificación Previa
+### Verificaciones Previas
 
-1. **Backup de datos:**
+1. **Backup de Firestore** (recomendado):
    ```bash
-   # Exportar conversaciones actuales (opcional)
+   # Exportar colección conversations
    firebase firestore:export --collection-ids conversations
    ```
 
-2. **Verificar conectividad:**
+2. **Verificar permisos**:
    ```bash
-   # Probar conexión a Firestore
-   node -e "require('./src/config/firebase'); console.log('✅ Firebase conectado')"
+   # Asegurar que tienes permisos de escritura en Firestore
    ```
 
-## 🔧 Ejecución
+3. **Revisar configuración**:
+   ```bash
+   # Verificar variables de entorno
+   echo "DRY_RUN: $MIGRATE_DRY_RUN"
+   echo "BATCH_SIZE: $MIGRATION_BATCH_SIZE"
+   echo "ALLOW_PROD: $MIGRATE_ALLOW_PROD"
+   ```
 
-### Paso 1: DRY-RUN (Recomendado)
+## 📊 Ejecución
+
+### Paso 1: DRY-RUN (Obligatorio)
 
 ```bash
-# Configurar para solo generar reporte
+# Configurar variables
 export MIGRATE_DRY_RUN=true
-export MIGRATION_BATCH_SIZE=100
+export MIGRATION_BATCH_SIZE=200
+export MIGRATION_REPORT_DIR=/tmp
+export MIGRATION_LOG_VERBOSE=true
 
 # Ejecutar migración en modo DRY-RUN
 node scripts/migrate_conversations_v1.js
 ```
 
 **Resultado esperado:**
+- Reporte JSON en `/tmp/conversations_migration_report_<timestamp>.json`
+- Reporte CSV en `/tmp/conversations_migration_changes_<timestamp>.csv`
+- Logs detallados del proceso
+
+### Paso 2: Revisar Reportes
+
+#### Reporte JSON
+```json
+{
+  "startedAt": "2025-08-08T02:30:00.000Z",
+  "finishedAt": "2025-08-08T02:45:12.123Z",
+  "dryRun": true,
+  "batchSize": 200,
+  "totals": {
+    "scanned": 1543,
+    "updated": 912,
+    "skipped": 631,
+    "errors": 0
+  },
+  "fieldsFilled": {
+    "workspaceId": 880,
+    "tenantId": 880,
+    "status": 410,
+    "unreadCount": 905,
+    "messageCount": 0,
+    "lastMessageAt": 765,
+    "participants": 802,
+    "createdAt": 12,
+    "updatedAt": 12
+  },
+  "truncatedCounts": 44,
+  "noMessagesUsedCreatedAt": 97,
+  "emptyParticipantsAfterInference": 18,
+  "resume": { "lastDocId": "conv_abc123" },
+  "errorsList": []
+}
 ```
-🚀 Iniciando migración de conversaciones V1
-📊 Total de conversaciones encontradas: X
-🔄 Procesando lote 1/Y (X conversaciones)
-✅ Migración completada
-📄 Reporte generado: /tmp/conversations_migration_report_1234567890.json
+
+#### Reporte CSV
+```csv
+docId,action,filledFields,skippedFields,truncatedCounts,usedLastMsg,usedCreatedAt,emptyParticipantsAfterInference,error
+conv_abc123,would_update,workspaceId,tenantId,status,no,yes,no,no,
+conv_def456,would_update,participants,lastMessageAt,no,yes,no,no,
 ```
 
-### Paso 2: Revisar Reporte
+### Paso 3: Ejecución Real (Opcional)
 
-El reporte incluye:
-- **Metadata:** Configuración y duración
-- **Stats:** Total procesado, cambiado, omitido, errores
-- **Summary:** Resumen ejecutivo
-- **Detalles:** Por conversación (en CSV)
-
-### Paso 3: Ejecutar Migración Real
+**⚠️ ADVERTENCIA:** Solo ejecutar después de revisar y validar el DRY-RUN.
 
 ```bash
-# Configurar para aplicar cambios
+# Configurar para ejecución real
 export MIGRATE_DRY_RUN=false
+export MIGRATE_ALLOW_PROD=true  # Requerido para producción
 export MIGRATION_BATCH_SIZE=200
 
 # Ejecutar migración real
 node scripts/migrate_conversations_v1.js
 ```
 
-### Paso 4: Verificación Post-Migración
+## 🔄 Reanudación
+
+Si la migración se interrumpe, se puede reanudar desde el último punto:
 
 ```bash
-# Verificar que las conversaciones tienen los campos requeridos
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-     "https://your-backend.com/api/conversations?limit=5"
+# El script automáticamente detecta el cursor guardado
+node scripts/migrate_conversations_v1.js
 ```
 
-## 🔍 Campos Migrados
+**Archivo de cursor:** `/tmp/migrate_conversations_v1.cursor.json`
 
-### 1. workspaceId y tenantId
-- **Propósito:** Soporte multi-tenant
-- **Inferencia:** Desde `DEFAULT_WORKSPACE_ID`/`DEFAULT_TENANT_ID` o lógica basada en `customerPhone`
-- **Valor por defecto:** `'default'`
+## 📋 Reglas de Normalización
 
-### 2. status
-- **Propósito:** Estado de la conversación
-- **Valor por defecto:** `'open'`
-- **Valores válidos:** `'open'`, `'closed'`, `'archived'`
+### Campos Procesados
 
-### 3. unreadCount
-- **Propósito:** Contador de mensajes no leídos
-- **Valor por defecto:** `0`
+| Campo | Regla | Ejemplo |
+|-------|-------|---------|
+| `workspaceId` | Si falta → `DEFAULT_WORKSPACE_ID` | `"default"` |
+| `tenantId` | Si falta → `DEFAULT_TENANT_ID` | `"default"` |
+| `status` | Si falta → `"open"` | `"open"` |
+| `unreadCount` | Si falta → `0` | `0` |
+| `messageCount` | Si `MAX_MSGS_TO_COUNT > 0` → contar hasta N | `150` |
+| `lastMessageAt` | Si falta → último mensaje o `createdAt` | `Timestamp` |
+| `participants` | Si falta → inferir desde mensajes | `["+1234567890", "user@email.com"]` |
+| `createdAt` | Si falta → `now()` | `Timestamp` |
+| `updatedAt` | Si falta → `now()` | `Timestamp` |
 
-### 4. participants
-- **Propósito:** Array de participantes
-- **Inferencia:** `[customerPhone, assignedTo]` (si existen)
-- **Valor por defecto:** `[]`
+### Inferencia de Participants
 
-### 5. lastMessageAt
-- **Propósito:** Timestamp del último mensaje
-- **Inferencia:** Desde `lastMessage.timestamp` si existe
-- **Valor por defecto:** `null`
+1. **Desde último mensaje:**
+   - Agregar `senderIdentifier`
+   - Agregar `recipientIdentifier`
 
-## 🛠️ Rollback Plan
+2. **Desde customerPhone:**
+   - Normalizar a formato E.164
+   - Solo agregar `+` si ya existe
 
-### Opción 1: Rollback Manual
-```bash
-# Script de rollback (crear si es necesario)
-node scripts/rollback_conversations_v1.js
-```
+3. **Deduplicación:**
+   - Remover duplicados automáticamente
 
-### Opción 2: Desactivar Flags
-```bash
-# Desactivar tenant mode temporalmente
-export TENANT_MODE=false
-export LEGACY_COMPAT=true
+### Conteo de Mensajes
 
-# Reiniciar aplicación
-```
+- **Si `MAX_MSGS_TO_COUNT = 0`:** No contar, setear `0`
+- **Si `MAX_MSGS_TO_COUNT > 0`:** Contar hasta N mensajes
+- **Truncado:** Si hay más de N mensajes, marcar como truncado
 
-### Opción 3: Restaurar desde Backup
-```bash
-# Restaurar desde export previo
-firebase firestore:import --collection-ids conversations backup.json
-```
+## 🔍 Validación Post-Migración
 
-## 🔧 Configuración del Repositorio
-
-### Activación Gradual
-
-1. **Fase 1: Compatibilidad Legacy**
-   ```bash
-   export TENANT_MODE=false
-   export LEGACY_COMPAT=true
-   ```
-
-2. **Fase 2: Tenant Mode con Legacy**
-   ```bash
-   export TENANT_MODE=true
-   export LEGACY_COMPAT=true
-   ```
-
-3. **Fase 3: Tenant Mode Puro**
-   ```bash
-   export TENANT_MODE=true
-   export LEGACY_COMPAT=false
-   ```
-
-### Logs de Diagnóstico
-
-```bash
-# Habilitar logs detallados
-export LOG_VERBOSE_CONVERSATIONS=true
-
-# Ver logs en tiempo real
-railway logs --follow
-```
-
-## 📊 Monitoreo
-
-### Métricas a Observar
-
-1. **Performance:**
-   - Tiempo de respuesta del endpoint `/conversations`
-   - Número de queries ejecutados
-   - Tamaño de snapshots
-
-2. **Funcionalidad:**
-   - Conversaciones devueltas vs esperadas
-   - Errores de query
-   - Logs de legacy fallback
-
-3. **Datos:**
-   - Campos faltantes en documentos
-   - Inconsistencias en workspaceId/tenantId
-   - Errores de mapeo
-
-### Alertas Recomendadas
+### 1. Verificar en Firestore
 
 ```javascript
-// Ejemplo de alerta para queries legacy
-if (source === 'legacy' && conversations.length > 0) {
-  logger.warn('Legacy fallback activo', {
-    conversationsCount: conversations.length,
-    userEmail: req.user.email
-  });
+// Ejemplo de documento normalizado
+{
+  "id": "conv_abc123",
+  "workspaceId": "default",
+  "tenantId": "default",
+  "status": "open",
+  "unreadCount": 5,
+  "messageCount": 150,
+  "lastMessageAt": "2025-08-08T02:30:00.000Z",
+  "participants": ["+1234567890", "user@email.com"],
+  "customerPhone": "+1234567890",
+  "createdAt": "2025-08-08T02:30:00.000Z",
+  "updatedAt": "2025-08-08T02:30:00.000Z"
 }
+```
+
+### 2. Probar Listado
+
+```bash
+# Verificar que el endpoint funciona
+curl -X GET "https://your-api.com/api/conversations" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### 3. Probar Escritura
+
+```bash
+# Enviar mensaje de prueba
+curl -X POST "https://your-api.com/api/conversations/CONV_ID/messages" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Test message"}'
 ```
 
 ## 🚨 Troubleshooting
 
-### Problema: "No conversations found"
-
-**Causas posibles:**
-1. `participants` array no contiene el email del usuario
-2. `workspaceId`/`tenantId` no coinciden
-3. Query falla por índices faltantes
-
-**Soluciones:**
-```bash
-# 1. Verificar configuración
-echo $TENANT_MODE $LEGACY_COMPAT
-
-# 2. Habilitar logs detallados
-export LOG_VERBOSE_CONVERSATIONS=true
-
-# 3. Verificar índices en Firestore Console
-```
-
-### Problema: "Index building required"
+### Error: "MIGRATE_ALLOW_PROD=true es requerido"
 
 **Solución:**
 ```bash
-# Esperar 5-10 minutos para que se construyan los índices
-# O usar query temporal sin ordenamiento
+export MIGRATE_ALLOW_PROD=true
+node scripts/migrate_conversations_v1.js
 ```
 
-### Problema: "Migration failed"
+### Error: Rate Limiting
 
-**Verificar:**
-1. Permisos de Firestore
-2. Variables de entorno
-3. Conectividad de red
-4. Logs detallados
+**Solución:**
+```bash
+# Reducir batch size
+export MIGRATION_BATCH_SIZE=50
+node scripts/migrate_conversations_v1.js
+```
 
-## 📝 Checklist de Despliegue
+### Error: Permisos de Firestore
 
-### Pre-Migración
-- [ ] Backup de datos actuales
-- [ ] Variables de entorno configuradas
-- [ ] DRY-RUN ejecutado y revisado
-- [ ] Equipo notificado
+**Solución:**
+```bash
+# Verificar credenciales
+firebase auth:login
+firebase projects:list
+```
 
-### Migración
-- [ ] `MIGRATE_DRY_RUN=false`
-- [ ] Script ejecutado exitosamente
-- [ ] Reporte generado y revisado
-- [ ] Verificación post-migración
+### Reanudación Manual
 
-### Post-Migración
-- [ ] `TENANT_MODE=true`
-- [ ] `LEGACY_COMPAT=true`
-- [ ] Endpoint `/conversations` probado
-- [ ] Logs monitoreados
-- [ ] Performance verificada
+Si el cursor se corrompe:
 
-### Desactivación Legacy (Futuro)
-- [ ] 100% de docs con `workspaceId`/`tenantId`
-- [ ] `LEGACY_COMPAT=false`
-- [ ] Performance optimizada
-- [ ] Documentación actualizada
+```bash
+# Eliminar cursor
+rm /tmp/migrate_conversations_v1.cursor.json
+
+# Reiniciar migración
+node scripts/migrate_conversations_v1.js
+```
+
+## 📊 Monitoreo
+
+### Logs Importantes
+
+```bash
+# Ver logs en tiempo real
+tail -f /var/log/your-app.log | grep "migration"
+```
+
+### Métricas a Monitorear
+
+- **Tasa de éxito:** `updated / scanned`
+- **Errores:** `errors` en reporte JSON
+- **Campos faltantes:** `fieldsFilled` en reporte JSON
+- **Performance:** Tiempo por batch
+
+## 🔒 Seguridad
+
+### Variables Críticas
+
+- `MIGRATE_DRY_RUN=true` (default)
+- `MIGRATE_ALLOW_PROD=false` (default)
+- `NODE_ENV=production` (requiere `MIGRATE_ALLOW_PROD=true`)
+
+### Backup Recomendado
+
+```bash
+# Antes de ejecutar
+firebase firestore:export --collection-ids conversations
+```
+
+## 📝 Rollback Plan
+
+Si algo sale mal:
+
+1. **Restaurar desde backup:**
+   ```bash
+   firebase firestore:import --collection-ids conversations backup.json
+   ```
+
+2. **Verificar integridad:**
+   ```bash
+   # Revisar algunos documentos manualmente
+   ```
+
+3. **Reintentar migración:**
+   ```bash
+   # Con configuración más conservadora
+   export MIGRATION_BATCH_SIZE=50
+   node scripts/migrate_conversations_v1.js
+   ```
 
 ## 📞 Soporte
 
-### Contactos
-- **Desarrollo:** Backend Team
-- **DevOps:** Infrastructure Team
-- **Producto:** Product Manager
+Para problemas técnicos:
 
-### Recursos
-- **Documentación:** Este README
-- **Logs:** Railway Dashboard
-- **Firestore:** Firebase Console
-- **Monitoreo:** Métricas personalizadas
+1. **Revisar logs:** Buscar errores específicos
+2. **Verificar reportes:** JSON y CSV generados
+3. **Consultar documentación:** Este README
+4. **Contactar equipo:** Backend team
 
 ---
 
-**Última actualización:** Agosto 2025
-**Versión:** 1.0.0
+**Versión:** 1.0.0  
+**Última actualización:** Agosto 2025  
 **Autor:** Backend Team 

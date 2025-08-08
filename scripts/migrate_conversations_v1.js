@@ -1,16 +1,22 @@
+#!/usr/bin/env node
+
 /**
  * 🔄 SCRIPT DE MIGRACIÓN DE CONVERSACIONES V1
  * 
- * Migración idempotente para agregar campos faltantes a conversaciones existentes:
- * - workspaceId y tenantId (para multi-tenancy)
- * - status (si falta)
- * - unreadCount (si falta)
- * - participants (si falta)
+ * Migración idempotente para normalizar documentos de conversations
+ * al modelo canónico requerido por el listado.
  * 
- * FLAGS DE CONFIGURACIÓN:
- * - MIGRATE_DRY_RUN=true (default) - Solo generar reporte, no aplicar cambios
- * - MIGRATION_BATCH_SIZE=200 - Tamaño del lote de procesamiento
- * - CONVERSATIONS_COLLECTION_PATH - Ruta de la colección (default: 'conversations')
+ * VARIABLES DE ENTORNO:
+ * - MIGRATE_DRY_RUN=true (default) - Solo reporta, no escribe
+ * - MIGRATION_BATCH_SIZE=200 - Tamaño del lote
+ * - MIGRATION_REPORT_DIR=/tmp - Carpeta para reportes
+ * - DEFAULT_WORKSPACE_ID=default - Fallback para workspaceId
+ * - DEFAULT_TENANT_ID=default - Fallback para tenantId
+ * - MIGRATION_MAX_MSGS_TO_COUNT=0 - Contar mensajes (0 = no contar)
+ * - MIGRATION_INFER_PARTICIPANTS=true - Inferir participants
+ * - MIGRATION_RESUME_CURSOR_FILE=/tmp/migrate_conversations_v1.cursor.json
+ * - MIGRATE_ALLOW_PROD=false - Seguridad para producción
+ * - MIGRATION_LOG_VERBOSE=true - Logs detallados
  * 
  * @version 1.0.0
  * @author Backend Team
@@ -23,58 +29,498 @@ const path = require('path');
 
 class ConversationsMigrationV1 {
   constructor() {
-    this.dryRun = process.env.MIGRATE_DRY_RUN !== 'false';
-    this.batchSize = parseInt(process.env.MIGRATION_BATCH_SIZE) || 200;
-    this.collectionPath = process.env.CONVERSATIONS_COLLECTION_PATH || 'conversations';
-    this.reportPath = `/tmp/conversations_migration_report_${Date.now()}.json`;
-    
-    this.stats = {
-      totalProcessed: 0,
-      totalChanged: 0,
-      totalSkipped: 0,
-      errors: [],
-      startTime: Date.now()
+    this.config = {
+      dryRun: process.env.MIGRATE_DRY_RUN !== 'false',
+      batchSize: parseInt(process.env.MIGRATION_BATCH_SIZE) || 200,
+      reportDir: process.env.MIGRATION_REPORT_DIR || '/tmp',
+      defaultWorkspaceId: process.env.DEFAULT_WORKSPACE_ID || 'default',
+      defaultTenantId: process.env.DEFAULT_TENANT_ID || 'default',
+      maxMsgsToCount: parseInt(process.env.MIGRATION_MAX_MSGS_TO_COUNT) || 0,
+      inferParticipants: process.env.MIGRATION_INFER_PARTICIPANTS !== 'false',
+      cursorFile: process.env.MIGRATION_RESUME_CURSOR_FILE || '/tmp/migrate_conversations_v1.cursor.json',
+      allowProd: process.env.MIGRATE_ALLOW_PROD === 'true',
+      logVerbose: process.env.MIGRATION_LOG_VERBOSE === 'true'
     };
+
+    this.stats = {
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      totals: {
+        scanned: 0,
+        updated: 0,
+        skipped: 0,
+        errors: 0
+      },
+      fieldsFilled: {
+        workspaceId: 0,
+        tenantId: 0,
+        status: 0,
+        unreadCount: 0,
+        messageCount: 0,
+        lastMessageAt: 0,
+        participants: 0,
+        createdAt: 0,
+        updatedAt: 0
+      },
+      truncatedCounts: 0,
+      noMessagesUsedCreatedAt: 0,
+      emptyParticipantsAfterInference: 0,
+      resume: { lastDocId: null },
+      errorsList: []
+    };
+
+    this.changes = []; // Para CSV
   }
 
   /**
-   * Ejecutar migración completa
+   * Helper para enmascarar PII
+   */
+  maskPhone(phone) {
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length <= 4) return '****';
+    
+    const internationalPrefixMatch = phone.match(/^(\+\d{1,4})?(\d+)$/);
+    if (internationalPrefixMatch) {
+      const prefix = internationalPrefixMatch[1] || '';
+      const numberPart = internationalPrefixMatch[2];
+      if (numberPart.length <= 4) return `${prefix}****`;
+      return `${prefix}${numberPart.substring(0, numberPart.length - 4)}****${numberPart.substring(numberPart.length - 2)}`;
+    }
+    
+    return phone.substring(0, phone.length - 4) + '****' + phone.substring(phone.length - 2);
+  }
+
+  maskEmail(email) {
+    if (!email) return null;
+    const [name, domain] = email.split('@');
+    if (!name || !domain) return 'invalid_email';
+    return `${name.charAt(0)}***@${domain}`;
+  }
+
+  /**
+   * Validar configuración de seguridad
+   */
+  validateConfig() {
+    if (process.env.NODE_ENV === 'production' && !this.config.allowProd) {
+      throw new Error('MIGRATE_ALLOW_PROD=true es requerido para ejecutar en producción');
+    }
+
+    // Crear directorio de reportes si no existe
+    if (!fs.existsSync(this.config.reportDir)) {
+      fs.mkdirSync(this.config.reportDir, { recursive: true });
+    }
+
+    logger.info('🔧 CONFIGURACIÓN DE MIGRACIÓN', {
+      dryRun: this.config.dryRun,
+      batchSize: this.config.batchSize,
+      reportDir: this.config.reportDir,
+      defaultWorkspaceId: this.config.defaultWorkspaceId,
+      defaultTenantId: this.config.defaultTenantId,
+      maxMsgsToCount: this.config.maxMsgsToCount,
+      inferParticipants: this.config.inferParticipants,
+      allowProd: this.config.allowProd,
+      environment: process.env.NODE_ENV
+    });
+  }
+
+  /**
+   * Cargar cursor de reanudación
+   */
+  loadResumeCursor() {
+    try {
+      if (fs.existsSync(this.config.cursorFile)) {
+        const cursorData = JSON.parse(fs.readFileSync(this.config.cursorFile, 'utf8'));
+        this.stats.resume.lastDocId = cursorData.lastDocId;
+        logger.info('📂 CURSOR DE REANUDACIÓN CARGADO', {
+          lastDocId: this.stats.resume.lastDocId
+        });
+      }
+    } catch (error) {
+      logger.warn('⚠️ ERROR CARGANDO CURSOR', {
+        error: error.message,
+        cursorFile: this.config.cursorFile
+      });
+    }
+  }
+
+  /**
+   * Guardar cursor de progreso
+   */
+  saveResumeCursor(lastDocId) {
+    try {
+      const cursorData = { lastDocId, timestamp: new Date().toISOString() };
+      fs.writeFileSync(this.config.cursorFile, JSON.stringify(cursorData, null, 2));
+    } catch (error) {
+      logger.error('❌ ERROR GUARDANDO CURSOR', {
+        error: error.message,
+        lastDocId
+      });
+    }
+  }
+
+  /**
+   * Normalizar teléfono a formato E.164
+   */
+  normalizePhone(phone) {
+    if (!phone) return null;
+    
+    // Si ya tiene +, dejarlo como está
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    
+    // Si no tiene +, no inventar país, solo normalizar
+    return phone.replace(/\D/g, '');
+  }
+
+  /**
+   * Inferir participants desde último mensaje
+   */
+  async inferParticipants(conversationId, existingParticipants = []) {
+    if (!this.config.inferParticipants) {
+      return existingParticipants;
+    }
+
+    try {
+      // Buscar último mensaje
+      const messagesRef = firestore.collection('conversations').doc(conversationId).collection('messages');
+      const lastMessageQuery = await messagesRef.orderBy('timestamp', 'desc').limit(1).get();
+      
+      if (!lastMessageQuery.empty) {
+        const lastMessage = lastMessageQuery.docs[0].data();
+        const participants = [...new Set(existingParticipants)];
+        
+        // Agregar sender y recipient si existen
+        if (lastMessage.senderIdentifier && !participants.includes(lastMessage.senderIdentifier)) {
+          participants.push(lastMessage.senderIdentifier);
+        }
+        
+        if (lastMessage.recipientIdentifier && !participants.includes(lastMessage.recipientIdentifier)) {
+          participants.push(lastMessage.recipientIdentifier);
+        }
+        
+        return participants;
+      }
+    } catch (error) {
+      logger.warn('⚠️ ERROR INFIRIENDO PARTICIPANTS', {
+        conversationId,
+        error: error.message
+      });
+    }
+    
+    return existingParticipants;
+  }
+
+  /**
+   * Contar mensajes en conversación
+   */
+  async countMessages(conversationId) {
+    if (this.config.maxMsgsToCount === 0) {
+      return { count: 0, truncated: false };
+    }
+
+    try {
+      const messagesRef = firestore.collection('conversations').doc(conversationId).collection('messages');
+      const messagesQuery = await messagesRef.limit(this.config.maxMsgsToCount + 1).get();
+      
+      const count = messagesQuery.docs.length;
+      const truncated = count > this.config.maxMsgsToCount;
+      
+      return {
+        count: truncated ? this.config.maxMsgsToCount : count,
+        truncated
+      };
+    } catch (error) {
+      logger.warn('⚠️ ERROR CONTANDO MENSAJES', {
+        conversationId,
+        error: error.message
+      });
+      return { count: 0, truncated: false };
+    }
+  }
+
+  /**
+   * Obtener último mensaje para lastMessageAt
+   */
+  async getLastMessageTimestamp(conversationId) {
+    try {
+      const messagesRef = firestore.collection('conversations').doc(conversationId).collection('messages');
+      const lastMessageQuery = await messagesRef.orderBy('timestamp', 'desc').limit(1).get();
+      
+      if (!lastMessageQuery.empty) {
+        const lastMessage = lastMessageQuery.docs[0].data();
+        return lastMessage.timestamp;
+      }
+    } catch (error) {
+      logger.warn('⚠️ ERROR OBTENIENDO ÚLTIMO MENSAJE', {
+        conversationId,
+        error: error.message
+      });
+    }
+    
+    return null;
+  }
+
+  /**
+   * Procesar un documento de conversación
+   */
+  async processConversation(doc) {
+    const docId = doc.id;
+    const data = doc.data();
+    const changes = [];
+    const skippedFields = [];
+    let error = null;
+
+    try {
+      const updatePayload = {};
+
+      // 1. workspaceId
+      if (!data.workspaceId) {
+        updatePayload.workspaceId = this.config.defaultWorkspaceId;
+        changes.push('workspaceId');
+        this.stats.fieldsFilled.workspaceId++;
+      }
+
+      // 2. tenantId
+      if (!data.tenantId) {
+        updatePayload.tenantId = this.config.defaultTenantId;
+        changes.push('tenantId');
+        this.stats.fieldsFilled.tenantId++;
+      }
+
+      // 3. status
+      if (!data.status) {
+        updatePayload.status = 'open';
+        changes.push('status');
+        this.stats.fieldsFilled.status++;
+      }
+
+      // 4. unreadCount
+      if (data.unreadCount === undefined || data.unreadCount === null) {
+        updatePayload.unreadCount = 0;
+        changes.push('unreadCount');
+        this.stats.fieldsFilled.unreadCount++;
+      }
+
+      // 5. messageCount
+      if (data.messageCount === undefined || data.messageCount === null) {
+        const messageCountResult = await this.countMessages(docId);
+        updatePayload.messageCount = messageCountResult.count;
+        changes.push('messageCount');
+        this.stats.fieldsFilled.messageCount++;
+        
+        if (messageCountResult.truncated) {
+          this.stats.truncatedCounts++;
+        }
+      }
+
+      // 6. lastMessageAt
+      if (!data.lastMessageAt) {
+        let lastMessageAt = null;
+        
+        // Intentar usar lastMessage.timestamp
+        if (data.lastMessage && data.lastMessage.timestamp) {
+          lastMessageAt = data.lastMessage.timestamp;
+        } else {
+          // Buscar último mensaje
+          lastMessageAt = await this.getLastMessageTimestamp(docId);
+        }
+        
+        if (!lastMessageAt) {
+          // Usar createdAt, updatedAt o now()
+          lastMessageAt = data.createdAt || data.updatedAt || new Date();
+          this.stats.noMessagesUsedCreatedAt++;
+        }
+        
+        updatePayload.lastMessageAt = lastMessageAt;
+        changes.push('lastMessageAt');
+        this.stats.fieldsFilled.lastMessageAt++;
+      }
+
+      // 7. participants
+      if (!data.participants || data.participants.length === 0) {
+        let participants = [];
+        
+        // Intentar inferir desde último mensaje
+        participants = await this.inferParticipants(docId, participants);
+        
+        // Agregar customerPhone si existe
+        if (data.customerPhone) {
+          const normalizedPhone = this.normalizePhone(data.customerPhone);
+          if (normalizedPhone && !participants.includes(normalizedPhone)) {
+            participants.push(normalizedPhone);
+          }
+        }
+        
+        // Remover duplicados
+        participants = [...new Set(participants)];
+        
+        if (participants.length === 0) {
+          this.stats.emptyParticipantsAfterInference++;
+        }
+        
+        updatePayload.participants = participants;
+        changes.push('participants');
+        this.stats.fieldsFilled.participants++;
+      }
+
+      // 8. createdAt
+      if (!data.createdAt) {
+        updatePayload.createdAt = new Date();
+        changes.push('createdAt');
+        this.stats.fieldsFilled.createdAt++;
+      }
+
+      // 9. updatedAt
+      if (!data.updatedAt) {
+        updatePayload.updatedAt = new Date();
+        changes.push('updatedAt');
+        this.stats.fieldsFilled.updatedAt++;
+      }
+
+      // Aplicar cambios si hay algo que actualizar
+      if (Object.keys(updatePayload).length > 0) {
+        if (!this.config.dryRun) {
+          await firestore.collection('conversations').doc(docId).update(updatePayload);
+        }
+        
+        this.stats.totals.updated++;
+      } else {
+        this.stats.totals.skipped++;
+        skippedFields.push('no_changes_needed');
+      }
+
+      // Registrar cambio para CSV
+      this.changes.push({
+        docId,
+        action: this.config.dryRun ? 'would_update' : 'updated',
+        filledFields: changes.join(','),
+        skippedFields: skippedFields.join(','),
+        truncatedCounts: changes.includes('messageCount') ? 'yes' : 'no',
+        usedLastMsg: changes.includes('lastMessageAt') ? 'yes' : 'no',
+        usedCreatedAt: this.stats.noMessagesUsedCreatedAt > 0 ? 'yes' : 'no',
+        emptyParticipantsAfterInference: changes.includes('participants') && participants.length === 0 ? 'yes' : 'no',
+        error: null
+      });
+
+    } catch (err) {
+      error = err.message;
+      this.stats.totals.errors++;
+      this.stats.errorsList.push({
+        docId,
+        error: err.message,
+        timestamp: new Date().toISOString()
+      });
+
+      this.changes.push({
+        docId,
+        action: 'error',
+        filledFields: '',
+        skippedFields: '',
+        truncatedCounts: 'no',
+        usedLastMsg: 'no',
+        usedCreatedAt: 'no',
+        emptyParticipantsAfterInference: 'no',
+        error: err.message
+      });
+
+      logger.error('❌ ERROR PROCESANDO CONVERSACIÓN', {
+        docId,
+        error: err.message
+      });
+    }
+
+    return { changes, error };
+  }
+
+  /**
+   * Ejecutar migración por lotes
    */
   async run() {
     try {
-      logger.info('🚀 Iniciando migración de conversaciones V1', {
-        dryRun: this.dryRun,
-        batchSize: this.batchSize,
-        collectionPath: this.collectionPath
+      this.validateConfig();
+      this.loadResumeCursor();
+
+      logger.info('🚀 INICIANDO MIGRACIÓN DE CONVERSACIONES V1', {
+        dryRun: this.config.dryRun,
+        batchSize: this.config.batchSize,
+        resumeFrom: this.stats.resume.lastDocId
       });
 
-      // Obtener todas las conversaciones
-      const conversations = await this.getAllConversations();
+      let query = firestore.collection('conversations').orderBy('__name__');
       
-      logger.info(`📊 Total de conversaciones encontradas: ${conversations.length}`);
-
-      // Procesar en lotes
-      const batches = this.chunkArray(conversations, this.batchSize);
-      
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        logger.info(`🔄 Procesando lote ${i + 1}/${batches.length} (${batch.length} conversaciones)`);
-        
-        await this.processBatch(batch);
+      // Aplicar cursor de reanudación
+      if (this.stats.resume.lastDocId) {
+        const lastDoc = await firestore.collection('conversations').doc(this.stats.resume.lastDocId).get();
+        if (lastDoc.exists) {
+          query = query.startAfter(lastDoc);
+        }
       }
 
-      // Generar reporte final
-      await this.generateReport();
+      let batchNumber = 0;
+      let hasMore = true;
 
-      logger.info('✅ Migración completada', {
-        totalProcessed: this.stats.totalProcessed,
-        totalChanged: this.stats.totalChanged,
-        totalSkipped: this.stats.totalSkipped,
-        duration: Date.now() - this.stats.startTime
+      while (hasMore) {
+        batchNumber++;
+        
+        try {
+          const snapshot = await query.limit(this.config.batchSize).get();
+          const docs = snapshot.docs;
+          
+          if (docs.length === 0) {
+            hasMore = false;
+            break;
+          }
+
+          // Procesar documentos del lote
+          for (const doc of docs) {
+            await this.processConversation(doc);
+            this.stats.totals.scanned++;
+          }
+
+          // Guardar cursor de progreso
+          const lastDoc = docs[docs.length - 1];
+          this.stats.resume.lastDocId = lastDoc.id;
+          this.saveResumeCursor(lastDoc.id);
+
+          // Log de progreso
+          if (this.config.logVerbose) {
+            logger.info('📊 PROGRESO DE MIGRACIÓN', {
+              event: 'migration_batch',
+              batchNumber,
+              scanned: this.stats.totals.scanned,
+              updated: this.stats.totals.updated,
+              errors: this.stats.totals.errors,
+              lastDocId: lastDoc.id
+            });
+          }
+
+          // Actualizar query para siguiente lote
+          query = firestore.collection('conversations').orderBy('__name__').startAfter(lastDoc);
+
+        } catch (error) {
+          logger.error('❌ ERROR EN LOTE', {
+            batchNumber,
+            error: error.message
+          });
+          
+          // Reintento con backoff exponencial
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      this.stats.finishedAt = new Date().toISOString();
+      this.generateReports();
+
+      logger.info('✅ MIGRACIÓN COMPLETADA', {
+        dryRun: this.config.dryRun,
+        totals: this.stats.totals,
+        fieldsFilled: this.stats.fieldsFilled
       });
 
     } catch (error) {
-      logger.error('❌ Error durante migración', {
+      logger.error('❌ ERROR CRÍTICO EN MIGRACIÓN', {
         error: error.message,
         stack: error.stack
       });
@@ -83,273 +529,56 @@ class ConversationsMigrationV1 {
   }
 
   /**
-   * Obtener todas las conversaciones de Firestore
+   * Generar reportes JSON y CSV
    */
-  async getAllConversations() {
-    const snapshot = await firestore.collection(this.collectionPath).get();
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  }
-
-  /**
-   * Procesar un lote de conversaciones
-   */
-  async processBatch(conversations) {
-    const batch = firestore.batch();
-    const report = [];
-
-    for (const conversation of conversations) {
-      try {
-        const migrationResult = this.migrateConversation(conversation);
-        
-        if (migrationResult.needsUpdate) {
-          if (!this.dryRun) {
-            const docRef = firestore.collection(this.collectionPath).doc(conversation.id);
-            batch.update(docRef, migrationResult.updates);
-          }
-          
-          this.stats.totalChanged++;
-          report.push({
-            id: conversation.id,
-            changedFields: migrationResult.changedFields,
-            inferredValues: migrationResult.inferredValues,
-            skippedReason: null
-          });
-        } else {
-          this.stats.totalSkipped++;
-          report.push({
-            id: conversation.id,
-            changedFields: [],
-            inferredValues: {},
-            skippedReason: 'No requiere actualización'
-          });
-        }
-
-        this.stats.totalProcessed++;
-
-      } catch (error) {
-        this.stats.errors.push({
-          id: conversation.id,
-          error: error.message
-        });
-        
-        report.push({
-          id: conversation.id,
-          changedFields: [],
-          inferredValues: {},
-          skippedReason: `Error: ${error.message}`
-        });
-      }
-    }
-
-    // Aplicar cambios si no es dry run
-    if (!this.dryRun && this.stats.totalChanged > 0) {
-      await batch.commit();
-      logger.info(`✅ Lote aplicado: ${this.stats.totalChanged} conversaciones actualizadas`);
-    }
-
-    return report;
-  }
-
-  /**
-   * Migrar una conversación individual
-   */
-  migrateConversation(conversation) {
-    const updates = {};
-    const changedFields = [];
-    const inferredValues = {};
-
-    // 1. workspaceId y tenantId
-    if (!conversation.workspaceId) {
-      const workspaceId = this.inferWorkspaceId(conversation);
-      if (workspaceId) {
-        updates.workspaceId = workspaceId;
-        changedFields.push('workspaceId');
-        inferredValues.workspaceId = workspaceId;
-      }
-    }
-
-    if (!conversation.tenantId) {
-      const tenantId = this.inferTenantId(conversation);
-      if (tenantId) {
-        updates.tenantId = tenantId;
-        changedFields.push('tenantId');
-        inferredValues.tenantId = tenantId;
-      }
-    }
-
-    // 2. status
-    if (!conversation.status) {
-      updates.status = 'open';
-      changedFields.push('status');
-      inferredValues.status = 'open';
-    }
-
-    // 3. unreadCount
-    if (conversation.unreadCount === undefined || conversation.unreadCount === null) {
-      updates.unreadCount = 0;
-      changedFields.push('unreadCount');
-      inferredValues.unreadCount = 0;
-    }
-
-    // 4. participants
-    if (!conversation.participants || conversation.participants.length === 0) {
-      const participants = this.inferParticipants(conversation);
-      if (participants.length > 0) {
-        updates.participants = participants;
-        changedFields.push('participants');
-        inferredValues.participants = participants;
-      }
-    }
-
-    // 5. lastMessageAt (derivado de lastMessage.timestamp si falta)
-    if (!conversation.lastMessageAt && conversation.lastMessage?.timestamp) {
-      updates.lastMessageAt = conversation.lastMessage.timestamp;
-      changedFields.push('lastMessageAt');
-      inferredValues.lastMessageAt = conversation.lastMessage.timestamp;
-    }
-
-    return {
-      needsUpdate: changedFields.length > 0,
-      updates,
-      changedFields,
-      inferredValues
-    };
-  }
-
-  /**
-   * Inferir workspaceId basado en la conversación
-   */
-  inferWorkspaceId(conversation) {
-    // Lógica de inferencia basada en el contexto del proyecto
-    // Por ahora, usar un valor por defecto o inferir desde customerPhone
+  generateReports() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     
-    // Opción 1: Usar workspace por defecto del ENV
-    const defaultWorkspace = process.env.DEFAULT_WORKSPACE_ID;
-    if (defaultWorkspace) {
-      return defaultWorkspace;
-    }
-
-    // Opción 2: Inferir desde customerPhone (si tiene formato específico)
-    if (conversation.customerPhone) {
-      // Ejemplo: si el teléfono empieza con +52, podría ser workspace 'mexico'
-      if (conversation.customerPhone.startsWith('+52')) {
-        return 'mexico';
-      }
-      if (conversation.customerPhone.startsWith('+1')) {
-        return 'usa';
-      }
-    }
-
-    // Opción 3: Usar workspace genérico
-    return 'default';
-  }
-
-  /**
-   * Inferir tenantId basado en la conversación
-   */
-  inferTenantId(conversation) {
-    // Lógica similar a workspaceId
-    const defaultTenant = process.env.DEFAULT_TENANT_ID;
-    if (defaultTenant) {
-      return defaultTenant;
-    }
-
-    // Por ahora, usar el mismo valor que workspaceId
-    return this.inferWorkspaceId(conversation);
-  }
-
-  /**
-   * Inferir participants basado en la conversación
-   */
-  inferParticipants(conversation) {
-    const participants = [];
-
-    // Agregar customerPhone si existe
-    if (conversation.customerPhone) {
-      participants.push(conversation.customerPhone);
-    }
-
-    // Agregar assignedTo si existe
-    if (conversation.assignedTo) {
-      participants.push(conversation.assignedTo);
-    }
-
-    return participants;
-  }
-
-  /**
-   * Dividir array en lotes
-   */
-  chunkArray(array, size) {
-    const chunks = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
-  }
-
-  /**
-   * Generar reporte final
-   */
-  async generateReport() {
-    const report = {
-      metadata: {
-        dryRun: this.dryRun,
-        batchSize: this.batchSize,
-        collectionPath: this.collectionPath,
-        timestamp: new Date().toISOString(),
-        duration: Date.now() - this.stats.startTime
-      },
-      stats: this.stats,
-      summary: {
-        totalProcessed: this.stats.totalProcessed,
-        totalChanged: this.stats.totalChanged,
-        totalSkipped: this.stats.totalSkipped,
-        errorCount: this.stats.errors.length
+    // Reporte JSON
+    const jsonReport = {
+      ...this.stats,
+      config: {
+        dryRun: this.config.dryRun,
+        batchSize: this.config.batchSize,
+        maxMsgsToCount: this.config.maxMsgsToCount,
+        inferParticipants: this.config.inferParticipants
       }
     };
-
-    // Escribir reporte a archivo
-    fs.writeFileSync(this.reportPath, JSON.stringify(report, null, 2));
     
-    logger.info(`📄 Reporte generado: ${this.reportPath}`);
+    const jsonPath = path.join(this.config.reportDir, `conversations_migration_report_${timestamp}.json`);
+    fs.writeFileSync(jsonPath, JSON.stringify(jsonReport, null, 2));
     
-    // También generar CSV si hay datos
-    if (this.stats.totalProcessed > 0) {
-      await this.generateCSVReport();
-    }
-  }
-
-  /**
-   * Generar reporte CSV
-   */
-  async generateCSVReport() {
-    const csvPath = this.reportPath.replace('.json', '.csv');
-    const csvHeader = 'id,changedFields,inferredValues,skippedReason\n';
+    // Reporte CSV
+    const csvHeaders = 'docId,action,filledFields,skippedFields,truncatedCounts,usedLastMsg,usedCreatedAt,emptyParticipantsAfterInference,error\n';
+    const csvRows = this.changes.map(change => 
+      `${change.docId},${change.action},${change.filledFields},${change.skippedFields},${change.truncatedCounts},${change.usedLastMsg},${change.usedCreatedAt},${change.emptyParticipantsAfterInference},${change.error || ''}`
+    ).join('\n');
     
-    // Por ahora, crear un CSV básico
-    // En una implementación completa, incluirías los datos del reporte
-    fs.writeFileSync(csvPath, csvHeader);
+    const csvPath = path.join(this.config.reportDir, `conversations_migration_changes_${timestamp}.csv`);
+    fs.writeFileSync(csvPath, csvHeaders + csvRows);
     
-    logger.info(`📊 Reporte CSV generado: ${csvPath}`);
+    logger.info('📊 REPORTES GENERADOS', {
+      jsonReport: jsonPath,
+      csvReport: csvPath,
+      totalChanges: this.changes.length
+    });
   }
 }
 
-// Ejecutar migración si se llama directamente
+// Ejecutar migración
 if (require.main === module) {
   const migration = new ConversationsMigrationV1();
   migration.run()
     .then(() => {
-      logger.info('✅ Migración completada exitosamente');
+      logger.info('✅ MIGRACIÓN EXITOSA');
       process.exit(0);
     })
     .catch((error) => {
-      logger.error('❌ Migración falló', { error: error.message });
+      logger.error('❌ MIGRACIÓN FALLIDA', {
+        error: error.message
+      });
       process.exit(1);
     });
 }
 
-module.exports = { ConversationsMigrationV1 }; 
+module.exports = ConversationsMigrationV1; 
