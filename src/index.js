@@ -195,7 +195,8 @@ class ConsolidatedServer {
         pid: process.pid,
         environment: process.env.NODE_ENV || 'development',
         memoryLimit: process.env.NODE_OPTIONS,
-        startupTime: new Date().toISOString()
+        startupTime: new Date().toISOString(),
+        requestLogger: { mode: 'wrapper-enabled' }
       });
 
       // ✅ INICIALIZACIÓN TOLERANTE A FALLOS

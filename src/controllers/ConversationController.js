@@ -66,11 +66,15 @@ class ConversationController {
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
-      // 🔍 LOGGING ESTRUCTURADO CON CORRELACIÓN
+      // 🔍 LOGGING ESTRUCTURADO CON CORRELACIÓN + shape
+      const hasInfo = typeof req.logger?.info === 'function';
+      const hasAuth = typeof req.logger?.auth === 'function';
+      const hasDatabase = typeof req.logger?.database === 'function';
       req.logger?.info({
         event: 'conversations_list_start',
         requestId: req.requestId,
         traceId: req.traceId,
+        loggerShape: { hasInfo, hasAuth, hasDatabase },
         http: {
           method: req.method,
           path: req.path

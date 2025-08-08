@@ -253,6 +253,13 @@ class MessageService {
       // Generar conversationId
       const conversationId = generateConversationId(fromPhone, toPhone);
 
+      // Derivar workspace/tenant (nunca undefined)
+      const derivedWorkspaceId = process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace';
+      const derivedTenantId = process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant';
+
+      // Derivar email de agente (si no se conoce, usar sistema)
+      const derivedAgentEmail = process.env.DEFAULT_AGENT_EMAIL || 'system@utalk.local';
+
       // Preparar datos normalizados para el repositorio
       const messageData = {
         conversationId,
@@ -262,9 +269,10 @@ class MessageService {
         direction: 'inbound',
         senderIdentifier: fromPhone,
         recipientIdentifier: toPhone,
+        agentEmail: derivedAgentEmail,
         timestamp: new Date(),
-        workspaceId: process.env.WORKSPACE_ID, // Obtener del contexto
-        tenantId: process.env.TENANT_ID, // Si aplica
+        workspaceId: derivedWorkspaceId,
+        tenantId: derivedTenantId,
         metadata: {
           twilioSid: MessageSid,
           generatedId: true,

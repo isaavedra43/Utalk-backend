@@ -437,9 +437,12 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // Asegurar que participants incluya el sender (cliente)
+        // Asegurar que participants incluya el cliente y el agente (email)
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
-        const participants = [...new Set([...existingParticipants, msg.senderIdentifier])];
+        const participantsSet = new Set(existingParticipants);
+        if (msg.senderIdentifier) participantsSet.add(msg.senderIdentifier);
+        if (msg.agentEmail) participantsSet.add(msg.agentEmail);
+        const participants = Array.from(participantsSet);
 
         const conversationUpdate = {
           lastMessage,
@@ -465,6 +468,10 @@ class ConversationsRepository {
           conversationUpdate.status = 'open';
           conversationUpdate.createdAt = new Date();
         }
+
+        // Validar y forzar workspaceId/tenantId
+        if (msg.workspaceId) conversationUpdate.workspaceId = msg.workspaceId;
+        if (msg.tenantId) conversationUpdate.tenantId = msg.tenantId;
 
         // Actualizar conversación
         transaction.set(conversationRef, conversationUpdate, { merge: true });
@@ -645,9 +652,13 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // Asegurar que participants incluya sender (agente) y recipient (cliente)
+        // Asegurar que participants incluya sender (agente/email) y recipient (cliente)
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
-        const participants = [...new Set([...existingParticipants, msg.senderIdentifier, msg.recipientIdentifier])];
+        const participantsSet = new Set(existingParticipants);
+        if (msg.senderIdentifier) participantsSet.add(msg.senderIdentifier);
+        if (msg.recipientIdentifier) participantsSet.add(msg.recipientIdentifier);
+        if (msg.agentEmail) participantsSet.add(msg.agentEmail);
+        const participants = Array.from(participantsSet);
 
         const conversationUpdate = {
           lastMessage,
