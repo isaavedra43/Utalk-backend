@@ -3,7 +3,7 @@
  * Enmascara datos sensibles para logs sin exponer información personal
  */
 
-export function redactPII(value) {
+function redactPII(value) {
   if (value == null) return value;
   const s = String(value);
   if (s.includes('@')) {
@@ -19,7 +19,7 @@ export function redactPII(value) {
   return '***';
 }
 
-export function redactObj(obj, keys) {
+function redactObj(obj, keys) {
   const out = { ...obj };
   for (const k of keys) {
     if (k in out) out[k] = redactPII(out[k]);
@@ -30,7 +30,7 @@ export function redactObj(obj, keys) {
 /**
  * 🔍 REDACCIÓN ESPECÍFICA PARA LOGS DE CONVERSACIONES
  */
-export function redactConversationLog(conversation) {
+function redactConversationLog(conversation) {
   if (!conversation) return conversation;
   
   return {
@@ -51,7 +51,7 @@ export function redactConversationLog(conversation) {
 /**
  * 🔍 REDACCIÓN ESPECÍFICA PARA LOGS DE MENSAJES
  */
-export function redactMessageLog(message) {
+function redactMessageLog(message) {
   if (!message) return message;
   
   return {
@@ -67,7 +67,7 @@ export function redactMessageLog(message) {
 /**
  * 🔍 REDACCIÓN PARA QUERY DIAGNÓSTICOS
  */
-export function redactQueryLog(queryData) {
+function redactQueryLog(queryData) {
   if (!queryData) return queryData;
   
   return {
@@ -80,4 +80,12 @@ export function redactQueryLog(queryData) {
     workspaceId: redactPII(queryData.workspaceId),
     tenantId: redactPII(queryData.tenantId)
   };
-} 
+}
+
+module.exports = {
+  redactPII,
+  redactObj,
+  redactConversationLog,
+  redactMessageLog,
+  redactQueryLog
+}; 

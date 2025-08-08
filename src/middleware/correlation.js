@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+const { randomUUID } = require('crypto');
 
 const HDR_REQ_ID = 'x-request-id';
 const HDR_TRACE_ID = 'x-trace-id';
@@ -16,7 +16,7 @@ function mask(val) {
   return `${val.slice(0,3)}***${val.slice(-2)}`;
 }
 
-export function correlationMiddleware(req, res, next) {
+function correlationMiddleware(req, res, next) {
   const incomingReqId = req.get(HDR_REQ_ID);
   const incomingTraceId = req.get(HDR_TRACE_ID);
   const requestId = incomingReqId || randomUUID();
@@ -47,4 +47,6 @@ export function correlationMiddleware(req, res, next) {
   }
 
   next();
-} 
+}
+
+module.exports = { correlationMiddleware }; 
