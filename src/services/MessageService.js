@@ -62,7 +62,12 @@ class MessageService {
       // }
 
       if (updateContact) {
-        sideEffects.push(ContactService.updateOrCreateContact(message.senderIdentifier, {
+        sideEffects.push(ContactService.createOrUpdateFromMessage({
+          from: message.senderIdentifier,
+          to: message.recipientIdentifier,
+          direction: message.direction,
+          timestamp: message.timestamp || new Date().toISOString()
+        }, {
           lastMessageAt: new Date(),
           lastMessageContent: message.content,
           lastMessageDirection: message.direction
