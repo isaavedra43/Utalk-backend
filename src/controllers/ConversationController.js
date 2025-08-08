@@ -52,6 +52,20 @@ class ConversationController {
     const startTime = Date.now();
     
     try {
+      // 🔍 DESESTRUCTURACIÓN AL INICIO PARA EVITAR TDZ
+      const {
+        status: statusFilter = 'all',
+        search = '',
+        limit = '20',
+        page = '1'
+      } = req.query || {};
+
+      const userEmail = req.user.email;
+
+      // Validar parámetros
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+
       // 🔍 LOGGING ESTRUCTURADO CON CORRELACIÓN
       req.logger?.info({
         event: 'conversations_list_start',
@@ -63,19 +77,12 @@ class ConversationController {
         },
         user: req.logContext?.userCtx || null,
         filters: {
-          status: status && status !== 'all' ? status : undefined,
+          status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
           search: search ? search.trim() : undefined,
           limit: limitNum,
           page: pageNum
         }
       });
-
-      const { page = 1, limit = 50, status, search } = req.query;
-      const userEmail = req.user.email;
-
-      // Validar parámetros
-      const pageNum = Math.max(1, parseInt(page, 10) || 1);
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
       // Usar el nuevo repositorio unificado
       const conversationsRepo = getConversationsRepository();
@@ -85,7 +92,7 @@ class ConversationController {
         workspaceId: req.user.workspaceId,
         tenantId: req.user.tenantId,
         filters: {
-          status: status && status !== 'all' ? status : undefined,
+          status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
           participantsContains: userEmail, // CRÍTICO: pasar el email del usuario
           search: search ? search.trim() : undefined
         },
@@ -173,8 +180,8 @@ class ConversationController {
           let fallbackQuery = firestore.collection('conversations');
           
           // Aplicar filtros básicos sin ordenamiento
-          if (status && status !== 'all') {
-            fallbackQuery = fallbackQuery.where('status', '==', status);
+          if (statusFilter && statusFilter !== 'all') {
+            fallbackQuery = fallbackQuery.where('status', '==', statusFilter);
           }
           
           fallbackQuery = fallbackQuery.where('participants', 'array-contains', req.user.email);
