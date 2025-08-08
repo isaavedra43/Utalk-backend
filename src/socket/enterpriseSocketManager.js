@@ -32,6 +32,12 @@ const logger = require('../utils/logger');
 const { asyncWrapper, externalServiceWrapper } = require('../utils/errorWrapper');
 const { getAccessTokenConfig } = require('../config/jwt');
 
+// Helper defensivo para evitar "Cannot read properties of undefined (reading 'set')"
+function safeGetSet(map, key) {
+  if (!map.has(key)) map.set(key, new Set());
+  return map.get(key);
+}
+
 // Event definitions con metadata
 const SOCKET_EVENTS = {
   // Connection lifecycle
@@ -162,6 +168,14 @@ class EnterpriseSocketManager {
           monitoring: true,
           gracefulShutdown: true
         }
+      });
+
+      // Log de diagnóstico (sin PII) al conectar
+      logger.socket?.info({
+        event: 'socket.init_ok',
+        rooms: this.rooms.size,
+        sessions: this.userSessions.size,
+        sockets: this.socketConversations.size
       });
 
     } catch (error) {
@@ -1006,10 +1020,10 @@ class EnterpriseSocketManager {
       // Join socket room
       socket.join(roomId);
 
-      // 🔧 SOCKET ROBUSTO: Registrar en estructuras de tracking
-      this.rooms.get(roomId).add(socket.id);
-      this.userSessions.get(userEmail).add(socket.id);
-      this.socketConversations.get(socket.id).add(roomId);
+      // 🔧 SOCKET ROBUSTO: Registrar en estructuras de tracking (DEFENSIVO)
+      safeGetSet(this.rooms, roomId).add(socket.id);
+      safeGetSet(this.userSessions, userEmail).add(socket.id);
+      safeGetSet(this.socketConversations, socket.id).add(roomId);
 
       // Update user session
       const session = this.connectedUsers.get(userEmail);

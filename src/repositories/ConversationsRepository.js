@@ -483,6 +483,11 @@ class ConversationsRepository {
           conversationUpdate.createdAt = new Date();
         }
 
+        // Persistir nombre del cliente (WhatsApp ProfileName) si viene y no existe
+        if (msg.profileName && !conversationDoc?.data()?.customerName) {
+          conversationUpdate.customerName = msg.profileName; // persistir nombre legible
+        }
+
         // Validar y forzar workspaceId/tenantId
         if (msg.workspaceId) conversationUpdate.workspaceId = msg.workspaceId;
         if (msg.tenantId) conversationUpdate.tenantId = msg.tenantId;

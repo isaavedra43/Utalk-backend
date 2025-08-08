@@ -223,7 +223,7 @@ class MessageService {
     const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
-      const { From, To, Body, MessageSid, NumMedia } = webhookData;
+      const { From, To, Body, MessageSid, NumMedia, ProfileName } = webhookData;
 
       // Validar webhook data
       if (!From || !To || !MessageSid) {
@@ -267,6 +267,9 @@ class MessageService {
       const routingTenantId = routing?.tenantId || derivedTenantId;
       const routingAgentEmail = routing?.agentEmail || derivedAgentEmail;
 
+      // Extraer nombre del cliente (WhatsApp ProfileName)
+      const profileName = (ProfileName || '').trim();
+
       // A3: Log de shape inbound (sin PII)
       try {
         logger.info('write.shape_inbound', {
@@ -294,6 +297,7 @@ class MessageService {
         senderIdentifier: fromPhone,
         recipientIdentifier: toPhone,
         agentEmail: routingAgentEmail,
+        profileName: profileName || undefined, // sólo si viene
         timestamp: new Date(),
         workspaceId: routingWorkspaceId,
         tenantId: routingTenantId,

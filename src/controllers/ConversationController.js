@@ -140,6 +140,30 @@ class ConversationController {
         });
       }
 
+      // Helper para convertir timestamps a milisegundos
+      function toMs(ts) {
+        if (!ts) return null;
+        if (typeof ts.toMillis === 'function') return ts.toMillis();
+        if (ts._seconds) return ts._seconds * 1000 + Math.floor((ts._nanoseconds || 0) / 1e6);
+        const d = new Date(ts); return isNaN(d) ? null : d.getTime();
+      }
+
+      // Agregar campos derivados de fechas (non-breaking)
+      filteredConversations = filteredConversations.map(conv => {
+        const ms = toMs(conv.lastMessageAt);
+        conv.lastMessageAtMs = ms;
+        conv.lastMessageAtISO = ms ? new Date(ms).toISOString() : null;
+
+        // Si devuelves lastMessage.timestamp, aplica lo mismo
+        if (conv.lastMessage?.timestamp) {
+          const tms = toMs(conv.lastMessage.timestamp);
+          conv.lastMessage.timestampMs = tms;
+          conv.lastMessage.timestampISO = tms ? new Date(tms).toISOString() : null;
+        }
+
+        return conv;
+      });
+
       // 🔍 LOGGING ESTRUCTURADO DE FINALIZACIÓN
       const durationMs = Date.now() - startTime;
       req.logger?.info({
