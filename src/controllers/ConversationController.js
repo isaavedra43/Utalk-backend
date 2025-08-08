@@ -73,6 +73,7 @@ class ConversationController {
         tenantId: req.user.tenantId,
         filters: {
           status: status && status !== 'all' ? status : undefined,
+          participantsContains: userEmail, // CRÍTICO: pasar el email del usuario
           search: search ? search.trim() : undefined
         },
         pagination: {

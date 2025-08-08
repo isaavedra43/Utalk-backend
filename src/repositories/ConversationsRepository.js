@@ -56,8 +56,8 @@ class ConversationsRepository {
       pagination = {}
     } = params;
 
-    const { status, assignedTo, search } = filters;
-    const { limit = 20, cursor } = pagination;
+    const { status, assignedTo, participantsContains } = filters;
+    const { limit = 50, cursor } = pagination;
 
     let query = firestore.collection(this.collectionPath);
 
@@ -80,10 +80,9 @@ class ConversationsRepository {
       query = query.where('assignedTo', '==', assignedTo);
     }
 
-    // Aplicar búsqueda (básica por customerPhone)
-    if (search) {
-      query = query.where('customerPhone', '>=', search)
-                   .where('customerPhone', '<=', search + '\uf8ff');
+    // Aplicar filtro de participantes (array-contains) - CRÍTICO
+    if (participantsContains) {
+      query = query.where('participants', 'array-contains', participantsContains);
     }
 
     // Ordenar por última actividad
@@ -116,7 +115,20 @@ class ConversationsRepository {
   _extractWheres(query) {
     // Esta es una implementación simplificada
     // En una implementación real, necesitarías acceder a los where clauses del query
-    return ['workspaceId', 'tenantId', 'status', 'assignedTo', 'customerPhone'].filter(Boolean);
+    const wheres = [];
+    
+    // Reconstruir wheres basado en los parámetros típicos
+    if (this.tenantMode) {
+      wheres.push({ field: 'workspaceId', op: '==', value: 'masked' });
+      wheres.push({ field: 'tenantId', op: '==', value: 'masked' });
+    }
+    
+    // Filtros comunes
+    wheres.push({ field: 'participants', op: 'array-contains', value: 'masked' });
+    wheres.push({ field: 'status', op: '==', value: 'masked' });
+    wheres.push({ field: 'assignedTo', op: '==', value: 'masked' });
+    
+    return wheres.filter(Boolean);
   }
 
   /**
@@ -162,22 +174,60 @@ class ConversationsRepository {
     const startTime = Date.now();
     const { workspaceId, tenantId, filters = {}, pagination = {} } = params;
 
+    // Helper para enmascarar PII
+    const maskEmail = (email) => {
+      if (!email) return null;
+      const [name, domain] = email.split('@');
+      if (!name || !domain) return 'invalid_email';
+      return `${name.charAt(0)}***@${domain}`;
+    };
+
+    const maskPhone = (phone) => {
+      if (!phone) return null;
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length <= 4) return '****';
+      
+      const internationalPrefixMatch = phone.match(/^(\+\d{1,4})?(\d+)$/);
+      if (internationalPrefixMatch) {
+        const prefix = internationalPrefixMatch[1] || '';
+        const numberPart = internationalPrefixMatch[2];
+        if (numberPart.length <= 4) return `${prefix}****`;
+        return `${prefix}${numberPart.substring(0, numberPart.length - 4)}****${numberPart.substring(numberPart.length - 2)}`;
+      }
+      
+      return phone.substring(0, phone.length - 4) + '****' + phone.substring(phone.length - 2);
+    };
+
     try {
       // Construir query tenant-first
       const { query: tenantQuery, debug: tenantDebug } = this.buildQuery(params);
       
-      if (this.verboseLogs) {
-        logger.info('conversations_repo:query', {
+      // --- LOGS DE DIAGNÓSTICO (solo si LOG_CONV_DIAG=true) ---
+      if (process.env.LOG_CONV_DIAG === 'true') {
+        const diagnosticLog = {
           event: 'conversations_repo:query',
           collectionPath: this.collectionPath,
-          wheres: tenantDebug.wheres,
-          orderBy: tenantDebug.orderBy,
-          limit: tenantDebug.limit,
-          cursor: tenantDebug.cursor,
+          wheres: [
+            ...(this.tenantMode && workspaceId ? [{ field: 'workspaceId', op: '==', value: 'masked' }] : []),
+            ...(this.tenantMode && tenantId ? [{ field: 'tenantId', op: '==', value: 'masked' }] : []),
+            ...(filters.status && filters.status !== 'all' ? [{ field: 'status', op: '==', value: filters.status }] : []),
+            ...(filters.assignedTo ? [{ field: 'assignedTo', op: '==', value: maskEmail(filters.assignedTo) }] : []),
+            ...(filters.participantsContains ? [{ field: 'participants', op: 'array-contains', value: maskEmail(filters.participantsContains) }] : [])
+          ],
+          orderBy: 'lastMessageAt desc',
+          limit: pagination.limit || 50,
+          cursor: pagination.cursor ? 'present' : 'none',
           tenantMode: this.tenantMode,
           legacyCompat: this.legacyCompat,
-          user: { workspaceId, tenantId }
-        });
+          user: {
+            emailMasked: maskEmail(filters.participantsContains),
+            workspaceId: workspaceId ? 'present' : 'none',
+            tenantId: tenantId ? 'present' : 'none'
+          },
+          ts: new Date().toISOString()
+        };
+
+        logger.info('conversations_diag', diagnosticLog);
       }
 
       // Ejecutar query tenant
@@ -231,6 +281,21 @@ class ConversationsRepository {
       const hasNext = conversations.length === pagination.limit;
       const nextCursor = hasNext ? conversations[conversations.length - 1]?.id : null;
 
+      // --- LOGS DE DIAGNÓSTICO POST-QUERY (solo si LOG_CONV_DIAG=true) ---
+      if (process.env.LOG_CONV_DIAG === 'true') {
+        const postQueryLog = {
+          event: 'conversations_repo:post_query',
+          snapshotSize: conversations.length,
+          source,
+          durationMs: duration,
+          hasNext,
+          nextCursor: nextCursor ? 'present' : 'none',
+          ts: new Date().toISOString()
+        };
+
+        logger.info('conversations_diag', postQueryLog);
+      }
+
       const result = {
         conversations,
         hasNext,
@@ -258,6 +323,22 @@ class ConversationsRepository {
       return result;
 
     } catch (error) {
+      // --- LOGS DE DIAGNÓSTICO DE ERROR (solo si LOG_CONV_DIAG=true) ---
+      if (process.env.LOG_CONV_DIAG === 'true') {
+        const errorLog = {
+          event: 'conversations_repo:error',
+          error: {
+            name: error.name,
+            message: error.message
+          },
+          stack: error.stack,
+          durationMs: Date.now() - startTime,
+          ts: new Date().toISOString()
+        };
+
+        logger.error('conversations_diag', errorLog);
+      }
+
       if (this.verboseLogs) {
         logger.error('conversations_repo:list_error', {
           event: 'conversations_repo:list_error',
