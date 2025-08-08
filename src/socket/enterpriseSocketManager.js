@@ -2088,12 +2088,13 @@ class EnterpriseSocketManager {
       const memoryPressure = memoryUsage.heapUsed / memoryUsage.heapTotal;
       
       if (memoryPressure > 0.85) { // 85% memory usage
-        logger.warn('High memory pressure detected, performing aggressive cleanup', {
-          category: 'SOCKET_MEMORY_PRESSURE',
-          memoryPressure: (memoryPressure * 100).toFixed(2) + '%',
-          heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
-          heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB'
-        });
+        // DESACTIVADO: Log excesivo de memoria
+        // logger.warn('High memory pressure detected, performing aggressive cleanup', {
+        //   category: 'SOCKET_MEMORY_PRESSURE',
+        //   memoryPressure: (memoryPressure * 100).toFixed(2) + '%',
+        //   heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+        //   heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB'
+        // });
 
         // Aggressive cleanup under memory pressure
         this.performAggressiveCleanup();
@@ -2139,9 +2140,10 @@ class EnterpriseSocketManager {
    * Cleanup agresivo para situaciones de alta presión de memoria
    */
   performAggressiveCleanup() {
-    logger.warn('Performing aggressive memory cleanup due to memory pressure', {
-      category: 'SOCKET_AGGRESSIVE_CLEANUP'
-    });
+    // DESACTIVADO: Log excesivo de cleanup
+    // logger.warn('Performing aggressive memory cleanup due to memory pressure', {
+    //   category: 'SOCKET_AGGRESSIVE_CLEANUP'
+    // });
 
     // 1. Clear old user role cache entries
     if (this.userRoleCache.size > 10000) {
@@ -2152,11 +2154,12 @@ class EnterpriseSocketManager {
         this.userRoleCache.delete(key);
       }
       
-      logger.info('Aggressive cleanup: User role cache reduced', {
-        category: 'SOCKET_AGGRESSIVE_CACHE_CLEANUP',
-        deletedEntries: toDelete.length,
-        remainingEntries: this.userRoleCache.size
-      });
+      // DESACTIVADO: Log de cleanup de cache
+      // logger.info('Aggressive cleanup: User role cache reduced', {
+      //   category: 'SOCKET_AGGRESSIVE_CACHE_CLEANUP',
+      //   deletedEntries: toDelete.length,
+      //   remainingEntries: this.userRoleCache.size
+      // });
     }
 
     // 2. Clear all rate limiting entries older than 5 minutes
@@ -2171,11 +2174,12 @@ class EnterpriseSocketManager {
       }
     }
 
-    logger.info('Aggressive cleanup: Rate limit entries cleared', {
-      category: 'SOCKET_AGGRESSIVE_RATE_CLEANUP',
-      cleanedCount,
-      remainingEntries: this.rateLimitTracker.size
-    });
+    // DESACTIVADO: Log de cleanup de rate limit
+    // logger.info('Aggressive cleanup: Rate limit entries cleared', {
+    //   category: 'SOCKET_AGGRESSIVE_RATE_CLEANUP',
+    //   cleanedCount,
+    //   remainingEntries: this.rateLimitTracker.size
+    // });
 
     // 3. Force immediate garbage collection
     if (global.gc) {
