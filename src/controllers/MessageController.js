@@ -70,14 +70,14 @@ class MessageController {
       });
 
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      logger.database('query_started', {
+      logger.info('query_started', {
         operation: 'conversation_exists_check',
         conversationId
       });
 
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
-        logger.database('document_not_found', {
+        logger.info('document_not_found', {
           operation: 'conversation_by_id',
           conversationId
         });
@@ -109,7 +109,7 @@ class MessageController {
         order
       };
 
-      logger.database('query_started', {
+      logger.info('query_started', {
         operation: 'messages_by_conversation',
         conversationId,
         searchOptions
@@ -172,14 +172,14 @@ class MessageController {
       });
 
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      logger.database('query_started', {
+      logger.info('query_started', {
         operation: 'conversation_validation',
         conversationId
       });
 
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
-        logger.database('document_not_found', {
+        logger.info('document_not_found', {
           operation: 'conversation_by_id_for_message',
           conversationId
         });

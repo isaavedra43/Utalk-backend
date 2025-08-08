@@ -85,7 +85,7 @@ class ConversationController {
       query = query.limit(limitNum);
 
       // Ejecutar query
-      logger.database('executing_conversations_query', {
+      logger.info('executing_conversations_query', {
         userEmail,
         pageNum,
         limitNum,
@@ -95,7 +95,7 @@ class ConversationController {
 
       const snapshot = await query.get();
 
-      logger.database('conversations_query_executed', {
+      logger.info('conversations_query_executed', {
         docsCount: snapshot.docs.length,
         isEmpty: snapshot.empty,
         userEmail
