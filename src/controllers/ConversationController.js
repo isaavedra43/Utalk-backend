@@ -25,6 +25,7 @@
  */
 
 const ConversationService = require('../services/ConversationService');
+const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
@@ -63,99 +64,35 @@ class ConversationController {
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
-      // Construir query base
-      let query = firestore.collection('conversations');
-
-      // Aplicar filtros
-      if (status && status !== 'all') {
-        query = query.where('status', '==', status);
-      }
-
-      // Filtro por participante
-      query = query.where('participants', 'array-contains', userEmail);
-
-      // Ordenar por última actividad
-      query = query.orderBy('lastMessageAt', 'desc');
-
-      // Aplicar paginación
-      const offset = (pageNum - 1) * limitNum;
-      if (offset > 0) {
-        query = query.offset(offset);
-      }
-      query = query.limit(limitNum);
-
-      // Ejecutar query
-      logger.info('executing_conversations_query', {
-        userEmail,
-        pageNum,
-        limitNum,
-        hasStatusFilter: !!status,
-        hasSearchFilter: !!search
-      });
-
-      const snapshot = await query.get();
-
-      logger.info('conversations_query_executed', {
-        docsCount: snapshot.docs.length,
-        isEmpty: snapshot.empty,
-        userEmail
-      });
-
-      // Procesar conversaciones
-      const conversations = [];
-
-      for (const doc of snapshot.docs) {
-        try {
-          // ✅ NUEVO: Debug logging para cada documento
-          logger.debug('doc_data', {
-            docId: doc.id,
-            data: doc.data()
-          }, 'processing_doc');
-
-          const conversationData = doc.data();
-
-          // ✅ NUEVO: Validación de datos de conversación
-          logger.debug('conversationData', {
-            docId: doc.id,
-            conversationData
-          }, 'before_processing');
-
-          const conversation = new Conversation(doc.id, conversationData);
-          const conversationJSON = conversation.toJSON();
-
-          // ✅ NUEVO: Logging después de procesamiento
-          logger.debug('created_conversation', {
-            docId: doc.id,
-            conversation: conversationJSON
-          }, 'after_creation');
-
-          // ✅ NUEVO: Logging del JSON final
-          logger.debug('conversation_json', {
-            docId: doc.id,
-            conversationJSON
-          }, 'after_toJSON');
-
-          conversations.push(conversationJSON);
-
-        } catch (docError) {
-          logger.error('doc_processing_error', {
-            docId: doc.id,
-            error: docError.message,
-            stack: docError.stack
-          });
-          continue;
+      // Usar el nuevo repositorio unificado
+      const conversationsRepo = getConversationsRepository();
+      
+      // Preparar parámetros para el repositorio
+      const repoParams = {
+        workspaceId: req.user.workspaceId,
+        tenantId: req.user.tenantId,
+        filters: {
+          status: status && status !== 'all' ? status : undefined,
+          search: search ? search.trim() : undefined
+        },
+        pagination: {
+          limit: limitNum,
+          cursor: req.query.cursor
         }
-      }
+      };
 
-      // Aplicar filtro de búsqueda si existe
-      let filteredConversations = conversations;
+      // Ejecutar query a través del repositorio
+      const result = await conversationsRepo.list(repoParams);
+
+      // Aplicar filtro de búsqueda post-snapshot si es necesario
+      let filteredConversations = result.conversations;
       if (search && search.trim()) {
         const searchTerm = search.toLowerCase().trim();
 
-        filteredConversations = conversations.filter(conv => {
+        filteredConversations = result.conversations.filter(conv => {
           try {
             const matchesContact = conv.contact?.name?.toLowerCase().includes(searchTerm) ||
-                                  conv.contact?.identifier?.toLowerCase().includes(searchTerm);
+                                  conv.contact?.phone?.toLowerCase().includes(searchTerm);
             
             const matchesParticipants = conv.participants?.some(p => 
               p.toLowerCase().includes(searchTerm)
@@ -174,18 +111,16 @@ class ConversationController {
         });
       }
 
-      // Calcular tiempo de respuesta
-      const responseTime = Date.now() - startTime;
-
-      logger.info('get_conversations_success', {
+      // Logging de resultados
+      logger.info('conversations_query_executed', {
+        docsCount: result.conversations.length,
+        filteredCount: filteredConversations.length,
         userEmail,
-        conversationsCount: filteredConversations.length,
-        responseTime,
-        pageNum,
-        limitNum
+        source: result.debug?.source,
+        duration_ms: Date.now() - startTime
       });
 
-      // 📤 RESPUESTA ESTÁNDAR
+      // Retornar respuesta manteniendo el contrato HTTP existente
       return ResponseHandler.success(
         res,
         filteredConversations,
@@ -241,7 +176,6 @@ class ConversationController {
 
           logger.info('fallback_query_success', {
             userEmail: req.user?.email,
-            conversationsCount: fallbackConversations.length,
             message: 'Query temporal exitosa mientras se construye el índice'
           });
 
