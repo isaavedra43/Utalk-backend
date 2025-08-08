@@ -201,9 +201,10 @@ function databaseLoggingMiddleware(req, res, next) {
   // Interceptar operaciones de base de datos
   const originalQuery = req.query;
   
-  req.logger = {
-    database: (operation, data) => {
-      logger.info('🗄️ Operación de base de datos', {
+  const base = req.logger || logger;
+  if (typeof base.database !== 'function') {
+    base.database = (operation, data) => {
+      base.info('🗄️ Operación de base de datos', {
         operation,
         data,
         method: req.method,
@@ -211,10 +212,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    auth: (operation, data) => {
-      logger.info('🔐 Operación de autenticación', {
+    };
+  }
+  if (typeof base.auth !== 'function') {
+    base.auth = (operation, data) => {
+      base.info('🔐 Operación de autenticación', {
         operation,
         data,
         method: req.method,
@@ -222,10 +224,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    message: (operation, data) => {
-      logger.info('💬 Operación de mensajes', {
+    };
+  }
+  if (typeof base.message !== 'function') {
+    base.message = (operation, data) => {
+      base.info('💬 Operación de mensajes', {
         operation,
         data,
         method: req.method,
@@ -233,10 +236,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    media: (operation, data) => {
-      logger.info('📁 Operación de media', {
+    };
+  }
+  if (typeof base.media !== 'function') {
+    base.media = (operation, data) => {
+      base.info('📁 Operación de media', {
         operation,
         data,
         method: req.method,
@@ -244,10 +248,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    twilio: (operation, data) => {
-      logger.info('📞 Operación de Twilio', {
+    };
+  }
+  if (typeof base.twilio !== 'function') {
+    base.twilio = (operation, data) => {
+      base.info('📞 Operación de Twilio', {
         operation,
         data,
         method: req.method,
@@ -255,10 +260,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    socket: (operation, data) => {
-      logger.info('🔌 Operación de Socket.IO', {
+    };
+  }
+  if (typeof base.socket !== 'function') {
+    base.socket = (operation, data) => {
+      base.info('🔌 Operación de Socket.IO', {
         operation,
         data,
         method: req.method,
@@ -266,10 +272,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    security: (operation, data) => {
-      logger.warn('🛡️ Operación de seguridad', {
+    };
+  }
+  if (typeof base.security !== 'function') {
+    base.security = (operation, data) => {
+      base.warn('🛡️ Operación de seguridad', {
         operation,
         data,
         method: req.method,
@@ -277,10 +284,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    error: (message, data) => {
-      logger.error('❌ Error en operación', {
+    };
+  }
+  if (typeof base.error !== 'function') {
+    base.error = (message, data) => {
+      base.info('❌ Error en operación', {
         message,
         data,
         method: req.method,
@@ -288,10 +296,11 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    success: (operation, data) => {
-      logger.info('✅ Operación exitosa', {
+    };
+  }
+  if (typeof base.success !== 'function') {
+    base.success = (operation, data) => {
+      base.info('✅ Operación exitosa', {
         operation,
         data,
         method: req.method,
@@ -299,12 +308,14 @@ function databaseLoggingMiddleware(req, res, next) {
         requestId: req.requestId,
         timestamp: new Date().toISOString()
       });
-    },
-    
-    debug: (operation, data) => {
-      // Log removido para reducir ruido en producción
-    }
-  };
+    };
+  }
+  if (typeof base.debug !== 'function') {
+    base.debug = (operation, data) => {
+      // opcional
+    };
+  }
+  req.logger = base;
 
   next();
 }

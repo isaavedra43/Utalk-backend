@@ -1,0 +1,12 @@
+{
+  "+1234567890": {
+    "workspaceId": "wsA",
+    "tenantId": "tenA",
+    "agentEmail": "agente@tuempresa.com"
+  },
+  "+0987654321": {
+    "workspaceId": "wsB",
+    "tenantId": "tenB", 
+    "agentEmail": "agente2@tuempresa.com"
+  }
+} 

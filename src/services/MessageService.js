@@ -54,15 +54,15 @@ class MessageService {
       // Crear el mensaje
       const message = await Message.create(messageData, messageData.id);
 
-      // Efectos secundarios en paralelo
-      const sideEffects = [];
+        // Efectos secundarios en paralelo
+        const sideEffects = [];
 
       // ACTUALIZACIÓN DE CONVERSACIÓN DESHABILITADA (SE HACE EN Message.create)
       // if (updateConversation) {
       //   sideEffects.push(this.updateConversationWithMessage(message));
       // }
 
-      if (updateContact) {
+        if (updateContact) {
         sideEffects.push(ContactService.createOrUpdateFromMessage({
           from: message.senderIdentifier,
           to: message.recipientIdentifier,
@@ -81,19 +81,19 @@ class MessageService {
       }
 
       logger.info('✅ MENSAJE PROCESADO Y GUARDADO', {
-        requestId,
-        messageId: message.id,
-        conversationId: message.conversationId,
+          requestId,
+          messageId: message.id,
+          conversationId: message.conversationId,
         sender: message.senderIdentifier,
         recipient: message.recipientIdentifier,
         contentPreview: message.content?.substring(0, 50),
-        type: message.type,
+          type: message.type,
         direction: message.direction,
         hasMedia: !!message.mediaUrl,
         timestamp: message.timestamp
-      });
+        });
 
-      return message;
+        return message;
 
     } catch (error) {
       logger.error('❌ MESSAGE.CREATE - CRITICAL ERROR', {
@@ -231,28 +231,28 @@ class MessageService {
       }
 
       // Verificar si el mensaje ya existe (duplicados)
-      const existingMessage = await Message.getByTwilioSid(MessageSid);
-      if (existingMessage) {
+        const existingMessage = await Message.getByTwilioSid(MessageSid);
+        if (existingMessage) {
         console.log('🚨 MESSAGE DUPLICATE DETECTED:', {
-          requestId,
+            requestId,
           messageSid: MessageSid,
-          existingMessageId: existingMessage.id,
+            existingMessageId: existingMessage.id,
           step: 'duplicate_detected'
-        });
+          });
         return { success: true, duplicate: true };
       }
 
       // Normalizar números de teléfono
-      const fromPhone = normalizePhoneNumber(From);
-      const toPhone = normalizePhoneNumber(To);
-
+        const fromPhone = normalizePhoneNumber(From);
+        const toPhone = normalizePhoneNumber(To);
+        
       if (!fromPhone || !toPhone) {
         throw new Error('Números de teléfono inválidos después de normalización');
       }
 
       // Generar conversationId
-      const conversationId = generateConversationId(fromPhone, toPhone);
-
+        const conversationId = generateConversationId(fromPhone, toPhone);
+        
       // Derivar workspace/tenant (nunca undefined)
       const derivedWorkspaceId = process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace';
       const derivedTenantId = process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant';
@@ -260,24 +260,53 @@ class MessageService {
       // Derivar email de agente (si no se conoce, usar sistema)
       const derivedAgentEmail = process.env.DEFAULT_AGENT_EMAIL || 'system@utalk.local';
 
+      // Resolver routing Twilio (config + ENV)
+      const { resolveRouting } = require('../config/twilioRouting');
+      const routing = resolveRouting({ toPhone: toPhone, fromPhone: fromPhone });
+      const routingWorkspaceId = routing?.workspaceId || derivedWorkspaceId;
+      const routingTenantId = routing?.tenantId || derivedTenantId;
+      const routingAgentEmail = routing?.agentEmail || derivedAgentEmail;
+
+      // A3: Log de shape inbound (sin PII)
+      try {
+        logger.info('write.shape_inbound', {
+          sources: {
+            hasRoutingConfig: !!routing,
+            envWorkspace: !!derivedWorkspaceId,
+            envTenant: !!derivedTenantId,
+            envDefaultAgent: !!derivedAgentEmail
+          },
+          routingResolved: {
+            wsPresent: !!routingWorkspaceId,
+            tenPresent: !!routingTenantId,
+            agentEmailPresent: !!routingAgentEmail
+          }
+        });
+      } catch (_) {}
+
       // Preparar datos normalizados para el repositorio
-      const messageData = {
+        const messageData = {
         conversationId,
         messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        content: Body || '',
+          content: Body || '',
         type: 'text',
-        direction: 'inbound',
+          direction: 'inbound',
         senderIdentifier: fromPhone,
         recipientIdentifier: toPhone,
-        agentEmail: derivedAgentEmail,
+        agentEmail: routingAgentEmail,
         timestamp: new Date(),
-        workspaceId: derivedWorkspaceId,
-        tenantId: derivedTenantId,
-        metadata: {
+        workspaceId: routingWorkspaceId,
+        tenantId: routingTenantId,
+          metadata: {
           twilioSid: MessageSid,
           generatedId: true,
           timestamp: new Date().toISOString(),
-          uniqueTimestamp: Date.now()
+          uniqueTimestamp: Date.now(),
+          routingResolved: {
+            wsPresent: !!routingWorkspaceId,
+            tenPresent: !!routingTenantId,
+            agentEmailPresent: !!routingAgentEmail
+          }
         }
       };
 
@@ -286,7 +315,7 @@ class MessageService {
       const result = await conversationsRepo.upsertFromInbound(messageData);
 
       console.log('🚨 MESSAGE PROCESSED SUCCESSFULLY:', {
-        requestId,
+            requestId,
         messageId: result.message.id,
         conversationId: result.message.conversationId,
         sender: result.message.senderIdentifier,
@@ -302,10 +331,10 @@ class MessageService {
 
       return { success: true, message: result.message, conversation: result.conversation };
 
-    } catch (error) {
+      } catch (error) {
       console.log('🚨 MESSAGESERVICE ERROR:', {
-        requestId,
-        error: error.message,
+            requestId,
+            error: error.message,
         errorType: error.constructor.name,
         webhookData: {
           From: webhookData?.From,
@@ -314,7 +343,7 @@ class MessageService {
           hasBody: !!webhookData?.Body
         },
         step: 'process_incoming_error'
-      });
+          });
       
       logger.error('❌ MESSAGESERVICE - ERROR CRÍTICO', {
         requestId,

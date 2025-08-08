@@ -70,11 +70,15 @@ class ConversationController {
       const hasInfo = typeof req.logger?.info === 'function';
       const hasAuth = typeof req.logger?.auth === 'function';
       const hasDatabase = typeof req.logger?.database === 'function';
+      const hasChild = typeof req.logger?.child === 'function';
+      try {
+        logger.info('logger.shape', { hasInfo, hasAuth, hasDatabase, hasChild });
+      } catch (_) {}
       req.logger?.info({
         event: 'conversations_list_start',
         requestId: req.requestId,
         traceId: req.traceId,
-        loggerShape: { hasInfo, hasAuth, hasDatabase },
+        loggerShape: { hasInfo, hasAuth, hasDatabase, hasChild },
         http: {
           method: req.method,
           path: req.path

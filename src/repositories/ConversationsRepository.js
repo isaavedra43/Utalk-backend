@@ -223,10 +223,15 @@ class ConversationsRepository {
             workspaceId: workspaceId ? 'present' : 'none',
             tenantId: tenantId ? 'present' : 'none'
           },
-          ts: new Date().toISOString()
+          ts: new Date().toISOString(),
+          // A2: índice requerido (aprox) según combinación
+          indexHint: {
+            primary: workspaceId ? 'workspaceId + lastMessageAt desc' : (filters.participantsContains ? 'participants array-contains + lastMessageAt desc' : 'UNKNOWN'),
+            withStatus: filters.status && filters.status !== 'all' ? 'workspaceId + status + lastMessageAt desc' : 'optional'
+          }
         };
 
-        logger.info('conversations_diag', diagnosticLog);
+        logger.info('list.query_shape', diagnosticLog);
       }
 
       // Ejecutar query única (sin fallbacks)

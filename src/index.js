@@ -765,6 +765,28 @@ class ConsolidatedServer {
         console.error('❌ Error configurando /api/auth:', error.message);
       }
 
+      // Log único de pipelines (A1)
+      try {
+        logger.info('pipelines.ok', {
+          routes: {
+            list_conversations: [
+              'correlationMiddleware',
+              'databaseLoggingMiddleware(/api)',
+              'authMiddleware',
+              'requireReadAccess',
+              'conversationValidators.validateList',
+              'ConversationController.listConversations'
+            ],
+            webhook_inbound: [
+              'correlationMiddleware',
+              'databaseLoggingMiddleware(/api)',
+              'messageValidators.validateWebhook',
+              'MessageController.handleWebhookSafe'
+            ]
+          }
+        });
+      } catch (_) {}
+
       try {
         console.log('👥 Intentando configurar /api/contacts...');
         this.app.use('/api/contacts', contactRoutes);

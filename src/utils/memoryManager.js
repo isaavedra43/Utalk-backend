@@ -263,11 +263,11 @@ class AdvancedMemoryManager extends EventEmitter {
       // Solo loggear si no se ha loggeado recientemente (evitar spam)
       const now = Date.now();
       if (!this.lastMemoryWarning || (now - this.lastMemoryWarning) > 60000) { // 1 minuto
-        this.triggerWarningAlert('HIGH_MEMORY_USAGE', {
-          current: memoryUsage,
-          threshold: this.config.memoryWarningThreshold,
-          ratio: (memoryUsage / this.config.memoryWarningThreshold).toFixed(2)
-        });
+      this.triggerWarningAlert('HIGH_MEMORY_USAGE', {
+        current: memoryUsage,
+        threshold: this.config.memoryWarningThreshold,
+        ratio: (memoryUsage / this.config.memoryWarningThreshold).toFixed(2)
+      });
         this.lastMemoryWarning = now;
       }
     }

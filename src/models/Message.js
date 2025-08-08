@@ -74,28 +74,28 @@ class Message {
    */
   static async create (messageData, uniqueMessageId) {
     const requestId = `msg_create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const message = new Message(messageData);
+
+      try {
+        const message = new Message(messageData);
 
       // Check if conversation exists, if not, create it
-      const conversationRef = firestore.collection('conversations').doc(message.conversationId);
-      const conversationDoc = await conversationRef.get();
+          const conversationRef = firestore.collection('conversations').doc(message.conversationId);
+          const conversationDoc = await conversationRef.get();
 
-      if (!conversationDoc.exists) {
+          if (!conversationDoc.exists) {
         // Create the parent conversation document
-        await conversationRef.set({
-          id: message.conversationId,
-          customerPhone: message.senderIdentifier,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          lastMessage: {
-            content: message.content,
-            timestamp: new Date(),
-            sender: message.senderIdentifier
+            await conversationRef.set({
+              id: message.conversationId,
+              customerPhone: message.senderIdentifier,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lastMessage: {
+                content: message.content,
+                timestamp: new Date(),
+                sender: message.senderIdentifier
           },
           messageCount: 1
-        });
+            });
       }
 
       // Update conversation with last message and increment count
@@ -103,7 +103,7 @@ class Message {
         lastMessage: {
           content: message.content,
           timestamp: new Date(),
-          sender: message.senderIdentifier,
+            sender: message.senderIdentifier,
           messageId: uniqueMessageId
         },
         messageCount: admin.firestore.FieldValue.increment(1),
@@ -131,25 +131,25 @@ class Message {
 
       // === LOG CRÍTICO DESPUÉS DE FIRESTORE SAVE ===
       console.log('🚨 MESSAGE SAVED SUCCESSFULLY:', { 
-        requestId, 
+          requestId,
         messageId: uniqueMessageId, 
-        conversationId: message.conversationId,
+          conversationId: message.conversationId,
         firestorePath: `conversations/${message.conversationId}/messages/${uniqueMessageId}`,
         dataKeys: Object.keys(firestoreData),
         step: 'firestore_save_success' 
-      });
+        });
 
-      return message;
+        return message;
 
     } catch (error) {
       console.log('🚨 MESSAGE.CREATE ERROR:', {
-        requestId,
+          requestId,
         error: error.message,
         errorType: error.constructor.name,
         messageId: uniqueMessageId,
         conversationId: messageData?.conversationId,
         step: 'firestore_save_error'
-      });
+        });
       
       logger.error('❌ MESSAGE.CREATE - CRITICAL ERROR', {
         requestId,

@@ -60,7 +60,7 @@ class ProductionHealthCheckService {
    */
   async initialize() {
     if (this.isRunning) return;
-    
+
     logger.info('🏥 Health Check Service DESACTIVADO temporalmente para permitir despliegue...', {
       category: 'HEALTH_INIT'
     });
