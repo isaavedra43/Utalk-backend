@@ -24,6 +24,7 @@ const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const { validatePhoneNumber } = require('../middleware/phoneValidation');
 const FileService = require('../services/FileService');
+const MessageService = require('../services/MessageService');
 
 class MessageController {
   /**
@@ -766,13 +767,13 @@ class MessageController {
       });
 
       // Procesar mensaje usando MessageService (que incluye ContactService)
-      const message = await MessageService.processIncomingMessage(req.body);
+      const { message, conversation } = await MessageService.processIncomingMessage(req.body);
 
       // === LOG DE EMERGENCIA DESPUÉS DE MESSAGESERVICE ===
       console.log('🚨 EMERGENCY AFTER MESSAGESERVICE:', {
         requestId,
         messageId: message?.id,
-        conversationId: message?.conversationId,
+        conversationId: conversation?.id || message?.conversationId,
         success: !!message,
         step: 'after_message_service'
       });
@@ -780,7 +781,7 @@ class MessageController {
       logger.info('✅ MESSAGESERVICE PROCESAMIENTO COMPLETADO', {
         requestId,
         messageId: message.id,
-        conversationId: message.conversationId,
+        conversationId: conversation?.id || message.conversationId,
         contactUpdated: true,
         processTime: Date.now() - startTime,
         step: 'message_service_completed'
@@ -790,7 +791,7 @@ class MessageController {
       logger.info('📤 ENVIANDO RESPUESTA EXITOSA A TWILIO', {
         requestId,
         messageId: message.id,
-        conversationId: message.conversationId,
+        conversationId: conversation?.id || message.conversationId,
         processTime: Date.now() - startTime,
         step: 'sending_success_response'
       });
@@ -799,7 +800,7 @@ class MessageController {
         status: 'success',
         message: 'Mensaje procesado correctamente',
         messageId: message.id,
-        conversationId: message.conversationId,
+        conversationId: conversation?.id || message.conversationId,
         processTime: Date.now() - startTime
       }, 'Mensaje procesado correctamente', 200);
 
