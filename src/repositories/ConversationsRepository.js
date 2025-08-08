@@ -13,6 +13,7 @@
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { FieldValue } = require('firebase-admin/firestore');
+const { redactQueryLog } = require('../utils/redact');
 
 /**
  * ViewModel canónico para conversaciones
@@ -317,7 +318,7 @@ class ConversationsRepository {
    */
   async upsertFromInbound(msg) {
     const startTime = Date.now();
-    const requestId = `upsert_inbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = msg.requestId || `upsert_inbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Helper para enmascarar PII
     const maskEmail = (email) => {
@@ -365,22 +366,19 @@ class ConversationsRepository {
         metadata: msg.metadata || {}
       };
 
-      // --- LOGS DE DIAGNÓSTICO (solo si LOG_MSG_WRITE=true) ---
+      // 🔍 LOGGING ESTRUCTURADO DE INICIO
       if (process.env.LOG_MSG_WRITE === 'true') {
-        const diagnosticLog = {
-          event: 'message_write_attempt',
-          direction: 'inbound',
-          conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
-          messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+        logger.info({
+          event: 'msg_inbound_attempt',
+          requestId,
+          conv: { conversationId: `conv_***${msg.conversationId.slice(-4)}` },
+          msg: { messageId: `MSG_***${msg.messageId.slice(-4)}` },
           workspaceIdMasked: msg.workspaceId ? 'present' : 'none',
           tenantIdMasked: msg.tenantId ? 'present' : 'none',
           senderMasked: maskPhone(msg.senderIdentifier),
           recipientMasked: maskPhone(msg.recipientIdentifier),
-          contentLength: msg.content?.length || 0,
-          ts: new Date().toISOString()
-        };
-
-        logger.info('message_write_diag', diagnosticLog);
+          contentLength: msg.content?.length || 0
+        });
       }
 
       // Transacción atómica: mensaje + conversación
@@ -480,21 +478,18 @@ class ConversationsRepository {
 
       const duration = Date.now() - startTime;
 
-      // --- LOGS DE DIAGNÓSTICO POST-ESCRITURA (solo si LOG_MSG_WRITE=true) ---
+      // 🔍 LOGGING ESTRUCTURADO DE ÉXITO
+      const durationMs = Date.now() - startTime;
       if (process.env.LOG_MSG_WRITE === 'true') {
-        const postWriteLog = {
-          event: 'message_write_success',
-          direction: 'inbound',
-          conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
-          messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
-          wroteMessage: true,
-          updatedConversation: true,
-          conversationExisted: !result.idempotent,
-          durationMs: duration,
-          ts: new Date().toISOString()
-        };
-
-        logger.info('message_write_diag', postWriteLog);
+        logger.info({
+          event: 'msg_inbound_ok',
+          requestId,
+          conv: { conversationId: `conv_***${msg.conversationId.slice(-4)}` },
+          msg: { messageId: `MSG_***${msg.messageId.slice(-4)}` },
+          updates: ['lastMessage', 'lastMessageAt', 'participants', 'unreadCount', 'messageCount'],
+          durationMs,
+          idempotent: result.idempotent
+        });
       }
 
       // Emitir eventos RT (sin tocar el manager)
@@ -503,23 +498,16 @@ class ConversationsRepository {
       return result;
 
     } catch (error) {
-      // --- LOGS DE DIAGNÓSTICO DE ERROR (solo si LOG_MSG_WRITE=true) ---
+      // 🔍 LOGGING ESTRUCTURADO DE ERROR
       if (process.env.LOG_MSG_WRITE === 'true') {
-        const errorLog = {
-          event: 'message_write_error',
-          direction: 'inbound',
-          conversationIdMasked: `conv_***${msg.conversationId?.slice(-4)}`,
-          messageIdMasked: `MSG_***${msg.messageId?.slice(-4)}`,
-          error: {
-            name: error.name,
-            message: error.message
-          },
-          stack: error.stack,
-          durationMs: Date.now() - startTime,
-          ts: new Date().toISOString()
-        };
-
-        logger.error('message_write_diag', errorLog);
+        logger.error({
+          event: 'msg_inbound_error',
+          requestId,
+          conv: { conversationId: `conv_***${msg.conversationId?.slice(-4)}` },
+          msg: { messageId: `MSG_***${msg.messageId?.slice(-4)}` },
+          err: error.message,
+          durationMs: Date.now() - startTime
+        });
       }
 
       throw error;

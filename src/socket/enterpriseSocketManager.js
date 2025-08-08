@@ -488,7 +488,10 @@ class EnterpriseSocketManager {
           userId: decodedToken.userId || email,
           emailMasked: email.substring(0, 20) + '...',
           workspaceId: decodedToken.workspaceId || 'default',
-          tenantId: decodedToken.tenantId || 'na'
+          tenantId: decodedToken.tenantId || 'na',
+          // 🔍 CORRELACIÓN: Agregar requestId/traceId si están disponibles
+          requestId: socket.handshake.headers['x-request-id'] || null,
+          traceId: socket.handshake.headers['x-trace-id'] || null
         };
 
         logger.info('Socket.IO: Authentication successful', {
@@ -2518,16 +2521,20 @@ class EnterpriseSocketManager {
       // Emitir solo a la room específica (nunca a todos)
       this.io.to(roomId).emit(event, payload);
 
-      // Logging estructurado sin PII
+      // 🔍 LOGGING ESTRUCTURADO DE BROADCAST
       if (process.env.SOCKET_LOG_VERBOSE === 'true') {
-        logger.info('broadcastToConversation: Evento emitido', {
-          category: 'SOCKET_BROADCAST_SUCCESS',
-          event,
-          roomId: roomId.substring(0, 30) + '...',
+        logger.info({
+          event: 'broadcast',
+          requestId: payload.requestId || null,
+          rt: { 
+            eventName: event, 
+            roomId: roomId.substring(0, 30) + '...' 
+          },
+          conv: { conversationId: conversationId.substring(0, 20) + '...' },
+          msg: { messageId: payload.messageId || null },
           payloadSize: JSON.stringify(payload).length,
           workspaceId: workspaceId ? 'present' : 'none',
-          tenantId: tenantId ? 'present' : 'none',
-          conversationId: conversationId.substring(0, 20) + '...'
+          tenantId: tenantId ? 'present' : 'none'
         });
       }
 

@@ -34,6 +34,7 @@ const { getHealthCheckService } = require('./services/HealthCheckService'); // A
 
 // Middleware personalizado
 const { authMiddleware } = require('./middleware/auth');
+const { correlationMiddleware } = require('./middleware/correlation');
 
 // Rutas
 const authRoutes = require('./routes/auth');
@@ -434,16 +435,12 @@ class ConsolidatedServer {
       parameterLimit: 20
     }));
 
-    // Logging middleware simple
-    this.app.use((req, res, next) => {
-      req.requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      next();
-    });
+    // 🔍 MIDDLEWARE DE CORRELACIÓN (requestId/traceId)
+    this.app.use(correlationMiddleware);
 
     // Headers de seguridad adicionales
     this.app.use((req, res, next) => {
       res.set({
-        'X-Request-ID': req.requestId,
         'X-Powered-By': 'UTalk-Backend-v4.1-Enterprise',
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',

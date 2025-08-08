@@ -30,6 +30,7 @@ const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');
+const { redactPII } = require('../utils/redact');
 
 class ConversationController {
   /**
@@ -51,10 +52,22 @@ class ConversationController {
     const startTime = Date.now();
     
     try {
-      logger.info('get_conversations_start', {
-        userEmail: req.user.email,
-        userId: req.user.uid,
-        query: req.query
+      // 🔍 LOGGING ESTRUCTURADO CON CORRELACIÓN
+      req.logger?.info({
+        event: 'conversations_list_start',
+        requestId: req.requestId,
+        traceId: req.traceId,
+        http: {
+          method: req.method,
+          path: req.path
+        },
+        user: req.logContext?.userCtx || null,
+        filters: {
+          status: status && status !== 'all' ? status : undefined,
+          search: search ? search.trim() : undefined,
+          limit: limitNum,
+          page: pageNum
+        }
       });
 
       const { page = 1, limit = 50, status, search } = req.query;
@@ -112,13 +125,24 @@ class ConversationController {
         });
       }
 
-      // Logging de resultados
-      logger.info('conversations_query_executed', {
-        docsCount: result.conversations.length,
-        filteredCount: filteredConversations.length,
-        userEmail,
-        source: result.debug?.source,
-        duration_ms: Date.now() - startTime
+      // 🔍 LOGGING ESTRUCTURADO DE FINALIZACIÓN
+      const durationMs = Date.now() - startTime;
+      req.logger?.info({
+        event: 'conversations_list_done',
+        requestId: req.requestId,
+        traceId: req.traceId,
+        http: {
+          method: req.method,
+          path: req.path,
+          status: 200,
+          durationMs
+        },
+        user: req.logContext?.userCtx || null,
+        result: {
+          count: filteredConversations.length,
+          totalCount: result.conversations.length,
+          source: result.debug?.source || 'repository'
+        }
       });
 
       // Retornar respuesta manteniendo el contrato HTTP existente
