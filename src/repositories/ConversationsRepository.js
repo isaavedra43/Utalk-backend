@@ -14,6 +14,7 @@ const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
 const { FieldValue } = require('firebase-admin/firestore');
 const { redactQueryLog } = require('../utils/redact');
+const { getDefaultViewerEmails } = require('../config/defaultViewers');
 
 /**
  * ViewModel canónico para conversaciones
@@ -447,7 +448,15 @@ class ConversationsRepository {
         const participantsSet = new Set(existingParticipants);
         if (msg.senderIdentifier) participantsSet.add(msg.senderIdentifier);
         if (msg.agentEmail) participantsSet.add(msg.agentEmail);
+
+        // NEW: mergear viewers por defecto (sin duplicar)
+        const viewers_in = getDefaultViewerEmails();
+        const sizeBefore_in = participantsSet.size;
+        for (const v of viewers_in) participantsSet.add(String(v || '').toLowerCase().trim());
         const participants = Array.from(participantsSet);
+        if (process.env.LOG_MSG_WRITE === 'true') {
+          logger.info({ event: 'participants.merge', source: 'inbound', before: sizeBefore_in, after: participants.length, added: Math.max(0, participants.length - sizeBefore_in) });
+        }
 
         const conversationUpdate = {
           lastMessage,
@@ -663,7 +672,15 @@ class ConversationsRepository {
         if (msg.senderIdentifier) participantsSet.add(msg.senderIdentifier);
         if (msg.recipientIdentifier) participantsSet.add(msg.recipientIdentifier);
         if (msg.agentEmail) participantsSet.add(msg.agentEmail);
+
+        // NEW: mergear viewers por defecto (sin duplicar)
+        const viewers_out = getDefaultViewerEmails();
+        const sizeBefore_out = participantsSet.size;
+        for (const v of viewers_out) participantsSet.add(String(v || '').toLowerCase().trim());
         const participants = Array.from(participantsSet);
+        if (process.env.LOG_MSG_WRITE === 'true') {
+          logger.info({ event: 'participants.merge', source: 'outbound', before: sizeBefore_out, after: participants.length, added: Math.max(0, participants.length - sizeBefore_out) });
+        }
 
         const conversationUpdate = {
           lastMessage,
