@@ -12,6 +12,7 @@
 
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
+const { FieldValue } = require('firebase-admin/firestore');
 
 /**
  * ViewModel canónico para conversaciones
@@ -348,6 +349,442 @@ class ConversationsRepository {
           duration_ms: Date.now() - startTime
         });
       }
+      throw error;
+    }
+  }
+
+  /**
+   * 🧠 ESCRITOR CANÓNICO: Procesar mensaje entrante (inbound)
+   * Garantiza que cada mensaje inbound deje la conversación en estado canónico
+   * 
+   * @param {object} msg - Datos del mensaje normalizados
+   * @returns {Promise<{message: object, conversation: object}>}
+   */
+  async upsertFromInbound(msg) {
+    const startTime = Date.now();
+    const requestId = `upsert_inbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Helper para enmascarar PII
+    const maskEmail = (email) => {
+      if (!email) return null;
+      const [name, domain] = email.split('@');
+      if (!name || !domain) return 'invalid_email';
+      return `${name.charAt(0)}***@${domain}`;
+    };
+
+    const maskPhone = (phone) => {
+      if (!phone) return null;
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length <= 4) return '****';
+      
+      const internationalPrefixMatch = phone.match(/^(\+\d{1,4})?(\d+)$/);
+      if (internationalPrefixMatch) {
+        const prefix = internationalPrefixMatch[1] || '';
+        const numberPart = internationalPrefixMatch[2];
+        if (numberPart.length <= 4) return `${prefix}****`;
+        return `${prefix}${numberPart.substring(0, numberPart.length - 4)}****${numberPart.substring(numberPart.length - 2)}`;
+      }
+      
+      return phone.substring(0, phone.length - 4) + '****' + phone.substring(phone.length - 2);
+    };
+
+    try {
+      // Validar datos obligatorios
+      if (!msg.conversationId || !msg.messageId || !msg.senderIdentifier) {
+        throw new Error('conversationId, messageId y senderIdentifier son obligatorios');
+      }
+
+      // Normalizar datos
+      const messageData = {
+        id: msg.messageId,
+        conversationId: msg.conversationId,
+        content: msg.content || '',
+        type: msg.type || 'text',
+        direction: 'inbound',
+        status: 'received',
+        senderIdentifier: msg.senderIdentifier,
+        recipientIdentifier: msg.recipientIdentifier,
+        timestamp: msg.timestamp || new Date(),
+        workspaceId: msg.workspaceId,
+        tenantId: msg.tenantId,
+        metadata: msg.metadata || {}
+      };
+
+      // --- LOGS DE DIAGNÓSTICO (solo si LOG_MSG_WRITE=true) ---
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        const diagnosticLog = {
+          event: 'message_write_attempt',
+          direction: 'inbound',
+          conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
+          messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+          workspaceIdMasked: msg.workspaceId ? 'present' : 'none',
+          tenantIdMasked: msg.tenantId ? 'present' : 'none',
+          senderMasked: maskPhone(msg.senderIdentifier),
+          recipientMasked: maskPhone(msg.recipientIdentifier),
+          contentLength: msg.content?.length || 0,
+          ts: new Date().toISOString()
+        };
+
+        logger.info('message_write_diag', diagnosticLog);
+      }
+
+      // Transacción atómica: mensaje + conversación
+      const result = await firestore.runTransaction(async (transaction) => {
+        const conversationRef = firestore.collection(this.collectionPath).doc(msg.conversationId);
+        const messageRef = conversationRef.collection('messages').doc(msg.messageId);
+
+        // Verificar si el mensaje ya existe (idempotencia)
+        const messageDoc = await transaction.get(messageRef);
+        if (messageDoc.exists) {
+          // Mensaje ya existe, no duplicar
+          if (process.env.LOG_MSG_WRITE === 'true') {
+            logger.info('message_write_diag', {
+              event: 'message_write_idempotent',
+              direction: 'inbound',
+              conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
+              messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+              reason: 'message_already_exists',
+              ts: new Date().toISOString()
+            });
+          }
+          return { message: messageDoc.data(), conversation: null, idempotent: true };
+        }
+
+        // Verificar si la conversación existe
+        const conversationDoc = await transaction.get(conversationRef);
+        const conversationExists = conversationDoc.exists;
+
+        // Preparar datos del mensaje para Firestore
+        const messageFirestoreData = {
+          id: msg.messageId,
+          conversationId: msg.conversationId,
+          content: msg.content || '',
+          type: msg.type || 'text',
+          direction: 'inbound',
+          status: 'received',
+          senderIdentifier: msg.senderIdentifier,
+          recipientIdentifier: msg.recipientIdentifier,
+          timestamp: msg.timestamp || new Date(),
+          metadata: msg.metadata || {},
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        // Guardar mensaje
+        transaction.set(messageRef, messageFirestoreData);
+
+        // Preparar actualización de conversación
+        const lastMessage = {
+          messageId: msg.messageId,
+          content: msg.content || '',
+          sender: msg.senderIdentifier,
+          direction: 'inbound',
+          timestamp: msg.timestamp || new Date()
+        };
+
+        const lastMessageAt = msg.timestamp || new Date();
+
+        // Asegurar que participants incluya el sender (cliente)
+        const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
+        const participants = [...new Set([...existingParticipants, msg.senderIdentifier])];
+
+        const conversationUpdate = {
+          lastMessage,
+          lastMessageAt,
+          messageCount: FieldValue.increment(1),
+          unreadCount: FieldValue.increment(1), // inbound suma no-leídos
+          participants,
+          updatedAt: new Date()
+        };
+
+        // Agregar campos tenant si están disponibles
+        if (msg.workspaceId) {
+          conversationUpdate.workspaceId = msg.workspaceId;
+        }
+        if (msg.tenantId) {
+          conversationUpdate.tenantId = msg.tenantId;
+        }
+
+        // Si la conversación no existe, agregar campos obligatorios
+        if (!conversationExists) {
+          conversationUpdate.id = msg.conversationId;
+          conversationUpdate.customerPhone = msg.senderIdentifier;
+          conversationUpdate.status = 'open';
+          conversationUpdate.createdAt = new Date();
+        }
+
+        // Actualizar conversación
+        transaction.set(conversationRef, conversationUpdate, { merge: true });
+
+        return { 
+          message: messageFirestoreData, 
+          conversation: conversationUpdate,
+          idempotent: false
+        };
+      });
+
+      const duration = Date.now() - startTime;
+
+      // --- LOGS DE DIAGNÓSTICO POST-ESCRITURA (solo si LOG_MSG_WRITE=true) ---
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        const postWriteLog = {
+          event: 'message_write_success',
+          direction: 'inbound',
+          conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
+          messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+          wroteMessage: true,
+          updatedConversation: true,
+          conversationExisted: !result.idempotent,
+          durationMs: duration,
+          ts: new Date().toISOString()
+        };
+
+        logger.info('message_write_diag', postWriteLog);
+      }
+
+      // Emitir eventos RT (sin tocar el manager)
+      // TODO: Implementar emisión de eventos RT aquí
+
+      return result;
+
+    } catch (error) {
+      // --- LOGS DE DIAGNÓSTICO DE ERROR (solo si LOG_MSG_WRITE=true) ---
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        const errorLog = {
+          event: 'message_write_error',
+          direction: 'inbound',
+          conversationIdMasked: `conv_***${msg.conversationId?.slice(-4)}`,
+          messageIdMasked: `MSG_***${msg.messageId?.slice(-4)}`,
+          error: {
+            name: error.name,
+            message: error.message
+          },
+          stack: error.stack,
+          durationMs: Date.now() - startTime,
+          ts: new Date().toISOString()
+        };
+
+        logger.error('message_write_diag', errorLog);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * 🧠 ESCRITOR CANÓNICO: Procesar mensaje saliente (outbound)
+   * Garantiza que cada mensaje outbound deje la conversación en estado canónico
+   * 
+   * @param {object} msg - Datos del mensaje normalizados
+   * @returns {Promise<{message: object, conversation: object}>}
+   */
+  async appendOutbound(msg) {
+    const startTime = Date.now();
+    const requestId = `append_outbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Helper para enmascarar PII
+    const maskEmail = (email) => {
+      if (!email) return null;
+      const [name, domain] = email.split('@');
+      if (!name || !domain) return 'invalid_email';
+      return `${name.charAt(0)}***@${domain}`;
+    };
+
+    const maskPhone = (phone) => {
+      if (!phone) return null;
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length <= 4) return '****';
+      
+      const internationalPrefixMatch = phone.match(/^(\+\d{1,4})?(\d+)$/);
+      if (internationalPrefixMatch) {
+        const prefix = internationalPrefixMatch[1] || '';
+        const numberPart = internationalPrefixMatch[2];
+        if (numberPart.length <= 4) return `${prefix}****`;
+        return `${prefix}${numberPart.substring(0, numberPart.length - 4)}****${numberPart.substring(numberPart.length - 2)}`;
+      }
+      
+      return phone.substring(0, phone.length - 4) + '****' + phone.substring(phone.length - 2);
+    };
+
+    try {
+      // Validar datos obligatorios
+      if (!msg.conversationId || !msg.messageId || !msg.senderIdentifier) {
+        throw new Error('conversationId, messageId y senderIdentifier son obligatorios');
+      }
+
+      // Normalizar datos
+      const messageData = {
+        id: msg.messageId,
+        conversationId: msg.conversationId,
+        content: msg.content || '',
+        type: msg.type || 'text',
+        direction: 'outbound',
+        status: 'sent',
+        senderIdentifier: msg.senderIdentifier,
+        recipientIdentifier: msg.recipientIdentifier,
+        timestamp: msg.timestamp || new Date(),
+        workspaceId: msg.workspaceId,
+        tenantId: msg.tenantId,
+        metadata: msg.metadata || {}
+      };
+
+      // --- LOGS DE DIAGNÓSTICO (solo si LOG_MSG_WRITE=true) ---
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        const diagnosticLog = {
+          event: 'message_write_attempt',
+          direction: 'outbound',
+          conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
+          messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+          workspaceIdMasked: msg.workspaceId ? 'present' : 'none',
+          tenantIdMasked: msg.tenantId ? 'present' : 'none',
+          senderMasked: maskEmail(msg.senderIdentifier),
+          recipientMasked: maskPhone(msg.recipientIdentifier),
+          contentLength: msg.content?.length || 0,
+          ts: new Date().toISOString()
+        };
+
+        logger.info('message_write_diag', diagnosticLog);
+      }
+
+      // Transacción atómica: mensaje + conversación
+      const result = await firestore.runTransaction(async (transaction) => {
+        const conversationRef = firestore.collection(this.collectionPath).doc(msg.conversationId);
+        const messageRef = conversationRef.collection('messages').doc(msg.messageId);
+
+        // Verificar si el mensaje ya existe (idempotencia)
+        const messageDoc = await transaction.get(messageRef);
+        if (messageDoc.exists) {
+          // Mensaje ya existe, no duplicar
+          if (process.env.LOG_MSG_WRITE === 'true') {
+            logger.info('message_write_diag', {
+              event: 'message_write_idempotent',
+              direction: 'outbound',
+              conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
+              messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+              reason: 'message_already_exists',
+              ts: new Date().toISOString()
+            });
+          }
+          return { message: messageDoc.data(), conversation: null, idempotent: true };
+        }
+
+        // Verificar si la conversación existe
+        const conversationDoc = await transaction.get(conversationRef);
+        const conversationExists = conversationDoc.exists;
+
+        // Preparar datos del mensaje para Firestore
+        const messageFirestoreData = {
+          id: msg.messageId,
+          conversationId: msg.conversationId,
+          content: msg.content || '',
+          type: msg.type || 'text',
+          direction: 'outbound',
+          status: 'sent',
+          senderIdentifier: msg.senderIdentifier,
+          recipientIdentifier: msg.recipientIdentifier,
+          timestamp: msg.timestamp || new Date(),
+          metadata: msg.metadata || {},
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        // Guardar mensaje
+        transaction.set(messageRef, messageFirestoreData);
+
+        // Preparar actualización de conversación
+        const lastMessage = {
+          messageId: msg.messageId,
+          content: msg.content || '',
+          sender: msg.senderIdentifier,
+          direction: 'outbound',
+          timestamp: msg.timestamp || new Date()
+        };
+
+        const lastMessageAt = msg.timestamp || new Date();
+
+        // Asegurar que participants incluya sender (agente) y recipient (cliente)
+        const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
+        const participants = [...new Set([...existingParticipants, msg.senderIdentifier, msg.recipientIdentifier])];
+
+        const conversationUpdate = {
+          lastMessage,
+          lastMessageAt,
+          messageCount: FieldValue.increment(1),
+          // NO incrementar unreadCount en outbound
+          participants,
+          updatedAt: new Date()
+        };
+
+        // Agregar campos tenant si están disponibles
+        if (msg.workspaceId) {
+          conversationUpdate.workspaceId = msg.workspaceId;
+        }
+        if (msg.tenantId) {
+          conversationUpdate.tenantId = msg.tenantId;
+        }
+
+        // Si la conversación no existe, agregar campos obligatorios
+        if (!conversationExists) {
+          conversationUpdate.id = msg.conversationId;
+          conversationUpdate.customerPhone = msg.recipientIdentifier;
+          conversationUpdate.status = 'open';
+          conversationUpdate.createdAt = new Date();
+        }
+
+        // Actualizar conversación
+        transaction.set(conversationRef, conversationUpdate, { merge: true });
+
+        return { 
+          message: messageFirestoreData, 
+          conversation: conversationUpdate,
+          idempotent: false
+        };
+      });
+
+      const duration = Date.now() - startTime;
+
+      // --- LOGS DE DIAGNÓSTICO POST-ESCRITURA (solo si LOG_MSG_WRITE=true) ---
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        const postWriteLog = {
+          event: 'message_write_success',
+          direction: 'outbound',
+          conversationIdMasked: `conv_***${msg.conversationId.slice(-4)}`,
+          messageIdMasked: `MSG_***${msg.messageId.slice(-4)}`,
+          wroteMessage: true,
+          updatedConversation: true,
+          conversationExisted: !result.idempotent,
+          durationMs: duration,
+          ts: new Date().toISOString()
+        };
+
+        logger.info('message_write_diag', postWriteLog);
+      }
+
+      // Emitir eventos RT (sin tocar el manager)
+      // TODO: Implementar emisión de eventos RT aquí
+
+      return result;
+
+    } catch (error) {
+      // --- LOGS DE DIAGNÓSTICO DE ERROR (solo si LOG_MSG_WRITE=true) ---
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        const errorLog = {
+          event: 'message_write_error',
+          direction: 'outbound',
+          conversationIdMasked: `conv_***${msg.conversationId?.slice(-4)}`,
+          messageIdMasked: `MSG_***${msg.messageId?.slice(-4)}`,
+          error: {
+            name: error.name,
+            message: error.message
+          },
+          stack: error.stack,
+          durationMs: Date.now() - startTime,
+          ts: new Date().toISOString()
+        };
+
+        logger.error('message_write_diag', errorLog);
+      }
+
       throw error;
     }
   }

@@ -8,6 +8,7 @@ const { generateConversationId, normalizePhoneNumber } = require('../utils/conve
 const { validateMessagesArrayResponse } = require('../middleware/validation');
 const { firestore } = require('../config/firebase');
 const FileService = require('./FileService');
+const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 
 /**
  * Servicio centralizado para toda la lógica de mensajes
@@ -79,12 +80,27 @@ class MessageService {
         await Promise.all(sideEffects);
       }
 
+      logger.info('✅ MENSAJE PROCESADO Y GUARDADO', {
+        requestId,
+        messageId: message.id,
+        conversationId: message.conversationId,
+        sender: message.senderIdentifier,
+        recipient: message.recipientIdentifier,
+        contentPreview: message.content?.substring(0, 50),
+        type: message.type,
+        direction: message.direction,
+        hasMedia: !!message.mediaUrl,
+        timestamp: message.timestamp
+      });
+
       return message;
 
     } catch (error) {
-      logger.error('❌ CREATEMESSAGE - ERROR CRÍTICO', {
+      logger.error('❌ MESSAGE.CREATE - CRITICAL ERROR', {
         requestId,
         error: error.message,
+        errorType: error.constructor.name,
+        stack: error.stack?.split('\n').slice(0, 20),
         messageData: {
           id: messageData?.id,
           conversationId: messageData?.conversationId,
@@ -96,67 +112,70 @@ class MessageService {
           status: messageData?.status,
           mediaUrl: messageData?.mediaUrl
         },
-        step: 'create_message_error'
+        step: 'message_create_error'
       });
       throw error;
     }
   }
 
   /**
-   * Enviar mensaje a través de Twilio con lógica centralizada
+   * Enviar mensaje a través de Twilio
    */
   static async sendMessage (to, content, options = {}) {
     try {
       const {
-        type = 'text',
+        from = null,
         mediaUrl = null,
-        userId = null,
         metadata = {},
+        conversationId = null,
       } = options;
 
-      // Normalizar números
-      const fromPhone = normalizePhoneNumber(process.env.TWILIO_WHATSAPP_NUMBER);
+      // Validar parámetros
+      if (!to || !content) {
+        throw new Error('to y content son requeridos');
+      }
+
+      // Normalizar número de teléfono
       const toPhone = normalizePhoneNumber(to);
-      const conversationId = generateConversationId(fromPhone, toPhone);
+      if (!toPhone) {
+        throw new Error('Número de teléfono inválido');
+      }
+
+      // Generar conversationId si no se proporciona
+      const finalConversationId = conversationId || generateConversationId(from || 'system', toPhone);
 
       // Preparar datos del mensaje
       const messageData = {
-        conversationId,
-        from: fromPhone,
-        to: toPhone,
+        conversationId: finalConversationId,
+        senderIdentifier: from || 'system',
+        recipientIdentifier: toPhone,
         content,
-        type,
+        type: mediaUrl ? 'media' : 'text',
         direction: 'outbound',
         status: 'pending',
-        userId,
+        mediaUrl,
         metadata: {
           ...metadata,
-          sendAttempt: 1,
-          lastAttemptAt: new Date().toISOString(),
+          sentAt: new Date().toISOString(),
         },
       };
 
-      // Crear mensaje en BD primero
+      // Crear mensaje en base de datos
       const message = await this.createMessage(messageData);
 
+      // Enviar por Twilio
       try {
-        // Enviar a través de Twilio
-        let twilioResult;
-        if (type === 'text') {
-          twilioResult = await TwilioService.sendWhatsAppMessage(toPhone, content, userId);
-        } else if (mediaUrl && ['image', 'document', 'audio', 'video'].includes(type)) {
-          twilioResult = await TwilioService.sendMediaMessage(toPhone, mediaUrl, content, userId);
-        } else {
-          throw new Error(`Tipo de mensaje no soportado: ${type}`);
-        }
+        const twilioResult = await TwilioService.sendMessage(toPhone, content, {
+          mediaUrl,
+          conversationId: finalConversationId,
+        });
 
-        // Actualizar mensaje con datos de Twilio
+        // Actualizar mensaje con resultado de Twilio
         await message.update({
           status: 'sent',
-          twilioSid: twilioResult.twilioSid,
           metadata: {
             ...message.metadata,
-            twilioStatus: twilioResult.status,
+            twilioSid: twilioResult.twilioSid,
             sentAt: new Date().toISOString(),
           },
         });
@@ -234,17 +253,18 @@ class MessageService {
       // Generar conversationId
       const conversationId = generateConversationId(fromPhone, toPhone);
 
-      // Preparar messageData
+      // Preparar datos normalizados para el repositorio
       const messageData = {
-        id: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         conversationId,
-        senderIdentifier: fromPhone,
-        recipientIdentifier: toPhone,
+        messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         content: Body || '',
         type: 'text',
         direction: 'inbound',
-        status: 'received',
+        senderIdentifier: fromPhone,
+        recipientIdentifier: toPhone,
         timestamp: new Date(),
+        workspaceId: process.env.WORKSPACE_ID, // Obtener del contexto
+        tenantId: process.env.TENANT_ID, // Si aplica
         metadata: {
           twilioSid: MessageSid,
           generatedId: true,
@@ -253,28 +273,26 @@ class MessageService {
         }
       };
 
-      // Crear el mensaje
-      const createdMessage = await this.createMessage(messageData, {
-        updateConversation: true,
-        updateContact: true,
-        validateInput: true,
-      });
+      // Usar el repositorio para escritura canónica
+      const conversationsRepo = getConversationsRepository();
+      const result = await conversationsRepo.upsertFromInbound(messageData);
 
       console.log('🚨 MESSAGE PROCESSED SUCCESSFULLY:', {
         requestId,
-        messageId: createdMessage.id,
-        conversationId: createdMessage.conversationId,
-        sender: createdMessage.senderIdentifier,
-        recipient: createdMessage.recipientIdentifier,
-        content: createdMessage.content?.substring(0, 50) + (createdMessage.content?.length > 50 ? '...' : ''),
-        type: createdMessage.type,
-        direction: createdMessage.direction,
-        hasMedia: !!createdMessage.mediaUrl,
-        timestamp: createdMessage.timestamp,
-        step: 'message_processed'
+        messageId: result.message.id,
+        conversationId: result.message.conversationId,
+        sender: result.message.senderIdentifier,
+        recipient: result.message.recipientIdentifier,
+        content: result.message.content?.substring(0, 50) + (result.message.content?.length > 50 ? '...' : ''),
+        type: result.message.type,
+        direction: result.message.direction,
+        hasMedia: !!result.message.mediaUrl,
+        timestamp: result.message.timestamp,
+        step: 'message_processed',
+        idempotent: result.idempotent
       });
 
-      return { success: true, message: createdMessage };
+      return { success: true, message: result.message, conversation: result.conversation };
 
     } catch (error) {
       console.log('🚨 MESSAGESERVICE ERROR:', {
@@ -299,8 +317,7 @@ class MessageService {
           From: webhookData?.From,
           To: webhookData?.To,
           MessageSid: webhookData?.MessageSid,
-          Body: webhookData?.Body ? 'presente' : 'ausente',
-          NumMedia: webhookData?.NumMedia
+          hasBody: !!webhookData?.Body
         },
         step: 'process_incoming_error'
       });

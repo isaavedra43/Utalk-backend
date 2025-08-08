@@ -19,126 +19,77 @@
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const { getTwilioService } = require('../services/TwilioService');
-const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
+const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const logger = require('../utils/logger');
-const MediaUploadController = require('../controllers/MediaUploadController');
-const { v4: uuidv4 } = require('uuid');
-const MessageService = require('../services/MessageService');
+const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
+const { validatePhoneNumber } = require('../middleware/phoneValidation');
+const FileService = require('../services/FileService');
 
 class MessageController {
   /**
-   * 📋 GET /api/conversations/:conversationId/messages
-   * Lista mensajes de una conversación con paginación y filtros
+   * 📋 GET /api/messages
+   * Lista mensajes con filtros y paginación
    * 
    * QUERY PARAMS:
+   * - conversationId: ID de conversación (opcional)
    * - limit: número de resultados (default: 50, max: 100)
    * - cursor: cursor de paginación
-   * - direction: inbound|outbound|system
-   * - status: sent|delivered|read|failed
-   * - type: text|image|audio|video|document|system
-   * - startDate: fecha inicio (ISO)
-   * - endDate: fecha fin (ISO)
-   * - orderBy: timestamp|status (default: timestamp)
-   * - order: asc|desc (default: desc)
+   * - direction: inbound|outbound (opcional)
+   * - type: text|image|audio|video|document (opcional)
+   * - status: received|sent|failed|pending (opcional)
+   * - search: texto libre para buscar en content (opcional)
+   * 
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   * @param {function} next - Express next middleware function
    */
   static async getMessages(req, res, next) {
     try {
-      const { conversationId } = req.params;
       const {
-        limit = 50,
-        cursor = null,
-        direction = null,
-        status = null,
-        type = null,
-        startDate = null,
-        endDate = null,
-        orderBy = 'timestamp',
-        order = 'desc'
-      } = req.query;
-
-      // ✅ NUEVO: Log de inicio de búsqueda
-      logger.message('search_executed', {
         conversationId,
-        filters: {
-          limit: Math.min(parseInt(limit), 100),
-          direction,
-          status,
-          type,
-          hasDateRange: !!(startDate && endDate)
-        },
-        userEmail: req.user.email
-      });
-
-      // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      logger.info('query_started', {
-        operation: 'conversation_exists_check',
-        conversationId
-      });
-
-      const conversation = await Conversation.getById(conversationId);
-      if (!conversation) {
-        logger.info('document_not_found', {
-          operation: 'conversation_by_id',
-          conversationId
-        });
-        throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
-      }
-
-      // 🔒 VALIDAR PERMISOS DE ACCESO
-      if (req.user.role === 'viewer' && conversation.assignedTo !== req.user.email) {
-        logger.security('unauthorized_access', {
-          operation: 'view_messages',
-          conversationId,
-          userEmail: req.user.email,
-          userRole: req.user.role,
-          conversationAssignedTo: conversation.assignedTo
-        });
-        throw CommonErrors.USER_NOT_AUTHORIZED('ver mensajes de esta conversación', conversationId);
-      }
-
-      // 🔍 OPCIONES DE BÚSQUEDA
-      const searchOptions = {
-        limit: Math.min(parseInt(limit), 100),
+        limit = 50,
         cursor,
         direction,
-        status,
         type,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-        orderBy,
-        order
-      };
+        status,
+        search
+      } = req.query;
 
-      logger.info('query_started', {
-        operation: 'messages_by_conversation',
-        conversationId,
-        searchOptions
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+
+      // Construir filtros
+      const filters = {};
+      if (conversationId) filters.conversationId = conversationId;
+      if (direction) filters.direction = direction;
+      if (type) filters.type = type;
+      if (status) filters.status = status;
+      if (search) filters.search = search;
+
+      // Obtener mensajes
+      const messages = await Message.getByConversation(conversationId, {
+        limit: limitNum,
+        cursor,
+        filters
       });
 
-      // 📊 EJECUTAR BÚSQUEDA
-      const result = await Message.getByConversation(conversationId, searchOptions);
-
-      logger.message('search_completed', {
+      logger.info('Mensajes obtenidos exitosamente', {
         conversationId,
-        messagesFound: result.messages.length,
-        hasNextPage: !!result.pagination.nextCursor,
-        userEmail: req.user.email
+        count: messages.length,
+        userEmail: req.user?.email
       });
 
-      // 📤 RESPUESTA ESTÁNDAR CON PAGINACIÓN
-      return ResponseHandler.successPaginated(
+      return ResponseHandler.success(
         res,
-        result.messages.map(msg => msg.toJSON()),
-        result.pagination,
-        `${result.messages.length} mensajes encontrados`,
+        messages.map(msg => msg.toJSON()),
+        `${messages.length} mensajes encontrados`,
         200
       );
+
     } catch (error) {
       logger.error('Error obteniendo mensajes', {
-        conversationId: req.params.conversationId,
         error: error.message,
-        userEmail: req.user?.email,
-        stack: error.stack?.split('\n').slice(0, 3)
+        conversationId: req.query?.conversationId,
+        userEmail: req.user?.email
       });
       next(error);
     }
@@ -146,315 +97,170 @@ class MessageController {
 
   /**
    * 📝 POST /api/conversations/:conversationId/messages
-   * Crear nuevo mensaje en una conversación específica
+   * Crear mensaje en una conversación específica
+   * 
+   * BODY:
+   * - content: texto del mensaje (requerido)
+   * - type: text|image|audio|video|document (default: text)
+   * - attachments: array de archivos (opcional)
+   * - metadata: objeto con datos adicionales (opcional)
    */
   static async createMessageInConversation(req, res, next) {
     try {
       const { conversationId } = req.params;
-      const { 
-        messageId,          // ✅ AGREGAR: Extraer messageId del frontend
-        content, 
-        type = 'text', 
-        mediaUrl = null, 
-        fileMetadata = {},
-        replyToMessageId = null, 
-        metadata = {} 
-      } = req.body;
+      const { content, type = 'text', attachments = [], metadata = {} } = req.body;
 
-      // ✅ NUEVO: Log de inicio de creación
-      logger.message('processing_started', {
-        conversationId,
-        messageId: messageId || 'auto-generated',
-        type,
-        hasContent: !!content,
-        hasMedia: !!mediaUrl,
-        senderEmail: req.user.email
-      });
+      // Validar contenido
+      if (!content || content.trim().length === 0) {
+        throw new ApiError(
+          'MISSING_CONTENT',
+          'El contenido del mensaje es requerido',
+          'Proporciona el texto del mensaje',
+          400
+        );
+      }
 
-      // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      logger.info('query_started', {
-        operation: 'conversation_validation',
-        conversationId
-      });
-
+      // Obtener conversación
       const conversation = await Conversation.getById(conversationId);
       if (!conversation) {
-        logger.info('document_not_found', {
-          operation: 'conversation_by_id_for_message',
-          conversationId
-        });
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
 
-      // 🔒 VALIDAR PERMISOS DE ESCRITURA
+      // Validar permisos
       if (req.user.role === 'viewer') {
-        logger.security('unauthorized_access', {
-          operation: 'create_message',
-          conversationId,
-          userEmail: req.user.email,
-          userRole: req.user.role
-        });
         throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes', conversationId);
       }
 
-      // VALIDAR QUE HAY CONTENIDO O MEDIA
-      if (!content && !mediaUrl) {
-        logger.message('validation_failed', {
-          reason: 'missing_content_and_media',
-          conversationId,
-          senderEmail: req.user.email
-        });
-        throw new ApiError('MISSING_CONTENT', 'Debes proporcionar contenido o un archivo multimedia', 'Agrega texto o sube un archivo', 400);
-      }
+      // Procesar archivos adjuntos si existen
+      let mediaUrl = null;
+      let fileMetadata = null;
 
-      // 🆔 VALIDAR O GENERAR messageId
-      let finalMessageId = messageId;
-      if (!finalMessageId) {
-        // Generar UUID si el frontend no lo envía
-        finalMessageId = uuidv4();
-        logger.message('id_generated', {
-          conversationId,
-          generatedMessageId: finalMessageId,
-          senderEmail: req.user.email
-        });
-      }
-
-      // VALIDAR URL DE FIREBASE STORAGE SI EXISTE
-      if (mediaUrl) {
-        const isValidFirebaseUrl = mediaUrl.includes('firebasestorage.googleapis.com') || 
-                                  mediaUrl.includes('storage.googleapis.com');
-        
-        if (!isValidFirebaseUrl) {
-          logger.media('invalid_format', {
-            reason: 'non_firebase_storage_url',
-            providedUrl: mediaUrl.substring(0, 100),
-            conversationId
+      if (attachments.length > 0) {
+        try {
+          const fileService = new FileService();
+          fileMetadata = await fileService.processMessageAttachments(attachments, req.user.email);
+          mediaUrl = fileMetadata.url;
+        } catch (fileError) {
+          logger.error('Error procesando archivos adjuntos', {
+            conversationId,
+            error: fileError.message,
+            userEmail: req.user.email
           });
-          throw new ApiError('INVALID_MEDIA_URL', 'URL de media inválida', 'Usa solo URLs de Firebase Storage', 400);
+          // Continuar sin archivos adjuntos
         }
-
-        logger.media('url_validated', {
-          mediaUrl: mediaUrl.substring(0, 100) + '...',
-          conversationId,
-          messageId: finalMessageId
-        });
       }
 
-      // 📝 PREPARAR DATOS DEL MENSAJE
+      // Preparar datos del mensaje
       const messageData = {
-        id: finalMessageId,              // ✅ CORREGIDO: Usar messageId del frontend como id
         conversationId,
-        content: content || null,
-        type: mediaUrl ? 'media' : 'text',
-        mediaUrl,
+        content: content.trim(),
+        type: mediaUrl ? 'media' : type,
         senderIdentifier: req.user.email,
         recipientIdentifier: conversation.customerPhone,
         direction: 'outbound',
-        status: 'sent',
-        replyToMessageId,
+        status: 'pending',
+        mediaUrl,
         metadata: {
           ...metadata,
           sentBy: req.user.email,
           sentAt: new Date().toISOString(),
-          // AGREGAR METADATOS DE ARCHIVO SI EXISTE
-          ...(mediaUrl && fileMetadata && {
-            fileInfo: {
-              category: fileMetadata.category,
-              size: fileMetadata.size,
-              originalName: fileMetadata.originalName,
-              duration: fileMetadata.duration,
-              transcription: fileMetadata.transcription,
-              ...fileMetadata
-            }
-          })
+          attachments: fileMetadata ? [fileMetadata] : []
         }
       };
 
-      // 📤 ENVIAR A TRAVÉS DE TWILIO
-      if (type === 'text' && !mediaUrl) {
-        // Enviar mensaje de texto
-        try {
-          logger.twilio('message_sending', {
-            conversationId,
-            messageId: finalMessageId,
-            recipientPhone: conversation.customerPhone,
-            contentLength: content?.length || 0
-          });
+      // Usar el repositorio para escritura canónica
+      const conversationsRepo = getConversationsRepository();
+      const result = await conversationsRepo.appendOutbound({
+        ...messageData,
+        messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        workspaceId: req.user.workspaceId,
+        tenantId: req.user.tenantId
+      });
 
-          const twilioService = getTwilioService();
-          const sentMessage = await twilioService.sendWhatsAppMessage(
+      // Enviar por Twilio
+      try {
+        const twilioService = getTwilioService();
+        
+        let sentMessage;
+        if (mediaUrl) {
+          // Enviar con archivos adjuntos
+          sentMessage = await twilioService.sendWhatsAppMessageWithMedia(
             conversation.customerPhone,
-            content
+            content,
+            mediaUrl
           );
-          // ✅ MANTENER EL UUID DEL FRONTEND COMO ID PRINCIPAL
-          messageData.metadata.twilioSid = sentMessage.sid;
-          messageData.metadata.sentViaWhatsApp = true;
-
-          logger.twilio('message_sent', {
-            conversationId,
-            messageId: finalMessageId,
-            twilioSid: sentMessage.sid,
-            recipientPhone: conversation.customerPhone
-          });
-
-        } catch (twilioError) {
-          logger.twilio('message_failed', {
-            conversationId,
-            messageId: finalMessageId,
-            error: twilioError.message,
-            recipientPhone: conversation.customerPhone
-          });
-          
-          // Continuar guardando el mensaje aunque Twilio falle
-          messageData.status = 'failed';
-          messageData.metadata.failureReason = twilioError.message;
+        } else {
+          // Enviar solo texto
+          sentMessage = await twilioService.sendWhatsAppMessage(conversation.customerPhone, content);
         }
-      } else if (mediaUrl) {
-        // MENSAJE CON ARCHIVO MULTIMEDIA
-        try {
-          logger.media('whatsapp_compatibility_check', {
-            category: fileMetadata.category,
-            conversationId,
-            messageId: finalMessageId
-          });
 
-          const twilioService = getTwilioService();
-          
-          // Determinar si el archivo es válido para WhatsApp
-          const isWhatsAppCompatible = MediaUploadController.isWhatsAppCompatible(fileMetadata.category, fileMetadata);
-          
-          if (isWhatsAppCompatible) {
-            logger.media('whatsapp_compatible', {
-              category: fileMetadata.category,
-              messageId: finalMessageId
-            });
-
-            // Enviar con media a través de Twilio
-            const sentMessage = await twilioService.sendWhatsAppMessage(
-              conversation.customerPhone,
-              content || `📎 ${fileMetadata.originalName || 'Archivo adjunto'}`,
-              mediaUrl
-            );
-            // ✅ MANTENER EL UUID DEL FRONTEND COMO ID PRINCIPAL
-            messageData.metadata.twilioSid = sentMessage.sid;
-            messageData.metadata.sentViaWhatsApp = true;
-
-            logger.twilio('media_sent', {
-              conversationId,
-              messageId: finalMessageId,
-              twilioSid: sentMessage.sid,
-              mediaType: fileMetadata.category
-            });
-
-          } else {
-            // Solo guardar en base de datos (no enviar por WhatsApp)
-            messageData.metadata.sentViaWhatsApp = false;
-            messageData.metadata.reason = 'Tipo de archivo no compatible con WhatsApp';
-            
-            logger.media('whatsapp_incompatible', {
-              category: fileMetadata.category,
-              messageId: finalMessageId,
-              reason: 'file_type_not_supported'
+        // Actualizar mensaje con datos de Twilio
+        await Message.getById(conversationId, result.message.id).then(msg => {
+          if (msg) {
+            msg.update({
+              status: 'sent',
+              metadata: {
+                ...msg.metadata,
+                twilioSid: sentMessage.sid,
+                sentAt: new Date().toISOString()
+              }
             });
           }
-        } catch (twilioError) {
-          logger.twilio('media_failed', {
-            conversationId,
-            messageId: finalMessageId,
-            error: twilioError.message,
-            mediaUrl: mediaUrl.substring(0, 100) + '...'
-          });
-          
-          messageData.status = 'failed';
-          messageData.metadata.failureReason = twilioError.message;
-        }
+        });
+
+      } catch (twilioError) {
+        logger.error('Error enviando mensaje por Twilio', {
+          conversationId,
+          error: twilioError.message,
+          userEmail: req.user.email
+        });
+
+        // Actualizar mensaje como fallido
+        await Message.getById(conversationId, result.message.id).then(msg => {
+          if (msg) {
+            msg.update({
+              status: 'failed',
+              metadata: {
+                ...msg.metadata,
+                failureReason: twilioError.message,
+                failedAt: new Date().toISOString()
+              }
+            });
+          }
+        });
       }
 
-      // 💾 GUARDAR EN BASE DE DATOS
-      logger.message('creating', {
-        messageId: messageData.id,
-        conversationId,
-        senderEmail: req.user.email,
-        hasContent: !!content,
-        hasMedia: !!mediaUrl,
-        direction: 'outbound'
-      });
-
-      const message = await Message.create(messageData);
-
-      logger.message('created', {
-        messageId: message.id,
-        conversationId,
-        status: 'success',
-        direction: 'outbound'
-      });
-
-      // 📡 EMITIR EVENTOS WEBSOCKET
+      // Emitir eventos websocket
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        try {
-          logger.socket('message_emitting', {
-            messageId: message.id,
-            conversationId,
-            connectedUsers: socketManager.getConnectedUsers().length,
-            messageStructure: {
-              hasId: !!message.id,
-              hasContent: !!message.content,
-              hasSender: !!message.senderIdentifier,
-              hasRecipient: !!message.recipientIdentifier,
-            }
-          });
-          
-          socketManager.emitNewMessage(conversationId, message);
-          
-          // Notificar a agente asignado si es diferente al remitente
-          if (conversation.assignedTo && conversation.assignedTo !== req.user.email) {
-            socketManager.io.emit('message-notification', {
-              type: 'new-message',
-              conversationId,
-              message: message.toJSON(),
-              targetAgent: conversation.assignedTo,
-              timestamp: new Date().toISOString()
-            });
-          }
-          
-          logger.socket('message_emitted', {
-            messageId: message.id,
-            conversationId,
-            connectedUsers: socketManager.getConnectedUsers().length,
-            status: 'success'
-          });
+        socketManager.emitToConversation(conversationId, 'new-message', {
+          message: result.message,
+          conversation: result.conversation
+        });
 
-        } catch (socketError) {
-          logger.socket('message_emit_failed', {
-            error: socketError.message,
-            messageId: message.id,
-            conversationId,
-            stack: socketError.stack?.split('\n').slice(0, 3)
-          });
-          // Continuar aunque falle Socket.IO
-        }
-      } else {
-        logger.socket('manager_unavailable', {
-          messageId: message.id,
-          conversationId,
-          operation: 'message_emit'
+        socketManager.emitToConversation(conversationId, 'conversation-updated', {
+          id: conversationId,
+          lastMessage: result.conversation.lastMessage,
+          lastMessageAt: result.conversation.lastMessageAt,
+          unreadCount: result.conversation.unreadCount,
+          messageCount: result.conversation.messageCount,
+          status: result.conversation.status
         });
       }
 
       logger.message('processing_completed', {
-        messageId: message.id,
+        messageId: result.message.id,
         conversationId,
         type: messageData.type,
         senderEmail: req.user.email,
         recipientPhone: conversation.customerPhone,
         hasMedia: !!mediaUrl,
-        mediaCategory: fileMetadata.category || null,
+        mediaCategory: fileMetadata?.category || null,
         successful: true
       });
 
       // 📤 RESPUESTA EXITOSA
-      return ResponseHandler.success(res, message.toJSON(), 'Mensaje creado exitosamente', 201);
+      return ResponseHandler.success(res, result.message, 'Mensaje creado exitosamente', 201);
     } catch (error) {
       logger.error('Error creando mensaje en conversación', {
         conversationId: req.params?.conversationId,
@@ -513,43 +319,79 @@ class MessageController {
         throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes', conversation.id);
       }
 
-      // 📝 PREPARAR DATOS DEL MENSAJE
+      // Procesar archivos adjuntos si existen
+      let mediaUrl = null;
+      let fileMetadata = null;
+
+      if (attachments.length > 0) {
+        try {
+          const fileService = new FileService();
+          fileMetadata = await fileService.processMessageAttachments(attachments, req.user.email);
+          mediaUrl = fileMetadata.url;
+        } catch (fileError) {
+          logger.error('Error procesando archivos adjuntos', {
+            conversationId: conversation.id,
+            error: fileError.message,
+            userEmail: req.user.email
+          });
+          // Continuar sin archivos adjuntos
+        }
+      }
+
+      // Preparar datos del mensaje para el repositorio
       const messageData = {
         conversationId: conversation.id,
-        content,
-        type,
+        messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        content: content.trim(),
+        type: mediaUrl ? 'media' : type,
+        direction: 'outbound',
         senderIdentifier: req.user.email,
         recipientIdentifier: targetPhone,
-        direction: 'outbound',
-        status: 'pending',
+        timestamp: new Date(),
+        workspaceId: req.user.workspaceId,
+        tenantId: req.user.tenantId,
         metadata: {
           ...metadata,
           sentBy: req.user.email,
           sentAt: new Date().toISOString(),
-          attachments
+          attachments: fileMetadata ? [fileMetadata] : []
         }
       };
+
+      // Usar el repositorio para escritura canónica
+      const conversationsRepo = getConversationsRepository();
+      const result = await conversationsRepo.appendOutbound(messageData);
 
       // 📤 ENVIAR A TRAVÉS DE TWILIO
       try {
         const twilioService = getTwilioService();
         
         let sentMessage;
-        if (attachments.length > 0) {
+        if (mediaUrl) {
           // Enviar con archivos adjuntos
           sentMessage = await twilioService.sendWhatsAppMessageWithMedia(
             targetPhone,
             content,
-            attachments[0].url // Por ahora solo el primer archivo
+            mediaUrl
           );
         } else {
           // Enviar solo texto
           sentMessage = await twilioService.sendWhatsAppMessage(targetPhone, content);
         }
 
-        messageData.id = sentMessage.sid;
-        messageData.status = 'sent';
-        messageData.metadata.twilioSid = sentMessage.sid;
+        // Actualizar mensaje con datos de Twilio
+        await Message.getById(conversation.id, result.message.id).then(msg => {
+          if (msg) {
+            msg.update({
+              status: 'sent',
+              metadata: {
+                ...msg.metadata,
+                twilioSid: sentMessage.sid,
+                sentAt: new Date().toISOString()
+              }
+            });
+          }
+        });
         
       } catch (twilioError) {
         logger.error('Error enviando mensaje por Twilio', {
@@ -558,31 +400,51 @@ class MessageController {
           userEmail: req.user.email
         });
         
-        messageData.status = 'failed';
-        messageData.metadata.failureReason = twilioError.message;
+        // Actualizar mensaje como fallido
+        await Message.getById(conversation.id, result.message.id).then(msg => {
+          if (msg) {
+            msg.update({
+              status: 'failed',
+              metadata: {
+                ...msg.metadata,
+                failureReason: twilioError.message,
+                failedAt: new Date().toISOString()
+              }
+            });
+          }
+        });
       }
-
-      // 💾 GUARDAR EN BASE DE DATOS
-      const message = await Message.create(messageData);
 
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.emitNewMessage(conversation.id, message);
+        socketManager.emitToConversation(conversation.id, 'new-message', {
+          message: result.message,
+          conversation: result.conversation
+        });
+
+        socketManager.emitToConversation(conversation.id, 'conversation-updated', {
+          id: conversation.id,
+          lastMessage: result.conversation.lastMessage,
+          lastMessageAt: result.conversation.lastMessageAt,
+          unreadCount: result.conversation.unreadCount,
+          messageCount: result.conversation.messageCount,
+          status: result.conversation.status
+        });
       }
 
       logger.info('Mensaje enviado independiente', {
-        messageId: message.id,
+        messageId: result.message.id,
         conversationId: conversation.id,
         targetPhone,
         senderEmail: req.user.email,
-        status: messageData.status,
+        status: result.message.status,
         hasAttachments: attachments.length > 0
       });
 
       return ResponseHandler.created(res, {
-        message: message.toJSON(),
-        conversation: conversation.toJSON()
+        message: result.message,
+        conversation: result.conversation
       }, 'Mensaje enviado exitosamente');
 
     } catch (error) {
