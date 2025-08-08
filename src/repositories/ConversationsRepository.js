@@ -45,7 +45,7 @@ class ConversationsRepository {
   }
 
   /**
-   * Construir query de Firestore con filtros y paginación
+   * Construir query de Firestore con filtros reales (endurecido)
    * @param {object} params - Parámetros de construcción
    * @returns {object} Query builder y debug info
    */
@@ -62,21 +62,21 @@ class ConversationsRepository {
 
     let query = firestore.collection(this.collectionPath);
 
-    // Aplicar filtros tenant si está habilitado
-    if (this.tenantMode && workspaceId) {
+    // Aplicar filtros reales (siempre que existan)
+    if (workspaceId) {
       query = query.where('workspaceId', '==', workspaceId);
     }
 
-    if (this.tenantMode && tenantId) {
+    if (tenantId) {
       query = query.where('tenantId', '==', tenantId);
     }
 
-    // Aplicar filtros de estado
+    // Aplicar filtros de estado (solo si viene en filtros)
     if (status && status !== 'all') {
       query = query.where('status', '==', status);
     }
 
-    // Aplicar filtro de asignación
+    // Aplicar filtro de asignación (solo si viene en filtros)
     if (assignedTo) {
       query = query.where('assignedTo', '==', assignedTo);
     }
@@ -102,8 +102,7 @@ class ConversationsRepository {
       orderBy: 'lastMessageAt desc',
       limit,
       cursor,
-      tenantMode: this.tenantMode,
-      legacyCompat: this.legacyCompat
+      mode: 'hardened'
     };
 
     return { query, debug };
@@ -118,13 +117,12 @@ class ConversationsRepository {
     // En una implementación real, necesitarías acceder a los where clauses del query
     const wheres = [];
     
-    // Reconstruir wheres basado en los parámetros típicos
-    if (this.tenantMode) {
-      wheres.push({ field: 'workspaceId', op: '==', value: 'masked' });
-      wheres.push({ field: 'tenantId', op: '==', value: 'masked' });
-    }
+    // Reconstruir wheres basado en los filtros reales aplicados
+    // workspaceId y tenantId se aplican siempre si existen
+    wheres.push({ field: 'workspaceId', op: '==', value: 'masked' });
+    wheres.push({ field: 'tenantId', op: '==', value: 'masked' });
     
-    // Filtros comunes
+    // Filtros opcionales (solo si vienen en params)
     wheres.push({ field: 'participants', op: 'array-contains', value: 'masked' });
     wheres.push({ field: 'status', op: '==', value: 'masked' });
     wheres.push({ field: 'assignedTo', op: '==', value: 'masked' });
@@ -167,7 +165,7 @@ class ConversationsRepository {
   }
 
   /**
-   * Listar conversaciones con soporte para tenant y legacy
+   * Listar conversaciones con filtros reales (endurecido)
    * @param {object} params - Parámetros de listado
    * @returns {Promise<{conversations: ConversationVM[], hasNext: boolean, nextCursor: string|null, debug?: object}>}
    */
@@ -200,8 +198,8 @@ class ConversationsRepository {
     };
 
     try {
-      // Construir query tenant-first
-      const { query: tenantQuery, debug: tenantDebug } = this.buildQuery(params);
+      // Construir query única con filtros reales
+      const { query, debug } = this.buildQuery(params);
       
       // --- LOGS DE DIAGNÓSTICO (solo si LOG_CONV_DIAG=true) ---
       if (process.env.LOG_CONV_DIAG === 'true') {
@@ -209,8 +207,8 @@ class ConversationsRepository {
           event: 'conversations_repo:query',
           collectionPath: this.collectionPath,
           wheres: [
-            ...(this.tenantMode && workspaceId ? [{ field: 'workspaceId', op: '==', value: 'masked' }] : []),
-            ...(this.tenantMode && tenantId ? [{ field: 'tenantId', op: '==', value: 'masked' }] : []),
+            ...(workspaceId ? [{ field: 'workspaceId', op: '==', value: 'masked' }] : []),
+            ...(tenantId ? [{ field: 'tenantId', op: '==', value: 'masked' }] : []),
             ...(filters.status && filters.status !== 'all' ? [{ field: 'status', op: '==', value: filters.status }] : []),
             ...(filters.assignedTo ? [{ field: 'assignedTo', op: '==', value: maskEmail(filters.assignedTo) }] : []),
             ...(filters.participantsContains ? [{ field: 'participants', op: 'array-contains', value: maskEmail(filters.participantsContains) }] : [])
@@ -218,8 +216,7 @@ class ConversationsRepository {
           orderBy: 'lastMessageAt desc',
           limit: pagination.limit || 50,
           cursor: pagination.cursor ? 'present' : 'none',
-          tenantMode: this.tenantMode,
-          legacyCompat: this.legacyCompat,
+          mode: 'hardened', // Identificar versión endurecida
           user: {
             emailMasked: maskEmail(filters.participantsContains),
             workspaceId: workspaceId ? 'present' : 'none',
@@ -231,52 +228,9 @@ class ConversationsRepository {
         logger.info('conversations_diag', diagnosticLog);
       }
 
-      // Ejecutar query tenant
-      const tenantSnapshot = await tenantQuery.get();
-      let conversations = [];
-      let source = 'tenant';
-
-      // Si no hay resultados y legacy compat está habilitado, intentar query legacy
-      if (tenantSnapshot.empty && this.legacyCompat) {
-        if (this.verboseLogs) {
-          logger.info('conversations_repo:legacy_fallback', {
-            event: 'conversations_repo:legacy_fallback',
-            reason: 'tenant_query_empty',
-            collectionPath: this.collectionPath
-          });
-        }
-
-        // Construir query legacy (sin filtros tenant)
-        const legacyParams = {
-          filters,
-          pagination
-        };
-        const { query: legacyQuery, debug: legacyDebug } = this.buildQuery(legacyParams);
-        
-        const legacySnapshot = await legacyQuery.get();
-        conversations = legacySnapshot.docs.map(doc => this.mapToConversationVM(doc));
-        source = 'legacy';
-
-        if (this.verboseLogs) {
-          logger.info('conversations_repo:legacy_success', {
-            event: 'conversations_repo:legacy_success',
-            snapshotSize: legacySnapshot.docs.length,
-            source: 'legacy'
-          });
-        }
-      } else {
-        // Usar resultados del query tenant
-        conversations = tenantSnapshot.docs.map(doc => this.mapToConversationVM(doc));
-        source = 'tenant';
-
-        if (this.verboseLogs) {
-          logger.info('conversations_repo:tenant_success', {
-            event: 'conversations_repo:tenant_success',
-            snapshotSize: tenantSnapshot.docs.length,
-            source: 'tenant'
-          });
-        }
-      }
+      // Ejecutar query única (sin fallbacks)
+      const snapshot = await query.get();
+      const conversations = snapshot.docs.map(doc => this.mapToConversationVM(doc));
 
       const duration = Date.now() - startTime;
       const hasNext = conversations.length === pagination.limit;
@@ -287,7 +241,7 @@ class ConversationsRepository {
         const postQueryLog = {
           event: 'conversations_repo:post_query',
           snapshotSize: conversations.length,
-          source,
+          mode: 'hardened',
           durationMs: duration,
           hasNext,
           nextCursor: nextCursor ? 'present' : 'none',
@@ -302,11 +256,10 @@ class ConversationsRepository {
         hasNext,
         nextCursor,
         debug: {
-          source,
+          source: 'hardened',
           duration_ms: duration,
           collectionPath: this.collectionPath,
-          tenantMode: this.tenantMode,
-          legacyCompat: this.legacyCompat
+          mode: 'hardened'
         }
       };
 
@@ -316,7 +269,7 @@ class ConversationsRepository {
           conversationsCount: conversations.length,
           hasNext,
           nextCursor,
-          source,
+          mode: 'hardened',
           duration_ms: duration
         });
       }
@@ -334,6 +287,7 @@ class ConversationsRepository {
           },
           stack: error.stack,
           durationMs: Date.now() - startTime,
+          mode: 'hardened',
           ts: new Date().toISOString()
         };
 
@@ -346,6 +300,7 @@ class ConversationsRepository {
           error: error.message,
           stack: error.stack,
           params,
+          mode: 'hardened',
           duration_ms: Date.now() - startTime
         });
       }
