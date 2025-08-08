@@ -1,87 +1,88 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // === REGLAS TEMPORALES PARA DEBUGGING ===
-    // Permitir escritura temporal para identificar el problema
-    match /conversations/{conversationId} {
-      allow read, write: if true;
-      
-      match /messages/{messageId} {
-        allow read, write: if true;
-      }
-    }
-    
-    // Reglas originales comentadas temporalmente
-    /*
-    // Función para verificar si el usuario está autenticado
-    function isAuthenticated() {
+
+    /* ─────────── Helpers de autenticación/tenant ─────────── */
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Función para verificar si el usuario es el propietario
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function has(field) {
+      return request.auth != null && field in request.auth.token;
     }
 
-    // Función para verificar si el usuario es admin
+    function token(field) {
+      return request.auth.token[field];
+    }
+
+    function sameWorkspace(resourceData) {
+      return has('workspaceId') && resourceData.workspaceId == token('workspaceId');
+    }
+
+    // Si no usas tenant mode, esta función permitirá todo tenant por defecto.
+    function sameTenant(resourceData) {
+      return !has('tenantId') || resourceData.tenantId == token('tenantId');
+    }
+
+    function canReadDoc(resourceData) {
+      return isSignedIn() && sameWorkspace(resourceData) && sameTenant(resourceData);
+    }
+
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.admin == true;
+      return has('role') && (token('role') == 'admin' || token('role') == 'owner');
     }
 
-    // Función para verificar si el usuario es agente o superior
-    function isAgentOrAbove() {
-      return isAuthenticated() && (
-        request.auth.token.role == 'admin' ||
-        request.auth.token.role == 'agent' ||
-        request.auth.token.role == 'supervisor'
-      );
+    function isAgent() {
+      return has('role') && (token('role') == 'agent' || isAdmin());
     }
 
-    // Función para verificar si es una petición de webhook
-    function isWebhookRequest() {
-      return request.auth == null && 
-             request.headers['user-agent'] != null &&
-             (request.headers['user-agent'].contains('Twilio') ||
-              request.headers['user-agent'].contains('webhook'));
+    // Bandera opcional por si algún día permites escritura cliente de mensajes outbound (NO activarla por ahora).
+    function clientMessageWriteEnabled() {
+      return has('canClientWriteMessages') && request.auth.token.canClientWriteMessages == true;
     }
 
-    // Reglas para conversaciones
+    /* ─────────── Reglas de dominio: conversations ─────────── */
     match /conversations/{conversationId} {
-      // Permitir lectura si el usuario está autenticado
-      allow read: if isAuthenticated();
-      
-      // Permitir escritura si es webhook o usuario autenticado
-      allow write: if isWebhookRequest() || isAuthenticated();
-      
-      // Reglas para subcolección de mensajes
+
+      // Lectura: cualquier usuario autenticado con el mismo workspace/tenant del doc.
+      allow get, list, read: if canReadDoc(resource.data);
+
+      // Escrituras desde cliente: BLOQUEADAS. Backend (Admin SDK) ya escribe y omite reglas.
+      allow create, update, delete: if false;
+
+      /* ───── Subcolección: messages ───── */
       match /messages/{messageId} {
-        // Permitir lectura si el usuario está autenticado
-        allow read: if isAuthenticated();
-        
-        // Permitir escritura si es webhook o usuario autenticado
-        allow write: if isWebhookRequest() || isAuthenticated();
+
+        // Lectura de mensajes: validar contra el doc padre para scoping correcto.
+        allow get, list, read: if canReadDoc(
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data
+        );
+
+        // Escrituras desde cliente: BLOQUEADAS por defecto.
+        allow create, update, delete: if false;
+
+        /*
+        // OPCIONAL (DESACTIVADO): permitir creación de mensajes outbound desde cliente
+        // SOLO si habilitas clientMessageWriteEnabled() y cumples todas las condiciones.
+        // Descomenta, revisa y adapta cuidadosamente si lo necesitas.
+        allow create: if clientMessageWriteEnabled()
+          && isAgent()
+          && canReadDoc(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
+          && request.resource.data.conversationId == conversationId
+          && request.resource.data.direction == 'outbound'
+          // Evita spoof de workspace/tenant: el servidor los pone; el cliente NO.
+          && !('workspaceId' in request.resource.data)
+          && !('tenantId' in request.resource.data)
+          // Un poco de frescura temporal del timestamp (opcional endurecer/relajar):
+          && request.resource.data.timestamp <= request.time + duration.value(5, 'minutes');
+        */
       }
     }
 
-    // Reglas para usuarios
-    match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+    /* ─────────── Denegar todo lo demás por defecto ─────────── */
+    match /{document=**} {
+      allow read, write: if false;
     }
-
-    // Reglas para contactos
-    match /contacts/{contactId} {
-      allow read, write: if isAuthenticated();
-    }
-
-    // Reglas para campañas
-    match /campaigns/{campaignId} {
-      allow read, write: if isAgentOrAbove();
-    }
-
-    // Reglas para archivos
-    match /files/{fileId} {
-      allow read, write: if isAuthenticated();
-    }
-    */
   }
 } 
