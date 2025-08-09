@@ -13,9 +13,9 @@ const Joi = require('joi');
 const router = express.Router();
 
 // Middlewares
-const authMiddleware = require('../middleware/authMiddleware');
-const { requireReadAccess, requireWriteAccess } = require('../middleware/accessMiddleware');
+const { authMiddleware, requireReadAccess, requireWriteAccess, requireAdminOrQA } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validationMiddleware');
+const { consoleRateLimiter, qaRateLimiter, validationRateLimiter } = require('../middleware/aiRateLimit');
 
 // Controlador
 const AIController = require('../controllers/AIController');
@@ -132,6 +132,49 @@ const aiValidators = {
   validateStatsQuery: Joi.object({
     days: Joi.number().integer().min(1).max(90).default(7)
       .description('Número de días para las estadísticas')
+  }),
+
+  // Validación para validar configuración IA
+  validateConfigValidation: Joi.object({
+    provider: Joi.string().valid('openai', 'anthropic', 'gemini').optional(),
+    defaultModel: Joi.string().optional(),
+    escalationModel: Joi.string().optional(),
+    temperature: Joi.number().min(0).max(1).optional(),
+    maxTokens: Joi.number().integer().min(1).max(300).optional(),
+    flags: Joi.object({
+      suggestions: Joi.boolean().optional(),
+      console: Joi.boolean().optional(),
+      rag: Joi.boolean().optional(),
+      reports: Joi.boolean().optional(),
+      provider_ready: Joi.boolean().optional()
+    }).optional(),
+    toolsEnabled: Joi.array().items(Joi.string().valid('crear_reporte', 'enviar_alerta', 'programar_followup')).optional(),
+    policies: Joi.object({
+      no_inventar_precios: Joi.boolean().optional(),
+      idioma: Joi.string().valid('es', 'en').optional(),
+      tono: Joi.string().valid('profesional', 'amigable', 'formal').optional()
+    }).optional()
+  }),
+
+  // Validación para endpoints QA
+  validateQAContext: Joi.object({
+    workspaceId: Joi.string().required().min(1).max(100)
+      .description('ID del workspace'),
+    conversationId: Joi.string().required().min(1).max(100)
+      .description('ID de la conversación'),
+    maxMessages: Joi.number().integer().min(1).max(20).default(20)
+      .description('Número máximo de mensajes a cargar')
+  }),
+
+  validateQASuggestion: Joi.object({
+    workspaceId: Joi.string().required().min(1).max(100)
+      .description('ID del workspace'),
+    conversationId: Joi.string().required().min(1).max(100)
+      .description('ID de la conversación'),
+    messageId: Joi.string().required().min(1).max(100)
+      .description('ID del mensaje'),
+    dry_store: Joi.boolean().default(true)
+      .description('Si es true, no guarda la sugerencia en DB')
   })
 };
 
@@ -151,6 +194,7 @@ router.get('/config/:workspaceId',
 router.put('/config/:workspaceId',
   authMiddleware,
   requireWriteAccess,
+  consoleRateLimiter,
   validateRequest(aiValidators.validateWorkspaceId, 'params'),
   validateRequest(aiValidators.validateUpdateConfig, 'body'),
   AIController.updateAIConfig
@@ -246,6 +290,55 @@ router.get('/stats/:workspaceId',
 // GET /api/ai/health
 router.get('/health',
   AIController.getAIHealth
+);
+
+/**
+ * Rutas de validación de configuración IA
+ */
+
+// POST /api/ai/config/validate
+router.post('/config/validate',
+  authMiddleware,
+  requireAdminOrQA,
+  validationRateLimiter,
+  validateRequest(aiValidators.validateConfigValidation, 'body'),
+  AIController.validateAIConfig
+);
+
+/**
+ * Rutas QA de pruebas controladas
+ */
+
+// POST /api/ai/qa/context
+router.post('/qa/context',
+  authMiddleware,
+  requireAdminOrQA,
+  qaRateLimiter,
+  validateRequest(aiValidators.validateQAContext, 'body'),
+  AIController.getQAContext
+);
+
+// POST /api/ai/qa/suggest
+router.post('/qa/suggest',
+  authMiddleware,
+  requireAdminOrQA,
+  qaRateLimiter,
+  validateRequest(aiValidators.validateQASuggestion, 'body'),
+  AIController.getQASuggestion
+);
+
+// GET /api/ai/integration/status
+router.get('/integration/status',
+  authMiddleware,
+  requireAdminOrQA,
+  AIController.getIntegrationStatus
+);
+
+// POST /api/ai/integration/reset-circuit-breaker
+router.post('/integration/reset-circuit-breaker',
+  authMiddleware,
+  requireAdminOrQA,
+  AIController.resetCircuitBreaker
 );
 
 module.exports = {

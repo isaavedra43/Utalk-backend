@@ -15,6 +15,9 @@ const AIService = require('../services/AIService');
 const { checkAllProvidersHealth } = require('../ai/vendors');
 const logger = require('../utils/logger');
 const { Suggestion } = require('../models/Suggestion');
+const { validateConfigWithAI, validateConfigLocally } = require('../utils/configValidator');
+const { getCircuitBreakerStatus, resetCircuitBreaker } = require('../services/AIWebhookIntegration');
+const { getRateLimitStats } = require('../utils/aiRateLimiter');
 
 class AIController {
   /**
@@ -634,7 +637,7 @@ class AIController {
           status: 'disabled',
           timestamp: new Date().toISOString(),
           version: '1.0.0',
-          phase: 'B',
+          phase: 'D',
           reason: 'AI_ENABLED=false',
           features: {
             config: true,
@@ -642,7 +645,9 @@ class AIController {
             contextLoader: true,
             logging: true,
             fakeMode: true,
-            provider_ready: false
+            provider_ready: false,
+            console: true,
+            qa: true
           }
         }, 'Módulo IA deshabilitado', 200);
       }
@@ -665,14 +670,16 @@ class AIController {
         status: status,
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        phase: 'B',
+        phase: 'D',
         features: {
           config: true,
           suggestions: true,
           contextLoader: true,
           logging: true,
           fakeMode: true,
-          provider_ready: provider_ready
+          provider_ready: provider_ready,
+          console: true,
+          qa: true
         },
         providers: providersHealth,
         environment: {
@@ -700,6 +707,356 @@ class AIController {
         timestamp: new Date().toISOString(),
         error: error.message
       }, 'Módulo IA con problemas', 500);
+    }
+  }
+
+  /**
+   * POST /api/ai/config/validate
+   * Validar configuración IA propuesta (con IA opcional)
+   */
+  static async validateAIConfig(req, res, next) {
+    try {
+      const config = req.body;
+
+      // Verificar permisos (solo admin/QA pueden validar config)
+      if (!['admin', 'qa'].includes(req.user.role)) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('validar configuración IA');
+      }
+
+      // Validar payload
+      if (!config || typeof config !== 'object') {
+        throw new ApiError(
+          'INVALID_PAYLOAD',
+          'Payload inválido',
+          'Proporciona un objeto válido con la configuración',
+          400
+        );
+      }
+
+      // Intentar validar con IA si está disponible
+      let validationResult;
+      try {
+        validationResult = await validateConfigWithAI(config);
+      } catch (aiError) {
+        logger.warn('⚠️ Validación con IA falló, usando validador local', {
+          error: aiError.message,
+          userEmail: req.user.email
+        });
+        validationResult = validateConfigLocally(config);
+      }
+
+      logger.info('✅ Configuración IA validada', {
+        userEmail: req.user.email,
+        warnings: validationResult.warnings.length,
+        errors: validationResult.errors.length
+      });
+
+      return ResponseHandler.success(res, validationResult, 'Configuración validada exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error validando configuración IA', {
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * POST /api/ai/qa/context
+   * Obtener contexto "seco" de conversación para inspección
+   */
+  static async getQAContext(req, res, next) {
+    try {
+      const { workspaceId, conversationId, maxMessages = 20 } = req.body;
+
+      // Verificar permisos (solo admin/QA pueden usar endpoints QA)
+      if (!['admin', 'qa'].includes(req.user.role)) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('acceder a endpoints QA');
+      }
+
+      // Validar parámetros
+      if (!workspaceId || !conversationId) {
+        throw new ApiError(
+          'MISSING_PARAMETERS',
+          'Parámetros faltantes',
+          'workspaceId y conversationId son requeridos',
+          400
+        );
+      }
+
+      if (maxMessages > 20) {
+        throw new ApiError(
+          'INVALID_PARAMETER',
+          'maxMessages excede el límite',
+          'maxMessages no puede exceder 20',
+          400
+        );
+      }
+
+      // Verificar si IA está habilitada
+      const aiEnabled = await isAIEnabled(workspaceId);
+      if (!aiEnabled) {
+        throw new ApiError(
+          'AI_DISABLED',
+          'IA deshabilitada para este workspace',
+          'Habilita IA en la configuración del workspace',
+          400
+        );
+      }
+
+      // Cargar contexto
+      const { loadConversationContext } = require('../utils/contextLoader');
+      const context = await loadConversationContext(conversationId, {
+        maxMessages,
+        includeMetadata: true,
+        workspaceId
+      });
+
+      logger.info('✅ Contexto QA obtenido', {
+        workspaceId,
+        conversationId,
+        userEmail: req.user.email,
+        messageCount: context.messages.length,
+        loadTimeMs: context.loadTimeMs
+      });
+
+      return ResponseHandler.success(res, {
+        workspaceId,
+        conversationId,
+        messages: context.messages,
+        totalMessages: context.totalMessages,
+        loadTimeMs: context.loadTimeMs,
+        timestamp: new Date().toISOString()
+      }, 'Contexto obtenido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo contexto QA', {
+        workspaceId: req.body?.workspaceId,
+        conversationId: req.body?.conversationId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * POST /api/ai/qa/suggest
+   * Dry-run de sugerencia (NO guarda por defecto)
+   */
+  static async getQASuggestion(req, res, next) {
+    try {
+      const { workspaceId, conversationId, messageId, dry_store = true } = req.body;
+
+      // Verificar permisos (solo admin/QA pueden usar endpoints QA)
+      if (!['admin', 'qa'].includes(req.user.role)) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('acceder a endpoints QA');
+      }
+
+      // Validar parámetros
+      if (!workspaceId || !conversationId || !messageId) {
+        throw new ApiError(
+          'MISSING_PARAMETERS',
+          'Parámetros faltantes',
+          'workspaceId, conversationId y messageId son requeridos',
+          400
+        );
+      }
+
+      // Verificar si IA está habilitada
+      const aiEnabled = await isAIEnabled(workspaceId);
+      if (!aiEnabled) {
+        throw new ApiError(
+          'AI_DISABLED',
+          'IA deshabilitada para este workspace',
+          'Habilita IA en la configuración del workspace',
+          400
+        );
+      }
+
+      // Obtener configuración IA
+      const config = await getAIConfig(workspaceId);
+      
+      // Verificar flag de consola
+      if (!config.flags.console) {
+        throw new ApiError(
+          'CONSOLE_DISABLED',
+          'Consola IA deshabilitada',
+          'Habilita la consola en la configuración del workspace',
+          400
+        );
+      }
+
+      const startTime = Date.now();
+
+      // Cargar contexto (máximo 20 mensajes)
+      const { loadConversationContext } = require('../utils/contextLoader');
+      const context = await loadConversationContext(conversationId, {
+        maxMessages: 20,
+        workspaceId
+      });
+
+      // Generar sugerencia
+      const AIService = require('../services/AIService');
+      const suggestion = await AIService.generateSuggestionForMessage(
+        workspaceId, 
+        conversationId, 
+        messageId,
+        { dryRun: dry_store }
+      );
+
+      const latencyMs = Date.now() - startTime;
+
+      // Preparar respuesta
+      const response = {
+        ok: suggestion.success,
+        preview: suggestion.suggestion?.sugerencia?.texto ? suggestion.suggestion.sugerencia.texto.substring(0, 200) : '',
+        usage: {
+          in: suggestion.metrics?.tokensIn || suggestion.suggestion?.tokensEstimados?.in || 0,
+          out: suggestion.metrics?.tokensOut || suggestion.suggestion?.tokensEstimados?.out || 0,
+          latencyMs
+        },
+        flagged: suggestion.suggestion?.flagged || false,
+        stored: !dry_store && suggestion.success && suggestion.savedSuggestion,
+        warnings: suggestion.warnings || []
+      };
+
+      // Si no es dry_run y está habilitado, guardar sugerencia
+      if (!dry_store && suggestion.success && config.flags.suggestions && !suggestion.savedSuggestion) {
+        try {
+          const { Suggestion } = require('../models/Suggestion');
+          const suggestionModel = new Suggestion({
+            conversationId,
+            messageIdOrigen: messageId,
+            texto: suggestion.suggestion.sugerencia.texto,
+            confianza: suggestion.suggestion.sugerencia.confianza || 0.5,
+            modelo: config.defaultModel,
+            tokensEstimados: suggestion.suggestion.tokensEstimados,
+            estado: 'draft',
+            metadata: {
+              source: 'qa_endpoint',
+              dry_store: false,
+              userEmail: req.user.email
+            }
+          });
+
+          const SuggestionsRepository = require('../repositories/SuggestionsRepository');
+          await SuggestionsRepository.saveSuggestion(suggestionModel);
+          response.stored = true;
+        } catch (saveError) {
+          logger.warn('⚠️ Error guardando sugerencia QA', {
+            error: saveError.message,
+            workspaceId,
+            conversationId
+          });
+          response.warnings.push('Error guardando sugerencia: ' + saveError.message);
+        }
+      }
+
+      logger.info('✅ Sugerencia QA generada', {
+        workspaceId,
+        conversationId,
+        userEmail: req.user.email,
+        dry_store,
+        stored: response.stored,
+        latencyMs,
+        success: suggestion.success
+      });
+
+      return ResponseHandler.success(res, response, 'Sugerencia generada exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error generando sugerencia QA', {
+        workspaceId: req.body?.workspaceId,
+        conversationId: req.body?.conversationId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * GET /api/ai/integration/status
+   * Obtener estado de la integración de IA con webhook
+   */
+  static async getIntegrationStatus(req, res, next) {
+    try {
+      // Verificar permisos (solo admin/QA pueden ver estado)
+      if (!['admin', 'qa'].includes(req.user.role)) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver estado de integración IA');
+      }
+
+      // Obtener estado del circuit breaker
+      const circuitBreaker = getCircuitBreakerStatus();
+      
+      // Obtener estadísticas de rate limiting
+      const rateLimitStats = getRateLimitStats();
+
+      // Verificar flags globales
+      const globalAIEnabled = process.env.AI_ENABLED === 'true';
+
+      const status = {
+        global: {
+          aiEnabled: globalAIEnabled,
+          timestamp: new Date().toISOString()
+        },
+        circuitBreaker,
+        rateLimiting: rateLimitStats,
+        integration: {
+          phase: 'G',
+          description: 'Enganche suave con webhook',
+          features: ['suggestions', 'rate_limiting', 'circuit_breaker', 'timeout_retry']
+        }
+      };
+
+      logger.info('✅ Estado de integración IA obtenido', {
+        userEmail: req.user.email,
+        circuitBreakerOpen: circuitBreaker.isOpen,
+        totalConversations: rateLimitStats.totalConversations
+      });
+
+      return ResponseHandler.success(res, status, 'Estado de integración obtenido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo estado de integración IA', {
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * POST /api/ai/integration/reset-circuit-breaker
+   * Resetear circuit breaker manualmente
+   */
+  static async resetCircuitBreaker(req, res, next) {
+    try {
+      // Verificar permisos (solo admin puede resetear circuit breaker)
+      if (req.user.role !== 'admin') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('resetear circuit breaker');
+      }
+
+      // Resetear circuit breaker
+      resetCircuitBreaker();
+
+      logger.info('🔄 Circuit breaker reseteado manualmente', {
+        userEmail: req.user.email
+      });
+
+      return ResponseHandler.success(res, {
+        message: 'Circuit breaker reseteado exitosamente',
+        timestamp: new Date().toISOString()
+      }, 'Circuit breaker reseteado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error reseteando circuit breaker', {
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
     }
   }
 }

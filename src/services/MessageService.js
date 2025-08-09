@@ -9,6 +9,7 @@ const { validateMessagesArrayResponse } = require('../middleware/validation');
 const { firestore } = require('../config/firebase');
 const FileService = require('./FileService');
 const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+const { integrateAIWithIncomingMessage } = require('./AIWebhookIntegration');
 
 /**
  * Servicio centralizado para toda la lógica de mensajes
@@ -393,6 +394,55 @@ class MessageService {
         timestamp: result.message.timestamp,
         step: 'message_processed',
         idempotent: result.idempotent
+      });
+
+      // 🤖 INTEGRACIÓN DE IA CON WEBHOOK (FASE G)
+      // Ejecutar en background para no afectar la respuesta del webhook
+      setImmediate(async () => {
+        try {
+          const aiResult = await integrateAIWithIncomingMessage(
+            result.message.workspaceId,
+            result.message.conversationId,
+            result.message.id,
+            result.message
+          );
+
+          if (aiResult.success && aiResult.suggestion) {
+            logger.info('✅ Sugerencia de IA generada y guardada', {
+              requestId,
+              messageId: result.message.id,
+              conversationId: result.message.conversationId,
+              suggestionId: aiResult.suggestion.id,
+              latencyMs: aiResult.latencyMs
+            });
+
+            // Emitir evento de socket para la sugerencia
+            const socketManager = require('../socket').getSocketManager();
+            if (socketManager) {
+              socketManager.emitToConversation(result.message.conversationId, 'suggestion:new', {
+                conversationId: result.message.conversationId,
+                suggestionId: aiResult.suggestion.id,
+                messageIdOrigen: result.message.id,
+                preview: aiResult.suggestion.texto?.substring(0, 200) || '',
+                createdAt: aiResult.suggestion.createdAt
+              });
+            }
+          } else {
+            logger.info('ℹ️ IA no generó sugerencia', {
+              requestId,
+              messageId: result.message.id,
+              conversationId: result.message.conversationId,
+              reason: aiResult.reason || 'unknown'
+            });
+          }
+        } catch (aiError) {
+          logger.error('❌ Error en integración de IA (no crítico)', {
+            requestId,
+            messageId: result.message.id,
+            conversationId: result.message.conversationId,
+            error: aiError.message
+          });
+        }
       });
 
       return { success: true, message: result.message, conversation: result.conversation };

@@ -22,6 +22,57 @@ const { generateWithProvider } = require('../ai/vendors');
 const { buildPromptWithGuardrails } = require('../ai/vendors/openai');
 const { Suggestion } = require('../models/Suggestion');
 const SuggestionsRepository = require('../repositories/SuggestionsRepository');
+const RAGService = require('./RAGService');
+
+/**
+ * Recuperar documentos relevantes para el contexto
+ */
+async function retrieveDocs(workspaceId, context) {
+  try {
+    const ragService = new RAGService();
+    const ragEnabled = await ragService.isRAGEnabled(workspaceId);
+    
+    if (!ragEnabled) {
+      logger.info('🔍 RAG deshabilitado, sin recuperación de documentos', {
+        workspaceId,
+        note: 'RAG deshabilitado - sin documentos'
+      });
+      return [];
+    }
+
+    // Extraer palabras clave del contexto
+    const lastMessage = context.messages[context.messages.length - 1];
+    const query = lastMessage?.content || 'consulta general';
+    
+    // Buscar documentos relevantes
+    const searchResult = await ragService.searchDocuments(workspaceId, query, {
+      topK: 3,
+      minScore: 0.35
+    });
+
+    if (!searchResult.ok) {
+      logger.warn('⚠️ Error en búsqueda RAG, continuando sin documentos', {
+        workspaceId,
+        error: searchResult.error
+      });
+      return [];
+    }
+
+    logger.info('🔍 Documentos recuperados para contexto', {
+      workspaceId,
+      fragmentsCount: searchResult.fragments.length,
+      ragEnabled: searchResult.ragEnabled
+    });
+
+    return searchResult.fragments;
+  } catch (error) {
+    logger.warn('⚠️ Error en recuperación de documentos, continuando sin RAG', {
+      workspaceId,
+      error: error.message
+    });
+    return [];
+  }
+}
 
 /**
  * Generar sugerencia para un mensaje y guardarla en Firestore
@@ -720,5 +771,6 @@ module.exports = {
   getSuggestionsByMessage,
   updateSuggestionStatus,
   getSuggestionStats,
-  searchSuggestions
+  searchSuggestions,
+  retrieveDocs
 };

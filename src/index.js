@@ -48,6 +48,9 @@ const mediaRoutes = require('./routes/media');
 const dashboardRoutes = require('./routes/dashboard');
 const twilioRoutes = require('./routes/twilio');
 const aiRoutes = require('./routes/ai').router;
+const reportRoutes = require('./routes/reports').router;
+const ragRoutes = require('./routes/rag').router;
+const aiOpsRoutes = require('./routes/aiOps').router;
 
 // Servicios
 const SocketManager = require('./socket');
@@ -866,6 +869,30 @@ class ConsolidatedServer {
         console.log('✅ /api/ai configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/ai:', error.message);
+      }
+
+      try {
+        console.log('📊 Intentando configurar /api/ai/reports...');
+        this.app.use('/api/ai/reports', reportRoutes);
+        console.log('✅ /api/ai/reports configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/ai/reports:', error.message);
+      }
+
+      try {
+        console.log('🔍 Intentando configurar /api/ai/rag...');
+        this.app.use('/api/ai/rag', ragRoutes);
+        console.log('✅ /api/ai/rag configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/ai/rag:', error.message);
+      }
+
+      try {
+        console.log('🔧 Intentando configurar /api/ai/ops...');
+        this.app.use('/api/ai', aiOpsRoutes);
+        console.log('✅ /api/ai/ops configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/ai/ops:', error.message);
       }
 
       // Ruta catch-all para 404

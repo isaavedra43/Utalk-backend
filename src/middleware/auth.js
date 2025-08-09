@@ -259,8 +259,11 @@ const requireAdmin = requireRole(['admin']);
 // Administradores y superadmins
 const requireAdminOrSuperAdmin = requireRole(['admin', 'superadmin']);
 
-// Cualquier rol con permisos de escritura
-const requireWriteAccess = requireRole(['admin', 'superadmin', 'agent']);
+// Cualquier rol con permisos de escritura (incluye QA)
+const requireWriteAccess = requireRole(['admin', 'superadmin', 'agent', 'qa']);
+
+// Solo roles admin y QA para operaciones de IA
+const requireAdminOrQA = requireRole(['admin', 'qa']);
 
 // Cualquier rol con permisos de lectura (todos los usuarios activos)
 const requireReadAccess = (req, res, next) => {
