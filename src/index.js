@@ -47,6 +47,7 @@ const knowledgeRoutes = require('./routes/knowledge');
 const mediaRoutes = require('./routes/media');
 const dashboardRoutes = require('./routes/dashboard');
 const twilioRoutes = require('./routes/twilio');
+const aiRoutes = require('./routes/ai').router;
 
 // Servicios
 const SocketManager = require('./socket');
@@ -857,6 +858,14 @@ class ConsolidatedServer {
         console.log('✅ /api/twilio configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/twilio:', error.message);
+      }
+
+      try {
+        console.log('🤖 Intentando configurar /api/ai...');
+        this.app.use('/api/ai', aiRoutes);
+        console.log('✅ /api/ai configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/ai:', error.message);
       }
 
       // Ruta catch-all para 404
