@@ -287,35 +287,15 @@ class EnterpriseSocketManager {
       category: 'SOCKET_CONFIG'
     });
 
-    const corsOrigins = process.env.FRONTEND_URL 
-      ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-      : ['http://localhost:3000'];
+    // Simplificar CORS para evitar errores
+    const corsOrigins = process.env.CORS_ORIGINS 
+      ? process.env.CORS_ORIGINS.split(',').map(url => url.trim())
+      : ['http://localhost:3000', 'http://localhost:3001'];
 
     this.io = new Server(this.server, {
-      // CORS configuration
+      // CORS configuration simplificada
       cors: {
-        origin: (origin, callback) => {
-          if (!origin) return callback(null, true); // Apps móviles
-          
-          const allowedOrigins = [
-            ...corsOrigins,
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'https://localhost:3000',
-            'http://127.0.0.1:3000'
-          ];
-          
-          if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-            callback(null, true);
-          } else {
-            logger.warn('CORS: Origin rejected for Socket.IO', { 
-              category: 'SOCKET_CORS_REJECTED',
-              origin, 
-              allowedOrigins 
-            });
-            callback(new Error('CORS: Origin not allowed'));
-          }
-        },
+        origin: corsOrigins,
         methods: ['GET', 'POST'],
         credentials: true,
         allowedHeaders: ['Authorization', 'Content-Type']
@@ -331,62 +311,37 @@ class EnterpriseSocketManager {
       // Connection limits
       maxHttpBufferSize: 2e6, // 2MB
       
-      // Performance optimizations based on Socket.IO docs
+      // Performance optimizations
       connectTimeout: 30000,
       upgradeTimeout: 10000,
       allowUpgrades: true,
-      perMessageDeflate: false, // Better performance
+      perMessageDeflate: false,
       
-      // Memory usage optimization (based on Socket.IO docs)
+      // Memory usage optimization
       connectionStateRecovery: {
         maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
         skipMiddlewares: false,
       },
       
-      // Additional enterprise settings
-      allowEIO3: false, // Force EIO4 for better performance
-      cookie: false,    // Disable cookies to save memory
-      serveClient: false // Don't serve client files
+      // Additional settings
+      allowEIO3: false,
+      cookie: false,
+      serveClient: false
     });
 
-    // 🔧 MEMORY LEAK FIXES - Advanced optimizations based on Socket.IO best practices
-    this.io.engine.on("connection", (rawSocket) => {
-      // 1. Clear request reference (Socket.IO docs recommendation)
-      rawSocket.request = null;
-      
-      // 2. Clear upgrade head buffer to prevent memory leaks (Node.js 0.8 fix)
-      if (rawSocket.request && rawSocket.request.head) {
-        delete rawSocket.request.head;
-      }
-      
-      // 3. Set socket-specific memory limits
-      rawSocket.on('error', () => {
-        // Force cleanup on error
-        if (rawSocket.readyState === 'open') {
-          rawSocket.close();
-        }
-      });
-      
-      // 4. Limit maximum listeners per socket
-      rawSocket.setMaxListeners(20);
-    });
-
-    // 🔧 ENGINE OPTIMIZATIONS
+    // Manejo de errores del engine
     this.io.engine.on("connection_error", (err) => {
       logger.warn('Socket.IO engine connection error', {
         category: 'SOCKET_ENGINE_ERROR',
         error: err.message,
         code: err.code,
-        context: err.context
+        context: err.context || 'unknown'
       });
     });
 
     logger.info('✅ Socket.IO server configured successfully', {
       category: 'SOCKET_CONFIG_SUCCESS',
-      corsOrigins: corsOrigins.length,
-      memoryOptimizations: true,
-      performanceOptimizations: true,
-      memoryLeakPrevention: true
+      corsOrigins: corsOrigins.length
     });
   }
 
@@ -398,7 +353,7 @@ class EnterpriseSocketManager {
       category: 'SOCKET_AUTH_SETUP'
     });
 
-    this.io.use(asyncWrapper(async (socket, next) => {
+    this.io.use(async (socket, next) => {
       try {
         // Extract JWT token from handshake
         const token = socket.handshake.auth?.token || 
@@ -409,9 +364,7 @@ class EnterpriseSocketManager {
           logger.warn('Socket.IO: Connection attempt without JWT token', {
             category: 'SOCKET_AUTH_FAILURE',
             socketId: socket.id,
-            ip: socket.handshake.address,
-            userAgent: socket.handshake.headers['user-agent']?.substring(0, 100),
-            severity: 'MEDIUM'
+            ip: socket.handshake.address
           });
           return next(new Error('AUTHENTICATION_REQUIRED: JWT token required'));
         }
@@ -420,8 +373,7 @@ class EnterpriseSocketManager {
         const jwtConfig = getAccessTokenConfig();
         if (!jwtConfig.secret) {
           logger.error('Socket.IO: JWT_SECRET not configured', {
-            category: 'SOCKET_AUTH_CONFIG_ERROR',
-            severity: 'CRITICAL'
+            category: 'SOCKET_AUTH_CONFIG_ERROR'
           });
           return next(new Error('SERVER_CONFIGURATION_ERROR'));
         }
@@ -431,17 +383,13 @@ class EnterpriseSocketManager {
           decodedToken = jwt.verify(token, jwtConfig.secret, {
             issuer: jwtConfig.issuer,
             audience: jwtConfig.audience,
-            clockTolerance: 60 // 60 seconds clock tolerance
+            clockTolerance: 60
           });
         } catch (jwtError) {
           logger.warn('Socket.IO: Invalid JWT token', {
             category: 'SOCKET_AUTH_INVALID_TOKEN',
             error: jwtError.message,
-            errorType: jwtError.name,
-            tokenPrefix: token.substring(0, 20) + '...',
-            socketId: socket.id,
-            ip: socket.handshake.address,
-            severity: 'MEDIUM'
+            socketId: socket.id
           });
           return next(new Error('AUTHENTICATION_FAILED: Invalid or expired token'));
         }
@@ -451,44 +399,35 @@ class EnterpriseSocketManager {
         if (!email || !email.includes('@')) {
           logger.error('Socket.IO: Token without valid email', {
             category: 'SOCKET_AUTH_INVALID_EMAIL',
-            tokenPayload: { ...decodedToken, iat: '[FILTERED]', exp: '[FILTERED]' },
-            socketId: socket.id,
-            severity: 'HIGH'
+            socketId: socket.id
           });
           return next(new Error('AUTHENTICATION_FAILED: Valid email required'));
         }
 
-        // Get user from cache or database
+        // Get user role (simplificado)
         let userRole = this.userRoleCache.get(email);
         if (!userRole) {
-          const user = await User.getByEmail(email);
-          if (!user) {
-            logger.error('Socket.IO: User not found in database', {
-              category: 'SOCKET_AUTH_USER_NOT_FOUND',
-              email: email.substring(0, 20) + '...',
-              socketId: socket.id,
-              severity: 'HIGH'
+          try {
+            const user = await User.getByEmail(email);
+            if (!user || !user.isActive) {
+              logger.warn('Socket.IO: User not found or inactive', {
+                category: 'SOCKET_AUTH_USER_NOT_FOUND',
+                email: email.substring(0, 20) + '...',
+                socketId: socket.id
+              });
+              return next(new Error('AUTHENTICATION_FAILED: User not found or inactive'));
+            }
+            userRole = user.role;
+            this.userRoleCache.set(email, userRole);
+          } catch (dbError) {
+            logger.error('Socket.IO: Database error during auth', {
+              category: 'SOCKET_AUTH_DB_ERROR',
+              error: dbError.message,
+              socketId: socket.id
             });
-            return next(new Error('AUTHENTICATION_FAILED: User not found'));
+            return next(new Error('AUTHENTICATION_FAILED: Database error'));
           }
-
-          if (!user.isActive) {
-            logger.warn('Socket.IO: Inactive user connection attempt', {
-              category: 'SOCKET_AUTH_INACTIVE_USER',
-              email: email.substring(0, 20) + '...',
-              socketId: socket.id,
-              severity: 'MEDIUM'
-            });
-            return next(new Error('AUTHENTICATION_FAILED: User inactive'));
-          }
-
-          userRole = user.role;
-          // Cache user role
-          this.userRoleCache.set(email, userRole);
         }
-
-        // Check for existing connection and handle gracefully
-        await this.handleExistingConnection(email, socket);
 
         // Attach authenticated user data to socket
         socket.userEmail = email;
@@ -497,23 +436,19 @@ class EnterpriseSocketManager {
         socket.connectedAt = Date.now();
         socket.lastActivity = Date.now();
 
-        // 🔧 SOCKET ROBUSTO: Agregar scoping de workspace/tenant
+        // Socket data
         socket.data = {
           userId: decodedToken.userId || email,
           emailMasked: email.substring(0, 20) + '...',
           workspaceId: decodedToken.workspaceId || 'default',
-          tenantId: decodedToken.tenantId || 'na',
-          // 🔍 CORRELACIÓN: Agregar requestId/traceId si están disponibles
-          requestId: socket.handshake.headers['x-request-id'] || null,
-          traceId: socket.handshake.headers['x-trace-id'] || null
+          tenantId: decodedToken.tenantId || 'na'
         };
 
         logger.info('Socket.IO: Authentication successful', {
           category: 'SOCKET_AUTH_SUCCESS',
           email: email.substring(0, 20) + '...',
           role: userRole,
-          socketId: socket.id,
-          ip: socket.handshake.address
+          socketId: socket.id
         });
 
         next(); // Authentication successful
@@ -522,16 +457,11 @@ class EnterpriseSocketManager {
         logger.error('Socket.IO: Authentication middleware error', {
           category: 'SOCKET_AUTH_ERROR',
           error: error.message,
-          stack: error.stack,
-          socketId: socket.id,
-          severity: 'HIGH'
+          socketId: socket.id
         });
         next(new Error('AUTHENTICATION_ERROR: Internal authentication error'));
       }
-    }, {
-      operationName: 'socketAuthentication',
-      timeoutMs: 10000 // 10 seconds timeout for auth
-    }));
+    });
 
     logger.info('✅ Authentication middleware configured successfully', {
       category: 'SOCKET_AUTH_SUCCESS'
