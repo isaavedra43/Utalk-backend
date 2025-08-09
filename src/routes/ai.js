@@ -34,6 +34,8 @@ const aiValidators = {
   validateUpdateConfig: Joi.object({
     ai_enabled: Joi.boolean().optional()
       .description('Habilitar/deshabilitar IA'),
+    provider: Joi.string().valid('openai', 'anthropic', 'gemini').optional()
+      .description('Proveedor de IA'),
     defaultModel: Joi.string().optional().valid(
       'gpt-4o-mini',
       'gpt-4o',
@@ -42,6 +44,14 @@ const aiValidators = {
       'claude-3-sonnet',
       'gemini-1.5-flash'
     ).description('Modelo de IA por defecto'),
+    escalationModel: Joi.string().optional().valid(
+      'gpt-4o-mini',
+      'gpt-4o',
+      'gpt-3.5-turbo',
+      'claude-3-haiku',
+      'claude-3-sonnet',
+      'gemini-1.5-flash'
+    ).description('Modelo de escalación'),
     temperature: Joi.number().min(0).max(1).optional()
       .description('Temperatura del modelo (0-1)'),
     maxTokens: Joi.number().integer().min(1).max(300).optional()
@@ -50,7 +60,8 @@ const aiValidators = {
       suggestions: Joi.boolean().optional(),
       rag: Joi.boolean().optional(),
       reports: Joi.boolean().optional(),
-      console: Joi.boolean().optional()
+      console: Joi.boolean().optional(),
+      provider_ready: Joi.boolean().optional()
     }).optional().description('Banderas de funcionalidades'),
     policies: Joi.object({
       no_inventar_precios: Joi.boolean().optional(),
@@ -60,7 +71,10 @@ const aiValidators = {
     limits: Joi.object({
       maxContextMessages: Joi.number().integer().min(1).max(50).optional(),
       maxResponseLength: Joi.number().integer().min(1).max(1000).optional(),
-      maxLatencyMs: Joi.number().integer().min(100).max(30000).optional()
+      maxLatencyMs: Joi.number().integer().min(100).max(30000).optional(),
+      maxTokensOut: Joi.number().integer().min(1).max(150).optional(),
+      timeout: Joi.number().integer().min(500).max(10000).optional(),
+      maxRetries: Joi.number().integer().min(0).max(3).optional()
     }).optional().description('Límites de configuración')
   }),
 
@@ -133,6 +147,14 @@ router.put('/config/:workspaceId',
 /**
  * Rutas de sugerencias IA
  */
+
+// POST /api/ai/dry-run/suggest
+router.post('/dry-run/suggest',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest(aiValidators.validateTestSuggestion, 'body'),
+  AIController.dryRunSuggestion
+);
 
 // POST /api/ai/test-suggestion
 router.post('/test-suggestion',

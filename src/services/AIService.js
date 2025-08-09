@@ -18,6 +18,8 @@ const {
   generateContextSummary, 
   validateContextForAI 
 } = require('../utils/contextLoader');
+const { generateWithProvider } = require('../ai/vendors');
+const { buildPromptWithGuardrails } = require('../ai/vendors/openai');
 
 /**
  * Generar sugerencia para un mensaje (FAKE - sin IA real)
@@ -76,8 +78,13 @@ async function generateSuggestionForMessage(workspaceId, conversationId, message
     // Generar resumen del contexto
     const contextSummary = generateContextSummary(context);
 
-    // Generar sugerencia FAKE (sin llamar a IA real)
-    const fakeSuggestion = await generateFakeSuggestion(context, contextSummary, config);
+    // Generar sugerencia con proveedor real o fake según configuración
+    let suggestion;
+    if (config.flags.provider_ready && config.provider === 'openai') {
+      suggestion = await generateRealSuggestion(context, contextSummary, config);
+    } else {
+      suggestion = await generateFakeSuggestion(context, contextSummary, config);
+    }
 
     // Calcular métricas
     const latencyMs = Date.now() - startTime;
@@ -90,29 +97,33 @@ async function generateSuggestionForMessage(workspaceId, conversationId, message
     };
 
     // Log de éxito
-    await aiLogger.logAISuccess(workspaceId, 'generate_suggestion', fakeSuggestion, metrics);
+    await aiLogger.logAISuccess(workspaceId, 'generate_suggestion', suggestion, metrics);
 
     // Log de sugerencia generada
-    aiLogger.logSuggestionGenerated(workspaceId, conversationId, messageId, fakeSuggestion, metrics);
+    aiLogger.logSuggestionGenerated(workspaceId, conversationId, messageId, suggestion, metrics);
 
-    logger.info('✅ Sugerencia IA generada (FAKE)', {
+    const isReal = config.flags.provider_ready && config.provider === 'openai';
+    logger.info(`✅ Sugerencia IA generada (${isReal ? 'REAL' : 'FAKE'})`, {
       workspaceId,
       conversationId,
       messageId,
-      suggestionId: fakeSuggestion.id,
-      confidence: fakeSuggestion.confianza,
-      latencyMs
+      suggestionId: suggestion.id,
+      confidence: suggestion.confianza,
+      latencyMs,
+      provider: config.provider
     });
 
     return {
       success: true,
-      suggestion: fakeSuggestion,
+      suggestion: suggestion,
       context: {
         messagesCount: context.totalMessages,
         totalTokens: context.totalTokens,
         summary: contextSummary.summary
       },
-      metrics
+      metrics,
+      provider: config.provider,
+      isReal: isReal
     };
 
   } catch (error) {
@@ -139,6 +150,88 @@ async function generateSuggestionForMessage(workspaceId, conversationId, message
       conversationId,
       messageId
     };
+  }
+}
+
+/**
+ * Generar sugerencia REAL con proveedor de IA
+ */
+async function generateRealSuggestion(context, contextSummary, config) {
+  const suggestionId = uuidv4();
+  
+  try {
+    // Construir prompt con guardrails
+    const prompt = buildPromptWithGuardrails(context, config);
+    
+    // Generar con proveedor real
+    const result = await generateWithProvider(config.provider, {
+      model: config.defaultModel,
+      prompt: prompt,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      workspaceId: context.workspaceId,
+      conversationId: context.conversationId
+    });
+
+    if (!result.ok) {
+      logger.warn('⚠️ Error generando sugerencia real, fallback a fake', {
+        error: result.error,
+        message: result.message,
+        conversationId: context.conversationId
+      });
+      
+      // Fallback a sugerencia fake
+      return await generateFakeSuggestion(context, contextSummary, config);
+    }
+
+    // Procesar respuesta del proveedor
+    const suggestedText = result.text || 'No se pudo generar una respuesta.';
+    const confidence = calculateConfidence(result.text, context);
+    const tipo = determineSuggestionType(result.text, context);
+
+    // Crear objeto de sugerencia
+    const suggestion = {
+      id: suggestionId,
+      conversationId: context.conversationId,
+      messageIdOrigen: context.messages[context.messages.length - 1]?.id || 'unknown',
+      sugerencia: {
+        texto: suggestedText,
+        confianza: confidence,
+        tipo: tipo,
+        fuentes: ['proveedor_ia_real'],
+        contexto: {
+          historialMensajes: context.totalMessages,
+          ultimoMensaje: context.messages[context.messages.length - 1]?.content?.substring(0, 50) + '...',
+          resumen: contextSummary.summary
+        }
+      },
+      estado: 'draft',
+      modelo: config.defaultModel,
+      proveedor: config.provider,
+      tokensEstimados: {
+        in: result.usage.in,
+        out: result.usage.out
+      },
+      createdAt: new Date().toISOString(),
+      metadata: {
+        latencyMs: result.usage.latencyMs,
+        costUsd: estimateCost(result.usage.in, result.usage.out, config.defaultModel),
+        version: '1.0.0',
+        real: true,
+        provider: config.provider
+      }
+    };
+
+    return suggestion;
+
+  } catch (error) {
+    logger.error('❌ Error generando sugerencia real', {
+      error: error.message,
+      conversationId: context.conversationId
+    });
+    
+    // Fallback a sugerencia fake
+    return await generateFakeSuggestion(context, contextSummary, config);
   }
 }
 
@@ -217,6 +310,84 @@ async function generateFakeSuggestion(context, contextSummary, config) {
   };
 
   return suggestion;
+}
+
+/**
+ * Calcular confianza de la sugerencia
+ */
+function calculateConfidence(text, context) {
+  if (!text || text.length < 10) return 0.3;
+  
+  // Factores que aumentan la confianza
+  let confidence = 0.5;
+  
+  // Longitud apropiada
+  if (text.length >= 20 && text.length <= 200) confidence += 0.2;
+  
+  // Contiene palabras clave profesionales
+  const professionalWords = ['ayudar', 'asistir', 'informar', 'proporcionar', 'ofrecer'];
+  const hasProfessionalWords = professionalWords.some(word => 
+    text.toLowerCase().includes(word)
+  );
+  if (hasProfessionalWords) confidence += 0.1;
+  
+  // No contiene palabras problemáticas
+  const problematicWords = ['no sé', 'no tengo', 'no puedo', 'no disponible'];
+  const hasProblematicWords = problematicWords.some(word => 
+    text.toLowerCase().includes(word)
+  );
+  if (!hasProblematicWords) confidence += 0.1;
+  
+  // Termina con puntuación apropiada
+  if (text.endsWith('.') || text.endsWith('?') || text.endsWith('!')) confidence += 0.1;
+  
+  return Math.min(0.95, confidence);
+}
+
+/**
+ * Determinar tipo de sugerencia
+ */
+function determineSuggestionType(text, context) {
+  const lowerText = text.toLowerCase();
+  
+  if (lowerText.includes('hola') || lowerText.includes('gracias')) {
+    return 'saludo';
+  }
+  
+  if (lowerText.includes('precio') || lowerText.includes('costo') || lowerText.includes('valor')) {
+    return 'consulta_precios';
+  }
+  
+  if (lowerText.includes('horario') || lowerText.includes('hora') || lowerText.includes('disponible')) {
+    return 'horarios_atencion';
+  }
+  
+  if (lowerText.includes('problema') || lowerText.includes('error') || lowerText.includes('ayuda')) {
+    return 'soporte_tecnico';
+  }
+  
+  if (lowerText.includes('?') || lowerText.includes('pregunta')) {
+    return 'pregunta';
+  }
+  
+  return 'respuesta_general';
+}
+
+/**
+ * Estimar costo de tokens
+ */
+function estimateCost(tokensIn, tokensOut, model) {
+  const costs = {
+    'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+    'gpt-4o': { input: 0.005, output: 0.015 },
+    'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 }
+  };
+  
+  const modelCosts = costs[model] || costs['gpt-4o-mini'];
+  const inputCost = (tokensIn / 1000) * modelCosts.input;
+  const outputCost = (tokensOut / 1000) * modelCosts.output;
+  
+  return inputCost + outputCost;
 }
 
 /**
@@ -379,6 +550,7 @@ async function getSuggestionStats(workspaceId, days = 7) {
 
 module.exports = {
   generateSuggestionForMessage,
+  generateRealSuggestion,
   generateFakeSuggestion,
   saveSuggestion,
   getSuggestionsForConversation,

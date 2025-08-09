@@ -16,14 +16,17 @@ const logger = require('../utils/logger');
  */
 const DEFAULT_AI_CONFIG = {
   ai_enabled: false,
+  provider: 'openai',
   defaultModel: 'gpt-4o-mini',
+  escalationModel: 'gpt-4o',
   temperature: 0.3,
   maxTokens: 150,
   flags: {
     suggestions: false,
     rag: false,
     reports: false,
-    console: false
+    console: false,
+    provider_ready: false
   },
   policies: {
     no_inventar_precios: true,
@@ -33,7 +36,10 @@ const DEFAULT_AI_CONFIG = {
   limits: {
     maxContextMessages: 20,
     maxResponseLength: 300,
-    maxLatencyMs: 5000
+    maxLatencyMs: 5000,
+    maxTokensOut: 150,
+    timeout: 2000,
+    maxRetries: 1
   }
 };
 
@@ -45,7 +51,10 @@ const AI_VALIDATIONS = {
   maxTokens: { min: 1, max: 300, type: 'number' },
   maxContextMessages: { min: 1, max: 50, type: 'number' },
   maxResponseLength: { min: 1, max: 1000, type: 'number' },
-  maxLatencyMs: { min: 100, max: 30000, type: 'number' }
+  maxLatencyMs: { min: 100, max: 30000, type: 'number' },
+  maxTokensOut: { min: 1, max: 150, type: 'number' },
+  timeout: { min: 500, max: 10000, type: 'number' },
+  maxRetries: { min: 0, max: 3, type: 'number' }
 };
 
 /**
@@ -65,35 +74,98 @@ const SUPPORTED_MODELS = [
  */
 function validateAndClampConfig(config) {
   const validated = { ...config };
+  const warnings = [];
 
   // Validar temperature
   if (validated.temperature !== undefined) {
+    const originalTemp = validated.temperature;
     validated.temperature = Math.max(0, Math.min(1, validated.temperature));
+    if (originalTemp !== validated.temperature) {
+      warnings.push(`Temperature ajustada de ${originalTemp} a ${validated.temperature}`);
+    }
   }
 
   // Validar maxTokens
   if (validated.maxTokens !== undefined) {
+    const originalTokens = validated.maxTokens;
     validated.maxTokens = Math.max(1, Math.min(300, validated.maxTokens));
+    if (originalTokens !== validated.maxTokens) {
+      warnings.push(`maxTokens ajustado de ${originalTokens} a ${validated.maxTokens}`);
+    }
   }
 
   // Validar maxContextMessages
   if (validated.limits?.maxContextMessages !== undefined) {
+    const originalContext = validated.limits.maxContextMessages;
     validated.limits.maxContextMessages = Math.max(1, Math.min(50, validated.limits.maxContextMessages));
+    if (originalContext !== validated.limits.maxContextMessages) {
+      warnings.push(`maxContextMessages ajustado de ${originalContext} a ${validated.limits.maxContextMessages}`);
+    }
   }
 
   // Validar maxResponseLength
   if (validated.limits?.maxResponseLength !== undefined) {
+    const originalLength = validated.limits.maxResponseLength;
     validated.limits.maxResponseLength = Math.max(1, Math.min(1000, validated.limits.maxResponseLength));
+    if (originalLength !== validated.limits.maxResponseLength) {
+      warnings.push(`maxResponseLength ajustado de ${originalLength} a ${validated.limits.maxResponseLength}`);
+    }
   }
 
   // Validar maxLatencyMs
   if (validated.limits?.maxLatencyMs !== undefined) {
+    const originalLatency = validated.limits.maxLatencyMs;
     validated.limits.maxLatencyMs = Math.max(100, Math.min(30000, validated.limits.maxLatencyMs));
+    if (originalLatency !== validated.limits.maxLatencyMs) {
+      warnings.push(`maxLatencyMs ajustado de ${originalLatency} a ${validated.limits.maxLatencyMs}`);
+    }
+  }
+
+  // Validar maxTokensOut
+  if (validated.limits?.maxTokensOut !== undefined) {
+    const originalTokensOut = validated.limits.maxTokensOut;
+    validated.limits.maxTokensOut = Math.max(1, Math.min(150, validated.limits.maxTokensOut));
+    if (originalTokensOut !== validated.limits.maxTokensOut) {
+      warnings.push(`maxTokensOut ajustado de ${originalTokensOut} a ${validated.limits.maxTokensOut}`);
+    }
+  }
+
+  // Validar timeout
+  if (validated.limits?.timeout !== undefined) {
+    const originalTimeout = validated.limits.timeout;
+    validated.limits.timeout = Math.max(500, Math.min(10000, validated.limits.timeout));
+    if (originalTimeout !== validated.limits.timeout) {
+      warnings.push(`timeout ajustado de ${originalTimeout} a ${validated.limits.timeout}`);
+    }
+  }
+
+  // Validar maxRetries
+  if (validated.limits?.maxRetries !== undefined) {
+    const originalRetries = validated.limits.maxRetries;
+    validated.limits.maxRetries = Math.max(0, Math.min(3, validated.limits.maxRetries));
+    if (originalRetries !== validated.limits.maxRetries) {
+      warnings.push(`maxRetries ajustado de ${originalRetries} a ${validated.limits.maxRetries}`);
+    }
   }
 
   // Validar modelo
   if (validated.defaultModel && !SUPPORTED_MODELS.includes(validated.defaultModel)) {
+    warnings.push(`Modelo ${validated.defaultModel} no soportado, usando ${DEFAULT_AI_CONFIG.defaultModel}`);
     validated.defaultModel = DEFAULT_AI_CONFIG.defaultModel;
+  }
+
+  // Validar provider
+  if (validated.provider && !['openai', 'anthropic', 'gemini'].includes(validated.provider)) {
+    warnings.push(`Proveedor ${validated.provider} no soportado, usando openai`);
+    validated.provider = 'openai';
+  }
+
+  // Log warnings si hay alguno
+  if (warnings.length > 0) {
+    logger.warn('⚠️ Configuración IA ajustada automáticamente', {
+      warnings,
+      config: validated
+    });
   }
 
   return validated;

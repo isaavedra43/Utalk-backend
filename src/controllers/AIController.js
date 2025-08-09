@@ -12,6 +12,7 @@ const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHa
 const { getAIConfig, updateAIConfig, isAIEnabled } = require('../config/aiConfig');
 const { aiLogger } = require('../utils/aiLogger');
 const AIService = require('../services/AIService');
+const { checkAllProvidersHealth } = require('../ai/vendors');
 const logger = require('../utils/logger');
 
 class AIController {
@@ -107,6 +108,108 @@ class AIController {
     } catch (error) {
       logger.error('❌ Error actualizando configuración IA', {
         workspaceId: req.params?.workspaceId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * POST /api/ai/dry-run/suggest
+   * Endpoint de prueba para generar sugerencia (dry-run, no guarda en DB)
+   */
+  static async dryRunSuggestion(req, res, next) {
+    try {
+      const { workspaceId, conversationId, messageId } = req.body;
+
+      // Validar campos requeridos
+      if (!workspaceId || !conversationId || !messageId) {
+        throw new ApiError(
+          'MISSING_REQUIRED_FIELDS',
+          'workspaceId, conversationId y messageId son requeridos',
+          'Proporciona todos los campos obligatorios',
+          400
+        );
+      }
+
+      // Verificar permisos
+      if (req.user.role !== 'admin' && req.user.role !== 'agent') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('generar sugerencias IA', workspaceId);
+      }
+
+      logger.info('🧪 Iniciando dry-run de sugerencia IA', {
+        workspaceId,
+        conversationId,
+        messageId,
+        userEmail: req.user.email
+      });
+
+      // Generar sugerencia (sin guardar en DB)
+      const result = await AIService.generateSuggestionForMessage(
+        workspaceId,
+        conversationId,
+        messageId,
+        {
+          dryRun: true
+        }
+      );
+
+      if (!result.success) {
+        throw new ApiError(
+          'SUGGESTION_GENERATION_FAILED',
+          'Error generando sugerencia',
+          result.reason,
+          500
+        );
+      }
+
+      // Preparar respuesta de dry-run
+      const suggestion = result.suggestion;
+      const warnings = [];
+
+      // Verificar latencia
+      if (result.metrics.latencyMs > 2500) {
+        warnings.push('Latencia alta detectada');
+      }
+
+      // Verificar si es real o fake
+      if (!result.isReal) {
+        warnings.push('Usando modo fake (proveedor no disponible)');
+      }
+
+      // Verificar longitud de sugerencia
+      if (suggestion.sugerencia.texto.length > 300) {
+        warnings.push('Sugerencia muy larga');
+      }
+
+      logger.info('✅ Dry-run de sugerencia IA completado', {
+        workspaceId,
+        conversationId,
+        messageId,
+        suggestionId: suggestion.id,
+        isReal: result.isReal,
+        latencyMs: result.metrics.latencyMs,
+        userEmail: req.user.email
+      });
+
+      return ResponseHandler.success(res, {
+        ok: true,
+        suggestion_preview: suggestion.sugerencia.texto.substring(0, 300),
+        usage: {
+          in: result.metrics.tokensIn,
+          out: result.metrics.tokensOut,
+          latencyMs: result.metrics.latencyMs
+        },
+        warnings: warnings,
+        provider: result.provider,
+        isReal: result.isReal
+      }, 'Sugerencia IA generada exitosamente (dry-run)', 200);
+
+    } catch (error) {
+      logger.error('❌ Error en dry-run de sugerencia IA', {
+        workspaceId: req.body?.workspaceId,
+        conversationId: req.body?.conversationId,
         userEmail: req.user?.email,
         error: error.message
       });
@@ -357,30 +460,69 @@ class AIController {
 
   /**
    * GET /api/ai/health
-   * Health check del módulo IA
+   * Health check del módulo IA con proveedores
    */
   static async getAIHealth(req, res, next) {
     try {
+      // Verificar si IA está habilitada globalmente
+      const aiEnabled = process.env.AI_ENABLED === 'true';
+      
+      if (!aiEnabled) {
+        return ResponseHandler.success(res, {
+          status: 'disabled',
+          timestamp: new Date().toISOString(),
+          version: '1.0.0',
+          phase: 'B',
+          reason: 'AI_ENABLED=false',
+          features: {
+            config: true,
+            suggestions: true,
+            contextLoader: true,
+            logging: true,
+            fakeMode: true,
+            provider_ready: false
+          }
+        }, 'Módulo IA deshabilitado', 200);
+      }
+
+      // Verificar salud de proveedores
+      const providersHealth = await checkAllProvidersHealth();
+      const openaiHealth = providersHealth.openai;
+      
+      // Determinar estado general
+      let status = 'healthy';
+      let provider_ready = false;
+      
+      if (openaiHealth && openaiHealth.ok) {
+        provider_ready = true;
+      } else {
+        status = 'degraded';
+      }
+
       const health = {
-        status: 'healthy',
+        status: status,
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        phase: 'A',
+        phase: 'B',
         features: {
           config: true,
           suggestions: true,
           contextLoader: true,
           logging: true,
-          fakeMode: true
+          fakeMode: true,
+          provider_ready: provider_ready
         },
+        providers: providersHealth,
         environment: {
           nodeEnv: process.env.NODE_ENV || 'development',
-          aiEnabled: process.env.AI_ENABLED === 'true'
+          aiEnabled: aiEnabled,
+          openaiKey: !!process.env.OPENAI_API_KEY
         }
       };
 
       logger.info('✅ Health check IA', {
         status: health.status,
+        provider_ready: provider_ready,
         userEmail: req.user?.email
       });
 
