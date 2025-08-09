@@ -32,7 +32,7 @@ class MessageController {
    * Lista mensajes con filtros y paginación
    * 
    * QUERY PARAMS:
-   * - conversationId: ID de conversación (opcional)
+   * - conversationId: ID de conversación (requerido)
    * - limit: número de resultados (default: 50, max: 100)
    * - cursor: cursor de paginación
    * - direction: inbound|outbound (opcional)
@@ -56,32 +56,74 @@ class MessageController {
         search
       } = req.query;
 
+      // Validar conversationId (requerido)
+      if (!conversationId) {
+        throw new ApiError(
+          'MISSING_CONVERSATION_ID',
+          'conversationId es requerido',
+          'Proporciona el ID de la conversación',
+          400
+        );
+      }
+
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
-      // Construir filtros
-      const filters = {};
-      if (conversationId) filters.conversationId = conversationId;
-      if (direction) filters.direction = direction;
-      if (type) filters.type = type;
-      if (status) filters.status = status;
-      if (search) filters.search = search;
+      // Verificar que el usuario tenga acceso a la conversación
+      const conversation = await Conversation.getById(conversationId);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
+      }
 
-      // Obtener mensajes
-      const messages = await Message.getByConversation(conversationId, {
+      // Verificar permisos: usuario debe estar en participants
+      const userEmail = req.user.email;
+      const participants = conversation.participants || [];
+      if (!participants.includes(userEmail)) {
+        throw new ApiError(
+          'ACCESS_DENIED',
+          'No tienes acceso a esta conversación',
+          'Solo los participantes pueden ver los mensajes',
+          403
+        );
+      }
+
+      // Construir opciones para el modelo
+      const options = {
         limit: limitNum,
         cursor,
-        filters
-      });
+        direction,
+        type,
+        status,
+        orderBy: 'timestamp',
+        order: 'desc'
+      };
 
+      // Obtener mensajes usando el modelo
+      const result = await Message.getByConversation(conversationId, options);
+
+      // Transformar mensajes a JSON
+      const messages = result.messages.map(msg => msg.toJSON());
+
+      // Log de éxito
       logger.info('Mensajes obtenidos exitosamente', {
         conversationId,
         count: messages.length,
-        userEmail: req.user?.email
+        userEmail: req.user?.email,
+        hasMore: result.pagination.hasMore,
+        queryTime: result.metadata.queryTime
       });
 
+      // Retornar respuesta con paginación
       return ResponseHandler.success(
         res,
-        messages.map(msg => msg.toJSON()),
+        {
+          messages,
+          pagination: result.pagination,
+          metadata: {
+            conversationId,
+            totalResults: messages.length,
+            queryTime: result.metadata.queryTime
+          }
+        },
         `${messages.length} mensajes encontrados`,
         200
       );

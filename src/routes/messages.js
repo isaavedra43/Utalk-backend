@@ -53,9 +53,31 @@ const messageValidators = {
       Price: Joi.string().optional(),
       PriceUnit: Joi.string().optional()
     })
+  }),
+
+  validateList: validateRequest({
+    query: Joi.object({
+      conversationId: Joi.string().required(),
+      limit: Joi.number().integer().min(1).max(100).default(50),
+      cursor: Joi.string().optional(),
+      before: Joi.string().optional(),
+      after: Joi.string().optional()
+    })
   })
 };
 const { validateId } = require('../middleware/validation');
+
+/**
+ * @route GET /api/messages
+ * @desc Listar mensajes de una conversación (para frontend)
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/',
+  authMiddleware,
+  requireReadAccess,
+  messageValidators.validateList,
+  MessageController.getMessages
+);
 
 /**
  * @route GET /api/conversations/:conversationId/messages
