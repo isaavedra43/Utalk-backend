@@ -979,6 +979,94 @@ class ConversationController {
       return ResponseHandler.error(res, error);
     }
   }
+
+  /**
+   * 💬 POST /api/conversations/:id/messages
+   * Enviar mensaje en conversación específica
+   */
+  static async sendMessageInConversation(req, res, next) {
+    try {
+      const { id: conversationId } = req.params;
+      const { content, type = 'text', replyToMessageId, metadata = {} } = req.body;
+      const userEmail = req.user.email;
+
+      // Verificar que la conversación existe
+      const conversation = await ConversationService.getConversationById(conversationId);
+      
+      if (!conversation) {
+        return ResponseHandler.error(res, new ApiError(
+          'CONVERSATION_NOT_FOUND',
+          'Conversación no encontrada',
+          'Verifica el ID de la conversación',
+          404
+        ));
+      }
+
+      // Verificar que el usuario tiene acceso a la conversación
+      const participants = conversation.participants || [];
+      if (!participants.includes(userEmail)) {
+        return ResponseHandler.error(res, new ApiError(
+          'ACCESS_DENIED',
+          'No tienes acceso a esta conversación',
+          'Solo los participantes pueden enviar mensajes',
+          403
+        ));
+      }
+
+      // Preparar datos del mensaje
+      const messageData = {
+        conversationId,
+        content: content.trim(),
+        type,
+        direction: 'outbound',
+        senderIdentifier: req.user.phone || req.user.email,
+        recipientIdentifier: conversation.customerPhone,
+        agentEmail: userEmail,
+        workspaceId: req.user.workspaceId,
+        tenantId: req.user.tenantId,
+        replyToMessageId: replyToMessageId || undefined,
+        metadata: {
+          ...metadata,
+          sentBy: userEmail,
+          userAgent: req.headers['user-agent'],
+          ip: req.ip
+        },
+        timestamp: new Date()
+      };
+
+      // Usar el repositorio para enviar el mensaje
+      const conversationsRepo = getConversationsRepository();
+      const result = await conversationsRepo.appendOutbound(conversationId, messageData);
+
+      // Emitir evento de socket para tiempo real
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.io.to(`conversation-${conversationId}`).emit('new-message', {
+          conversationId,
+          message: result.message,
+          sender: userEmail,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.info('Mensaje enviado exitosamente', {
+        conversationId,
+        messageId: result.message.id,
+        sender: userEmail,
+        contentLength: content.length,
+        type
+      });
+
+      return ResponseHandler.success(res, {
+        message: result.message,
+        conversation: result.conversation
+      }, 'Mensaje enviado exitosamente');
+
+    } catch (error) {
+      logger.error('Error enviando mensaje:', error);
+      return ResponseHandler.error(res, error);
+    }
+  }
 }
 
 module.exports = ConversationController;

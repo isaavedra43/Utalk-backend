@@ -64,6 +64,15 @@ const conversationValidators = {
     body: Joi.object({
       priority: Joi.string().valid('low', 'medium', 'high', 'urgent').required()
     })
+  }),
+
+  validateSendMessage: validateRequest({
+    body: Joi.object({
+      content: Joi.string().min(1).max(4096).required(),
+      type: Joi.string().valid('text', 'image', 'audio', 'video', 'document').default('text'),
+      replyToMessageId: Joi.string().optional(),
+      metadata: Joi.object().optional()
+    })
   })
 };
 const { validateId } = require('../middleware/validation');
@@ -179,6 +188,19 @@ router.put('/:id/read-all',
   requireWriteAccess,
   validateId('id'),
   ConversationController.markConversationAsRead
+);
+
+/**
+ * @route POST /api/conversations/:id/messages
+ * @desc Enviar mensaje en conversación específica
+ * @access Private (Agent, Admin)
+ */
+router.post('/:id/messages',
+  authMiddleware,
+  requireWriteAccess,
+  validateId('id'),
+  conversationValidators.validateSendMessage,
+  ConversationController.sendMessageInConversation
 );
 
 /**
