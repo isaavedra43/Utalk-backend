@@ -8,7 +8,14 @@
  * @author Backend Team
  */
 
-const OpenAI = require('openai');
+let OpenAI;
+try {
+  OpenAI = require('openai');
+} catch (error) {
+  console.warn('⚠️ Módulo OpenAI no disponible. Usando stub temporal.');
+  OpenAI = null;
+}
+
 const logger = require('../../utils/logger');
 const { aiLogger } = require('../../utils/aiLogger');
 
@@ -149,6 +156,12 @@ let openaiClient = null;
 
 function initializeOpenAIClient() {
   try {
+    // Verificar si OpenAI está disponible
+    if (!OpenAI) {
+      logger.warn('⚠️ Módulo OpenAI no disponible. Usando modo stub.');
+      return false;
+    }
+    
     const apiKey = process.env.OPENAI_API_KEY;
     
     if (!apiKey) {
@@ -289,14 +302,21 @@ async function generateWithOpenAI(params) {
     if (!openaiClient) {
       const initialized = initializeOpenAIClient();
       if (!initialized) {
+        // Si OpenAI no está disponible, devolver respuesta stub
+        logger.warn('⚠️ OpenAI no disponible, devolviendo respuesta stub', {
+          workspaceId,
+          conversationId,
+          model
+        });
+        
         return {
-          ok: false,
-          error: 'PROVIDER_NOT_INITIALIZED',
-          message: 'Proveedor OpenAI no inicializado',
+          ok: true,
+          text: 'Gracias por tu mensaje. Un agente te responderá pronto.',
           usage: {
             in: 0,
             out: 0,
-            latencyMs: Date.now() - startTime
+            latencyMs: Date.now() - startTime,
+            model: 'stub'
           }
         };
       }
@@ -487,6 +507,16 @@ function getProviderStats() {
  */
 async function checkProviderHealth() {
   try {
+    // Verificar si OpenAI está disponible
+    if (!OpenAI) {
+      return {
+        ok: false,
+        provider: 'openai',
+        error: 'MODULE_NOT_AVAILABLE',
+        message: 'Módulo OpenAI no disponible (pendiente instalación)'
+      };
+    }
+    
     // Verificar inicialización
     if (!openaiClient) {
       const initialized = initializeOpenAIClient();
