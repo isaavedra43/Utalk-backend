@@ -962,6 +962,198 @@ class MessageController {
       return ResponseHandler.error(res, error);
     }
   }
+
+  /**
+   * 🆕 POST /api/messages/send-location
+   * Envía mensaje de ubicación a un número específico
+   */
+  static async sendLocationMessage(req, res, next) {
+    try {
+      const { to, latitude, longitude, name, address, conversationId } = req.body;
+
+      // Validar campos requeridos
+      if (!to || !latitude || !longitude) {
+        throw new ApiError(
+          'MISSING_REQUIRED_FIELDS',
+          'to, latitude y longitude son campos requeridos',
+          'Proporciona todos los campos obligatorios',
+          400
+        );
+      }
+
+      // Validar coordenadas
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new ApiError(
+          'INVALID_COORDINATES',
+          'Las coordenadas deben ser números válidos',
+          'Proporciona coordenadas numéricas válidas',
+          400
+        );
+      }
+
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        throw new ApiError(
+          'COORDINATES_OUT_OF_RANGE',
+          'Las coordenadas están fuera del rango válido',
+          'Latitud debe estar entre -90 y 90, longitud entre -180 y 180',
+          400
+        );
+      }
+
+      // Enviar mensaje de ubicación
+      const result = await MessageService.sendLocationMessage(to, lat, lng, name || '', address || '');
+
+      if (!result.success) {
+        throw new ApiError(
+          'LOCATION_SEND_FAILED',
+          'Error enviando mensaje de ubicación',
+          result.error,
+          500
+        );
+      }
+
+      // Si se proporciona conversationId, guardar en la conversación
+      if (conversationId) {
+        const messageData = {
+          conversationId,
+          messageId: result.messageData.id,
+          content: result.messageData.content,
+          type: 'location',
+          direction: 'outbound',
+          status: 'sent',
+          senderIdentifier: req.user.email,
+          recipientIdentifier: to,
+          location: result.messageData.location,
+          timestamp: new Date(),
+          metadata: {
+            sentBy: req.user.email,
+            sentAt: new Date().toISOString(),
+            twilioSid: result.messageData.metadata.twilioSid
+          }
+        };
+
+        const conversationsRepo = getConversationsRepository();
+        await conversationsRepo.appendOutbound(messageData);
+      }
+
+      logger.info('Mensaje de ubicación enviado exitosamente', {
+        userEmail: req.user.email,
+        to,
+        latitude: lat,
+        longitude: lng,
+        conversationId: conversationId || 'none'
+      });
+
+      return ResponseHandler.success(res, {
+        messageId: result.messageData.id,
+        twilioSid: result.messageData.metadata.twilioSid,
+        location: result.messageData.location
+      }, 'Mensaje de ubicación enviado exitosamente', 201);
+
+    } catch (error) {
+      logger.error('Error enviando mensaje de ubicación', {
+        error: error.message,
+        stack: error.stack,
+        userEmail: req.user?.email,
+        body: req.body
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🆕 POST /api/messages/send-sticker
+   * Envía mensaje de sticker a un número específico
+   */
+  static async sendStickerMessage(req, res, next) {
+    try {
+      const { to, stickerUrl, conversationId } = req.body;
+
+      // Validar campos requeridos
+      if (!to || !stickerUrl) {
+        throw new ApiError(
+          'MISSING_REQUIRED_FIELDS',
+          'to y stickerUrl son campos requeridos',
+          'Proporciona todos los campos obligatorios',
+          400
+        );
+      }
+
+      // Validar URL del sticker
+      try {
+        new URL(stickerUrl);
+      } catch (urlError) {
+        throw new ApiError(
+          'INVALID_STICKER_URL',
+          'La URL del sticker no es válida',
+          'Proporciona una URL válida para el sticker',
+          400
+        );
+      }
+
+      // Enviar mensaje de sticker
+      const result = await MessageService.sendStickerMessage(to, stickerUrl);
+
+      if (!result.success) {
+        throw new ApiError(
+          'STICKER_SEND_FAILED',
+          'Error enviando mensaje de sticker',
+          result.error,
+          500
+        );
+      }
+
+      // Si se proporciona conversationId, guardar en la conversación
+      if (conversationId) {
+        const messageData = {
+          conversationId,
+          messageId: result.messageData.id,
+          content: result.messageData.content,
+          type: 'sticker',
+          direction: 'outbound',
+          status: 'sent',
+          senderIdentifier: req.user.email,
+          recipientIdentifier: to,
+          sticker: result.messageData.sticker,
+          mediaUrl: stickerUrl,
+          timestamp: new Date(),
+          metadata: {
+            sentBy: req.user.email,
+            sentAt: new Date().toISOString(),
+            twilioSid: result.messageData.metadata.twilioSid
+          }
+        };
+
+        const conversationsRepo = getConversationsRepository();
+        await conversationsRepo.appendOutbound(messageData);
+      }
+
+      logger.info('Mensaje de sticker enviado exitosamente', {
+        userEmail: req.user.email,
+        to,
+        stickerUrl,
+        conversationId: conversationId || 'none'
+      });
+
+      return ResponseHandler.success(res, {
+        messageId: result.messageData.id,
+        twilioSid: result.messageData.metadata.twilioSid,
+        sticker: result.messageData.sticker
+      }, 'Mensaje de sticker enviado exitosamente', 201);
+
+    } catch (error) {
+      logger.error('Error enviando mensaje de sticker', {
+        error: error.message,
+        stack: error.stack,
+        userEmail: req.user?.email,
+        body: req.body
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
 }
 
 module.exports = MessageController;

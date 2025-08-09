@@ -31,6 +31,25 @@ const messageValidators = {
     })
   }),
 
+  validateSendLocation: validateRequest({
+    body: Joi.object({
+      to: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      latitude: Joi.number().min(-90).max(90).required(),
+      longitude: Joi.number().min(-180).max(180).required(),
+      name: Joi.string().max(100).optional(),
+      address: Joi.string().max(200).optional(),
+      conversationId: Joi.string().uuid().optional()
+    })
+  }),
+
+  validateSendSticker: validateRequest({
+    body: Joi.object({
+      to: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      stickerUrl: Joi.string().uri().required(),
+      conversationId: Joi.string().uuid().optional()
+    })
+  }),
+
   validateMarkRead: validateRequest({
     body: Joi.object({
       readAt: Joi.date().iso().default(() => new Date().toISOString())
@@ -51,7 +70,16 @@ const messageValidators = {
       AccountSid: Joi.string().optional(),
       ApiVersion: Joi.string().optional(),
       Price: Joi.string().optional(),
-      PriceUnit: Joi.string().optional()
+      PriceUnit: Joi.string().optional(),
+      // 🆕 CAMPOS PARA UBICACIÓN
+      Latitude: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      Longitude: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      LocationName: Joi.string().optional(),
+      LocationAddress: Joi.string().optional(),
+      // 🆕 CAMPOS PARA STICKERS
+      StickerId: Joi.string().optional(),
+      StickerPackId: Joi.string().optional(),
+      StickerEmoji: Joi.string().optional()
     })
   }),
 
@@ -151,6 +179,30 @@ router.post('/send',
 router.post('/webhook',
   messageValidators.validateWebhook,
   MessageController.handleWebhookSafe
+);
+
+/**
+ * 🆕 @route POST /api/messages/send-location
+ * @desc Enviar mensaje de ubicación
+ * @access Private (Agent, Admin)
+ */
+router.post('/send-location',
+  authMiddleware,
+  requireWriteAccess,
+  messageValidators.validateSendLocation,
+  MessageController.sendLocationMessage
+);
+
+/**
+ * 🆕 @route POST /api/messages/send-sticker
+ * @desc Enviar mensaje de sticker
+ * @access Private (Agent, Admin)
+ */
+router.post('/send-sticker',
+  authMiddleware,
+  requireWriteAccess,
+  messageValidators.validateSendSticker,
+  MessageController.sendStickerMessage
 );
 
 module.exports = router;

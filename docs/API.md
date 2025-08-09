@@ -685,7 +685,7 @@ Content-Type: application/json
 ## 📨 Mensajes
 
 ### GET /api/messages
-**Descripción**: Listar mensajes
+**Descripción**: Listar mensajes con filtros y paginación
 
 **Headers**:
 ```
@@ -694,7 +694,13 @@ Authorization: Bearer <access_token>
 
 **Query Parameters**:
 ```
-?page=1&limit=20&conversationId=conv_123&direction=inbound&status=delivered
+conversationId: string (requerido)
+limit: number (default: 50, max: 100)
+cursor: string (opcional)
+direction: inbound|outbound (opcional)
+type: text|media|location|sticker (opcional)
+status: received|sent|failed|pending (opcional)
+search: string (opcional)
 ```
 
 **Response (200)**:
@@ -704,28 +710,73 @@ Authorization: Bearer <access_token>
   "data": {
     "messages": [
       {
-        "id": "msg_123",
-        "conversationId": "conv_123",
-        "content": "Hola, necesito ayuda",
+        "id": "MSG_123",
+        "conversationId": "conv_456",
+        "content": "Hola, ¿cómo estás?",
         "type": "text",
         "direction": "inbound",
-        "status": "delivered",
-        "timestamp": "2025-08-01T22:00:00.000Z"
+        "status": "received",
+        "senderIdentifier": "+1234567890",
+        "recipientIdentifier": "+0987654321",
+        "timestamp": "2025-01-27T10:30:00.000Z",
+        "metadata": {
+          "twilioSid": "MG1234567890abcdef"
+        }
+      },
+      {
+        "id": "MSG_124",
+        "conversationId": "conv_456",
+        "content": "Ubicación compartida",
+        "type": "location",
+        "direction": "inbound",
+        "status": "received",
+        "senderIdentifier": "+1234567890",
+        "recipientIdentifier": "+0987654321",
+        "timestamp": "2025-01-27T10:31:00.000Z",
+        "location": {
+          "latitude": 19.4326,
+          "longitude": -99.1332,
+          "name": "Ciudad de México",
+          "address": "Centro Histórico"
+        },
+        "metadata": {
+          "twilioSid": "MG1234567890abcdef"
+        }
+      },
+      {
+        "id": "MSG_125",
+        "conversationId": "conv_456",
+        "content": "😀",
+        "type": "sticker",
+        "direction": "inbound",
+        "status": "received",
+        "senderIdentifier": "+1234567890",
+        "recipientIdentifier": "+0987654321",
+        "timestamp": "2025-01-27T10:32:00.000Z",
+        "sticker": {
+          "packId": "sticker_pack_123",
+          "stickerId": "sticker_456",
+          "emoji": "😀",
+          "url": "https://..."
+        },
+        "metadata": {
+          "twilioSid": "MG1234567890abcdef"
+        }
       }
     ],
     "pagination": {
-      "page": 1,
-      "limit": 20,
-      "total": 100
+      "hasMore": true,
+      "nextCursor": "cursor_123"
     }
-  }
+  },
+  "message": "Mensajes obtenidos exitosamente"
 }
 ```
 
 ---
 
-### POST /api/messages
-**Descripción**: Enviar mensaje
+### POST /api/messages/send-location
+**Descripción**: Enviar mensaje de ubicación
 
 **Headers**:
 ```
@@ -736,9 +787,12 @@ Content-Type: application/json
 **Body**:
 ```json
 {
-  "conversationId": "conv_123",
-  "content": "Hola, ¿cómo puedo ayudarte?",
-  "type": "text"
+  "to": "+1234567890",
+  "latitude": 19.4326,
+  "longitude": -99.1332,
+  "name": "Ciudad de México",
+  "address": "Centro Histórico",
+  "conversationId": "conv_456"
 }
 ```
 
@@ -747,17 +801,66 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "id": "msg_456",
-    "conversationId": "conv_123",
-    "content": "Hola, ¿cómo puedo ayudarte?",
-    "type": "text",
-    "direction": "outbound",
-    "status": "sent",
-    "timestamp": "2025-08-01T22:00:00.000Z"
+    "messageId": "MSG_123",
+    "twilioSid": "MG1234567890abcdef",
+    "location": {
+      "latitude": 19.4326,
+      "longitude": -99.1332,
+      "name": "Ciudad de México",
+      "address": "Centro Histórico"
+    }
   },
-  "message": "Mensaje enviado exitosamente"
+  "message": "Mensaje de ubicación enviado exitosamente"
 }
 ```
+
+**Errores**:
+- `400` - Campos requeridos faltantes o coordenadas inválidas
+- `401` - No autorizado
+- `500` - Error interno del servidor
+
+---
+
+### POST /api/messages/send-sticker
+**Descripción**: Enviar mensaje de sticker
+
+**Headers**:
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Body**:
+```json
+{
+  "to": "+1234567890",
+  "stickerUrl": "https://example.com/sticker.webp",
+  "conversationId": "conv_456"
+}
+```
+
+**Response (201)**:
+```json
+{
+  "success": true,
+  "data": {
+    "messageId": "MSG_123",
+    "twilioSid": "MG1234567890abcdef",
+    "sticker": {
+      "url": "https://example.com/sticker.webp",
+      "packId": null,
+      "stickerId": null,
+      "emoji": null
+    }
+  },
+  "message": "Mensaje de sticker enviado exitosamente"
+}
+```
+
+**Errores**:
+- `400` - Campos requeridos faltantes o URL inválida
+- `401` - No autorizado
+- `500` - Error interno del servidor
 
 ---
 
@@ -1199,120 +1302,3 @@ Authorization: Bearer <access_token>
   }
 }
 ```
-
----
-
-## 🔧 Utilidades
-
-### GET /health
-**Descripción**: Health check del servidor
-
-**Headers**: Ninguno requerido
-
-**Response (200)**:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-08-01T22:00:00.000Z",
-  "uptime": 3600,
-  "version": "1.0.0",
-  "environment": "production",
-  "checks": {
-    "server": {
-      "status": "healthy",
-      "message": "Server is running"
-    },
-    "memory": {
-      "status": "healthy",
-      "usage": {
-        "heapUsed": "48MB",
-        "heapTotal": "74MB"
-      }
-    },
-    "process": {
-      "status": "healthy",
-      "pid": 12345,
-      "uptime": 3600
-    }
-  },
-  "summary": {
-    "total": 3,
-    "healthy": 3,
-    "failed": 0
-  }
-}
-```
-
----
-
-## 🔐 Códigos de Error
-
-### Errores de Autenticación
-- `401 Unauthorized` - Token inválido o expirado
-- `403 Forbidden` - Permisos insuficientes
-- `404 Not Found` - Recurso no encontrado
-
-### Errores de Validación
-- `400 Bad Request` - Datos de entrada inválidos
-- `422 Unprocessable Entity` - Datos no procesables
-
-### Errores del Servidor
-- `500 Internal Server Error` - Error interno del servidor
-- `503 Service Unavailable` - Servicio no disponible
-
-### Errores de CORS
-- `CORS_BLOCKED` - Origen no permitido en producción
-
----
-
-## 📋 Headers Comunes
-
-### Autenticación
-```
-Authorization: Bearer <access_token>
-```
-
-### Content-Type
-```
-Content-Type: application/json
-Content-Type: multipart/form-data
-```
-
-### CORS
-```
-Origin: https://utalk.com
-Access-Control-Request-Method: POST
-Access-Control-Request-Headers: Authorization, Content-Type
-```
-
----
-
-## 🚀 Rate Limiting
-
-El API implementa rate limiting para prevenir abuso:
-
-- **Límite por IP**: 100 requests por minuto
-- **Límite por usuario**: 1000 requests por hora
-- **Límite por endpoint**: Varía según el endpoint
-
-### Headers de Rate Limiting
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1640995200
-```
-
----
-
-## 📝 Notas Importantes
-
-1. **Autenticación**: Todas las rutas (excepto `/auth/login` y `/health`) requieren token JWT válido
-2. **Roles**: Algunas rutas requieren roles específicos (admin, agent, viewer)
-3. **CORS**: En producción, solo dominios autorizados pueden acceder al API
-4. **Logging**: Todas las operaciones son registradas para auditoría
-5. **Compresión**: Las respuestas están comprimidas con gzip
-6. **Cache**: Algunas respuestas están cacheadas para mejorar performance
-
----
-
-*Última actualización: 2025-08-01* 

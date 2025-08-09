@@ -1025,6 +1025,198 @@ class TwilioService {
   }
 
   /**
+   * 🆕 ENVIAR UBICACIÓN VIA WHATSAPP
+   */
+  async sendWhatsAppLocation(toPhone, latitude, longitude, name = '', address = '') {
+    try {
+      // Validar coordenadas
+      if (!latitude || !longitude) {
+        throw new Error('Latitude y longitude son requeridos');
+      }
+
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new Error('Coordenadas inválidas');
+      }
+
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        throw new Error('Coordenadas fuera de rango válido');
+      }
+
+      // Normalizar números de teléfono
+      const normalizedToPhone = toPhone;
+      const normalizedFromPhone = this.whatsappNumber;
+
+      // Construir mensaje de ubicación
+      const locationMessage = {
+        from: `whatsapp:${normalizedFromPhone}`,
+        to: `whatsapp:${normalizedToPhone}`,
+        body: name && address ? `${name}\n${address}` : (name || address || 'Ubicación compartida'),
+        persistentAction: [`geo:${lat},${lng}`]
+      };
+
+      logger.info('📍 Enviando ubicación WhatsApp via Twilio', {
+        to: normalizedToPhone,
+        from: normalizedFromPhone,
+        latitude: lat,
+        longitude: lng,
+        name: name || 'Sin nombre',
+        address: address || 'Sin dirección'
+      });
+
+      // Enviar mensaje de ubicación
+      const sentMessage = await this.client.messages.create(locationMessage);
+
+      // Preparar datos del mensaje
+      const messageData = {
+        id: sentMessage.sid,
+        senderPhone: normalizedFromPhone,
+        recipientPhone: normalizedToPhone,
+        content: locationMessage.body,
+        type: 'location',
+        direction: 'outbound',
+        status: 'sent',
+        sender: 'agent',
+        location: {
+          latitude: lat,
+          longitude: lng,
+          name: name || '',
+          address: address || ''
+        },
+        timestamp: safeDateToISOString(new Date()),
+        metadata: {
+          twilioSid: sentMessage.sid,
+          twilioStatus: sentMessage.status,
+          twilioErrorCode: sentMessage.errorCode,
+          twilioErrorMessage: sentMessage.errorMessage,
+          sentAt: safeDateToISOString(new Date()),
+        },
+        createdAt: safeDateToISOString(new Date()),
+        updatedAt: safeDateToISOString(new Date()),
+      };
+
+      logger.info('✅ Ubicación WhatsApp enviada exitosamente', {
+        twilioSid: sentMessage.sid,
+        senderPhone: messageData.senderPhone,
+        recipientPhone: messageData.recipientPhone,
+        status: sentMessage.status,
+        direction: messageData.direction,
+        location: messageData.location
+      });
+
+      return {
+        success: true,
+        messageData,
+        twilioResponse: sentMessage,
+      };
+
+    } catch (error) {
+      logger.error('❌ Error enviando ubicación WhatsApp', {
+        error: error.message,
+        toPhone,
+        latitude,
+        longitude,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * 🆕 ENVIAR STICKER VIA WHATSAPP
+   */
+  async sendWhatsAppSticker(toPhone, stickerUrl) {
+    try {
+      // Validar URL del sticker
+      if (!stickerUrl || !stickerUrl.trim()) {
+        throw new Error('URL del sticker es requerida');
+      }
+
+      // Normalizar números de teléfono
+      const normalizedToPhone = toPhone;
+      const normalizedFromPhone = this.whatsappNumber;
+
+      // Construir mensaje de sticker
+      const stickerMessage = {
+        from: `whatsapp:${normalizedFromPhone}`,
+        to: `whatsapp:${normalizedToPhone}`,
+        mediaUrl: [stickerUrl]
+      };
+
+      logger.info('😀 Enviando sticker WhatsApp via Twilio', {
+        to: normalizedToPhone,
+        from: normalizedFromPhone,
+        stickerUrl: stickerUrl
+      });
+
+      // Enviar sticker
+      const sentMessage = await this.client.messages.create(stickerMessage);
+
+      // Preparar datos del mensaje
+      const messageData = {
+        id: sentMessage.sid,
+        senderPhone: normalizedFromPhone,
+        recipientPhone: normalizedToPhone,
+        content: 'Sticker enviado',
+        type: 'sticker',
+        direction: 'outbound',
+        status: 'sent',
+        sender: 'agent',
+        sticker: {
+          url: stickerUrl,
+          packId: null, // Se puede obtener del webhook entrante
+          stickerId: null,
+          emoji: null
+        },
+        timestamp: safeDateToISOString(new Date()),
+        metadata: {
+          twilioSid: sentMessage.sid,
+          twilioStatus: sentMessage.status,
+          twilioErrorCode: sentMessage.errorCode,
+          twilioErrorMessage: sentMessage.errorMessage,
+          sentAt: safeDateToISOString(new Date()),
+        },
+        createdAt: safeDateToISOString(new Date()),
+        updatedAt: safeDateToISOString(new Date()),
+      };
+
+      logger.info('✅ Sticker WhatsApp enviado exitosamente', {
+        twilioSid: sentMessage.sid,
+        senderPhone: messageData.senderPhone,
+        recipientPhone: messageData.recipientPhone,
+        status: sentMessage.status,
+        direction: messageData.direction,
+        stickerUrl: stickerUrl
+      });
+
+      return {
+        success: true,
+        messageData,
+        twilioResponse: sentMessage,
+      };
+
+    } catch (error) {
+      logger.error('❌ Error enviando sticker WhatsApp', {
+        error: error.message,
+        toPhone,
+        stickerUrl,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
    * LOG DE ERRORES DE WEBHOOK
    */
   async logWebhookError(errorData) {

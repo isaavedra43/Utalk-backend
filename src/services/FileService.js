@@ -23,12 +23,16 @@ class FileService {
     this.allowedAudioTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'];
     this.allowedDocumentTypes = ['application/pdf', 'text/plain', 'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    
+    // 🆕 SOPORTE PARA STICKERS DE WHATSAPP
+    this.allowedStickerTypes = ['image/webp', 'image/png']; // WhatsApp usa principalmente WebP para stickers
 
     // Límites de tamaño (en bytes)
     this.maxImageSize = 10 * 1024 * 1024; // 10MB
     this.maxVideoSize = 100 * 1024 * 1024; // 100MB
     this.maxAudioSize = 50 * 1024 * 1024; // 50MB
     this.maxDocumentSize = 25 * 1024 * 1024; // 25MB
+    this.maxStickerSize = 5 * 1024 * 1024; // 5MB para stickers
   }
 
   /**
@@ -847,6 +851,7 @@ class FileService {
     if (this.allowedVideoTypes.includes(mimeType)) return 'video';
     if (this.allowedAudioTypes.includes(mimeType)) return 'audio';
     if (this.allowedDocumentTypes.includes(mimeType)) return 'document';
+    if (this.allowedStickerTypes.includes(mimeType)) return 'sticker';
     return 'unknown';
   }
 
@@ -859,6 +864,7 @@ class FileService {
       case 'video': return this.maxVideoSize;
       case 'audio': return this.maxAudioSize;
       case 'document': return this.maxDocumentSize;
+      case 'sticker': return this.maxStickerSize;
       default: return this.maxDocumentSize;
     }
   }

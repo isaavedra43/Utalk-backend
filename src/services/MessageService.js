@@ -223,11 +223,57 @@ class MessageService {
     const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
-      const { From, To, Body, MessageSid, NumMedia, ProfileName } = webhookData;
+      const { From, To, Body, MessageSid, NumMedia, ProfileName, Latitude, Longitude, StickerId, StickerPackId } = webhookData;
 
       // Validar webhook data
       if (!From || !To || !MessageSid) {
         throw new Error('From, To y MessageSid son requeridos');
+      }
+
+      // 🆕 DETECTAR TIPO DE MENSAJE ESPECÍFICO
+      let messageType = 'text';
+      let specialData = null;
+
+      // Detectar mensaje de ubicación
+      if (Latitude && Longitude) {
+        messageType = 'location';
+        specialData = {
+          latitude: parseFloat(Latitude),
+          longitude: parseFloat(Longitude),
+          name: webhookData.LocationName || '',
+          address: webhookData.LocationAddress || ''
+        };
+        logger.info('📍 Mensaje de ubicación detectado', {
+          requestId,
+          latitude: specialData.latitude,
+          longitude: specialData.longitude,
+          name: specialData.name,
+          address: specialData.address
+        });
+      }
+      // Detectar mensaje de sticker
+      else if (StickerId || StickerPackId) {
+        messageType = 'sticker';
+        specialData = {
+          packId: StickerPackId || null,
+          stickerId: StickerId || null,
+          emoji: webhookData.StickerEmoji || null,
+          url: webhookData.MediaUrl0 || null
+        };
+        logger.info('😀 Mensaje de sticker detectado', {
+          requestId,
+          packId: specialData.packId,
+          stickerId: specialData.stickerId,
+          emoji: specialData.emoji
+        });
+      }
+      // Detectar mensaje multimedia
+      else if (parseInt(NumMedia || '0') > 0) {
+        messageType = 'media';
+        logger.info('📎 Mensaje multimedia detectado', {
+          requestId,
+          numMedia: parseInt(NumMedia)
+        });
       }
 
       // Verificar si el mensaje ya existe (duplicados)
@@ -292,7 +338,7 @@ class MessageService {
         conversationId,
         messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           content: Body || '',
-        type: 'text',
+        type: messageType,
           direction: 'inbound',
         senderIdentifier: fromPhone,
         recipientIdentifier: toPhone,
@@ -313,6 +359,22 @@ class MessageService {
           }
         }
       };
+
+      // 🆕 AGREGAR DATOS ESPECÍFICOS SEGÚN TIPO DE MENSAJE
+      if (messageType === 'location' && specialData) {
+        messageData.location = specialData;
+        messageData.content = specialData.name && specialData.address ? 
+          `${specialData.name}\n${specialData.address}` : 
+          (specialData.name || specialData.address || 'Ubicación compartida');
+      }
+      
+      if (messageType === 'sticker' && specialData) {
+        messageData.sticker = specialData;
+        messageData.content = specialData.emoji || 'Sticker enviado';
+        if (specialData.url) {
+          messageData.mediaUrl = specialData.url;
+        }
+      }
 
       // Usar el repositorio para escritura canónica
       const conversationsRepo = getConversationsRepository();
@@ -1094,6 +1156,99 @@ class MessageService {
         messagesByStatus: {},
         messagesByDirection: {},
         conversations: {}
+      };
+    }
+  }
+
+  /**
+   * 🆕 ENVIAR MENSAJE DE UBICACIÓN
+   */
+  static async sendLocationMessage(toPhone, latitude, longitude, name = '', address = '', options = {}) {
+    try {
+      const twilioService = getTwilioService();
+      
+      logger.info('📍 Enviando mensaje de ubicación', {
+        toPhone,
+        latitude,
+        longitude,
+        name: name || 'Sin nombre',
+        address: address || 'Sin dirección'
+      });
+
+      const result = await twilioService.sendWhatsAppLocation(toPhone, latitude, longitude, name, address);
+      
+      if (result.success) {
+        logger.info('✅ Mensaje de ubicación enviado exitosamente', {
+          twilioSid: result.twilioResponse.sid,
+          toPhone,
+          location: result.messageData.location
+        });
+      } else {
+        logger.error('❌ Error enviando mensaje de ubicación', {
+          error: result.error,
+          toPhone
+        });
+      }
+
+      return result;
+
+    } catch (error) {
+      logger.error('❌ Error en sendLocationMessage', {
+        error: error.message,
+        toPhone,
+        latitude,
+        longitude,
+        stack: error.stack
+      });
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 🆕 ENVIAR MENSAJE DE STICKER
+   */
+  static async sendStickerMessage(toPhone, stickerUrl, options = {}) {
+    try {
+      const twilioService = getTwilioService();
+      
+      logger.info('😀 Enviando mensaje de sticker', {
+        toPhone,
+        stickerUrl
+      });
+
+      const result = await twilioService.sendWhatsAppSticker(toPhone, stickerUrl);
+      
+      if (result.success) {
+        logger.info('✅ Mensaje de sticker enviado exitosamente', {
+          twilioSid: result.twilioResponse.sid,
+          toPhone,
+          stickerUrl
+        });
+      } else {
+        logger.error('❌ Error enviando mensaje de sticker', {
+          error: result.error,
+          toPhone,
+          stickerUrl
+        });
+      }
+
+      return result;
+
+    } catch (error) {
+      logger.error('❌ Error en sendStickerMessage', {
+        error: error.message,
+        toPhone,
+        stickerUrl,
+        stack: error.stack
+      });
+      
+      return {
+        success: false,
+        error: error.message
       };
     }
   }

@@ -54,6 +54,28 @@ class Message {
       this.createdAt = data.createdAt || new Date();
       this.updatedAt = data.updatedAt || new Date();
 
+      // 🆕 SOPORTE PARA UBICACIÓN Y STICKERS
+      this.location = data.location || null;
+      this.sticker = data.sticker || null;
+
+      // Validar y ajustar tipo según contenido
+      if (this.location && this.type !== 'location') {
+        this.type = 'location';
+      }
+      
+      if (this.sticker && this.type !== 'sticker') {
+        this.type = 'sticker';
+      }
+
+      // Validación específica para ubicación y stickers
+      if (this.type === 'location' && !this.location) {
+        throw new Error('Mensaje de tipo location debe incluir datos de ubicación');
+      }
+      
+      if (this.type === 'sticker' && !this.sticker) {
+        throw new Error('Mensaje de tipo sticker debe incluir datos de sticker');
+      }
+
     } catch (error) {
       logger.error('❌ MESSAGE.CONSTRUCTOR - ERROR CRÍTICO', {
         requestId,
