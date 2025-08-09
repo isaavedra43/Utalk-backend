@@ -198,7 +198,6 @@ router.put('/:id/read-all',
 router.post('/:id/messages',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
   conversationValidators.validateSendMessage,
   ConversationController.sendMessageInConversation
 );
