@@ -78,6 +78,18 @@ const aiValidators = {
     }).optional().description('Límites de configuración')
   }),
 
+  // Validación para conversationId
+  validateConversationId: Joi.object({
+    conversationId: Joi.string().required()
+      .description('ID de la conversación')
+  }),
+
+  // Validación para actualizar estado de sugerencia
+  validateUpdateSuggestionStatus: Joi.object({
+    status: Joi.string().valid('draft', 'sent', 'discarded').required()
+      .description('Nuevo estado de la sugerencia')
+  }),
+
   // Validación para prueba de sugerencia
   validateTestSuggestion: Joi.object({
     workspaceId: Joi.string().required().min(1).max(100)
@@ -148,6 +160,14 @@ router.put('/config/:workspaceId',
  * Rutas de sugerencias IA
  */
 
+// POST /api/ai/suggestions/generate
+router.post('/suggestions/generate',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest(aiValidators.validateTestSuggestion, 'body'),
+  AIController.generateSuggestion
+);
+
 // POST /api/ai/dry-run/suggest
 router.post('/dry-run/suggest',
   authMiddleware,
@@ -162,6 +182,30 @@ router.post('/test-suggestion',
   requireWriteAccess,
   validateRequest(aiValidators.validateTestSuggestion, 'body'),
   AIController.testSuggestion
+);
+
+// GET /api/ai/suggestions/:conversationId
+router.get('/suggestions/:conversationId',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest(aiValidators.validateConversationId, 'params'),
+  AIController.getSuggestions
+);
+
+// PUT /api/ai/suggestions/:conversationId/:suggestionId/status
+router.put('/suggestions/:conversationId/:suggestionId/status',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest(aiValidators.validateUpdateSuggestionStatus, 'body'),
+  AIController.updateSuggestionStatus
+);
+
+// GET /api/ai/suggestions/:conversationId/stats
+router.get('/suggestions/:conversationId/stats',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest(aiValidators.validateConversationId, 'params'),
+  AIController.getSuggestionStats
 );
 
 // GET /api/ai/suggestions/:conversationId

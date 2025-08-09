@@ -20,9 +20,11 @@ const {
 } = require('../utils/contextLoader');
 const { generateWithProvider } = require('../ai/vendors');
 const { buildPromptWithGuardrails } = require('../ai/vendors/openai');
+const { Suggestion } = require('../models/Suggestion');
+const SuggestionsRepository = require('../repositories/SuggestionsRepository');
 
 /**
- * Generar sugerencia para un mensaje (FAKE - sin IA real)
+ * Generar sugerencia para un mensaje y guardarla en Firestore
  */
 async function generateSuggestionForMessage(workspaceId, conversationId, messageId, options = {}) {
   const startTime = Date.now();
@@ -99,6 +101,81 @@ async function generateSuggestionForMessage(workspaceId, conversationId, message
     // Log de éxito
     await aiLogger.logAISuccess(workspaceId, 'generate_suggestion', suggestion, metrics);
 
+    // Guardar sugerencia en Firestore si no es dry-run
+    let savedSuggestion = null;
+    if (!options.dryRun) {
+      try {
+        const suggestionsRepo = new SuggestionsRepository();
+        const suggestionModel = new Suggestion({
+          conversationId: suggestion.conversationId,
+          messageIdOrigen: suggestion.messageIdOrigen,
+          texto: suggestion.sugerencia.texto,
+          confianza: suggestion.sugerencia.confianza,
+          fuentes: suggestion.sugerencia.fuentes,
+          modelo: suggestion.modelo,
+          tokensEstimados: suggestion.tokensEstimados,
+          estado: suggestion.estado,
+          flagged: suggestion.flagged,
+          metadata: {
+            ...suggestion.metadata,
+            workspaceId,
+            generatedAt: new Date().toISOString(),
+            latencyMs: metrics.latencyMs
+          }
+        });
+
+        const saveResult = await suggestionsRepo.saveSuggestion(suggestionModel);
+        savedSuggestion = suggestionModel;
+
+        // Emitir evento de socket si está disponible
+        if (global.io && !options.dryRun) {
+          try {
+            global.io.to(conversationId).emit('suggestion:new', {
+              conversationId: suggestion.conversationId,
+              suggestionId: suggestion.id,
+              messageIdOrigen: suggestion.messageIdOrigen,
+              preview: suggestionModel.getPreview(),
+              createdAt: suggestion.createdAt
+            });
+
+            logger.info('📡 Evento suggestion:new emitido', {
+              conversationId,
+              suggestionId: suggestion.id
+            });
+          } catch (socketError) {
+            logger.warn('⚠️ Error emitiendo evento socket', {
+              conversationId,
+              suggestionId: suggestion.id,
+              error: socketError.message
+            });
+          }
+        }
+
+      } catch (saveError) {
+        logger.error('❌ Error guardando sugerencia en Firestore', {
+          workspaceId,
+          conversationId,
+          messageId,
+          suggestionId: suggestion.id,
+          error: saveError.message
+        });
+
+        // Continuar sin guardar, pero reportar el error
+        return {
+          success: false,
+          reason: 'SAVE_ERROR',
+          error: saveError.message,
+          suggestion: suggestion,
+          context: {
+            messagesCount: context.totalMessages,
+            totalTokens: context.totalTokens,
+            summary: contextSummary.summary
+          },
+          metrics
+        };
+      }
+    }
+
     // Log de sugerencia generada
     aiLogger.logSuggestionGenerated(workspaceId, conversationId, messageId, suggestion, metrics);
 
@@ -110,12 +187,14 @@ async function generateSuggestionForMessage(workspaceId, conversationId, message
       suggestionId: suggestion.id,
       confidence: suggestion.confianza,
       latencyMs,
-      provider: config.provider
+      provider: config.provider,
+      saved: !!savedSuggestion
     });
 
     return {
       success: true,
       suggestion: suggestion,
+      savedSuggestion: savedSuggestion,
       context: {
         messagesCount: context.totalMessages,
         totalTokens: context.totalTokens,
@@ -391,6 +470,90 @@ function estimateCost(tokensIn, tokensOut, model) {
 }
 
 /**
+ * Obtener sugerencias por conversación
+ */
+async function getSuggestionsForConversation(conversationId, options = {}) {
+  try {
+    const suggestionsRepo = new SuggestionsRepository();
+    return await suggestionsRepo.getSuggestionsByConversation(conversationId, options);
+  } catch (error) {
+    logger.error('❌ Error obteniendo sugerencias por conversación', {
+      conversationId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Obtener sugerencias por mensaje origen
+ */
+async function getSuggestionsByMessage(conversationId, messageIdOrigen) {
+  try {
+    const suggestionsRepo = new SuggestionsRepository();
+    return await suggestionsRepo.getSuggestionsByMessage(conversationId, messageIdOrigen);
+  } catch (error) {
+    logger.error('❌ Error obteniendo sugerencias por mensaje', {
+      conversationId,
+      messageIdOrigen,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Actualizar estado de sugerencia
+ */
+async function updateSuggestionStatus(conversationId, suggestionId, newStatus) {
+  try {
+    const suggestionsRepo = new SuggestionsRepository();
+    return await suggestionsRepo.updateSuggestionStatus(conversationId, suggestionId, newStatus);
+  } catch (error) {
+    logger.error('❌ Error actualizando estado de sugerencia', {
+      conversationId,
+      suggestionId,
+      newStatus,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Obtener estadísticas de sugerencias
+ */
+async function getSuggestionStats(conversationId) {
+  try {
+    const suggestionsRepo = new SuggestionsRepository();
+    return await suggestionsRepo.getSuggestionStats(conversationId);
+  } catch (error) {
+    logger.error('❌ Error obteniendo estadísticas de sugerencias', {
+      conversationId,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Buscar sugerencias con filtros
+ */
+async function searchSuggestions(conversationId, filters = {}) {
+  try {
+    const suggestionsRepo = new SuggestionsRepository();
+    return await suggestionsRepo.searchSuggestions(conversationId, filters);
+  } catch (error) {
+    logger.error('❌ Error buscando sugerencias', {
+      conversationId,
+      filters,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
  * Guardar sugerencia en Firestore
  */
 async function saveSuggestion(suggestion) {
@@ -554,6 +717,8 @@ module.exports = {
   generateFakeSuggestion,
   saveSuggestion,
   getSuggestionsForConversation,
+  getSuggestionsByMessage,
   updateSuggestionStatus,
-  getSuggestionStats
+  getSuggestionStats,
+  searchSuggestions
 };

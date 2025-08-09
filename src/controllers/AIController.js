@@ -14,6 +14,7 @@ const { aiLogger } = require('../utils/aiLogger');
 const AIService = require('../services/AIService');
 const { checkAllProvidersHealth } = require('../ai/vendors');
 const logger = require('../utils/logger');
+const { Suggestion } = require('../models/Suggestion');
 
 class AIController {
   /**
@@ -218,6 +219,140 @@ class AIController {
   }
 
   /**
+   * POST /api/ai/suggestions/generate
+   * Endpoint interno para generar y guardar sugerencia
+   */
+  static async generateSuggestion(req, res, next) {
+    try {
+      const { workspaceId, conversationId, messageId } = req.body;
+
+      // Validar campos requeridos
+      if (!workspaceId || !conversationId || !messageId) {
+        throw new ApiError(
+          'MISSING_REQUIRED_FIELDS',
+          'workspaceId, conversationId y messageId son requeridos',
+          'Proporciona todos los campos obligatorios',
+          400
+        );
+      }
+
+      // Verificar permisos (solo roles internos/admin/QA)
+      if (!['admin', 'agent', 'qa'].includes(req.user.role)) {
+        throw CommonErrors.USER_NOT_AUTHORIZED('generar sugerencias IA', workspaceId);
+      }
+
+      // Verificar feature flags
+      const aiEnabled = process.env.AI_ENABLED === 'true';
+      if (!aiEnabled) {
+        throw new ApiError(
+          'AI_DISABLED',
+          'Módulo IA deshabilitado globalmente',
+          'El módulo IA no está habilitado',
+          403
+        );
+      }
+
+      // Verificar configuración del workspace
+      const config = await getAIConfig(workspaceId);
+      if (!config.ai_enabled || !config.flags.suggestions) {
+        throw new ApiError(
+          'SUGGESTIONS_DISABLED',
+          'Sugerencias IA deshabilitadas para este workspace',
+          'Las sugerencias IA no están habilitadas para este workspace',
+          403
+        );
+      }
+
+      logger.info('🚀 Iniciando generación de sugerencia IA', {
+        workspaceId,
+        conversationId,
+        messageId,
+        userEmail: req.user.email,
+        userRole: req.user.role
+      });
+
+      // Generar sugerencia (con guardado en Firestore)
+      const result = await AIService.generateSuggestionForMessage(
+        workspaceId,
+        conversationId,
+        messageId,
+        {
+          dryRun: false // Guardar en Firestore
+        }
+      );
+
+      if (!result.success) {
+        throw new ApiError(
+          'SUGGESTION_GENERATION_FAILED',
+          'Error generando sugerencia',
+          result.reason || 'Error desconocido en la generación',
+          500
+        );
+      }
+
+      const suggestion = result.suggestion;
+      const savedSuggestion = result.savedSuggestion;
+
+      // Preparar respuesta
+      const response = {
+        ok: true,
+        suggestionId: suggestion.id,
+        conversationId: suggestion.conversationId,
+        messageIdOrigen: suggestion.messageIdOrigen,
+        preview: savedSuggestion ? savedSuggestion.getPreview() : suggestion.sugerencia.texto.substring(0, 200),
+        usage: {
+          in: result.metrics.tokensIn,
+          out: result.metrics.tokensOut,
+          latencyMs: result.metrics.latencyMs
+        },
+        flagged: suggestion.flagged || false,
+        warnings: []
+      };
+
+      // Agregar warnings si es necesario
+      if (result.metrics.latencyMs > 2500) {
+        response.warnings.push('Latencia alta detectada');
+      }
+
+      if (!result.isReal) {
+        response.warnings.push('Usando modo fake (proveedor no disponible)');
+      }
+
+      if (suggestion.flagged) {
+        response.warnings.push('Contenido sensible detectado');
+      }
+
+      if (!savedSuggestion) {
+        response.warnings.push('No se pudo guardar en base de datos');
+      }
+
+      logger.info('✅ Sugerencia IA generada y guardada exitosamente', {
+        workspaceId,
+        conversationId,
+        messageId,
+        suggestionId: suggestion.id,
+        isReal: result.isReal,
+        latencyMs: result.metrics.latencyMs,
+        flagged: suggestion.flagged,
+        saved: !!savedSuggestion,
+        userEmail: req.user.email
+      });
+
+      return ResponseHandler.success(res, response, 'Sugerencia IA generada exitosamente', 200);
+
+    } catch (error) {
+      logger.error('❌ Error en generación de sugerencia IA', {
+        workspaceId: req.body?.workspaceId,
+        conversationId: req.body?.conversationId,
+        messageId: req.body?.messageId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
    * POST /api/ai/test-suggestion
    * Endpoint de prueba para generar sugerencia (sin webhook)
    */
@@ -294,35 +429,27 @@ class AIController {
     }
   }
 
-  /**
+    /**
    * GET /api/ai/suggestions/:conversationId
    * Obtener sugerencias de una conversación
    */
   static async getSuggestions(req, res, next) {
     try {
       const { conversationId } = req.params;
-      const { limit = 10, status } = req.query;
-
-      // Validar conversationId
-      if (!conversationId) {
-        throw new ApiError(
-          'MISSING_CONVERSATION_ID',
-          'conversationId es requerido',
-          'Proporciona el ID de la conversación',
-          400
-        );
-      }
+      const { limit = 20, estado, flagged } = req.query;
 
       // Verificar permisos
       if (req.user.role !== 'admin' && req.user.role !== 'agent') {
         throw CommonErrors.USER_NOT_AUTHORIZED('ver sugerencias IA', conversationId);
       }
 
-      // Obtener sugerencias
-      const suggestions = await AIService.getSuggestionsForConversation(conversationId, {
+      const options = {
         limit: parseInt(limit),
-        status
-      });
+        estado: estado || null,
+        flagged: flagged !== undefined ? flagged === 'true' : null
+      };
+
+      const suggestions = await AIService.getSuggestionsForConversation(conversationId, options);
 
       logger.info('✅ Sugerencias obtenidas', {
         conversationId,
@@ -331,9 +458,21 @@ class AIController {
       });
 
       return ResponseHandler.success(res, {
-        suggestions,
+        suggestions: suggestions.map(s => ({
+          id: s.id,
+          conversationId: s.conversationId,
+          messageIdOrigen: s.messageIdOrigen,
+          texto: s.texto,
+          confianza: s.confianza,
+          estado: s.estado,
+          flagged: s.flagged,
+          modelo: s.modelo,
+          createdAt: s.createdAt,
+          preview: s.getPreview(),
+          tipo: s.getType()
+        })),
         count: suggestions.length
-      }, `${suggestions.length} sugerencias obtenidas`);
+      }, 'Sugerencias obtenidas exitosamente');
 
     } catch (error) {
       logger.error('❌ Error obteniendo sugerencias', {
@@ -354,39 +493,28 @@ class AIController {
       const { conversationId, suggestionId } = req.params;
       const { status } = req.body;
 
-      // Validar campos requeridos
-      if (!conversationId || !suggestionId || !status) {
-        throw new ApiError(
-          'MISSING_REQUIRED_FIELDS',
-          'conversationId, suggestionId y status son requeridos',
-          'Proporciona todos los campos obligatorios',
-          400
-        );
-      }
-
-      // Validar status
-      const validStatuses = ['draft', 'used', 'rejected', 'archived'];
-      if (!validStatuses.includes(status)) {
-        throw new ApiError(
-          'INVALID_STATUS',
-          'Status inválido',
-          `Status debe ser uno de: ${validStatuses.join(', ')}`,
-          400
-        );
-      }
-
       // Verificar permisos
       if (req.user.role !== 'admin' && req.user.role !== 'agent') {
         throw CommonErrors.USER_NOT_AUTHORIZED('actualizar sugerencias IA', conversationId);
       }
 
-      // Actualizar estado
+      // Validar estado
+      const validStates = ['draft', 'sent', 'discarded'];
+      if (!validStates.includes(status)) {
+        throw new ApiError(
+          'INVALID_STATUS',
+          'Estado inválido',
+          'El estado debe ser draft, sent o discarded',
+          400
+        );
+      }
+
       const result = await AIService.updateSuggestionStatus(conversationId, suggestionId, status);
 
       logger.info('✅ Estado de sugerencia actualizado', {
         conversationId,
         suggestionId,
-        status,
+        newStatus: status,
         userEmail: req.user.email
       });
 
@@ -402,6 +530,40 @@ class AIController {
       return ResponseHandler.error(res, error);
     }
   }
+
+  /**
+   * GET /api/ai/suggestions/:conversationId/stats
+   * Obtener estadísticas de sugerencias
+   */
+  static async getSuggestionStats(req, res, next) {
+    try {
+      const { conversationId } = req.params;
+
+      // Verificar permisos
+      if (req.user.role !== 'admin' && req.user.role !== 'agent') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('ver estadísticas de sugerencias IA', conversationId);
+      }
+
+      const stats = await AIService.getSuggestionStats(conversationId);
+
+      logger.info('✅ Estadísticas de sugerencias obtenidas', {
+        conversationId,
+        userEmail: req.user.email
+      });
+
+      return ResponseHandler.success(res, stats, 'Estadísticas obtenidas exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo estadísticas de sugerencias', {
+        conversationId: req.params?.conversationId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+
 
   /**
    * GET /api/ai/stats/:workspaceId
