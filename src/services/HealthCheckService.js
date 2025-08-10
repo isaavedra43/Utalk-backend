@@ -14,7 +14,7 @@
  */
 
 const logger = require('../utils/logger');
-const { firestore, storage } = require('../config/firebase');
+// const { firestore, storage } = require('../config/firebase');
 const { CacheService } = require('./CacheService'); // Asumimos que existe
 const os = require('os');
 
