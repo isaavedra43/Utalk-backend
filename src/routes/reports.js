@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Middlewares
 const { authMiddleware, requireAdminOrQA } = require('../middleware/auth');
-const { validateRequest } = require('../middleware/validationMiddleware');
+const { validateRequest } = require('../middleware/validation');
 const { qaRateLimiter } = require('../middleware/aiRateLimit');
 
 // Controlador
@@ -128,7 +128,8 @@ const reportValidators = {
  * Rutas de reportes IA
  */
 
-// POST /api/ai/reports/ingest
+// POST /api/ai/reports/ingest - TEMPORALMENTE COMENTADO
+/*
 router.post('/ingest',
   authMiddleware,
   requireAdminOrQA,
@@ -136,8 +137,10 @@ router.post('/ingest',
   validateRequest(reportValidators.validateIngestReport, 'body'),
   ReportController.ingestReport
 );
+*/
 
-// GET /api/ai/reports/:workspaceId
+// GET /api/ai/reports/:workspaceId - TEMPORALMENTE COMENTADO
+/*
 router.get('/:workspaceId',
   authMiddleware,
   requireAdminOrQA,
@@ -145,16 +148,20 @@ router.get('/:workspaceId',
   validateRequest(reportValidators.validateReportsQuery, 'query'),
   ReportController.getReports
 );
+*/
 
-// GET /api/ai/reports/:workspaceId/:reportId
+// GET /api/ai/reports/:workspaceId/:reportId - TEMPORALMENTE COMENTADO
+/*
 router.get('/:workspaceId/:reportId',
   authMiddleware,
   requireAdminOrQA,
   validateRequest(reportValidators.validateReportId, 'params'),
   ReportController.getReport
 );
+*/
 
-// POST /api/ai/reports/search
+// POST /api/ai/reports/search - TEMPORALMENTE COMENTADO
+/*
 router.post('/search',
   authMiddleware,
   requireAdminOrQA,
@@ -162,8 +169,10 @@ router.post('/search',
   validateRequest(reportValidators.validateSearchReports, 'body'),
   ReportController.searchReports
 );
+*/
 
-// GET /api/ai/reports/:workspaceId/stats
+// GET /api/ai/reports/:workspaceId/stats - TEMPORALMENTE COMENTADO
+/*
 router.get('/:workspaceId/stats',
   authMiddleware,
   requireAdminOrQA,
@@ -171,8 +180,10 @@ router.get('/:workspaceId/stats',
   validateRequest(reportValidators.validateStatsQuery, 'query'),
   ReportController.getReportStats
 );
+*/
 
-// DELETE /api/ai/reports/:reportId
+// DELETE /api/ai/reports/:reportId - TEMPORALMENTE COMENTADO
+/*
 router.delete('/:reportId',
   authMiddleware,
   requireAdminOrQA,
@@ -182,8 +193,10 @@ router.delete('/:reportId',
   }), 'params'),
   ReportController.deleteReport
 );
+*/
 
-// POST /api/ai/reports/check-exists
+// POST /api/ai/reports/check-exists - TEMPORALMENTE COMENTADO
+/*
 router.post('/check-exists',
   authMiddleware,
   requireAdminOrQA,
@@ -191,6 +204,7 @@ router.post('/check-exists',
   validateRequest(reportValidators.validateCheckExists, 'body'),
   ReportController.checkReportExists
 );
+*/
 
 module.exports = {
   router,

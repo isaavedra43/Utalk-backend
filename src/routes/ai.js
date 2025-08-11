@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Middlewares
 const { authMiddleware, requireReadAccess, requireWriteAccess, requireAdminOrQA } = require('../middleware/auth');
-const { validateRequest } = require('../middleware/validationMiddleware');
+const { validateRequest } = require('../middleware/validation');
 const { consoleRateLimiter, qaRateLimiter, validationRateLimiter } = require('../middleware/aiRateLimit');
 
 // Controlador
@@ -78,16 +78,10 @@ const aiValidators = {
     }).optional().description('Límites de configuración')
   }),
 
-  // Validación para conversationId
+  // Validación para conversationId en params
   validateConversationId: Joi.object({
-    conversationId: Joi.string().required()
+    conversationId: Joi.string().required().min(1).max(100)
       .description('ID de la conversación')
-  }),
-
-  // Validación para actualizar estado de sugerencia
-  validateUpdateSuggestionStatus: Joi.object({
-    status: Joi.string().valid('draft', 'sent', 'discarded').required()
-      .description('Nuevo estado de la sugerencia')
   }),
 
   // Validación para prueba de sugerencia
@@ -98,12 +92,6 @@ const aiValidators = {
       .description('ID de la conversación'),
     messageId: Joi.string().required().min(1).max(100)
       .description('ID del mensaje')
-  }),
-
-  // Validación para conversationId en params
-  validateConversationId: Joi.object({
-    conversationId: Joi.string().required().min(1).max(100)
-      .description('ID de la conversación')
   }),
 
   // Validación para query params de sugerencias
@@ -296,7 +284,8 @@ router.get('/health',
  * Rutas de validación de configuración IA
  */
 
-// POST /api/ai/config/validate
+// POST /api/ai/config/validate - TEMPORALMENTE COMENTADO
+/*
 router.post('/config/validate',
   authMiddleware,
   requireAdminOrQA,
@@ -304,12 +293,14 @@ router.post('/config/validate',
   validateRequest(aiValidators.validateConfigValidation, 'body'),
   AIController.validateAIConfig
 );
+*/
 
 /**
  * Rutas QA de pruebas controladas
  */
 
-// POST /api/ai/qa/context
+// POST /api/ai/qa/context - TEMPORALMENTE COMENTADO
+/*
 router.post('/qa/context',
   authMiddleware,
   requireAdminOrQA,
@@ -317,8 +308,10 @@ router.post('/qa/context',
   validateRequest(aiValidators.validateQAContext, 'body'),
   AIController.getQAContext
 );
+*/
 
-// POST /api/ai/qa/suggest
+// POST /api/ai/qa/suggest - TEMPORALMENTE COMENTADO
+/*
 router.post('/qa/suggest',
   authMiddleware,
   requireAdminOrQA,
@@ -326,20 +319,25 @@ router.post('/qa/suggest',
   validateRequest(aiValidators.validateQASuggestion, 'body'),
   AIController.getQASuggestion
 );
+*/
 
-// GET /api/ai/integration/status
+// GET /api/ai/integration/status - TEMPORALMENTE COMENTADO
+/*
 router.get('/integration/status',
   authMiddleware,
   requireAdminOrQA,
   AIController.getIntegrationStatus
 );
+*/
 
-// POST /api/ai/integration/reset-circuit-breaker
+// POST /api/ai/integration/reset-circuit-breaker - TEMPORALMENTE COMENTADO
+/*
 router.post('/integration/reset-circuit-breaker',
   authMiddleware,
   requireAdminOrQA,
   AIController.resetCircuitBreaker
 );
+*/
 
 module.exports = {
   router,

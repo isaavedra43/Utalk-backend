@@ -9,14 +9,35 @@
  */
 
 const logger = require('./logger');
-const { validateAndClampConfig } = require('../config/aiConfig');
-const { generateWithProvider } = require('../ai/vendors');
+
+// Importaciones condicionales para evitar errores en desarrollo
+let validateAndClampConfig;
+let generateWithProvider;
+
+try {
+  validateAndClampConfig = require('../config/aiConfig').validateAndClampConfig;
+} catch (error) {
+  logger.warn('⚠️ aiConfig no disponible, usando validación local', { error: error.message });
+  validateAndClampConfig = null;
+}
+
+try {
+  generateWithProvider = require('../ai/vendors').generateWithProvider;
+} catch (error) {
+  logger.warn('⚠️ AI vendors no disponible, usando validación local', { error: error.message });
+  generateWithProvider = null;
+}
 
 /**
  * Validar configuración con IA (opcional)
  */
 async function validateConfigWithAI(config) {
   try {
+    // Verificar si AI vendors está disponible
+    if (!generateWithProvider) {
+      throw new Error('AI vendors no disponible');
+    }
+
     // Verificar si OpenAI está disponible
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key no disponible');

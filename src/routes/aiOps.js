@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Middlewares
 const { authMiddleware } = require('../middleware/auth');
-const { validateRequest } = require('../middleware/validationMiddleware');
+const { validateRequest } = require('../middleware/validation');
 
 // Controlador
 const AIOpsController = require('../controllers/AIOpsController');

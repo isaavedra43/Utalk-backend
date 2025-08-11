@@ -15,7 +15,7 @@ const router = express.Router();
 
 // Middlewares
 const { authMiddleware, requireAdminOrQA } = require('../middleware/auth');
-const { validateRequest } = require('../middleware/validationMiddleware');
+const { validateRequest } = require('../middleware/validation');
 const { qaRateLimiter } = require('../middleware/aiRateLimit');
 
 // Controlador
@@ -124,7 +124,8 @@ const ragValidators = {
  * Rutas de documentos RAG
  */
 
-// POST /api/ai/docs/upload
+// POST /api/ai/docs/upload - TEMPORALMENTE COMENTADO
+/*
 router.post('/docs/upload',
   authMiddleware,
   requireAdminOrQA,
@@ -133,16 +134,20 @@ router.post('/docs/upload',
   validateRequest(ragValidators.validateUploadDocument, 'body'),
   RAGController.uploadDocument
 );
+*/
 
-// GET /api/ai/docs/list
+// GET /api/ai/docs/list - TEMPORALMENTE COMENTADO
+/*
 router.get('/docs/list',
   authMiddleware,
   requireAdminOrQA,
   validateRequest(ragValidators.validateListDocuments, 'query'),
   RAGController.listDocuments
 );
+*/
 
-// DELETE /api/ai/docs/:docId
+// DELETE /api/ai/docs/:docId - TEMPORALMENTE COMENTADO
+/*
 router.delete('/docs/:docId',
   authMiddleware,
   requireAdminOrQA,
@@ -152,12 +157,14 @@ router.delete('/docs/:docId',
   }), 'query'),
   RAGController.deleteDocument
 );
+*/
 
 /**
- * Rutas de RAG
+ * Rutas de RAG - TEMPORALMENTE COMENTADAS
  */
 
-// POST /api/ai/rag/reindex
+// POST /api/ai/rag/reindex - TEMPORALMENTE COMENTADO
+/*
 router.post('/rag/reindex',
   authMiddleware,
   requireAdminOrQA,
@@ -165,8 +172,10 @@ router.post('/rag/reindex',
   validateRequest(ragValidators.validateReindexDocuments, 'body'),
   RAGController.reindexDocuments
 );
+*/
 
-// POST /api/ai/rag/search
+// POST /api/ai/rag/search - TEMPORALMENTE COMENTADO
+/*
 router.post('/rag/search',
   authMiddleware,
   requireAdminOrQA,
@@ -174,14 +183,17 @@ router.post('/rag/search',
   validateRequest(ragValidators.validateSearchDocuments, 'body'),
   RAGController.searchDocuments
 );
+*/
 
-// GET /api/ai/rag/stats/:workspaceId
+// GET /api/ai/rag/stats/:workspaceId - TEMPORALMENTE COMENTADO
+/*
 router.get('/rag/stats/:workspaceId',
   authMiddleware,
   requireAdminOrQA,
   validateRequest(ragValidators.validateWorkspaceId, 'params'),
   RAGController.getRAGStats
 );
+*/
 
 module.exports = {
   router,

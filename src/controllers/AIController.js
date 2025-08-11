@@ -9,15 +9,72 @@
  */
 
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
-const { getAIConfig, updateAIConfig, isAIEnabled } = require('../config/aiConfig');
-const { aiLogger } = require('../utils/aiLogger');
-const AIService = require('../services/AIService');
-const { checkAllProvidersHealth } = require('../ai/vendors');
 const logger = require('../utils/logger');
-const { Suggestion } = require('../models/Suggestion');
-const { validateConfigWithAI, validateConfigLocally } = require('../utils/configValidator');
-const { getCircuitBreakerStatus, resetCircuitBreaker } = require('../services/AIWebhookIntegration');
-const { getRateLimitStats } = require('../utils/aiRateLimiter');
+
+// Importaciones condicionales para evitar errores en desarrollo
+let getAIConfig, updateAIConfig, isAIEnabled;
+let aiLogger;
+let AIService;
+let checkAllProvidersHealth;
+let Suggestion;
+let validateConfigWithAI, validateConfigLocally;
+let getCircuitBreakerStatus, resetCircuitBreaker;
+let getRateLimitStats;
+
+try {
+  const aiConfig = require('../config/aiConfig');
+  getAIConfig = aiConfig.getAIConfig;
+  updateAIConfig = aiConfig.updateAIConfig;
+  isAIEnabled = aiConfig.isAIEnabled;
+} catch (error) {
+  logger.warn('⚠️ aiConfig no disponible', { error: error.message });
+}
+
+try {
+  aiLogger = require('../utils/aiLogger').aiLogger;
+} catch (error) {
+  logger.warn('⚠️ aiLogger no disponible', { error: error.message });
+}
+
+try {
+  AIService = require('../services/AIService');
+} catch (error) {
+  logger.warn('⚠️ AIService no disponible', { error: error.message });
+}
+
+try {
+  checkAllProvidersHealth = require('../ai/vendors').checkAllProvidersHealth;
+} catch (error) {
+  logger.warn('⚠️ AI vendors no disponible', { error: error.message });
+}
+
+try {
+  Suggestion = require('../models/Suggestion').Suggestion;
+} catch (error) {
+  logger.warn('⚠️ Suggestion model no disponible', { error: error.message });
+}
+
+try {
+  const configValidator = require('../utils/configValidator');
+  validateConfigWithAI = configValidator.validateConfigWithAI;
+  validateConfigLocally = configValidator.validateConfigLocally;
+} catch (error) {
+  logger.warn('⚠️ configValidator no disponible', { error: error.message });
+}
+
+try {
+  const aiWebhookIntegration = require('../services/AIWebhookIntegration');
+  getCircuitBreakerStatus = aiWebhookIntegration.getCircuitBreakerStatus;
+  resetCircuitBreaker = aiWebhookIntegration.resetCircuitBreaker;
+} catch (error) {
+  logger.warn('⚠️ AIWebhookIntegration no disponible', { error: error.message });
+}
+
+try {
+  getRateLimitStats = require('../utils/aiRateLimiter').getRateLimitStats;
+} catch (error) {
+  logger.warn('⚠️ aiRateLimiter no disponible', { error: error.message });
+}
 
 class AIController {
   /**
