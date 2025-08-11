@@ -985,9 +985,11 @@ class ConsolidatedServer {
       category: 'SOCKET_INIT'
     });
 
+    const { setSocketManager } = require('./socket');
     this.socketManager = new SocketManager(this.server);
     
-    // Hacer disponible el socket manager para otros componentes
+    // Registrar globalmente y hacer disponible para otros componentes
+    setSocketManager(this.socketManager);
     this.app.set('socketManager', this.socketManager);
 
     logger.info('✅ Socket.IO enterprise inicializado', {

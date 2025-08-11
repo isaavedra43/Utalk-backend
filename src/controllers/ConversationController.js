@@ -519,14 +519,21 @@ class ConversationController {
       // 📝 APLICAR ACTUALIZACIONES
       await conversation.update(updates);
 
-      // 📡 EMITIR EVENTO WEBSOCKET
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${id}`).emit('conversation-updated', {
+      // 📡 EMITIR EVENTO WEBSOCKET usando facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.broadcastToConversation({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
           conversationId: id,
-          updates,
-          updatedBy: req.user.email,
-          timestamp: new Date().toISOString()
+          event: 'conversation-updated',
+          payload: {
+            conversationId: id,
+            updates,
+            updatedBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
         });
       }
 
@@ -792,16 +799,23 @@ class ConversationController {
         await Message.create(statusMessage);
       }
 
-      // 📡 EMITIR EVENTO WEBSOCKET
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${id}`).emit('conversation-status-changed', {
+      // 📡 EMITIR EVENTO WEBSOCKET usando facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.broadcastToConversation({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
           conversationId: id,
-          previousStatus,
-          newStatus: status,
-          reason,
-          changedBy: req.user.email,
-          timestamp: new Date().toISOString()
+          event: 'conversation-status-changed',
+          payload: {
+            conversationId: id,
+            previousStatus,
+            newStatus: status,
+            reason,
+            changedBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
         });
       }
 
@@ -879,14 +893,21 @@ class ConversationController {
       // 📝 MARCAR MENSAJES COMO LEÍDOS
       const markedCount = await conversation.markAllAsRead(req.user.email);
 
-      // 📡 EMITIR EVENTO WEBSOCKET
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${conversationId}`).emit('conversation-marked-read', {
-        conversationId,
-          readBy: req.user.email,
-          markedCount,
-          timestamp: new Date().toISOString()
+      // 📡 EMITIR EVENTO WEBSOCKET usando facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.broadcastToConversation({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
+          conversationId,
+          event: 'conversation-marked-read',
+          payload: {
+            conversationId,
+            readBy: req.user.email,
+            markedCount,
+            timestamp: new Date().toISOString()
+          }
         });
       }
 
@@ -916,15 +937,22 @@ class ConversationController {
       const { id } = req.params;
       const { isTyping = true } = req.body;
 
-      // 📡 EMITIR EVENTO WEBSOCKET INMEDIATAMENTE
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${id}`).emit('user-typing', {
+      // 📡 EMITIR EVENTO WEBSOCKET INMEDIATAMENTE usando facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.broadcastToConversation({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
           conversationId: id,
-          email: req.user.email,
-          displayName: req.user.name,
-          isTyping,
-          timestamp: new Date().toISOString()
+          event: 'user-typing',
+          payload: {
+            conversationId: id,
+            email: req.user.email,
+            displayName: req.user.name,
+            isTyping,
+            timestamp: new Date().toISOString()
+          }
         });
       }
 
@@ -1040,14 +1068,30 @@ class ConversationController {
       const conversationsRepo = getConversationsRepository();
       const result = await conversationsRepo.appendOutbound(messageData);
 
-      // Emitir evento de socket para tiempo real
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${conversationId}`).emit('new-message', {
+      // Emitir evento de socket para tiempo real usando el facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.emitNewMessage({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
           conversationId,
           message: result.message,
-          sender: userEmail,
-          timestamp: new Date().toISOString()
+          correlationId: req.id || 'unknown'
+        });
+        
+        rt.emitConversationUpdated({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
+          conversationId,
+          lastMessage: { 
+            text: validatedMessage.content, 
+            type: validatedMessage.type, 
+            direction: 'outbound' 
+          },
+          updatedAt: new Date().toISOString(),
+          unreadCount: 0,
+          correlationId: req.id || 'unknown'
         });
       }
 

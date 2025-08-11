@@ -841,8 +841,40 @@ class ConversationsRepository {
         throw err;
       }
 
-      // Emitir eventos RT (sin tocar el manager)
-      // TODO: Implementar emisión de eventos RT aquí
+      // Emitir eventos RT usando facade
+      try {
+        const { getSocketManager } = require('../socket');
+        const rt = getSocketManager();
+        if (rt) {
+          rt.emitNewMessage({
+            workspaceId: msg.workspaceId,
+            tenantId: msg.tenantId,
+            conversationId: msg.conversationId,
+            message: result.message,
+            correlationId: requestId
+          });
+          
+          rt.emitConversationUpdated({
+            workspaceId: msg.workspaceId,
+            tenantId: msg.tenantId,
+            conversationId: msg.conversationId,
+            lastMessage: { 
+              text: msg.content, 
+              type: msg.type, 
+              direction: 'outbound' 
+            },
+            updatedAt: new Date().toISOString(),
+            unreadCount: 0,
+            correlationId: requestId
+          });
+        }
+      } catch (rtError) {
+        logger.warn('RT:ERROR emitir eventos', { 
+          where: 'appendOutbound', 
+          err: rtError.message,
+          conversationId: msg.conversationId?.substring(0, 20) + '...'
+        });
+      }
 
       return result;
 

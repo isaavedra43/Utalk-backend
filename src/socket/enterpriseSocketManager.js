@@ -547,6 +547,12 @@ class EnterpriseSocketManager {
       // Initialize event listeners map for this socket
       this.eventListeners.set(socket.id, new Map());
 
+      logger.info('RT:CONNECT', { 
+        socketId: socket.id.substring(0, 8) + '...', 
+        email: userEmail.substring(0, 20) + '...',
+        role: userRole
+      });
+      
       logger.info('New user connected via Socket.IO', {
         category: 'SOCKET_USER_CONNECTED',
         email: userEmail.substring(0, 20) + '...',
@@ -988,6 +994,13 @@ class EnterpriseSocketManager {
       });
 
       // Logging estructurado sin PII
+      logger.info('RT:JOIN', { 
+        room: roomId.substring(0, 30) + '...', 
+        conversationId: conversationId.substring(0, 20) + '...',
+        userEmail: userEmail.substring(0, 20) + '...',
+        socketId: socket.id.substring(0, 8) + '...'
+      });
+      
       if (process.env.SOCKET_LOG_VERBOSE === 'true') {
         logger.info('User joined conversation', {
           category: 'SOCKET_CONVERSATION_JOIN',
@@ -1110,6 +1123,13 @@ class EnterpriseSocketManager {
       });
 
       // Logging estructurado sin PII
+      logger.info('RT:LEAVE', { 
+        room: roomId.substring(0, 30) + '...', 
+        conversationId: conversationId.substring(0, 20) + '...',
+        userEmail: userEmail.substring(0, 20) + '...',
+        socketId: socket.id.substring(0, 8) + '...'
+      });
+      
       if (process.env.SOCKET_LOG_VERBOSE === 'true') {
         logger.info('User left conversation', {
           category: 'SOCKET_CONVERSATION_LEAVE',
@@ -1184,7 +1204,13 @@ class EnterpriseSocketManager {
       await this.handleTypingStop(socket, { conversationId });
 
       // Emit to all users in conversation (including sender for confirmation)
-      this.io.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_SENT, {
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.decodedToken?.tenantId || 'na',
+        conversationId 
+      });
+      this.io.to(roomId).emit(SOCKET_EVENTS.MESSAGE_SENT, {
         message: savedMessage,
         conversationId,
         timestamp: new Date().toISOString()
@@ -1231,7 +1257,13 @@ class EnterpriseSocketManager {
       await Message.markAsRead(messageIds, userEmail);
 
       // Notify other users in conversation
-      socket.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_READ, {
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.decodedToken?.tenantId || 'na',
+        conversationId 
+      });
+      socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_READ, {
         conversationId,
         messageIds,
         readBy: userEmail,
@@ -1286,7 +1318,13 @@ class EnterpriseSocketManager {
       }
 
       // Notify other users in conversation (exclude sender)
-      socket.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_TYPING, {
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.decodedToken?.tenantId || 'na',
+        conversationId 
+      });
+      socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING, {
         conversationId,
         userEmail,
         timestamp: new Date().toISOString()
@@ -1344,7 +1382,13 @@ class EnterpriseSocketManager {
       }
 
       // Notify other users in conversation (exclude sender)
-      socket.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.decodedToken?.tenantId || 'na',
+        conversationId 
+      });
+      socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
         conversationId,
         userEmail,
         timestamp: new Date().toISOString()
@@ -1447,6 +1491,12 @@ class EnterpriseSocketManager {
       }
 
       // Logging estructurado sin PII
+      logger.info('RT:DISCONNECT', { 
+        socketId: socketId.substring(0, 8) + '...', 
+        email: userEmail?.substring(0, 20) + '...',
+        reason
+      });
+      
       if (process.env.SOCKET_LOG_VERBOSE === 'true') {
         logger.info('User disconnected from Socket.IO', {
           category: 'SOCKET_USER_DISCONNECTED',
@@ -1885,7 +1935,13 @@ class EnterpriseSocketManager {
         if (session?.socketId) {
           const socket = this.io.sockets.sockets.get(session.socketId);
           if (socket) {
-            socket.leave(`conversation-${conversationId}`);
+            const { getConversationRoom } = require('./index');
+            const roomId = getConversationRoom({ 
+              workspaceId: socket.decodedToken?.workspaceId || 'default',
+              tenantId: socket.decodedToken?.tenantId || 'na',
+              conversationId 
+            });
+            socket.leave(roomId);
             socket.emit(SOCKET_EVENTS.CONVERSATION_CLEANUP, {
               conversationId,
               reason: 'memory_cleanup',
@@ -1911,7 +1967,13 @@ class EnterpriseSocketManager {
     // Notify users that typing stopped
     if (typingSet && typingSet.size > 0) {
       for (const email of typingSet) {
-        this.io.to(`conversation-${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
+        const { getConversationRoom } = require('./index');
+        const roomId = getConversationRoom({ 
+          workspaceId: 'default', // No tenemos contexto de workspace aquí
+          tenantId: 'na',
+          conversationId 
+        });
+        this.io.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
           conversationId,
           userEmail: email,
           timestamp: new Date().toISOString(),
@@ -2533,6 +2595,97 @@ class EnterpriseSocketManager {
         error: error.message,
         socketId,
         eventName
+      });
+    }
+  }
+
+  /**
+   * 📡 EMIT NEW MESSAGE (FACADE PARA MENSAJES NUEVOS)
+   * Emite eventos para mensajes entrantes y salientes
+   */
+  emitNewMessage({ workspaceId, tenantId, conversationId, message, correlationId }) {
+    try {
+      // Emitir evento principal (compatibilidad frontend)
+      this.broadcastToConversation({
+        workspaceId, tenantId, conversationId,
+        event: 'new-message',
+        payload: { 
+          conversationId, 
+          message, 
+          correlationId 
+        }
+      });
+
+      // Emitir alias para compatibilidad futura
+      this.broadcastToConversation({
+        workspaceId, tenantId, conversationId,
+        event: 'message.created',
+        payload: { 
+          conversationId, 
+          message, 
+          correlationId 
+        }
+      });
+
+      logger.info('RT:BROADCAST new-message', { 
+        event: 'new-message', 
+        conversationId: conversationId?.substring(0, 20) + '...', 
+        messageId: message?.id,
+        correlationId 
+      });
+
+    } catch (error) {
+      logger.error('RT:ERROR emitNewMessage', { 
+        where: 'emitNewMessage', 
+        err: error.message,
+        conversationId: conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 📡 EMIT CONVERSATION UPDATED (FACADE PARA ACTUALIZACIONES DE CONVERSACIÓN)
+   * Emite eventos cuando se actualiza una conversación
+   */
+  emitConversationUpdated({ workspaceId, tenantId, conversationId, lastMessage, updatedAt, unreadCount, correlationId }) {
+    try {
+      // Emitir evento principal (compatibilidad frontend)
+      this.broadcastToConversation({
+        workspaceId, tenantId, conversationId,
+        event: 'conversation-event',
+        payload: { 
+          conversationId, 
+          lastMessage, 
+          updatedAt, 
+          unreadCount, 
+          correlationId 
+        }
+      });
+
+      // Emitir alias para compatibilidad futura
+      this.broadcastToConversation({
+        workspaceId, tenantId, conversationId,
+        event: 'conversation.updated',
+        payload: { 
+          conversationId, 
+          lastMessage, 
+          updatedAt, 
+          unreadCount, 
+          correlationId 
+        }
+      });
+
+      logger.info('RT:BROADCAST conversation-event', { 
+        event: 'conversation-event', 
+        conversationId: conversationId?.substring(0, 20) + '...', 
+        correlationId 
+      });
+
+    } catch (error) {
+      logger.error('RT:ERROR emitConversationUpdated', { 
+        where: 'emitConversationUpdated', 
+        err: error.message,
+        conversationId: conversationId?.substring(0, 20) + '...'
       });
     }
   }

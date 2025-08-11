@@ -533,15 +533,22 @@ class MessageController {
       // 📝 MARCAR COMO LEÍDO
       await message.markAsReadBy(req.user.email, markTimestamp);
 
-      // 📡 EMITIR EVENTO WEBSOCKET
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${conversationId}`).emit('message-read-by-user', {
-          messageId,
+      // 📡 EMITIR EVENTO WEBSOCKET usando facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.broadcastToConversation({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
           conversationId,
-          readBy: req.user.email,
-          readAt: markTimestamp,
-          timestamp: new Date().toISOString()
+          event: 'message-read-by-user',
+          payload: {
+            messageId,
+            conversationId,
+            readBy: req.user.email,
+            readAt: markTimestamp,
+            timestamp: new Date().toISOString()
+          }
         });
       }
 
@@ -596,14 +603,21 @@ class MessageController {
       // 🗑️ ELIMINACIÓN SOFT (marcar como eliminado)
       await message.softDelete(req.user.email);
 
-      // 📡 EMITIR EVENTO WEBSOCKET
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.io.to(`conversation-${conversationId}`).emit('message-deleted', {
-          messageId,
+      // 📡 EMITIR EVENTO WEBSOCKET usando facade
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
+      if (rt) {
+        rt.broadcastToConversation({
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
           conversationId,
-          deletedBy: req.user.email,
-          timestamp: new Date().toISOString()
+          event: 'message-deleted',
+          payload: {
+            messageId,
+            conversationId,
+            deletedBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
         });
       }
 

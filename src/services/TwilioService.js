@@ -885,16 +885,17 @@ class TwilioService {
         step: 'socket_import_start'
       });
 
-      const socketService = require('../socket');
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
       
       logger.info('✅ EMITREALTIMEEVENT - SOCKET SERVICE IMPORTADO', {
         requestId,
-        hasSocketService: !!socketService,
-        hasEmitNewMessage: !!(socketService && typeof socketService.emitNewMessage === 'function'),
+        hasSocketManager: !!rt,
+        hasEmitNewMessage: !!(rt && typeof rt.emitNewMessage === 'function'),
         step: 'socket_import_complete'
       });
       
-      if (socketService && typeof socketService.emitNewMessage === 'function') {
+      if (rt && typeof rt.emitNewMessage === 'function') {
         logger.info('📡 EMITREALTIMEEVENT - EMITIENDO MENSAJE', {
           requestId,
           conversationId,
@@ -902,7 +903,27 @@ class TwilioService {
           step: 'socket_emit_start'
         });
 
-        socketService.emitNewMessage(savedMessage);
+        rt.emitNewMessage({
+          workspaceId: savedMessage.workspaceId || 'default',
+          tenantId: savedMessage.tenantId || 'na',
+          conversationId,
+          message: savedMessage,
+          correlationId: requestId
+        });
+        
+        rt.emitConversationUpdated({
+          workspaceId: savedMessage.workspaceId || 'default',
+          tenantId: savedMessage.tenantId || 'na',
+          conversationId,
+          lastMessage: { 
+            text: savedMessage.content, 
+            type: savedMessage.type, 
+            direction: 'inbound' 
+          },
+          updatedAt: new Date().toISOString(),
+          unreadCount: 1, // Incrementar para el destinatario
+          correlationId: requestId
+        });
         
         logger.info('✅ EMITREALTIMEEVENT - EVENTO SOCKET.IO EMITIDO', {
           requestId,
@@ -916,8 +937,8 @@ class TwilioService {
           requestId,
           conversationId,
           messageId: savedMessage.id,
-          hasSocketService: !!socketService,
-          hasEmitNewMessage: !!(socketService && typeof socketService.emitNewMessage === 'function'),
+          hasSocketManager: !!rt,
+          hasEmitNewMessage: !!(rt && typeof rt.emitNewMessage === 'function'),
           step: 'socket_not_available'
         });
       }

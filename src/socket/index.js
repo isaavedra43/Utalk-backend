@@ -1,14 +1,40 @@
 /**
- * 🔄 SOCKET MANAGER MIGRATION
+ * 🔄 SOCKET MANAGER ACCESSOR
  * 
- * This file now redirects to the new EnterpriseSocketManager
- * which implements enterprise-grade real-time functionality
- * based on Socket.IO best practices.
- * 
- * @deprecated Use EnterpriseSocketManager directly
+ * Accessor centralizado para el EnterpriseSocketManager
+ * que evita ciclos de import y proporciona acceso global.
  */
 
-const EnterpriseSocketManager = require('./enterpriseSocketManager');
+let _manager = null;
 
-// Export the enterprise socket manager for backward compatibility
-module.exports = EnterpriseSocketManager;
+function setSocketManager(manager) {
+  _manager = manager;
+  console.log('✅ Socket manager registrado globalmente');
+}
+
+function getSocketManager() {
+  if (!_manager) {
+    console.warn('⚠️ Socket manager no inicializado, retornando null');
+    return null;
+  }
+  return _manager;
+}
+
+// Helper para rooms unificadas
+function getConversationRoom({ workspaceId, tenantId, conversationId }) {
+  return `ws:${workspaceId || 'default'}:ten:${tenantId || 'na'}:conv:${conversationId}`;
+}
+
+// Constantes de eventos para compatibilidad
+const EV_NEW_MESSAGE = 'new-message';
+const EV_CONV_EVENT = 'conversation-event';
+
+module.exports = {
+  setSocketManager,
+  getSocketManager,
+  getConversationRoom,
+  EV_NEW_MESSAGE,
+  EV_CONV_EVENT,
+  // Backward compatibility
+  EnterpriseSocketManager: require('./enterpriseSocketManager')
+};
