@@ -601,7 +601,7 @@ class ConversationsRepository {
         content: msg.content || '',
         type: msg.type || 'text',
         direction: 'outbound',
-        status: 'sent',
+        status: 'queued', // Inicialmente queued
         senderIdentifier: msg.senderIdentifier,
         recipientIdentifier: msg.recipientIdentifier,
         timestamp: msg.timestamp || new Date(),
@@ -758,16 +758,25 @@ class ConversationsRepository {
       try {
         const twilioService = require('../services/TwilioService');
         
+        // IDEMPOTENCIA: Verificar si ya se envió a Twilio
+        if (result.message.twilioSid || ['queued', 'sent'].includes(result.message.status)) {
+          logger.info('TWILIO:IDEMPOTENT', { 
+            correlationId: requestId, 
+            conversationId: msg.conversationId, 
+            messageId: msg.messageId, 
+            existingSid: result.message.twilioSid,
+            existingStatus: result.message.status
+          });
+          return result; // No re-enviar
+        }
+        
         // Construir from y to usando los helpers del servicio
         const rawFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
         const from = twilioService.ensureFrom(rawFrom);
         const to = twilioService.ensureWhatsApp(msg.recipientIdentifier);
         
-        // Marcar como queued inicialmente
-        result.message.status = 'queued';
-        
         logger.info('TWILIO:REQUEST', { 
-          requestId: req?.id || 'unknown', 
+          correlationId: requestId, 
           conversationId: msg.conversationId, 
           messageId: msg.messageId, 
           from, 
@@ -783,15 +792,30 @@ class ConversationsRepository {
         });
         
         logger.info('TWILIO:RESPONSE_OK', { 
-          requestId: req?.id || 'unknown', 
+          correlationId: requestId, 
           conversationId: msg.conversationId, 
           messageId: msg.messageId, 
           sid: resp?.sid, 
           status: resp?.status 
         });
         
-        // Actualizar estado persistiendo en el doc del mensaje
+        // Normalizar status según respuesta de Twilio
         const nextStatus = resp?.status === 'accepted' ? 'queued' : (resp?.status || 'queued');
+        
+        // Persistir el resultado en el documento de mensaje
+        const messageRef = firestore.collection(this.collectionPath).doc(msg.conversationId).collection('messages').doc(msg.messageId);
+        await messageRef.update({ 
+          status: nextStatus, 
+          twilioSid: resp?.sid,
+          metadata: {
+            ...result.message.metadata,
+            twilioSid: resp?.sid,
+            twilioStatus: resp?.status,
+            sentAt: new Date().toISOString()
+          }
+        });
+        
+        // Actualizar resultado
         result.message.status = nextStatus;
         result.message.twilioSid = resp?.sid;
         result.message.metadata = {
@@ -802,7 +826,7 @@ class ConversationsRepository {
         };
       } catch (err) {
         logger.error('TWILIO:RESPONSE_ERR', { 
-          requestId: req?.id || 'unknown', 
+          correlationId: requestId, 
           conversationId: msg.conversationId, 
           messageId: msg.messageId, 
           code: err?.code, 
@@ -810,7 +834,19 @@ class ConversationsRepository {
           more: err?.moreInfo 
         });
         
-        // Marcar mensaje como fallido
+        // Persistir error en el documento de mensaje
+        const messageRef = firestore.collection(this.collectionPath).doc(msg.conversationId).collection('messages').doc(msg.messageId);
+        await messageRef.update({ 
+          status: 'failed', 
+          error: String(err?.message || err),
+          metadata: {
+            ...result.message.metadata,
+            twilioError: String(err?.message || err),
+            failedAt: new Date().toISOString()
+          }
+        });
+        
+        // Actualizar resultado
         result.message.status = 'failed';
         result.message.error = String(err?.message || err);
         result.message.metadata = {
