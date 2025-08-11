@@ -53,7 +53,7 @@ const ragRoutes = require('./routes/rag').router;
 const aiOpsRoutes = require('./routes/aiOps').router;
 
 // Servicios
-const SocketManager = require('./socket');
+// SocketManager se importa dinámicamente en initializeSocketIO()
 
 class ConsolidatedServer {
   constructor() {
@@ -981,22 +981,45 @@ class ConsolidatedServer {
    * 🔌 INICIALIZAR SOCKET.IO
    */
   initializeSocketIO() {
+    if (this.socketManager) {
+      // Ya inicializado (idempotente)
+      logger.info('🔌 Socket.IO ya inicializado, reutilizando...', {
+        category: 'SOCKET_REUSE'
+      });
+      return this.socketManager;
+    }
+
     logger.info('🔌 Inicializando Socket.IO enterprise...', {
       category: 'SOCKET_INIT'
     });
 
-    const { setSocketManager } = require('./socket');
-    this.socketManager = new SocketManager(this.server);
-    
-    // Registrar globalmente y hacer disponible para otros componentes
-    setSocketManager(this.socketManager);
-    this.app.set('socketManager', this.socketManager);
+    // Importar clase y accessor
+    const { EnterpriseSocketManager } = require('./socket/enterpriseSocketManager');
+    const socketIndex = require('./socket');
 
-    logger.info('✅ Socket.IO enterprise inicializado', {
+    // Verificar que el server esté creado
+    if (!this.server) {
+      throw new Error('HTTP server must be created before initializing Socket.IO');
+    }
+
+    // Instanciar el manager
+    const mgr = new EnterpriseSocketManager(this.server);
+
+    // Registrar para accesos globales (TwilioService, controllers, etc.)
+    socketIndex.setSocketManager(mgr);
+    this.app.set('socketManager', mgr);
+    this.socketManager = mgr;
+
+    // Log claro de éxito
+    logger.info('SOCKETS:READY', {
+      hasServer: !!this.server,
+      hasManager: !!this.socketManager,
       category: 'SOCKET_SUCCESS',
       memoryManaged: true,
       maxConnections: 50000
     });
+
+    return this.socketManager;
   }
 
   /**

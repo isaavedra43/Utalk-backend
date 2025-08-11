@@ -29,12 +29,38 @@ function getConversationRoom({ workspaceId, tenantId, conversationId }) {
 const EV_NEW_MESSAGE = 'new-message';
 const EV_CONV_EVENT = 'conversation-event';
 
+// Delegadores seguros para compatibilidad
+function broadcastToConversation(args) {
+  if (_manager && typeof _manager.broadcastToConversation === 'function') {
+    return _manager.broadcastToConversation(args);
+  }
+  return false;
+}
+
+function emitNewMessage(args) {
+  if (_manager && typeof _manager.emitNewMessage === 'function') {
+    return _manager.emitNewMessage(args);
+  }
+  return false;
+}
+
+function emitConversationUpdated(args) {
+  if (_manager && typeof _manager.emitConversationUpdated === 'function') {
+    return _manager.emitConversationUpdated(args);
+  }
+  return false;
+}
+
 module.exports = {
   setSocketManager,
   getSocketManager,
   getConversationRoom,
   EV_NEW_MESSAGE,
   EV_CONV_EVENT,
+  // Delegadores seguros
+  broadcastToConversation,
+  emitNewMessage,
+  emitConversationUpdated,
   // Backward compatibility
   EnterpriseSocketManager: require('./enterpriseSocketManager')
 };
