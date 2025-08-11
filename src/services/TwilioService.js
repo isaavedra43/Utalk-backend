@@ -1,33 +1,10 @@
 const twilio = require('twilio');
-const { firestore, FieldValue, Timestamp } = require('../config/firebase');
-const { safeDateToISOString } = require('../utils/dateHelpers');
-const { logger } = require('../utils/logger');
-const ContactService = require('./ContactService');
-const MessageStatus = require('../models/MessageStatus');
-const axios = require('axios');
-const admin = require('firebase-admin');
 
 class TwilioService {
   constructor(client) {
     const sid = process.env.TWILIO_ACCOUNT_SID;
     const token = process.env.TWILIO_AUTH_TOKEN;
-    this.whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
-    
-    // VALIDACIÓN: Verificar configuración
-    if (!sid || !token || !this.whatsappNumber) {
-      logger.error('Configuración de Twilio incompleta', {
-        hasAccountSid: !!sid,
-        hasAuthToken: !!token,
-        hasWhatsappNumber: !!this.whatsappNumber,
-      });
-      throw new Error('Configuración de Twilio incompleta');
-    }
-
     this.client = client || twilio(sid, token);
-    
-    logger.info('TwilioService inicializado correctamente', {
-      whatsappNumber: this.whatsappNumber,
-    });
   }
 
   ensureWhatsApp(number) {
@@ -1179,38 +1156,8 @@ class TwilioService {
   }
 }
 
-// INSTANCIA SINGLETON
-let twilioServiceInstance = null;
-
-/**
- * FUNCIÓN PARA OBTENER INSTANCIA SINGLETON
- */
-function getTwilioService() {
-  if (!twilioServiceInstance) {
-    try {
-      twilioServiceInstance = new TwilioService();
-    } catch (error) {
-      logger.error('Error inicializando TwilioService', {
-        error: error.message,
-        stack: error.stack,
-      });
-      throw error;
-    }
-  }
-  return twilioServiceInstance;
-}
-
-/**
- * FUNCIÓN ESTÁTICA PARA COMPATIBILIDAD
- */
-async function processIncomingMessage(webhookData) {
-  const service = getTwilioService();
-  return await service.processIncomingMessage(webhookData);
-}
-
-// EXPORTACIÓN UNIFICADA: Instancia por defecto + Clase nombrada + Funciones
-const instance = getTwilioService();
+const instance = new TwilioService();
+function getTwilioService(){ return instance; }
 module.exports = instance;
 module.exports.TwilioService = TwilioService;
 module.exports.getTwilioService = getTwilioService;
-module.exports.processIncomingMessage = processIncomingMessage;

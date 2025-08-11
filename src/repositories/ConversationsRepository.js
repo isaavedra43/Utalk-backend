@@ -758,69 +758,69 @@ class ConversationsRepository {
       try {
         const twilioService = require('../services/TwilioService');
         
-        // Construir from y to con prefijos correctos
-        const from = `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
-        const to = msg.recipientIdentifier?.startsWith('whatsapp:') 
-          ? msg.recipientIdentifier 
-          : `whatsapp:${msg.recipientIdentifier}`;
+        // Construir from y to usando los helpers del servicio
+        const rawFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+        const from = twilioService.ensureFrom(rawFrom);
+        const to = twilioService.ensureWhatsApp(msg.recipientIdentifier);
         
         // Marcar como queued inicialmente
         result.message.status = 'queued';
         
-        logger.info('TWILIO:REQUEST', {
-          to,
-          from,
-          type: msg.type,
-          bodyLen: msg.content?.length,
-          hasMedia: !!msg.mediaUrl,
-          messageId: msg.messageId,
-          conversationId: msg.conversationId
+        logger.info('TWILIO:REQUEST', { 
+          requestId: req?.id || 'unknown', 
+          conversationId: msg.conversationId, 
+          messageId: msg.messageId, 
+          from, 
+          to, 
+          type: msg.type, 
+          hasMedia: !!(msg.media?.mediaUrl), 
+          bodyLen: msg.content?.length 
         });
 
         // Llamar a Twilio con parámetros correctos
-        const resp = await twilioService.sendWhatsAppMessage({ 
-          from: from, 
-          to: to, 
-          body: msg.content, 
-          mediaUrl: msg.mediaUrl 
-        });
-
-        logger.info('TWILIO:RESPONSE_OK', {
-          sid: resp.sid,
-          status: resp.status,
-          messageId: msg.messageId,
-          conversationId: msg.conversationId
+        const resp = await twilioService.sendWhatsAppMessage({
+          from, to, body: msg.content, mediaUrl: msg.media?.mediaUrl
         });
         
-        // Actualizar mensaje con Twilio SID y status sent
-        result.message.twilioSid = resp.sid;
-        result.message.status = 'sent';
+        logger.info('TWILIO:RESPONSE_OK', { 
+          requestId: req?.id || 'unknown', 
+          conversationId: msg.conversationId, 
+          messageId: msg.messageId, 
+          sid: resp?.sid, 
+          status: resp?.status 
+        });
+        
+        // Actualizar estado persistiendo en el doc del mensaje
+        const nextStatus = resp?.status === 'accepted' ? 'queued' : (resp?.status || 'queued');
+        result.message.status = nextStatus;
+        result.message.twilioSid = resp?.sid;
         result.message.metadata = {
           ...result.message.metadata,
-          twilioSid: resp.sid,
-          twilioStatus: resp.status,
+          twilioSid: resp?.sid,
+          twilioStatus: resp?.status,
           sentAt: new Date().toISOString()
         };
-      } catch (twilioError) {
-        logger.error('TWILIO:RESPONSE_ERR', {
-          code: twilioError.code,
-          message: twilioError.message,
-          more: twilioError?.moreInfo,
-          messageId: msg.messageId,
-          conversationId: msg.conversationId
+      } catch (err) {
+        logger.error('TWILIO:RESPONSE_ERR', { 
+          requestId: req?.id || 'unknown', 
+          conversationId: msg.conversationId, 
+          messageId: msg.messageId, 
+          code: err?.code, 
+          message: err?.message, 
+          more: err?.moreInfo 
         });
         
         // Marcar mensaje como fallido
         result.message.status = 'failed';
-        result.message.error = twilioError.message;
+        result.message.error = String(err?.message || err);
         result.message.metadata = {
           ...result.message.metadata,
-          twilioError: twilioError.message,
-          twilioErrorCode: twilioError.code,
+          twilioError: String(err?.message || err),
           failedAt: new Date().toISOString()
         };
         
-        throw twilioError;
+        // Propaga para que el controller lo mapee a 424
+        throw err;
       }
 
       // Emitir eventos RT (sin tocar el manager)

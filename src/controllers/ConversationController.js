@@ -1062,30 +1062,24 @@ class ConversationController {
         recipientIdentifier: validatedMessage.recipientIdentifier
       });
 
-      // Verificar si el mensaje se envió correctamente a Twilio
-      if (result.message.status === 'failed') {
-        return ResponseHandler.error(res, new ApiError(
-          'TWILIO_SEND_FAILED',
-          'Error enviando mensaje a WhatsApp',
-          result.message.error || 'Error desconocido',
-          424
-        ));
-      }
-
-      // Verificar que el mensaje se envió exitosamente
-      if (result.message.status !== 'sent') {
+      // Si appendOutbound lanzó error → captúralo y responde 424
+      // En éxito, acepta queued/accepted/sent como OK (201)
+      if (!['queued','accepted','sent'].includes(result.message.status)) {
         return ResponseHandler.error(res, new ApiError(
           'MESSAGE_NOT_SENT',
           'El mensaje no se pudo enviar',
-          'Estado del mensaje: ' + result.message.status,
+          `Estado: ${result.message.status}`,
           424
         ));
       }
-
-      return ResponseHandler.success(res, {
-        message: result.message,
-        conversation: result.conversation
-      }, 'Mensaje enviado exitosamente');
+      
+      return res.status(201).json({ 
+        success: true, 
+        data: { 
+          message: result.message, 
+          conversation: result.conversation 
+        } 
+      });
 
     } catch (error) {
       logger.error('Error enviando mensaje:', {
