@@ -1,11 +1,38 @@
 const twilio = require('twilio');
-const { firestore, FieldValue, Timestamp } = require('../config/firebase');
-const { safeDateToISOString } = require('../utils/dateHelpers');
-const { logger } = require('../utils/logger');
-const ContactService = require('./ContactService');
-const MessageStatus = require('../models/MessageStatus');
 const axios = require('axios');
-const admin = require('firebase-admin');
+
+// Importaciones condicionales para evitar errores en desarrollo
+let firestore, FieldValue, Timestamp, ContactService, MessageStatus, admin, logger, safeDateToISOString;
+
+try {
+  const firebaseConfig = require('../config/firebase');
+  firestore = firebaseConfig.firestore;
+  FieldValue = firebaseConfig.FieldValue;
+  Timestamp = firebaseConfig.Timestamp;
+  ContactService = require('./ContactService');
+  MessageStatus = require('../models/MessageStatus');
+  admin = require('firebase-admin');
+  const loggerModule = require('../utils/logger');
+  logger = loggerModule.logger;
+  const dateHelpers = require('../utils/dateHelpers');
+  safeDateToISOString = dateHelpers.safeDateToISOString;
+} catch (error) {
+  console.warn('Firebase/Logger no disponible en desarrollo local:', error.message);
+  // Stubs para desarrollo
+  firestore = null;
+  FieldValue = { increment: () => ({}) };
+  Timestamp = { now: () => new Date() };
+  ContactService = null;
+  MessageStatus = null;
+  admin = null;
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.log
+  };
+  safeDateToISOString = (date) => date ? date.toISOString() : new Date().toISOString();
+}
 
 class TwilioService {
   constructor() {
@@ -1275,9 +1302,13 @@ async function processIncomingMessage(webhookData) {
   return await service.processIncomingMessage(webhookData);
 }
 
-// EXPORTACIÓN COMPLETA CON TODAS LAS FUNCIONES
+// EXPORTACIÓN UNIFICADA: Clase nombrada + getter para instancia
 module.exports = {
   TwilioService,
   getTwilioService,
   processIncomingMessage,
+  // Getter para instancia por defecto
+  get default() {
+    return getTwilioService();
+  }
 };

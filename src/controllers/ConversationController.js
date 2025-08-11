@@ -1072,6 +1072,16 @@ class ConversationController {
         ));
       }
 
+      // Verificar que el mensaje se envió exitosamente
+      if (result.message.status !== 'sent') {
+        return ResponseHandler.error(res, new ApiError(
+          'MESSAGE_NOT_SENT',
+          'El mensaje no se pudo enviar',
+          'Estado del mensaje: ' + result.message.status,
+          424
+        ));
+      }
+
       return ResponseHandler.success(res, {
         message: result.message,
         conversation: result.conversation
