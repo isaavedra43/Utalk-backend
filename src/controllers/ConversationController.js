@@ -1062,6 +1062,16 @@ class ConversationController {
         recipientIdentifier: validatedMessage.recipientIdentifier
       });
 
+      // Verificar si el mensaje se envió correctamente a Twilio
+      if (result.message.status === 'failed') {
+        return ResponseHandler.error(res, new ApiError(
+          'TWILIO_SEND_FAILED',
+          'Error enviando mensaje a WhatsApp',
+          result.message.error || 'Error desconocido',
+          424
+        ));
+      }
+
       return ResponseHandler.success(res, {
         message: result.message,
         conversation: result.conversation

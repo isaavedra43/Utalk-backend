@@ -754,6 +754,66 @@ class ConversationsRepository {
         logger.info('message_write_diag', postWriteLog);
       }
 
+      // 🚨 FIX: ENVIAR MENSAJE A TWILIO
+      try {
+        const TwilioService = require('../services/TwilioService');
+        const twilioService = new TwilioService();
+        
+        // Extraer número de teléfono del recipientIdentifier
+        const recipientPhone = msg.recipientIdentifier?.replace('whatsapp:', '') || msg.recipientIdentifier;
+        
+        logger.info('TWILIO:REQUEST', {
+          to: recipientPhone,
+          from: process.env.TWILIO_WHATSAPP_NUMBER,
+          type: msg.type,
+          hasMedia: !!msg.mediaUrl,
+          bodyLen: msg.content?.length,
+          messageId: msg.messageId
+        });
+
+        const twilioResult = await twilioService.sendWhatsAppMessage(
+          recipientPhone,
+          msg.content,
+          msg.mediaUrl
+        );
+
+        if (twilioResult.success) {
+          logger.info('TWILIO:RESPONSE_OK', {
+            sid: twilioResult.twilioResponse.sid,
+            status: twilioResult.twilioResponse.status,
+            messageId: msg.messageId
+          });
+          
+          // Actualizar mensaje con Twilio SID
+          result.message.twilioSid = twilioResult.twilioResponse.sid;
+          result.message.status = 'sent';
+        } else {
+          logger.error('TWILIO:RESPONSE_ERR', {
+            error: twilioResult.error,
+            messageId: msg.messageId
+          });
+          
+          // Marcar mensaje como fallido
+          result.message.status = 'failed';
+          result.message.error = twilioResult.error;
+          
+          throw new Error(`Twilio send failed: ${twilioResult.error}`);
+        }
+      } catch (twilioError) {
+        logger.error('TWILIO:RESPONSE_ERR', {
+          code: twilioError.code,
+          message: twilioError.message,
+          more: twilioError?.moreInfo,
+          messageId: msg.messageId
+        });
+        
+        // Marcar mensaje como fallido
+        result.message.status = 'failed';
+        result.message.error = twilioError.message;
+        
+        throw twilioError;
+      }
+
       // Emitir eventos RT (sin tocar el manager)
       // TODO: Implementar emisión de eventos RT aquí
 
