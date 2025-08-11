@@ -1,10 +1,25 @@
 const twilio = require('twilio');
+const { logger } = require('../utils/logger');
 
 class TwilioService {
   constructor(client) {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    this.client = client || twilio(sid, token);
+    const accountSid =
+      process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID || process.env.TWILIO_ACCOUNTID;
+    const authToken  =
+      process.env.TWILIO_AUTH_TOKEN  || process.env.TWILIO_TOKEN || process.env.TWILIO_SECRET;
+
+    this.whatsappNumber =
+      process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM || process.env.WHATSAPP_FROM;
+
+    this._diagLogBoot(accountSid, authToken, this.whatsappNumber);
+
+    if (!accountSid || !authToken) {
+      // No rompas la app con throw sin control; deja que el caller lo capture y mapee a 424
+      const e = new Error('Missing Twilio credentials: TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
+      e.code = 20003; // equivalente a auth fail para mapeo uniforme
+      throw e;
+    }
+    this.client = client || twilio(accountSid, authToken);
   }
 
   ensureWhatsApp(number) {
@@ -16,6 +31,15 @@ class TwilioService {
   ensureFrom(from) {
     if (!from) throw new Error('from is required');
     return from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
+  }
+
+  _diagLogBoot(sid, token, from) {
+    const sidLast4 = sid ? String(sid).slice(-4) : null;
+    logger?.info?.('TWILIO:BOOT', {
+      hasSid: !!sid, sidLast4,
+      hasToken: !!token,
+      from
+    });
   }
 
   /**
@@ -930,8 +954,13 @@ class TwilioService {
     if (body) payload.body = body;
     if (mediaUrl) payload.mediaUrl = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
 
+    // Log de request (sin body completo)
+    logger?.info?.('TWILIO:REQUEST', { from: payload.from, to: payload.to, bodyLen: body?.length, hasMedia: !!mediaUrl });
+
     const resp = await this.client.messages.create(payload);
-    return resp; // resp.sid, resp.status, etc.
+
+    logger?.info?.('TWILIO:RESPONSE_OK', { sid: resp?.sid, status: resp?.status });
+    return resp;
   }
 
   /**

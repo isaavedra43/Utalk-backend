@@ -759,7 +759,8 @@ class ConversationsRepository {
         const twilioService = require('../services/TwilioService');
         
         // IDEMPOTENCIA: Verificar si ya se envió a Twilio
-        if (result.message.twilioSid) {
+        if (result.message?.twilioSid) {
+          // ya enviado previamente
           logger.info('TWILIO:IDEMPOTENT', { 
             correlationId: requestId, 
             conversationId: msg.conversationId, 
@@ -767,22 +768,11 @@ class ConversationsRepository {
             existingSid: result.message.twilioSid,
             existingStatus: result.message.status
           });
-          return result; // No re-enviar si ya tiene twilioSid
+          return result;
         }
         
-        // DIAGNÓSTICO: Verificar variables de entorno
-        logger.info('TWILIO:DIAGNOSTIC', {
-          correlationId: requestId,
-          hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
-          hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN,
-          hasWhatsappNumber: !!process.env.TWILIO_WHATSAPP_NUMBER,
-          whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER,
-          messageStatus: result.message.status,
-          hasTwilioSid: !!result.message.twilioSid
-        });
-        
-        // Construir from y to usando los helpers del servicio
-        const rawFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+        // Construcción de from/to y llamada Twilio
+        const rawFrom = twilioService.whatsappNumber;
         const from = twilioService.ensureFrom(rawFrom);
         const to = twilioService.ensureWhatsApp(msg.recipientIdentifier);
         
@@ -797,44 +787,25 @@ class ConversationsRepository {
           bodyLen: msg.content?.length 
         });
 
-        // Llamar a Twilio con parámetros correctos
         const resp = await twilioService.sendWhatsAppMessage({
           from, to, body: msg.content, mediaUrl: msg.media?.mediaUrl
         });
-        
-        logger.info('TWILIO:RESPONSE_OK', { 
-          correlationId: requestId, 
-          conversationId: msg.conversationId, 
-          messageId: msg.messageId, 
-          sid: resp?.sid, 
-          status: resp?.status 
-        });
-        
-        // Normalizar status según respuesta de Twilio
-        const nextStatus = resp?.status === 'accepted' ? 'queued' : (resp?.status || 'queued');
-        
-        // Persistir el resultado en el documento de mensaje
+
+        result.message.twilioSid = resp?.sid;
+        result.message.status = resp?.status || 'queued';
+
+        // persiste actualización de twilioSid/status en Firestore
         const messageRef = firestore.collection(this.collectionPath).doc(msg.conversationId).collection('messages').doc(msg.messageId);
         await messageRef.update({ 
-          status: nextStatus, 
-          twilioSid: resp?.sid,
+          status: result.message.status, 
+          twilioSid: result.message.twilioSid,
           metadata: {
             ...result.message.metadata,
-            twilioSid: resp?.sid,
+            twilioSid: result.message.twilioSid,
             twilioStatus: resp?.status,
             sentAt: new Date().toISOString()
           }
         });
-        
-        // Actualizar resultado
-        result.message.status = nextStatus;
-        result.message.twilioSid = resp?.sid;
-        result.message.metadata = {
-          ...result.message.metadata,
-          twilioSid: resp?.sid,
-          twilioStatus: resp?.status,
-          sentAt: new Date().toISOString()
-        };
       } catch (err) {
         logger.error('TWILIO:RESPONSE_ERR', { 
           correlationId: requestId, 

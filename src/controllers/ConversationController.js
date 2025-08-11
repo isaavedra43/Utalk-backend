@@ -1088,6 +1088,26 @@ class ConversationController {
         error: error.message,
         stack: error.stack
       });
+      
+      // Mapear errores Twilio específicos
+      if (error?.code === 20003) {
+        return ResponseHandler.error(res, new ApiError(
+          'TWILIO_AUTH_FAILED',
+          'Credenciales de Twilio inválidas (code 20003)',
+          'Verifica TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN',
+          424
+        ));
+      }
+      if (error?.code === 63016 || error?.code === 63051) {
+        return ResponseHandler.error(res, new ApiError(
+          'WHATSAPP_WINDOW_CLOSED',
+          'La ventana de 24h está cerrada o falta plantilla aprobada',
+          'Envía plantilla o reabre la sesión',
+          424
+        ));
+      }
+      
+      // fallback original
       return ResponseHandler.error(res, error);
     }
   }
