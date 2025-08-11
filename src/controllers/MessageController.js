@@ -234,7 +234,11 @@ class MessageController {
           );
         } else {
           // Enviar solo texto
-          sentMessage = await twilioService.sendWhatsAppMessage(conversation.customerPhone, content);
+          sentMessage = await twilioService.sendWhatsAppMessage({
+            from: process.env.TWILIO_WHATSAPP_NUMBER,
+            to: conversation.customerPhone,
+            body: content
+          });
         }
 
         // Actualizar mensaje con datos de Twilio
@@ -419,7 +423,11 @@ class MessageController {
           );
         } else {
           // Enviar solo texto
-          sentMessage = await twilioService.sendWhatsAppMessage(targetPhone, content);
+          sentMessage = await twilioService.sendWhatsAppMessage({
+            from: process.env.TWILIO_WHATSAPP_NUMBER,
+            to: targetPhone,
+            body: content
+          });
         }
 
         // Actualizar mensaje con datos de Twilio

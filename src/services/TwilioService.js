@@ -1,60 +1,44 @@
 const twilio = require('twilio');
+const { firestore, FieldValue, Timestamp } = require('../config/firebase');
+const { safeDateToISOString } = require('../utils/dateHelpers');
+const { logger } = require('../utils/logger');
+const ContactService = require('./ContactService');
+const MessageStatus = require('../models/MessageStatus');
 const axios = require('axios');
-
-// Importaciones condicionales para evitar errores en desarrollo
-let firestore, FieldValue, Timestamp, ContactService, MessageStatus, admin, logger, safeDateToISOString;
-
-try {
-  const firebaseConfig = require('../config/firebase');
-  firestore = firebaseConfig.firestore;
-  FieldValue = firebaseConfig.FieldValue;
-  Timestamp = firebaseConfig.Timestamp;
-  ContactService = require('./ContactService');
-  MessageStatus = require('../models/MessageStatus');
-  admin = require('firebase-admin');
-  const loggerModule = require('../utils/logger');
-  logger = loggerModule.logger;
-  const dateHelpers = require('../utils/dateHelpers');
-  safeDateToISOString = dateHelpers.safeDateToISOString;
-} catch (error) {
-  console.warn('Firebase/Logger no disponible en desarrollo local:', error.message);
-  // Stubs para desarrollo
-  firestore = null;
-  FieldValue = { increment: () => ({}) };
-  Timestamp = { now: () => new Date() };
-  ContactService = null;
-  MessageStatus = null;
-  admin = null;
-  logger = {
-    info: console.log,
-    error: console.error,
-    warn: console.warn,
-    debug: console.log
-  };
-  safeDateToISOString = (date) => date ? date.toISOString() : new Date().toISOString();
-}
+const admin = require('firebase-admin');
 
 class TwilioService {
-  constructor() {
-    this.accountSid = process.env.TWILIO_ACCOUNT_SID;
-    this.authToken = process.env.TWILIO_AUTH_TOKEN;
+  constructor(client) {
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
     this.whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
-
+    
     // VALIDACIÓN: Verificar configuración
-    if (!this.accountSid || !this.authToken || !this.whatsappNumber) {
+    if (!sid || !token || !this.whatsappNumber) {
       logger.error('Configuración de Twilio incompleta', {
-        hasAccountSid: !!this.accountSid,
-        hasAuthToken: !!this.authToken,
+        hasAccountSid: !!sid,
+        hasAuthToken: !!token,
         hasWhatsappNumber: !!this.whatsappNumber,
       });
       throw new Error('Configuración de Twilio incompleta');
     }
 
-    this.client = twilio(this.accountSid, this.authToken);
+    this.client = client || twilio(sid, token);
     
     logger.info('TwilioService inicializado correctamente', {
       whatsappNumber: this.whatsappNumber,
     });
+  }
+
+  ensureWhatsApp(number) {
+    // Garantiza prefijo 'whatsapp:' y E.164
+    if (!number) throw new Error('to is required');
+    return number.startsWith('whatsapp:') ? number : `whatsapp:${number}`;
+  }
+
+  ensureFrom(from) {
+    if (!from) throw new Error('from is required');
+    return from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
   }
 
   /**
@@ -959,96 +943,18 @@ class TwilioService {
 
   /**
    * ENVIAR MENSAJE DE WHATSAPP
-   * Versión mejorada con tracking de status
+   * API unificada con parámetros estructurados
    */
-  async sendWhatsAppMessage(toPhone, message, mediaUrl = null) {
-    try {
-      // VALIDACIÓN: Normalizar números de teléfono
-      const toValidation = { isValid: true, normalized: toPhone };
-      if (!toValidation.isValid) {
-        throw new Error(`Número de destino inválido: ${toValidation.error}`);
-      }
+  async sendWhatsAppMessage({ from, to, body, mediaUrl }) {
+    const payload = {
+      from: this.ensureFrom(from),
+      to: this.ensureWhatsApp(to),
+    };
+    if (body) payload.body = body;
+    if (mediaUrl) payload.mediaUrl = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
 
-      const fromValidation = { isValid: true, normalized: this.whatsappNumber };
-      if (!fromValidation.isValid) {
-        throw new Error(`Número de Twilio inválido: ${fromValidation.error}`);
-      }
-
-      const normalizedToPhone = toValidation.normalized;
-      const normalizedFromPhone = fromValidation.normalized;
-
-      // CONSTRUIR MENSAJE PARA TWILIO
-      const twilioMessage = {
-        from: `whatsapp:${normalizedFromPhone}`,
-        to: `whatsapp:${normalizedToPhone}`,
-        body: message,
-      };
-
-      // AGREGAR MEDIA SI EXISTE
-      if (mediaUrl) {
-        twilioMessage.mediaUrl = [mediaUrl];
-      }
-
-      logger.info('📤 Enviando mensaje WhatsApp via Twilio', {
-        to: normalizedToPhone,
-        from: normalizedFromPhone,
-        hasMedia: !!mediaUrl,
-        messageLength: message.length,
-      });
-
-      // ENVIAR MENSAJE
-      const sentMessage = await this.client.messages.create(twilioMessage);
-
-      // ESTRUCTURA CORRECTA: Usar senderPhone/recipientPhone
-      const messageData = {
-        id: sentMessage.sid,
-        senderPhone: normalizedFromPhone,
-        recipientPhone: normalizedToPhone,
-        content: message,
-        mediaUrl: mediaUrl,
-        direction: 'outbound',
-        type: mediaUrl ? 'media' : 'text',
-        status: 'sent',
-        sender: 'agent',
-        timestamp: safeDateToISOString(new Date()),
-        metadata: {
-          twilioSid: sentMessage.sid,
-          twilioStatus: sentMessage.status,
-          twilioErrorCode: sentMessage.errorCode,
-          twilioErrorMessage: sentMessage.errorMessage,
-          sentAt: safeDateToISOString(new Date()),
-        },
-        createdAt: safeDateToISOString(new Date()),
-        updatedAt: safeDateToISOString(new Date()),
-      };
-
-      logger.info('✅ Mensaje WhatsApp enviado exitosamente', {
-        twilioSid: sentMessage.sid,
-        senderPhone: messageData.senderPhone,
-        recipientPhone: messageData.recipientPhone,
-        status: sentMessage.status,
-        direction: messageData.direction,
-      });
-
-      return {
-        success: true,
-        messageData,
-        twilioResponse: sentMessage,
-      };
-
-    } catch (error) {
-      logger.error('❌ Error enviando mensaje WhatsApp', {
-        error: error.message,
-        toPhone,
-        mediaUrl: !!mediaUrl,
-        stack: error.stack,
-      });
-
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    const resp = await this.client.messages.create(payload);
+    return resp; // resp.sid, resp.status, etc.
   }
 
   /**
@@ -1302,13 +1208,9 @@ async function processIncomingMessage(webhookData) {
   return await service.processIncomingMessage(webhookData);
 }
 
-// EXPORTACIÓN UNIFICADA: Clase nombrada + getter para instancia
-module.exports = {
-  TwilioService,
-  getTwilioService,
-  processIncomingMessage,
-  // Getter para instancia por defecto
-  get default() {
-    return getTwilioService();
-  }
-};
+// EXPORTACIÓN UNIFICADA: Instancia por defecto + Clase nombrada + Funciones
+const instance = getTwilioService();
+module.exports = instance;
+module.exports.TwilioService = TwilioService;
+module.exports.getTwilioService = getTwilioService;
+module.exports.processIncomingMessage = processIncomingMessage;

@@ -756,8 +756,7 @@ class ConversationsRepository {
 
       // 🚨 FIX: ENVIAR MENSAJE A TWILIO CON FLUJO CORRECTO
       try {
-        const { getTwilioService } = require('../services/TwilioService');
-        const twilioService = getTwilioService();
+        const twilioService = require('../services/TwilioService');
         
         // Construir from y to con prefijos correctos
         const from = `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
@@ -779,47 +778,29 @@ class ConversationsRepository {
         });
 
         // Llamar a Twilio con parámetros correctos
-        const twilioResult = await twilioService.sendWhatsAppMessage(
-          to.replace('whatsapp:', ''), // TwilioService espera solo el número
-          msg.content,
-          msg.mediaUrl
-        );
+        const resp = await twilioService.sendWhatsAppMessage({ 
+          from: from, 
+          to: to, 
+          body: msg.content, 
+          mediaUrl: msg.mediaUrl 
+        });
 
-        if (twilioResult.success) {
-          logger.info('TWILIO:RESPONSE_OK', {
-            sid: twilioResult.twilioResponse.sid,
-            status: twilioResult.twilioResponse.status,
-            messageId: msg.messageId,
-            conversationId: msg.conversationId
-          });
-          
-          // Actualizar mensaje con Twilio SID y status sent
-          result.message.twilioSid = twilioResult.twilioResponse.sid;
-          result.message.status = 'sent';
-          result.message.metadata = {
-            ...result.message.metadata,
-            twilioSid: twilioResult.twilioResponse.sid,
-            twilioStatus: twilioResult.twilioResponse.status,
-            sentAt: new Date().toISOString()
-          };
-        } else {
-          logger.error('TWILIO:RESPONSE_ERR', {
-            error: twilioResult.error,
-            messageId: msg.messageId,
-            conversationId: msg.conversationId
-          });
-          
-          // Marcar mensaje como fallido
-          result.message.status = 'failed';
-          result.message.error = twilioResult.error;
-          result.message.metadata = {
-            ...result.message.metadata,
-            twilioError: twilioResult.error,
-            failedAt: new Date().toISOString()
-          };
-          
-          throw new Error(`Twilio send failed: ${twilioResult.error}`);
-        }
+        logger.info('TWILIO:RESPONSE_OK', {
+          sid: resp.sid,
+          status: resp.status,
+          messageId: msg.messageId,
+          conversationId: msg.conversationId
+        });
+        
+        // Actualizar mensaje con Twilio SID y status sent
+        result.message.twilioSid = resp.sid;
+        result.message.status = 'sent';
+        result.message.metadata = {
+          ...result.message.metadata,
+          twilioSid: resp.sid,
+          twilioStatus: resp.status,
+          sentAt: new Date().toISOString()
+        };
       } catch (twilioError) {
         logger.error('TWILIO:RESPONSE_ERR', {
           code: twilioError.code,
