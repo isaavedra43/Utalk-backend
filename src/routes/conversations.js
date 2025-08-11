@@ -4,6 +4,8 @@ const ConversationController = require('../controllers/ConversationController');
 const { validateRequest } = require('../middleware/validation');
 const { validatePhoneInBody } = require('../middleware/phoneValidation');
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { normalizeConversationId } = require('../middleware/conversationIdNormalization');
+const { validateMessagePayload, autoGenerateMessageId, fallbackSenderIdentifier } = require('../middleware/messageValidation');
 const Joi = require('joi');
 
 // Validadores específicos para conversaciones
@@ -198,7 +200,10 @@ router.put('/:id/read-all',
 router.post('/:id/messages',
   authMiddleware,
   requireWriteAccess,
-  conversationValidators.validateSendMessage,
+  normalizeConversationId,
+  autoGenerateMessageId,
+  fallbackSenderIdentifier,
+  validateMessagePayload,
   ConversationController.sendMessageInConversation
 );
 

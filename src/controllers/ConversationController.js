@@ -986,8 +986,9 @@ class ConversationController {
    */
   static async sendMessageInConversation(req, res, next) {
     try {
-      const { id: conversationId } = req.params;
-      const { content, type = 'text', replyToMessageId, metadata = {} } = req.body;
+      // Usar conversationId normalizado del middleware
+      const conversationId = req.normalizedConversationId;
+      const validatedMessage = req.validatedMessage;
       const userEmail = req.user.email;
 
       // Verificar que la conversación existe
@@ -1013,30 +1014,31 @@ class ConversationController {
         ));
       }
 
-      // Preparar datos del mensaje
+      // Preparar datos del mensaje usando validación centralizada
       const messageData = {
         conversationId,
-        content: content.trim(),
-        type,
+        messageId: validatedMessage.messageId,
+        content: validatedMessage.content,
+        type: validatedMessage.type,
         direction: 'outbound',
-        senderIdentifier: req.user.phone || req.user.email,
-        recipientIdentifier: conversation.customerPhone,
+        senderIdentifier: validatedMessage.senderIdentifier,
+        recipientIdentifier: validatedMessage.recipientIdentifier,
         agentEmail: userEmail,
         workspaceId: req.user.workspaceId,
         tenantId: req.user.tenantId,
-        replyToMessageId: replyToMessageId || undefined,
         metadata: {
-          ...metadata,
+          ...validatedMessage.metadata,
           sentBy: userEmail,
           userAgent: req.headers['user-agent'],
-          ip: req.ip
+          ip: req.ip,
+          requestId: req.id || 'unknown'
         },
         timestamp: new Date()
       };
 
       // Usar el repositorio para enviar el mensaje
       const conversationsRepo = getConversationsRepository();
-      const result = await conversationsRepo.appendOutbound(conversationId, messageData);
+      const result = await conversationsRepo.appendOutbound(messageData);
 
       // Emitir evento de socket para tiempo real
       const socketManager = req.app.get('socketManager');
@@ -1050,11 +1052,14 @@ class ConversationController {
       }
 
       logger.info('Mensaje enviado exitosamente', {
+        requestId: req.id || 'unknown',
         conversationId,
         messageId: result.message.id,
         sender: userEmail,
-        contentLength: content.length,
-        type
+        contentLength: validatedMessage.content.length,
+        type: validatedMessage.type,
+        senderIdentifier: validatedMessage.senderIdentifier,
+        recipientIdentifier: validatedMessage.recipientIdentifier
       });
 
       return ResponseHandler.success(res, {
@@ -1063,7 +1068,12 @@ class ConversationController {
       }, 'Mensaje enviado exitosamente');
 
     } catch (error) {
-      logger.error('Error enviando mensaje:', error);
+      logger.error('Error enviando mensaje:', {
+        requestId: req.id || 'unknown',
+        conversationId: req.normalizedConversationId,
+        error: error.message,
+        stack: error.stack
+      });
       return ResponseHandler.error(res, error);
     }
   }

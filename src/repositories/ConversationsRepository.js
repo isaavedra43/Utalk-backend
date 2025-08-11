@@ -578,7 +578,20 @@ class ConversationsRepository {
     try {
       // Validar datos obligatorios
       if (!msg.conversationId || !msg.messageId || !msg.senderIdentifier) {
-        throw new Error('conversationId, messageId y senderIdentifier son obligatorios');
+        const missingFields = [];
+        if (!msg.conversationId) missingFields.push('conversationId');
+        if (!msg.messageId) missingFields.push('messageId');
+        if (!msg.senderIdentifier) missingFields.push('senderIdentifier');
+        
+        const error = new Error(`Campos obligatorios faltantes: ${missingFields.join(', ')}`);
+        error.statusCode = 400;
+        error.validationError = true;
+        error.details = missingFields.map(field => ({
+          field,
+          code: 'required',
+          message: `${field} es obligatorio`
+        }));
+        throw error;
       }
 
       // Normalizar datos

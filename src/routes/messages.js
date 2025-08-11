@@ -161,14 +161,24 @@ router.delete('/conversations/:conversationId/messages/:messageId',
 
 /**
  * @route POST /api/messages/send
- * @desc Enviar mensaje independiente
+ * @desc Enviar mensaje independiente (DEPRECATED)
  * @access Private (Agent, Admin)
+ * @deprecated Use POST /api/conversations/:conversationId/messages instead
  */
 router.post('/send',
   authMiddleware,
   requireWriteAccess,
-  messageValidators.validateSend,
-  MessageController.sendMessage
+  (req, res) => {
+    res.status(410).json({
+      error: 'deprecated_endpoint',
+      message: 'Este endpoint está deprecado. Usa POST /api/conversations/:conversationId/messages',
+      details: {
+        newEndpoint: '/api/conversations/:conversationId/messages',
+        requiredFields: ['messageId', 'type', 'content', 'senderIdentifier', 'recipientIdentifier'],
+        conversationIdFormat: 'conv_+<from>_+<to> (acepta + y %2B)'
+      }
+    });
+  }
 );
 
 /**
