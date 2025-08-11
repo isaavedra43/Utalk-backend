@@ -661,7 +661,7 @@ class ConversationsRepository {
           content: msg.content || '',
           type: msg.type || 'text',
           direction: 'outbound',
-          status: 'sent',
+          status: 'queued', // Inicialmente queued, se actualizará después de Twilio
           senderIdentifier: msg.senderIdentifier,
           recipientIdentifier: msg.recipientIdentifier,
           timestamp: msg.timestamp || new Date(),
@@ -759,7 +759,7 @@ class ConversationsRepository {
         const twilioService = require('../services/TwilioService');
         
         // IDEMPOTENCIA: Verificar si ya se envió a Twilio
-        if (result.message.twilioSid || ['queued', 'sent'].includes(result.message.status)) {
+        if (result.message.twilioSid) {
           logger.info('TWILIO:IDEMPOTENT', { 
             correlationId: requestId, 
             conversationId: msg.conversationId, 
@@ -767,8 +767,19 @@ class ConversationsRepository {
             existingSid: result.message.twilioSid,
             existingStatus: result.message.status
           });
-          return result; // No re-enviar
+          return result; // No re-enviar si ya tiene twilioSid
         }
+        
+        // DIAGNÓSTICO: Verificar variables de entorno
+        logger.info('TWILIO:DIAGNOSTIC', {
+          correlationId: requestId,
+          hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
+          hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN,
+          hasWhatsappNumber: !!process.env.TWILIO_WHATSAPP_NUMBER,
+          whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER,
+          messageStatus: result.message.status,
+          hasTwilioSid: !!result.message.twilioSid
+        });
         
         // Construir from y to usando los helpers del servicio
         const rawFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
