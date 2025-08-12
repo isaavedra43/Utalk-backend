@@ -337,7 +337,7 @@ class EnterpriseSocketManager {
 
     logger.info('✅ Socket.IO server configured successfully', {
       category: 'SOCKET_CONFIG_SUCCESS',
-      corsOrigins: corsOrigins.length
+      corsConfig: 'unified'
     });
   }
 
