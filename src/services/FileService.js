@@ -58,6 +58,44 @@ class FileService {
   }
 
   /**
+   * Obtener attachments por IDs
+   */
+  async getAttachmentsByIds(attachmentIds) {
+    try {
+      const attachments = [];
+      
+      for (const id of attachmentIds) {
+        const file = await File.getById(id);
+        if (file) {
+          attachments.push({
+            id: file.id,
+            url: file.url,
+            mime: file.mimetype,
+            name: file.originalName,
+            size: file.size,
+            type: this.getFileType(file.mimetype)
+          });
+        }
+      }
+      
+      return attachments;
+    } catch (error) {
+      logger.error('Error obteniendo attachments por IDs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener tipo de archivo basado en MIME type
+   */
+  getFileType(mimetype) {
+    if (mimetype.startsWith('image/')) return 'image';
+    if (mimetype.startsWith('video/')) return 'video';
+    if (mimetype.startsWith('audio/')) return 'audio';
+    return 'file';
+  }
+
+  /**
    * 🆕 Subir archivo con indexación automática
    */
   async uploadFile(fileData, options = {}) {

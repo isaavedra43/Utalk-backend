@@ -86,59 +86,46 @@ class MediaUploadController {
         ));
       }
 
-      const { conversationId, tags } = req.body;
-      if (!conversationId) {
-        return ResponseHandler.error(res, new ApiError(
-          'MISSING_CONVERSATION_ID',
-          'ID de conversación requerido',
-          'Incluye el conversationId en el cuerpo de la petición',
-          400
-        ));
-      }
-
       const file = req.file;
       const userEmail = req.user.email;
 
-      logger.info('🔄 Iniciando subida de archivo optimizada', {
+      logger.info('🔄 Iniciando subida de archivo', {
         originalName: file.originalname,
         size: file.size,
         mimetype: file.mimetype,
-        conversationId,
         uploadedBy: userEmail
       });
 
-      // Subir archivo con indexación automática
+      // Subir archivo y obtener metadatos
       const result = await this.fileService.uploadFile({
         buffer: file.buffer,
         originalName: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        conversationId,
         userId: req.user.id,
-        uploadedBy: userEmail,
-        tags: tags ? tags.split(',').map(tag => tag.trim()) : []
+        uploadedBy: userEmail
       });
 
-      // Verificar compatibilidad con WhatsApp para Twilio
-      const isWhatsAppCompatible = this.isWhatsAppCompatible(file.mimetype, file.size);
-
-      const response = {
-        ...result,
-        whatsAppCompatible: isWhatsAppCompatible
+      // Formato canónico de respuesta
+      const attachment = {
+        id: result.id,
+        url: result.url,
+        mime: result.mimetype,
+        name: result.originalName,
+        size: result.size,
+        type: this.getFileType(result.mimetype)
       };
 
-      logger.info('✅ Archivo subido exitosamente con indexación', {
+      logger.info('✅ Archivo subido exitosamente', {
         fileId: result.id,
-        category: result.category,
         size: result.size,
-        uploadedBy: userEmail,
-        conversationId
+        uploadedBy: userEmail
       });
 
-      return ResponseHandler.success(res, response, 'Archivo subido exitosamente con indexación');
+      return ResponseHandler.success(res, { attachments: [attachment] }, 'Archivo subido exitosamente');
 
     } catch (error) {
-      logger.error('❌ Error subiendo archivo optimizado:', {
+      logger.error('❌ Error subiendo archivo:', {
         error: error.message,
         userEmail: req.user?.email,
         fileSize: req.file?.size,
@@ -663,6 +650,16 @@ class MediaUploadController {
         500
       ));
     }
+  }
+
+  /**
+   * Obtener tipo de archivo basado en MIME type
+   */
+  getFileType(mimetype) {
+    if (mimetype.startsWith('image/')) return 'image';
+    if (mimetype.startsWith('video/')) return 'video';
+    if (mimetype.startsWith('audio/')) return 'audio';
+    return 'file';
   }
 
   /**

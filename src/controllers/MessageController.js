@@ -174,17 +174,15 @@ class MessageController {
         throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes', conversationId);
       }
 
-      // Procesar archivos adjuntos si existen
-      let mediaUrl = null;
-      let fileMetadata = null;
+      // Procesar archivos adjuntos por ID
+      let attachmentsData = [];
 
       if (attachments.length > 0) {
         try {
           const fileService = new FileService();
-          fileMetadata = await fileService.processMessageAttachments(attachments, req.user.email);
-          mediaUrl = fileMetadata.url;
+          attachmentsData = await fileService.getAttachmentsByIds(attachments.map(a => a.id));
         } catch (fileError) {
-          logger.error('Error procesando archivos adjuntos', {
+          logger.error('Error obteniendo archivos adjuntos', {
             conversationId,
             error: fileError.message,
             userEmail: req.user.email
@@ -197,17 +195,17 @@ class MessageController {
       const messageData = {
         conversationId,
         content: content.trim(),
-        type: mediaUrl ? 'media' : type,
+        type: attachmentsData.length > 0 ? 'file' : type,
         senderIdentifier: req.user.email,
         recipientIdentifier: conversation.customerPhone,
         direction: 'outbound',
         status: 'pending',
-        mediaUrl,
+        mediaUrl: attachmentsData.length > 0 ? attachmentsData[0].url : null,
         metadata: {
           ...metadata,
           sentBy: req.user.email,
           sentAt: new Date().toISOString(),
-          attachments: fileMetadata ? [fileMetadata] : []
+          attachments: attachmentsData
         }
       };
 
@@ -225,12 +223,13 @@ class MessageController {
         const twilioService = getTwilioService();
         
         let sentMessage;
-        if (mediaUrl) {
+        if (attachmentsData.length > 0) {
           // Enviar con archivos adjuntos
+          const mediaUrls = attachmentsData.map(a => a.url);
           sentMessage = await twilioService.sendWhatsAppMessageWithMedia(
             conversation.customerPhone,
             content,
-            mediaUrl
+            mediaUrls
           );
         } else {
           // Enviar solo texto
