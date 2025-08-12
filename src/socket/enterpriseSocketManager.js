@@ -290,19 +290,12 @@ class EnterpriseSocketManager {
       category: 'SOCKET_CONFIG'
     });
 
-    // Simplificar CORS para evitar errores
-    const corsOrigins = process.env.CORS_ORIGINS 
-      ? process.env.CORS_ORIGINS.split(',').map(url => url.trim())
-      : ['http://localhost:3000', 'http://localhost:3001'];
+    // Usar la misma validación de CORS que Express
+    const { socketCorsOptions } = require('../config/cors');
 
     this.io = new Server(this.server, {
-      // CORS configuration simplificada
-      cors: {
-        origin: corsOrigins,
-        methods: ['GET', 'POST'],
-        credentials: true,
-        allowedHeaders: ['Authorization', 'Content-Type']
-      },
+      // CORS configuration unificada
+      cors: socketCorsOptions,
 
       // Transport configuration
       transports: ['websocket', 'polling'],

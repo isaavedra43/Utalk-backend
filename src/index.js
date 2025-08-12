@@ -238,6 +238,11 @@ class ConsolidatedServer {
       // 4. Configurar middlewares básicos
       this.setupBasicMiddleware();
 
+      // Logs de diagnóstico de CORS
+      const { STATIC_WHITELIST, REGEX_WHITELIST } = require('./config/cors');
+      console.log('[CORS] static:', STATIC_WHITELIST);
+      console.log('[CORS] regex:', REGEX_WHITELIST.map(r => r.toString()));
+
       // ❌ DESACTIVADO: Rate limiting en rutas (temporalmente)
       // this.setupRateLimiting();
       
@@ -495,13 +500,14 @@ class ConsolidatedServer {
    * 🔒 CONFIGURACIÓN CORS SEGURA Y CENTRALIZADA
    */
   setupCORS() {
-    const { getCorsConfig } = require('./config/cors');
+    const { corsOptions } = require('./config/cors');
     
-    // Usar configuración centralizada
-    const corsConfig = getCorsConfig();
-    this.app.use(cors(corsConfig));
+    // ----- CORS global (ANTES de rutas)
+    this.app.use(cors(corsOptions));
+    // Respuesta a preflight para cualquier ruta
+    this.app.options('*', cors(corsOptions));
     
-    logger.info('✅ CORS configurado con configuración centralizada', {
+    logger.info('✅ CORS configurado con función de validación', {
       category: 'CORS_SETUP_SUCCESS',
       environment: process.env.NODE_ENV || 'development'
     });

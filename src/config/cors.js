@@ -2,177 +2,125 @@
  * 🔒 CONFIGURACIÓN CORS SEGURA Y DINÁMICA
  * 
  * Configuración centralizada para Cross-Origin Resource Sharing (CORS)
- * que maneja diferentes entornos de manera segura.
+ * que maneja diferentes entornos de manera segura sin wildcards problemáticos.
  * 
- * @version 1.0.0
+ * @version 2.0.0 - Función de validación + regex
  */
 
+const { URL } = require('node:url');
 const logger = require('../utils/logger');
 
-/**
- * 📋 ORÍGENES PERMITIDOS POR ENTORNO
- */
-const ALLOWED_ORIGINS = {
-  development: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173', // Vite dev server
-    'http://localhost:8080',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:8080'
-  ],
-  
-  production: [
-    // ✅ DOMINIOS ORIGINALES
-    'https://utalk.com',
-    'https://www.utalk.com',
-    'https://app.utalk.com',
-    'https://admin.utalk.com',
-    'https://api.utalk.com',
-    
-    // ✅ CRÍTICO: Dominios de Vercel (Frontend)
-    'https://utalk-frontend-glt2.vercel.app',
-    'https://*.vercel.app',
-    
-    // ✅ CRÍTICO: Dominios de Railway (Backend)
-    'https://*.railway.app',
-    'https://utalk-backend-production.up.railway.app'
-  ],
-  
-  test: [
-    'http://localhost:3000'
-  ]
-};
+// Lista estática desde variables y dominios propios
+const STATIC_WHITELIST = [
+  process.env.FRONTEND_URL,      // ej: https://utalk-frontend.vercel.app
+  process.env.FRONTEND_URL_2,    // ej: https://utalk-frontend-glt2-git-main-israels-projects-xxxx.vercel.app
+  process.env.FRONTEND_URL_3,    // opcional
+  'https://utalk.com',
+  'https://www.utalk.com',
+  'https://app.utalk.com',
+  'https://admin.utalk.com',
+  // Incluye el propio backend si lo usas en pruebas
+  'https://utalk-backend-production.up.railway.app',
+].filter(Boolean);
+
+// Patrones permitidos (subdominios dinámicos)
+const REGEX_WHITELIST = [
+  /\.vercel\.app$/i,
+  /\.railway\.app$/i,
+  /^localhost$/i,
+  /^localhost:\d+$/i,
+];
 
 /**
- * 🔧 OBTENER ORÍGENES PERMITIDOS PARA EL ENTORNO ACTUAL
+ * 🛡️ VALIDAR ORIGEN CON FUNCIÓN Y REGEX
  */
-function getAllowedOrigins() {
-  const env = process.env.NODE_ENV || 'development';
+function isOriginAllowed(origin) {
+  if (!origin) return true; // peticiones server-to-server (curl/postman) sin Origin
   
-  // ✅ TIP 3: Permitir orígenes desde variable de entorno en cualquier ambiente
-  if (process.env.CORS_ORIGINS) {
-    const envOrigins = process.env.CORS_ORIGINS.split(',').map(origin => origin.trim());
-    console.log('🔒 CORS: Usando orígenes de variable de entorno:', envOrigins);
-    return [...new Set([...ALLOWED_ORIGINS[env], ...envOrigins])];
-  }
-  
-  return ALLOWED_ORIGINS[env] || ALLOWED_ORIGINS.development;
-}
-
-/**
- * 🛡️ VALIDAR ORIGEN
- */
-function validateOrigin(origin, callback) {
-  const env = process.env.NODE_ENV || 'development';
-  
-  // En desarrollo, permitir cualquier origin (incluyendo undefined para requests sin origin)
-  if (env === 'development') {
-    return callback(null, true);
-  }
-  
-  // Permitir requests sin origin (como mobile apps, Postman, etc.)
-  if (!origin) {
-    return callback(null, true);
-  }
-  
-  const allowedOrigins = getAllowedOrigins();
-  
-  // Verificar si el origin está en la lista permitida
-  if (allowedOrigins.includes(origin)) {
-    // ✅ TIP 2: Log de CORS exitoso para debugging
-    logger.info('✅ CORS permitido', {
-      category: 'CORS_ALLOWED',
-      origin,
-      environment: env
-    });
-    callback(null, true);
-  } else {
+  try {
+    const u = new URL(origin);
+    
+    // Verificar lista estática
+    if (STATIC_WHITELIST.includes(u.origin)) {
+      logger.info('✅ CORS permitido (estático)', {
+        category: 'CORS_ALLOWED',
+        origin,
+        type: 'static'
+      });
+      return true;
+    }
+    
+    // Verificar patrones regex
+    const isRegexMatch = REGEX_WHITELIST.some((re) => re.test(u.hostname));
+    if (isRegexMatch) {
+      logger.info('✅ CORS permitido (regex)', {
+        category: 'CORS_ALLOWED',
+        origin,
+        hostname: u.hostname,
+        type: 'regex'
+      });
+      return true;
+    }
+    
+    // Origin no permitido
     logger.warn('🚫 CORS bloqueado - Origin no permitido', {
       category: 'CORS_BLOCKED',
       origin,
-      allowedOrigins,
-      environment: env,
-      ip: 'unknown' // Se puede obtener del request si está disponible
+      hostname: u.hostname,
+      staticWhitelist: STATIC_WHITELIST,
+      regexPatterns: REGEX_WHITELIST.map(r => r.toString())
     });
     
-    callback(new Error(`Origin ${origin} no permitido por CORS`));
+    return false;
+    
+  } catch (error) {
+    // Origin inválido
+    logger.warn('🚫 CORS bloqueado - Origin inválido', {
+      category: 'CORS_INVALID',
+      origin,
+      error: error.message
+    });
+    return false;
   }
 }
 
 /**
- * 🔒 CONFIGURACIÓN CORS COMPLETA
+ * 🔧 OPCIONES DE CORS PARA EXPRESS
  */
-function getCorsConfig() {
-  const env = process.env.NODE_ENV || 'development';
-  const allowedOrigins = getAllowedOrigins();
-  
-  const corsConfig = {
-    origin: validateOrigin,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'X-API-Key',
-      'Cache-Control',
-      'X-Request-ID',
-      // ✅ TIP 1: Headers adicionales para Vercel/Railway
-      'X-Forwarded-For',
-      'X-Real-IP',
-      'User-Agent'
-    ],
-    exposedHeaders: [
-      'X-Total-Count', 
-      'X-Page-Count', 
-      'X-Request-ID',
-      'X-RateLimit-Limit',
-      'X-RateLimit-Remaining',
-      'X-RateLimit-Reset'
-    ],
-    optionsSuccessStatus: 200, // Para compatibilidad con navegadores legacy
-    maxAge: env === 'production' ? 86400 : 300 // Cache preflight: 24h en prod, 5min en dev
-  };
-  
-  logger.info('🔒 Configuración CORS inicializada', {
-    category: 'CORS_CONFIG',
-    environment: env,
-    allowedOrigins: allowedOrigins.length,
-    strictMode: env === 'production',
-    credentials: corsConfig.credentials,
-    methods: corsConfig.methods,
-    maxAge: corsConfig.maxAge
-  });
-  
-  return corsConfig;
-}
+const corsOptions = {
+  origin(origin, cb) {
+    if (isOriginAllowed(origin)) {
+      return cb(null, true);
+    }
+    // Importante: no dispares error → no 500 en preflight
+    return cb(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
 
 /**
- * 📊 OBTENER ESTADÍSTICAS DE CORS
+ * 🔧 OPCIONES DE CORS PARA SOCKET.IO
  */
-function getCorsStats() {
-  const env = process.env.NODE_ENV || 'development';
-  const allowedOrigins = getAllowedOrigins();
-  
-  return {
-    environment: env,
-    allowedOrigins,
-    totalOrigins: allowedOrigins.length,
-    strictMode: env === 'production',
-    envVariableOverride: !!(env === 'production' && process.env.CORS_ORIGINS),
-    configSource: env === 'production' && process.env.CORS_ORIGINS ? 'environment' : 'default'
-  };
-}
+const socketCorsOptions = {
+  origin(origin, cb) {
+    if (isOriginAllowed(origin)) {
+      return cb(null, true);
+    }
+    return cb(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST'],
+};
 
-module.exports = {
-  getCorsConfig,
-  getAllowedOrigins,
-  validateOrigin,
-  getCorsStats,
-  ALLOWED_ORIGINS
+module.exports = { 
+  corsOptions, 
+  socketCorsOptions,
+  isOriginAllowed, 
+  STATIC_WHITELIST, 
+  REGEX_WHITELIST 
 }; 
