@@ -24,22 +24,7 @@
 
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
-// Import condicional para evitar errores de Firebase en desarrollo
-let User = null;
-try {
-  User = require('../models/User');
-} catch (error) {
-  console.warn('⚠️ User model no disponible (Firebase no configurado):', error.message);
-}
-// Import condicional para evitar errores de Firebase en desarrollo
-let Conversation = null;
-let Message = null;
-try {
-  Conversation = require('../models/Conversation');
-  Message = require('../models/Message');
-} catch (error) {
-  console.warn('⚠️ Models no disponibles (Firebase no configurado):', error.message);
-}
+// Los modelos se inyectan como dependencias para romper ciclos
 const { memoryManager } = require('../utils/memoryManager');
 const logger = require('../utils/logger');
 const { asyncWrapper, externalServiceWrapper } = require('../utils/errorWrapper');
@@ -114,10 +99,15 @@ const SOCKET_LIMITS = {
 };
 
 class EnterpriseSocketManager {
-  constructor(server) {
+  constructor(server, deps = {}) {
     this.server = server;
     this.io = null;
     this.isShuttingDown = false;
+    
+    // Inyectar dependencias para romper ciclos
+    this.User = deps.User || null;
+    this.Conversation = deps.Conversation || null;
+    this.Message = deps.Message || null;
     
     // Managed maps for enterprise memory management
     this.connectedUsers = null;       // email -> UserSession
@@ -430,16 +420,16 @@ class EnterpriseSocketManager {
               });
               userRole = 'agent'; // Role por defecto
             } else {
-              const user = await User.getByEmail(email);
-              if (!user || !user.isActive) {
-                logger.warn('Socket.IO: User not found or inactive', {
-                  category: 'SOCKET_AUTH_USER_NOT_FOUND',
-                  email: email.substring(0, 20) + '...',
-                  socketId: socket.id
-                });
-                return next(new Error('AUTHENTICATION_FAILED: User not found or inactive'));
-              }
-              userRole = user.role;
+                          const user = await this.User?.getByEmail(email);
+            if (!user || !user.isActive) {
+              logger.warn('Socket.IO: User not found or inactive', {
+                category: 'SOCKET_AUTH_USER_NOT_FOUND',
+                email: email.substring(0, 20) + '...',
+                socketId: socket.id
+              });
+              return next(new Error('AUTHENTICATION_FAILED: User not found or inactive'));
+            }
+            userRole = user.role;
             }
             this.userRoleCache.set(email, userRole);
           } catch (dbError) {
@@ -1221,7 +1211,7 @@ class EnterpriseSocketManager {
       };
 
       // Save message to database
-      const savedMessage = await Message.create(messageObj);
+              const savedMessage = await this.Message?.create(messageObj);
 
       // Stop typing for this user
       await this.handleTypingStop(socket, { conversationId });
@@ -1277,7 +1267,7 @@ class EnterpriseSocketManager {
       }
 
       // Update read status in database
-      await Message.markAsRead(messageIds, userEmail);
+      await this.Message?.markAsRead(messageIds, userEmail);
 
       // Notify other users in conversation
       const { getConversationRoom } = require('./index');
@@ -1750,7 +1740,7 @@ class EnterpriseSocketManager {
   async getUserConversations(userEmail, userRole) {
     try {
       // Use existing Conversation model method
-      const conversations = await Conversation.list({
+      const conversations = await this.Conversation?.list({
         participantEmail: userEmail,
         limit: 100,
         includeMessages: false
@@ -1777,7 +1767,7 @@ class EnterpriseSocketManager {
 
       for (const conversation of conversations) {
         // Use existing Message model method if available
-        const unreadCount = await Message.getUnreadCount(conversation.id, userEmail);
+        const unreadCount = await this.Message?.getUnreadCount(conversation.id, userEmail);
         if (unreadCount > 0) {
           unreadCounts[conversation.id] = unreadCount;
         }
@@ -1826,7 +1816,7 @@ class EnterpriseSocketManager {
   async verifyConversationPermission(userEmail, conversationId, action = 'read') {
     try {
       // Si Conversation no está disponible, permitir acceso (modo desarrollo)
-      if (!Conversation) {
+      if (!this.Conversation) {
         logger.warn('Conversation model not available, allowing access', {
           category: 'SOCKET_PERMISSION_MODEL_UNAVAILABLE',
           userEmail: userEmail?.substring(0, 20) + '...',
@@ -1836,7 +1826,7 @@ class EnterpriseSocketManager {
       }
 
       // Use existing Conversation model method if available
-      const conversation = await Conversation.getById(conversationId);
+      const conversation = await this.Conversation.getById(conversationId);
       if (!conversation) {
         return false;
       }
@@ -2724,8 +2714,5 @@ class EnterpriseSocketManager {
   }
 }
 
-// Export nombrado de la clase (para poder usar "new")
-module.exports.EnterpriseSocketManager = EnterpriseSocketManager;
-
-// Export por defecto para compatibilidad
-module.exports = EnterpriseSocketManager; 
+// Export nombrado unificado
+module.exports = { EnterpriseSocketManager }; 

@@ -996,14 +996,30 @@ class ConsolidatedServer {
     // Importar clase y accessor
     const { EnterpriseSocketManager } = require('./socket/enterpriseSocketManager');
     const socketIndex = require('./socket');
+    
+    // Log de diagnóstico de imports
+    console.log('[BOOT] socket exports:', Object.keys(require('./socket/enterpriseSocketManager')));
 
     // Verificar que el server esté creado
     if (!this.server) {
       throw new Error('HTTP server must be created before initializing Socket.IO');
     }
 
-    // Instanciar el manager
-    const mgr = new EnterpriseSocketManager(this.server);
+    // Inyectar dependencias para romper ciclos
+    let User = null;
+    let Conversation = null;
+    let Message = null;
+    
+    try {
+      User = require('./models/User');
+      Conversation = require('./models/Conversation');
+      Message = require('./models/Message');
+    } catch (error) {
+      console.warn('⚠️ Models no disponibles (Firebase no configurado):', error.message);
+    }
+
+    // Instanciar el manager con dependencias inyectadas
+    const mgr = new EnterpriseSocketManager(this.server, { User, Conversation, Message });
 
     // Registrar para accesos globales (TwilioService, controllers, etc.)
     socketIndex.setSocketManager(mgr);
@@ -1018,6 +1034,9 @@ class ConsolidatedServer {
       memoryManaged: true,
       maxConnections: 50000
     });
+
+    // Log de diagnóstico
+    console.log('[BOOT] typeof manager:', typeof this.socketManager, 'name:', this.socketManager?.constructor?.name);
 
     return this.socketManager;
   }

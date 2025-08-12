@@ -31,24 +31,15 @@ const EV_CONV_EVENT = 'conversation-event';
 
 // Delegadores seguros para compatibilidad
 function broadcastToConversation(args) {
-  if (_manager && typeof _manager.broadcastToConversation === 'function') {
-    return _manager.broadcastToConversation(args);
-  }
-  return false;
+  return _manager?.broadcastToConversation?.(args) ?? false;
 }
 
 function emitNewMessage(args) {
-  if (_manager && typeof _manager.emitNewMessage === 'function') {
-    return _manager.emitNewMessage(args);
-  }
-  return false;
+  return _manager?.emitNewMessage?.(args) ?? false;
 }
 
 function emitConversationUpdated(args) {
-  if (_manager && typeof _manager.emitConversationUpdated === 'function') {
-    return _manager.emitConversationUpdated(args);
-  }
-  return false;
+  return _manager?.emitConversationUpdated?.(args) ?? false;
 }
 
 module.exports = {
@@ -60,7 +51,5 @@ module.exports = {
   // Delegadores seguros
   broadcastToConversation,
   emitNewMessage,
-  emitConversationUpdated,
-  // Backward compatibility
-  EnterpriseSocketManager: require('./enterpriseSocketManager')
+  emitConversationUpdated
 };
