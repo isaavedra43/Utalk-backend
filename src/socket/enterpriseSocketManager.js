@@ -655,49 +655,69 @@ class EnterpriseSocketManager {
       // Join role-based rooms
       this.joinRoleBasedRooms(socket, userRole);
 
+      // ✅ VALIDACIÓN: Verificar que el socket esté conectado antes de configurar listeners
+      if (!socket.connected) {
+        logger.warn('Socket desconectado antes de configurar listeners', {
+          category: 'SOCKET_LISTENERS_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...',
+          socketId: socket.id
+        });
+        return;
+      }
+
       // Setup socket event listeners with automatic cleanup
       this.setupSocketEventListeners(socket);
 
-      // ✅ MEJORA: Agregar un pequeño delay antes de enviar el sync inicial
-      // Esto ayuda a evitar desconexiones inmediatas
-      setTimeout(async () => {
-        try {
-          // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado
-          if (!socket.connected) {
-            logger.warn('Socket desconectado antes del sync inicial', {
-              category: 'SOCKET_INITIAL_SYNC_WARNING',
-              userEmail: userEmail.substring(0, 20) + '...',
-              socketId: socket.id
-            });
-            return;
-          }
+      // ✅ SOLUCIÓN INMEDIATA: Enviar sync inicial SIN delay para evitar desconexiones
+      try {
+        logger.info('🚀 ENVIANDO SYNC INICIAL INMEDIATO', {
+          category: 'SOCKET_INITIAL_SYNC_IMMEDIATE',
+          userEmail: userEmail.substring(0, 20) + '...',
+          socketId: socket.id,
+          socketConnected: socket.connected
+        });
 
-          // Send initial state synchronization
-          await this.sendInitialStateSync(socket);
-
-          // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado después del sync
-          if (!socket.connected) {
-            logger.warn('Socket desconectado después del sync inicial', {
-              category: 'SOCKET_INITIAL_SYNC_WARNING',
-              userEmail: userEmail.substring(0, 20) + '...',
-              socketId: socket.id
-            });
-            return;
-          }
-
-          // Notify other users about new user online
-          this.broadcastUserPresence(userEmail, 'online', userRole);
-
-        } catch (syncError) {
-          logger.error('Error en sync inicial con delay', {
-            category: 'SOCKET_INITIAL_SYNC_ERROR',
-            error: syncError.message,
+        // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado
+        if (!socket.connected) {
+          logger.warn('Socket desconectado antes del sync inicial inmediato', {
+            category: 'SOCKET_INITIAL_SYNC_WARNING',
             userEmail: userEmail.substring(0, 20) + '...',
-            socketId: socket.id,
-            stack: syncError.stack?.split('\n').slice(0, 3)
+            socketId: socket.id
           });
+          return;
         }
-      }, 100); // 100ms delay
+
+        // Send initial state synchronization INMEDIATAMENTE
+        await this.sendInitialStateSync(socket);
+
+        // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado después del sync
+        if (!socket.connected) {
+          logger.warn('Socket desconectado después del sync inicial inmediato', {
+            category: 'SOCKET_INITIAL_SYNC_WARNING',
+            userEmail: userEmail.substring(0, 20) + '...',
+            socketId: socket.id
+          });
+          return;
+        }
+
+        // Notify other users about new user online
+        this.broadcastUserPresence(userEmail, 'online', userRole);
+
+        logger.info('✅ SYNC INICIAL INMEDIATO COMPLETADO', {
+          category: 'SOCKET_INITIAL_SYNC_IMMEDIATE_SUCCESS',
+          userEmail: userEmail.substring(0, 20) + '...',
+          socketId: socket.id
+        });
+
+      } catch (syncError) {
+        logger.error('Error en sync inicial inmediato', {
+          category: 'SOCKET_INITIAL_SYNC_ERROR',
+          error: syncError.message,
+          userEmail: userEmail.substring(0, 20) + '...',
+          socketId: socket.id,
+          stack: syncError.stack?.split('\n').slice(0, 3)
+        });
+      }
 
     } catch (error) {
       logger.error('Error handling new connection', {
