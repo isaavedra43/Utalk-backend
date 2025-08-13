@@ -2072,10 +2072,36 @@ class EnterpriseSocketManager {
           continue;
         }
 
-        // Use existing Message model method if available
-        const unreadCount = await this.Message?.getUnreadCount(conversation.id, userEmail);
-        if (unreadCount > 0) {
-          unreadCounts[conversation.id] = unreadCount;
+        // ✅ VALIDACIÓN: Verificar que Message model esté disponible y tenga el método
+        if (!this.Message || typeof this.Message.getUnreadCount !== 'function') {
+          logger.warn('Message model no disponible o método getUnreadCount no existe', {
+            category: 'SOCKET_UNREAD_WARNING',
+            hasMessageModel: !!this.Message,
+            hasGetUnreadCount: !!(this.Message && typeof this.Message.getUnreadCount === 'function'),
+            conversationId: conversation.id
+          });
+          // Usar el unreadCount de la conversación como fallback
+          if (conversation.unreadCount && conversation.unreadCount > 0) {
+            unreadCounts[conversation.id] = conversation.unreadCount;
+          }
+          continue;
+        }
+
+        try {
+          const unreadCount = await this.Message.getUnreadCount(conversation.id, userEmail);
+          if (unreadCount > 0) {
+            unreadCounts[conversation.id] = unreadCount;
+          }
+        } catch (messageError) {
+          logger.warn('Error obteniendo unread count para conversación', {
+            category: 'SOCKET_UNREAD_WARNING',
+            conversationId: conversation.id,
+            error: messageError.message
+          });
+          // Usar el unreadCount de la conversación como fallback
+          if (conversation.unreadCount && conversation.unreadCount > 0) {
+            unreadCounts[conversation.id] = conversation.unreadCount;
+          }
         }
       }
 

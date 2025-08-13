@@ -777,6 +777,64 @@ class Message {
       message.content?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }
+
+  /**
+   * 📊 Obtener conteo de mensajes no leídos para una conversación y usuario
+   */
+  static async getUnreadCount(conversationId, userEmail) {
+    try {
+      // ✅ VALIDACIÓN: Verificar parámetros
+      if (!conversationId || !userEmail) {
+        logger.warn('Parámetros inválidos en getUnreadCount', {
+          category: 'MESSAGE_UNREAD_COUNT_WARNING',
+          conversationId: conversationId?.substring(0, 20) + '...',
+          userEmail: userEmail?.substring(0, 20) + '...'
+        });
+        return 0;
+      }
+
+      // Obtener mensajes no leídos de la conversación
+      const messagesQuery = firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .where('status', '==', 'received')
+        .where('direction', '==', 'inbound');
+
+      const snapshot = await messagesQuery.get();
+      
+      // Filtrar mensajes que no han sido leídos por el usuario específico
+      let unreadCount = 0;
+      
+      snapshot.docs.forEach(doc => {
+        const messageData = doc.data();
+        
+        // Verificar si el mensaje no ha sido leído por el usuario
+        const readBy = messageData.readBy || [];
+        if (!readBy.includes(userEmail)) {
+          unreadCount++;
+        }
+      });
+
+      logger.debug('Unread count obtenido', {
+        category: 'MESSAGE_UNREAD_COUNT_SUCCESS',
+        conversationId: conversationId.substring(0, 20) + '...',
+        userEmail: userEmail.substring(0, 20) + '...',
+        unreadCount
+      });
+
+      return unreadCount;
+
+    } catch (error) {
+      logger.error('Error obteniendo unread count', {
+        category: 'MESSAGE_UNREAD_COUNT_ERROR',
+        conversationId: conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        error: error.message
+      });
+      return 0;
+    }
+  }
 }
 
 module.exports = Message;
