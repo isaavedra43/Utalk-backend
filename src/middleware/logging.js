@@ -1,331 +1,171 @@
 /**
- * 📝 MIDDLEWARE DE LOGGING CENTRALIZADO
+ * 📊 MIDDLEWARE DE LOGGING ESTRUCTURADO - SUPER ROBUSTO
  * 
- * Centraliza toda la lógica de logging y tracking de requests
- * para evitar duplicación en controladores y servicios.
+ * Middleware para logging estructurado de todas las peticiones HTTP
+ * con información detallada para debugging y monitoreo.
  * 
- * @version 2.0.0
+ * @version 2.0.0 - Super robusto con métricas avanzadas
  * @author Backend Team
  */
 
 const logger = require('../utils/logger');
+const { v4: uuidv4 } = require('uuid');
 
 /**
- * Middleware de logging de requests HTTP
+ * Middleware de logging estructurado - SUPER ROBUSTO
  */
-function requestLoggingMiddleware(req, res, next) {
+function loggingMiddleware(req, res, next) {
   const startTime = Date.now();
-  const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = req.headers['x-request-id'] || uuidv4();
   
-  // Agregar requestId al request para tracking
+  // ✅ SUPER ROBUSTO: Asignar requestId a la petición
   req.requestId = requestId;
   
-  // Log del request entrante
-  logger.info('📥 Request entrante', {
+  // ✅ SUPER ROBUSTO: Logging de inicio de petición
+  logger.info('📥 Petición HTTP iniciada', {
+    category: 'HTTP_REQUEST_START',
+    requestId,
     method: req.method,
     url: req.originalUrl,
-    userAgent: req.get('User-Agent'),
+    path: req.path,
     ip: req.ip,
-    requestId,
+    userAgent: req.headers['user-agent']?.substring(0, 100),
+    origin: req.headers.origin,
+    referer: req.headers.referer,
+    contentType: req.headers['content-type'],
+    contentLength: req.headers['content-length'],
+    authorization: req.headers.authorization ? 'Bearer ***' : 'none',
     timestamp: new Date().toISOString()
   });
 
-  // Interceptar el final de la respuesta
+  // ✅ SUPER ROBUSTO: Interceptar respuesta para logging
+  const originalSend = res.send;
+  const originalJson = res.json;
+  const originalEnd = res.end;
+
+  // ✅ SUPER ROBUSTO: Métricas de respuesta
+  let responseBody = null;
+  let responseSize = 0;
+
+  res.send = function(data) {
+    responseBody = data;
+    responseSize = Buffer.byteLength(data, 'utf8');
+    return originalSend.call(this, data);
+  };
+
+  res.json = function(data) {
+    responseBody = JSON.stringify(data);
+    responseSize = Buffer.byteLength(responseBody, 'utf8');
+    return originalJson.call(this, data);
+  };
+
+  res.end = function(data) {
+    if (data) {
+      responseSize = Buffer.byteLength(data, 'utf8');
+    }
+    return originalEnd.call(this, data);
+  };
+
+  // ✅ SUPER ROBUSTO: Logging de fin de petición
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     const statusCode = res.statusCode;
+    const statusMessage = res.statusMessage;
     
-    // Log del response saliente
-    logger.info('📤 Response enviado', {
-      method: req.method,
-      url: req.originalUrl,
-      statusCode,
-      duration: `${duration}ms`,
+    // ✅ SUPER ROBUSTO: Categorizar petición por tipo
+    let category = 'HTTP_REQUEST_COMPLETE';
+    let level = 'info';
+    
+    if (statusCode >= 500) {
+      category = 'HTTP_SERVER_ERROR';
+      level = 'error';
+    } else if (statusCode >= 400) {
+      category = 'HTTP_CLIENT_ERROR';
+      level = 'warn';
+    } else if (statusCode >= 300) {
+      category = 'HTTP_REDIRECT';
+      level = 'info';
+    } else if (statusCode >= 200) {
+      category = 'HTTP_SUCCESS';
+      level = 'info';
+    }
+
+    // ✅ SUPER ROBUSTO: Logging estructurado con métricas
+    const logData = {
+      category,
       requestId,
-      timestamp: new Date().toISOString()
-    });
-
-    // Log de errores si el status code indica error
-    if (statusCode >= 400) {
-      logger.warn('⚠️ Request con error', {
-        method: req.method,
-        url: req.originalUrl,
-        statusCode,
-        duration: `${duration}ms`,
-        requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-
-  next();
-}
-
-/**
- * Middleware de logging de errores
- */
-function errorLoggingMiddleware(error, req, res, next) {
-  logger.error('💥 Error en request', {
-    method: req.method,
-    url: req.originalUrl,
-    error: error.message,
-    stack: error.stack,
-    requestId: req.requestId,
-    timestamp: new Date().toISOString()
-  });
-
-  next(error);
-}
-
-/**
- * Middleware de logging de seguridad
- */
-function securityLoggingMiddleware(req, res, next) {
-  // Log de intentos de acceso sospechosos
-  const suspiciousPatterns = [
-    /\.\.\//, // Path traversal
-    /<script/i, // XSS attempts
-    /union\s+select/i, // SQL injection
-    /eval\s*\(/i, // Code injection
-  ];
-
-  const userInput = JSON.stringify({
-    body: req.body,
-    query: req.query,
-    params: req.params,
-    headers: req.headers
-  });
-
-  for (const pattern of suspiciousPatterns) {
-    if (pattern.test(userInput)) {
-      logger.warn('🚨 Patrón sospechoso detectado', {
-        method: req.method,
-        url: req.originalUrl,
-        ip: req.ip,
-        pattern: pattern.toString(),
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-      break;
-    }
-  }
-
-  next();
-}
-
-/**
- * Middleware de logging de performance
- */
-function performanceLoggingMiddleware(req, res, next) {
-  const startTime = process.hrtime.bigint();
-  
-  res.on('finish', () => {
-    const endTime = process.hrtime.bigint();
-    const duration = Number(endTime - startTime) / 1000000; // Convertir a milisegundos
-    
-    // Log de requests lentos (> 1 segundo)
-    if (duration > 1000) {
-      logger.warn('🐌 Request lento detectado', {
-        method: req.method,
-        url: req.originalUrl,
-        duration: `${duration.toFixed(2)}ms`,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-
-  next();
-}
-
-/**
- * Middleware de logging de autenticación
- */
-function authLoggingMiddleware(req, res, next) {
-  // Log de intentos de login
-  if (req.path.includes('/auth/login') && req.method === 'POST') {
-    logger.info('🔐 Intento de login', {
-      email: req.body.email,
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      requestId: req.requestId,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  // Log de logout
-  if (req.path.includes('/auth/logout') && req.method === 'POST') {
-    logger.info('🚪 Logout de usuario', {
-      userId: req.user?.email,
-      ip: req.ip,
-      requestId: req.requestId,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  next();
-}
-
-/**
- * Middleware de logging de operaciones críticas
- */
-function criticalOperationsLoggingMiddleware(req, res, next) {
-  const criticalPaths = [
-    '/api/messages/send',
-    '/api/conversations/create',
-    '/api/contacts/create',
-    '/api/files/upload',
-    '/api/twilio/webhook'
-  ];
-
-  const isCriticalPath = criticalPaths.some(path => req.path.includes(path));
-  
-  if (isCriticalPath) {
-    logger.info('🎯 Operación crítica iniciada', {
       method: req.method,
       url: req.originalUrl,
-      userId: req.user?.email,
+      path: req.path,
+      statusCode,
+      statusMessage,
+      duration: `${duration}ms`,
+      responseSize: `${responseSize} bytes`,
       ip: req.ip,
-      requestId: req.requestId,
+      userAgent: req.headers['user-agent']?.substring(0, 100),
+      origin: req.headers.origin,
+      userEmail: req.user?.email?.substring(0, 20) + '...',
+      userRole: req.user?.role,
+      headers: {
+        'content-type': res.getHeader('content-type'),
+        'content-length': res.getHeader('content-length'),
+        'x-request-id': requestId
+      },
+      timestamp: new Date().toISOString(),
+      performance: {
+        duration,
+        responseSize,
+        isSlow: duration > 1000, // Lento si > 1 segundo
+        isLarge: responseSize > 1000000 // Grande si > 1MB
+      }
+    };
+
+    // ✅ SUPER ROBUSTO: Logging condicional por nivel
+    if (level === 'error') {
+      logger.error('❌ Petición HTTP con error', logData);
+    } else if (level === 'warn') {
+      logger.warn('⚠️ Petición HTTP con advertencia', logData);
+    } else {
+      logger.info('✅ Petición HTTP completada', logData);
+    }
+
+    // ✅ SUPER ROBUSTO: Logging de peticiones lentas
+    if (duration > 5000) { // Muy lento si > 5 segundos
+      logger.warn('🐌 Petición HTTP muy lenta detectada', {
+        ...logData,
+        category: 'HTTP_SLOW_REQUEST',
+        duration: `${duration}ms`,
+        threshold: '5000ms'
+      });
+    }
+
+    // ✅ SUPER ROBUSTO: Logging de respuestas grandes
+    if (responseSize > 5000000) { // Muy grande si > 5MB
+      logger.warn('📦 Respuesta HTTP muy grande detectada', {
+        ...logData,
+        category: 'HTTP_LARGE_RESPONSE',
+        responseSize: `${responseSize} bytes`,
+        threshold: '5MB'
+      });
+    }
+  });
+
+  // ✅ SUPER ROBUSTO: Manejo de errores en el middleware
+  res.on('error', (error) => {
+    const duration = Date.now() - startTime;
+    logger.error('💥 Error en petición HTTP', {
+      category: 'HTTP_REQUEST_ERROR',
+      requestId,
+      method: req.method,
+      url: req.originalUrl,
+      error: error.message,
+      stack: error.stack?.split('\n').slice(0, 3),
+      duration: `${duration}ms`,
       timestamp: new Date().toISOString()
     });
-  }
+  });
 
   next();
 }
 
-/**
- * Middleware de logging de base de datos
- */
-function databaseLoggingMiddleware(req, res, next) {
-  // Interceptar operaciones de base de datos
-  const originalQuery = req.query;
-  
-  const base = req.logger || logger;
-  if (typeof base.database !== 'function') {
-    base.database = (operation, data) => {
-      base.info('🗄️ Operación de base de datos', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.auth !== 'function') {
-    base.auth = (operation, data) => {
-      base.info('🔐 Operación de autenticación', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.message !== 'function') {
-    base.message = (operation, data) => {
-      base.info('💬 Operación de mensajes', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.media !== 'function') {
-    base.media = (operation, data) => {
-      base.info('📁 Operación de media', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.twilio !== 'function') {
-    base.twilio = (operation, data) => {
-      base.info('📞 Operación de Twilio', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.socket !== 'function') {
-    base.socket = (operation, data) => {
-      base.info('🔌 Operación de Socket.IO', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.security !== 'function') {
-    base.security = (operation, data) => {
-      base.warn('🛡️ Operación de seguridad', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.error !== 'function') {
-    base.error = (message, data) => {
-      base.info('❌ Error en operación', {
-        message,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.success !== 'function') {
-    base.success = (operation, data) => {
-      base.info('✅ Operación exitosa', {
-        operation,
-        data,
-        method: req.method,
-        url: req.originalUrl,
-        requestId: req.requestId,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }
-  if (typeof base.debug !== 'function') {
-    base.debug = (operation, data) => {
-      // opcional
-    };
-  }
-  req.logger = base;
-
-  next();
-}
-
-module.exports = {
-  requestLoggingMiddleware,
-  errorLoggingMiddleware,
-  securityLoggingMiddleware,
-  performanceLoggingMiddleware,
-  authLoggingMiddleware,
-  criticalOperationsLoggingMiddleware,
-  databaseLoggingMiddleware
-}; 
+module.exports = loggingMiddleware; 
