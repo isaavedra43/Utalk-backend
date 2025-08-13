@@ -411,7 +411,7 @@ class AuthController {
           process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
           {
             issuer: 'utalk-backend',
-            audience: 'utalk-frontend'
+            audience: 'utalk-api'
           }
         );
       } catch (jwtError) {
