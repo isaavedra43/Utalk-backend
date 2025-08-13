@@ -480,8 +480,15 @@ class ConsolidatedServer {
       category: 'RATE_LIMIT_SETUP'
     });
 
+    // Importar el nuevo middleware de rate limiting de conversaciones
+    const { applyConversationRateLimiting } = require('./middleware/conversationRateLimit');
+
     // Rate limiting general para todas las rutas
     this.app.use('/api', rateLimitManager.createGeneralLimiter());
+
+    // Rate limiting específico para conversaciones (más inteligente)
+    this.app.use('/api/conversations', applyConversationRateLimiting);
+    this.app.use('/api/messages', applyConversationRateLimiting);
 
     // Rate limiting específico para login
     this.app.use('/api/auth/login', rateLimitManager.createLoginLimiter());
@@ -492,7 +499,7 @@ class ConsolidatedServer {
 
     logger.info('✅ Rate limiting configurado en rutas', {
       category: 'RATE_LIMIT_SETUP_SUCCESS',
-      protectedRoutes: ['/api/*', '/api/auth/login', '/api/media', '/api/campaigns']
+      protectedRoutes: ['/api/*', '/api/conversations', '/api/messages', '/api/auth/login', '/api/media', '/api/campaigns']
     });
   }
 
@@ -962,24 +969,23 @@ class ConsolidatedServer {
   }
 
   /**
-   * 🚨 CONFIGURAR MANEJO GLOBAL DE ERRORES
+   * 🛡️ CONFIGURAR MANEJO DE ERRORES MEJORADO
    */
   setupErrorHandling() {
-    logger.info('🚨 Configurando manejo global de errores...', {
-      category: 'ERROR_HANDLER_SETUP'
-    });
+    // Importar el middleware de manejo de errores mejorado
+    const { enhancedErrorHandler, unhandledErrorHandler, promiseRejectionHandler } = require('./middleware/enhancedErrorHandler');
 
-    // Middleware global de errores (DEBE IR AL FINAL)
-    this.app.use(enhancedErrorHandler.handle());
+    // Configurar manejo de promesas rechazadas
+    process.on('unhandledRejection', promiseRejectionHandler);
 
-    logger.info('✅ Manejo global de errores configurado', {
-      category: 'ERROR_HANDLER_SUCCESS',
-      features: {
-        automaticClassification: true,
-        structuredLogging: true,
-        securityFiltering: true,
-        metrics: true
-      }
+    // Middleware de manejo de errores mejorado
+    this.app.use(enhancedErrorHandler);
+
+    // Middleware para errores no manejados
+    this.app.use(unhandledErrorHandler);
+
+    logger.info('✅ Manejo de errores mejorado configurado', {
+      category: 'ERROR_HANDLING_SETUP_SUCCESS'
     });
   }
 

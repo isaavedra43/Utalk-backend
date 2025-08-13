@@ -78,22 +78,22 @@ const SOCKET_EVENTS = {
   ADMIN_USER_STATUS: 'admin-user-status'
 };
 
-// Rate limiting configuration (per user per event)
+// Rate limiting configuration (per user per event) - LÍMITES MÁS PERMISIVOS
 const RATE_LIMITS = {
-  [SOCKET_EVENTS.MESSAGE_TYPING]: 500,        // 0.5 seconds
-  [SOCKET_EVENTS.MESSAGE_TYPING_STOP]: 100,   // 0.1 seconds
-  [SOCKET_EVENTS.JOIN_CONVERSATION]: 1000,    // 1 second
-  [SOCKET_EVENTS.LEAVE_CONVERSATION]: 1000,   // 1 second
-  [SOCKET_EVENTS.NEW_MESSAGE]: 100,           // 0.1 seconds
-  [SOCKET_EVENTS.MESSAGE_READ]: 100,          // 0.1 seconds
-  [SOCKET_EVENTS.USER_STATUS_CHANGE]: 2000,   // 2 seconds
-  [SOCKET_EVENTS.SYNC_STATE]: 5000            // 5 seconds
+  [SOCKET_EVENTS.MESSAGE_TYPING]: 200,        // 0.2 seconds (más permisivo)
+  [SOCKET_EVENTS.MESSAGE_TYPING_STOP]: 50,    // 0.05 seconds (más permisivo)
+  [SOCKET_EVENTS.JOIN_CONVERSATION]: 500,     // 0.5 seconds (más permisivo)
+  [SOCKET_EVENTS.LEAVE_CONVERSATION]: 500,    // 0.5 seconds (más permisivo)
+  [SOCKET_EVENTS.NEW_MESSAGE]: 50,            // 0.05 seconds (más permisivo)
+  [SOCKET_EVENTS.MESSAGE_READ]: 50,           // 0.05 seconds (más permisivo)
+  [SOCKET_EVENTS.USER_STATUS_CHANGE]: 1000,   // 1 second (más permisivo)
+  [SOCKET_EVENTS.SYNC_STATE]: 2000            // 2 seconds (más permisivo)
 };
 
-// 🔧 SOCKET ROBUSTO: Límites de configuración
+// 🔧 SOCKET ROBUSTO: Límites de configuración - MÁS PERMISIVOS
 const SOCKET_LIMITS = {
-  MAX_ROOMS_PER_SOCKET: parseInt(process.env.SOCKET_MAX_ROOMS_PER_SOCKET) || 50,
-  MAX_JOINS_PER_10S: 10,
+  MAX_ROOMS_PER_SOCKET: parseInt(process.env.SOCKET_MAX_ROOMS_PER_SOCKET) || 100, // Aumentado de 50 a 100
+  MAX_JOINS_PER_10S: 20, // Aumentado de 10 a 20
   HEARTBEAT_INTERVAL: 25000,
   HEARTBEAT_TIMEOUT: 60000
 };
@@ -726,52 +726,52 @@ class EnterpriseSocketManager {
       });
     };
 
-    // Sync state event
+    // Sync state event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.SYNC_STATE, 
       this.handleSyncState.bind(this), 
-      { rateLimited: true, maxCalls: 100, timeout: 30000 }
+      { rateLimited: true, maxCalls: 200, timeout: 30000 } // Aumentado de 100 a 200
     );
 
-    // Join conversation event
+    // Join conversation event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.JOIN_CONVERSATION, 
       this.handleJoinConversation.bind(this), 
-      { rateLimited: true, maxCalls: 50, timeout: 15000 }
+      { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
     );
 
-    // Leave conversation event
+    // Leave conversation event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.LEAVE_CONVERSATION, 
       this.handleLeaveConversation.bind(this), 
-      { rateLimited: true, maxCalls: 50, timeout: 15000 }
+      { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
     );
 
-    // New message event
+    // New message event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.NEW_MESSAGE, 
       this.handleNewMessage.bind(this), 
-      { rateLimited: true, maxCalls: 200, timeout: 30000 }
+      { rateLimited: true, maxCalls: 400, timeout: 30000 } // Aumentado de 200 a 400
     );
 
-    // Message read event
+    // Message read event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.MESSAGE_READ, 
       this.handleMessageRead.bind(this), 
-      { rateLimited: true, maxCalls: 100, timeout: 15000 }
+      { rateLimited: true, maxCalls: 200, timeout: 15000 } // Aumentado de 100 a 200
     );
 
-    // Typing event
+    // Typing event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.MESSAGE_TYPING, 
       this.handleTyping.bind(this), 
-      { rateLimited: true, maxCalls: 300, timeout: 10000 }
+      { rateLimited: true, maxCalls: 600, timeout: 10000 } // Aumentado de 300 a 600
     );
 
-    // Typing stop event
+    // Typing stop event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.MESSAGE_TYPING_STOP, 
       this.handleTypingStop.bind(this), 
-      { rateLimited: true, maxCalls: 300, timeout: 10000 }
+      { rateLimited: true, maxCalls: 600, timeout: 10000 } // Aumentado de 300 a 600
     );
 
-    // Status change event
+    // Status change event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.USER_STATUS_CHANGE, 
       this.handleStatusChange.bind(this), 
-      { rateLimited: true, maxCalls: 50, timeout: 15000 }
+      { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
     );
 
     // Disconnect event

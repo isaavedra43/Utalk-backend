@@ -184,12 +184,12 @@ class PersistentRateLimitManager {
   }
 
   /**
-   * 🛡️ RATE LIMITER GENERAL
+   * 🛡️ RATE LIMITER GENERAL - MÁS PERMISIVO
    */
   createGeneralLimiter() {
     return rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 100, // 100 requests por ventana
+      max: 2000, // Aumentado de 100 a 2000 requests por ventana
       message: {
         success: false,
         error: {
