@@ -30,10 +30,16 @@ const STATIC_WHITELIST = [
   'https://utalk-frontend-glt2-git-develop-israels-projects.vercel.app',
   'https://utalk-frontend-glt2-git-staging-israels-projects.vercel.app',
   'https://utalk-frontend-glt2-git-production-israels-projects.vercel.app',
+  // ✅ CRÍTICO: Agregar localhost:5173 para desarrollo frontend
+  'http://localhost:5173',
+  'https://localhost:5173',
   // Incluye el propio backend si lo usas en pruebas
   'https://utalk-backend-production.up.railway.app',
   'https://utalk-backend-staging.up.railway.app',
   'https://utalk-backend-development.up.railway.app',
+  // ✅ CRÍTICO: Permitir cualquier dominio de Vercel temporalmente
+  'https://*.vercel.app',
+  'https://*.vercel.com',
 ].filter(Boolean);
 
 // Patrones permitidos (subdominios dinámicos)
@@ -93,6 +99,18 @@ function isOriginAllowed(origin) {
       return true;
     }
     
+    // ✅ CRÍTICO: Permitir específicamente localhost:5173 y sus variantes
+    if (u.hostname === 'localhost' && (u.port === '5173' || u.port === '')) {
+      logger.info('✅ CORS permitido (localhost:5173 específico)', {
+        category: 'CORS_ALLOWED',
+        origin,
+        hostname: u.hostname,
+        port: u.port,
+        type: 'localhost_5173'
+      });
+      return true;
+    }
+    
     // ✅ SUPER ROBUSTO: Permitir dominios de Vercel dinámicos
     if (u.hostname.includes('vercel.app') || u.hostname.includes('railway.app')) {
       logger.info('✅ CORS permitido (Vercel/Railway dinámico)', {
@@ -100,6 +118,17 @@ function isOriginAllowed(origin) {
         origin,
         hostname: u.hostname,
         type: 'vercel_railway_dynamic'
+      });
+      return true;
+    }
+    
+    // ✅ CRÍTICO: Permitir cualquier dominio de Vercel temporalmente
+    if (u.hostname.endsWith('.vercel.app') || u.hostname.endsWith('.vercel.com')) {
+      logger.info('✅ CORS permitido (Vercel wildcard)', {
+        category: 'CORS_ALLOWED',
+        origin,
+        hostname: u.hostname,
+        type: 'vercel_wildcard'
       });
       return true;
     }

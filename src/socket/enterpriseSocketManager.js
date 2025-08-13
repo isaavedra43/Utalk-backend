@@ -800,7 +800,8 @@ class EnterpriseSocketManager {
     const { userEmail } = socket;
     const { rateLimited = false, requiresAuth = false } = options;
 
-    return asyncWrapper(async (...args) => {
+    // ✅ CRÍTICO: Usar try-catch directo en lugar de asyncWrapper para Socket.IO
+    return async (...args) => {
       try {
         // Update user activity
         this.updateUserActivity(userEmail);
@@ -824,7 +825,7 @@ class EnterpriseSocketManager {
         if (rateLimited && !this.checkRateLimit(userEmail, eventName)) {
           logger.warn('Rate limit exceeded for event', {
             category: 'SOCKET_RATE_LIMIT',
-            email: userEmail.substring(0, 20) + '...',
+            email: userEmail?.substring(0, 20) + '...',
             eventName,
             socketId: socket.id
           });
@@ -848,26 +849,27 @@ class EnterpriseSocketManager {
       } catch (error) {
         this.metrics.errorsPerSecond++;
         
+        // ✅ CRÍTICO: Manejo robusto de errores para Socket.IO
         logger.error('Socket event handler error', {
           category: 'SOCKET_EVENT_ERROR',
           eventName,
-          error: error.message,
-          stack: error.stack,
+          error: error?.message || 'Unknown error',
+          stack: error?.stack || 'No stack trace',
           email: userEmail?.substring(0, 20) + '...',
-          socketId: socket.id,
+          socketId: socket?.id || 'unknown',
           severity: 'HIGH'
         });
 
-        socket.emit(SOCKET_EVENTS.ERROR, {
-          error: 'EVENT_HANDLER_ERROR',
-          message: 'Error processing event',
-          eventName
-        });
+        // ✅ CRÍTICO: Verificar que socket existe antes de emitir
+        if (socket && typeof socket.emit === 'function') {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            error: 'EVENT_HANDLER_ERROR',
+            message: 'Error processing event',
+            eventName
+          });
+        }
       }
-    }, {
-      operationName: `socket_${eventName}`,
-      timeoutMs: 30000
-    });
+    };
   }
 
   /**

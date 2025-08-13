@@ -131,25 +131,18 @@ function asyncWrapper(fn, options = {}) {
 
       // ✅ CRÍTICO: Verificar que next sea una función antes de llamarla
       if (typeof next === 'function') {
-        next(error);
-      } else {
-        console.error('❌ ERROR: next no es función en catch handler', {
-          operationName,
-          nextType: typeof next,
-          error: error.message
-        });
-        
-        // Fallback: enviar respuesta de error directamente
-        if (!res.headersSent) {
-          return res.status(500).json({
-            success: false,
-            error: {
-              type: 'MIDDLEWARE_ERROR',
-              code: 'NEXT_FUNCTION_INVALID',
-              message: 'Error interno del servidor: middleware mal configurado'
-            }
-          });
+        // ✅ CRÍTICO: Verificar que error existe antes de acceder a sus propiedades
+        if (error && typeof error === 'object') {
+          next(error);
+        } else {
+          // Crear un error genérico si no existe
+          const genericError = new Error('Error interno del servidor');
+          genericError.statusCode = 500;
+          genericError.operationName = operationName;
+          next(genericError);
         }
+      } else {
+        console.error('❌ ERROR: next no es función en error handler');
       }
     }
   };

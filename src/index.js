@@ -620,6 +620,26 @@ class ConsolidatedServer {
       });
       console.log('✅ OPTIONS /cors-test configurado');
 
+      // ✅ CRÍTICO: Endpoint específico para login test
+      this.app.get('/login-test', (req, res) => {
+        console.log('🔐 Login Test desde:', req.ip, req.headers.origin);
+        res.status(200).json({
+          loginTest: true,
+          timestamp: new Date().toISOString(),
+          origin: req.headers.origin,
+          message: 'Login endpoint está accesible',
+          serverStatus: 'healthy'
+        });
+      });
+      console.log('✅ /login-test configurado');
+
+      // ✅ CRÍTICO: Endpoint OPTIONS para login
+      this.app.options('/api/auth/login', (req, res) => {
+        console.log('🛡️ OPTIONS preflight para /api/auth/login desde:', req.headers.origin);
+        res.status(204).end();
+      });
+      console.log('✅ OPTIONS /api/auth/login configurado');
+
       // Health check detallado enterprise
       this.app.get('/health/detailed', async (req, res) => {
         try {
