@@ -19,6 +19,10 @@ const STATIC_WHITELIST = [
   'https://www.utalk.com',
   'https://app.utalk.com',
   'https://admin.utalk.com',
+  // ✅ CRÍTICO: Agregar el dominio específico de Vercel que está causando el problema
+  'https://utalk-frontend-glt2.vercel.app',
+  'https://utalk-frontend-glt2-git-main-israels-projects-8c8c.vercel.app',
+  'https://utalk-frontend-glt2-git-feature-israels-projects-8c8c.vercel.app',
   // Incluye el propio backend si lo usas en pruebas
   'https://utalk-backend-production.up.railway.app',
 ].filter(Boolean);
@@ -39,6 +43,14 @@ function isOriginAllowed(origin) {
   
   try {
     const u = new URL(origin);
+    
+    // ✅ CRÍTICO: Log para debugging CORS
+    console.log('🔍 CORS Check:', {
+      origin,
+      hostname: u.hostname,
+      staticWhitelist: STATIC_WHITELIST,
+      isInStaticList: STATIC_WHITELIST.includes(u.origin)
+    });
     
     // Verificar lista estática
     if (STATIC_WHITELIST.includes(u.origin)) {
@@ -89,18 +101,32 @@ function isOriginAllowed(origin) {
  */
 const corsOptions = {
   origin(origin, cb) {
+    console.log('🌐 CORS Origin Check:', origin);
+    
     if (isOriginAllowed(origin)) {
+      console.log('✅ CORS Origin Allowed:', origin);
       return cb(null, true);
     }
+    
+    console.log('❌ CORS Origin Blocked:', origin);
     // Importante: no dispares error → no 500 en preflight
     return cb(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Total-Count'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'X-API-Key'
+  ],
+  exposedHeaders: ['X-Total-Count', 'X-Request-ID'],
   preflightContinue: false,
   optionsSuccessStatus: 204,
+  // ✅ CRÍTICO: Agregar maxAge para cachear preflight
+  maxAge: 86400, // 24 horas
 };
 
 /**

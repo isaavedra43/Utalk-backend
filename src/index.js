@@ -509,10 +509,33 @@ class ConsolidatedServer {
   setupCORS() {
     const { corsOptions } = require('./config/cors');
     
-    // ----- CORS global (ANTES de rutas)
+    // ✅ CRÍTICO: CORS global (ANTES de rutas)
     this.app.use(cors(corsOptions));
-    // Respuesta a preflight para cualquier ruta
+    
+    // ✅ CRÍTICO: Respuesta a preflight para cualquier ruta
     this.app.options('*', cors(corsOptions));
+    
+    // ✅ CRÍTICO: Middleware adicional para asegurar headers CORS
+    this.app.use((req, res, next) => {
+      // Agregar headers CORS manualmente como respaldo
+      const origin = req.headers.origin;
+      if (origin) {
+        console.log('🔧 Adding CORS headers for origin:', origin);
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key');
+        res.header('Access-Control-Max-Age', '86400');
+      }
+      
+      // Manejar preflight OPTIONS
+      if (req.method === 'OPTIONS') {
+        console.log('🛡️ Handling OPTIONS preflight for:', req.path);
+        return res.status(204).end();
+      }
+      
+      next();
+    });
     
     logger.info('✅ CORS configurado con función de validación', {
       category: 'CORS_SETUP_SUCCESS',
@@ -592,6 +615,19 @@ class ConsolidatedServer {
         });
       });
       console.log('✅ /ping configurado');
+
+      // ✅ CRÍTICO: Endpoint específico para probar CORS
+      this.app.get('/cors-test', (req, res) => {
+        console.log('🧪 CORS Test desde:', req.ip, req.headers.origin);
+        res.status(200).json({
+          corsTest: true,
+          timestamp: new Date().toISOString(),
+          origin: req.headers.origin,
+          headers: req.headers,
+          message: 'CORS está funcionando correctamente'
+        });
+      });
+      console.log('✅ /cors-test configurado');
 
       // Health check detallado enterprise
       this.app.get('/health/detailed', async (req, res) => {
