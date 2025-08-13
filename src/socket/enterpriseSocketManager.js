@@ -1575,14 +1575,14 @@ class EnterpriseSocketManager {
       // Logging estructurado sin PII
       logger.info('RT:DISCONNECT', { 
         socketId: socketId.substring(0, 8) + '...', 
-        email: userEmail?.substring(0, 20) + '...',
+        email: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'undefined',
         reason
       });
       
       if (process.env.SOCKET_LOG_VERBOSE === 'true') {
         logger.info('User disconnected from Socket.IO', {
           category: 'SOCKET_USER_DISCONNECTED',
-          email: userEmail?.substring(0, 20) + '...',
+          email: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'undefined',
           socketId,
           reason,
           connectedDuration: socket.connectedAt ? Date.now() - socket.connectedAt : 0,
@@ -1600,7 +1600,7 @@ class EnterpriseSocketManager {
       logger.error('Error handling disconnect', {
         category: 'SOCKET_DISCONNECT_ERROR',
         error: error.message,
-        userEmail: userEmail?.substring(0, 20) + '...',
+        userEmail: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'undefined',
         socketId,
         reason
       });
@@ -1832,9 +1832,29 @@ class EnterpriseSocketManager {
    */
   async getUnreadMessagesCounts(userEmail, conversations) {
     try {
+      // ✅ VALIDACIÓN: Asegurar que conversations sea un array iterable
+      if (!conversations || !Array.isArray(conversations)) {
+        logger.warn('Conversations no es un array válido en getUnreadMessagesCounts', {
+          category: 'SOCKET_UNREAD_WARNING',
+          conversationsType: typeof conversations,
+          isArray: Array.isArray(conversations),
+          conversationsValue: conversations
+        });
+        return {};
+      }
+
       const unreadCounts = {};
 
       for (const conversation of conversations) {
+        // ✅ VALIDACIÓN: Asegurar que conversation tenga un id válido
+        if (!conversation || !conversation.id) {
+          logger.warn('Conversation inválida encontrada en getUnreadMessagesCounts', {
+            category: 'SOCKET_UNREAD_WARNING',
+            conversation: conversation
+          });
+          continue;
+        }
+
         // Use existing Message model method if available
         const unreadCount = await this.Message?.getUnreadCount(conversation.id, userEmail);
         if (unreadCount > 0) {
@@ -1848,7 +1868,9 @@ class EnterpriseSocketManager {
       logger.error('Error getting unread messages counts', {
         category: 'SOCKET_UNREAD_ERROR',
         error: error.message,
-        userEmail: userEmail?.substring(0, 20) + '...'
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationsType: typeof conversations,
+        isArray: Array.isArray(conversations)
       });
       return {};
     }
@@ -1859,9 +1881,29 @@ class EnterpriseSocketManager {
    */
   getOnlineUsersInConversations(conversations) {
     try {
+      // ✅ VALIDACIÓN: Asegurar que conversations sea un array iterable
+      if (!conversations || !Array.isArray(conversations)) {
+        logger.warn('Conversations no es un array válido', {
+          category: 'SOCKET_ONLINE_USERS_WARNING',
+          conversationsType: typeof conversations,
+          isArray: Array.isArray(conversations),
+          conversationsValue: conversations
+        });
+        return {};
+      }
+
       const onlineUsers = {};
 
       for (const conversation of conversations) {
+        // ✅ VALIDACIÓN: Asegurar que conversation tenga un id válido
+        if (!conversation || !conversation.id) {
+          logger.warn('Conversation inválida encontrada', {
+            category: 'SOCKET_ONLINE_USERS_WARNING',
+            conversation: conversation
+          });
+          continue;
+        }
+
         const conversationUsers = this.conversationUsers.get(conversation.id);
         if (conversationUsers && conversationUsers.size > 0) {
           onlineUsers[conversation.id] = Array.from(conversationUsers);
@@ -1873,7 +1915,9 @@ class EnterpriseSocketManager {
     } catch (error) {
       logger.error('Error getting online users in conversations', {
         category: 'SOCKET_ONLINE_USERS_ERROR',
-        error: error.message
+        error: error.message,
+        conversationsType: typeof conversations,
+        isArray: Array.isArray(conversations)
       });
       return {};
     }
@@ -1931,8 +1975,28 @@ class EnterpriseSocketManager {
     try {
       const { userEmail, userRole } = socket;
 
+      // ✅ VALIDACIÓN: Verificar que el socket esté conectado
+      if (!socket || !socket.connected) {
+        logger.warn('Socket no conectado durante sync inicial', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          socketConnected: !!socket?.connected
+        });
+        return;
+      }
+
       // Get user's conversations
       const conversations = await this.getUserConversations(userEmail, userRole);
+      
+      // ✅ VALIDACIÓN: Asegurar que conversations sea un array
+      if (!Array.isArray(conversations)) {
+        logger.warn('getUserConversations no devolvió un array', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationsType: typeof conversations
+        });
+        conversations = [];
+      }
       
       // Get unread counts
       const unreadCounts = await this.getUnreadMessagesCounts(userEmail, conversations);
@@ -1951,7 +2015,7 @@ class EnterpriseSocketManager {
 
       logger.debug('Initial state sync sent', {
         category: 'SOCKET_INITIAL_SYNC',
-        email: userEmail.substring(0, 20) + '...',
+        email: userEmail?.substring(0, 20) + '...',
         conversationsCount: conversations.length
       });
 
@@ -1959,8 +2023,17 @@ class EnterpriseSocketManager {
       logger.error('Error sending initial state sync', {
         category: 'SOCKET_INITIAL_SYNC_ERROR',
         error: error.message,
-        userEmail: socket.userEmail?.substring(0, 20) + '...'
+        userEmail: socket.userEmail?.substring(0, 20) + '...',
+        stack: error.stack?.split('\n').slice(0, 3)
       });
+      
+      // ✅ NO desconectar el socket, solo enviar error
+      if (socket && socket.connected) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'INITIAL_SYNC_FAILED',
+          message: 'Error loading initial state, but connection maintained'
+        });
+      }
     }
   }
 

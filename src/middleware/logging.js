@@ -21,6 +21,80 @@ function loggingMiddleware(req, res, next) {
   // ✅ SUPER ROBUSTO: Asignar requestId a la petición
   req.requestId = requestId;
   
+  // ✅ SUPER ROBUSTO: Configurar req.logger con métodos específicos
+  req.logger = {
+    // Métodos básicos de logging
+    info: (message, data) => logger.info(message, { ...data, requestId }),
+    warn: (message, data) => logger.warn(message, { ...data, requestId }),
+    error: (message, data) => logger.error(message, { ...data, requestId }),
+    debug: (message, data) => logger.debug(message, { ...data, requestId }),
+    
+    // Métodos específicos por dominio
+    auth: (operation, data) => logger.info(`[AUTH] ${operation}`, { 
+      category: 'AUTH_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    database: (operation, data) => logger.info(`[DATABASE] ${operation}`, {
+      category: 'DATABASE_OPERATION', 
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    message: (operation, data) => logger.info(`[MESSAGE] ${operation}`, {
+      category: 'MESSAGE_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    media: (operation, data) => logger.info(`[MEDIA] ${operation}`, {
+      category: 'MEDIA_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    twilio: (operation, data) => logger.info(`[TWILIO] ${operation}`, {
+      category: 'TWILIO_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    socket: (operation, data) => logger.info(`[SOCKET] ${operation}`, {
+      category: 'SOCKET_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    security: (operation, data) => logger.info(`[SECURITY] ${operation}`, {
+      category: 'SECURITY_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    }),
+    
+    success: (operation, data) => logger.info(`[SUCCESS] ${operation}`, {
+      category: 'SUCCESS_OPERATION',
+      operation,
+      ...data,
+      requestId,
+      timestamp: new Date().toISOString()
+    })
+  };
+  
   // ✅ SUPER ROBUSTO: Logging de inicio de petición
   logger.info('📥 Petición HTTP iniciada', {
     category: 'HTTP_REQUEST_START',
