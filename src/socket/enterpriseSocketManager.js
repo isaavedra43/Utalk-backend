@@ -1935,10 +1935,25 @@ class EnterpriseSocketManager {
       }
 
       // Use existing Conversation model method
+      logger.info('🔍 Llamando Conversation.list', {
+        category: 'SOCKET_CONVERSATIONS_CALL',
+        userEmail: userEmail.substring(0, 20) + '...',
+        hasConversationModel: !!this.Conversation
+      });
+      
       const result = await this.Conversation.list({
         participantEmail: userEmail,
         limit: 100,
         includeMessages: false
+      });
+      
+      logger.info('📋 Conversation.list completado', {
+        category: 'SOCKET_CONVERSATIONS_CALL_SUCCESS',
+        userEmail: userEmail.substring(0, 20) + '...',
+        resultType: typeof result,
+        isArray: Array.isArray(result),
+        hasConversations: !!(result && result.conversations),
+        resultKeys: result ? Object.keys(result) : 'null'
       });
 
       // ✅ VALIDACIÓN: Manejar diferentes formatos de respuesta
@@ -2232,6 +2247,13 @@ class EnterpriseSocketManager {
    */
   async sendInitialStateSync(socket) {
     try {
+      logger.info('🚀 INICIANDO sendInitialStateSync', {
+        category: 'SOCKET_INITIAL_SYNC_START',
+        socketId: socket?.id?.substring(0, 8) + '...',
+        socketConnected: !!socket?.connected,
+        userEmail: socket?.userEmail?.substring(0, 20) + '...'
+      });
+
       // ✅ VALIDACIÓN: Verificar que el socket exista y esté conectado
       if (!socket || !socket.connected) {
         logger.warn('Socket no conectado durante sync inicial', {
@@ -2264,7 +2286,18 @@ class EnterpriseSocketManager {
       }
 
       // Get user's conversations
+      logger.info('📋 Obteniendo conversaciones del usuario', {
+        category: 'SOCKET_INITIAL_SYNC_CONVERSATIONS',
+        userEmail: userEmail.substring(0, 20) + '...'
+      });
+      
       let conversations = await this.getUserConversations(userEmail, userRole);
+      
+      logger.info('✅ Conversaciones obtenidas', {
+        category: 'SOCKET_INITIAL_SYNC_CONVERSATIONS_SUCCESS',
+        userEmail: userEmail.substring(0, 20) + '...',
+        conversationsCount: conversations?.length || 0
+      });
       
       // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado después de obtener conversaciones
       if (!socket.connected) {
@@ -2314,7 +2347,19 @@ class EnterpriseSocketManager {
       }).filter(conv => conv !== null); // Remover conversaciones inválidas
       
       // Get unread counts
+      logger.info('📊 Obteniendo conteos de mensajes no leídos', {
+        category: 'SOCKET_INITIAL_SYNC_UNREAD',
+        userEmail: userEmail.substring(0, 20) + '...',
+        conversationsCount: conversations.length
+      });
+      
       const unreadCounts = await this.getUnreadMessagesCounts(userEmail, conversations);
+      
+      logger.info('✅ Conteos de mensajes no leídos obtenidos', {
+        category: 'SOCKET_INITIAL_SYNC_UNREAD_SUCCESS',
+        userEmail: userEmail.substring(0, 20) + '...',
+        unreadCountsKeys: Object.keys(unreadCounts).length
+      });
       
       // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado antes de obtener usuarios en línea
       if (!socket.connected) {
@@ -2326,7 +2371,19 @@ class EnterpriseSocketManager {
       }
       
       // Get online users
+      logger.info('👥 Obteniendo usuarios en línea', {
+        category: 'SOCKET_INITIAL_SYNC_ONLINE_USERS',
+        userEmail: userEmail.substring(0, 20) + '...',
+        conversationsCount: conversations.length
+      });
+      
       const onlineUsers = this.getOnlineUsersInConversations(conversations);
+      
+      logger.info('✅ Usuarios en línea obtenidos', {
+        category: 'SOCKET_INITIAL_SYNC_ONLINE_USERS_SUCCESS',
+        userEmail: userEmail.substring(0, 20) + '...',
+        onlineUsersKeys: Object.keys(onlineUsers).length
+      });
 
       // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado antes de enviar
       if (!socket.connected) {
@@ -2338,6 +2395,14 @@ class EnterpriseSocketManager {
       }
 
       // Send initial state
+      logger.info('📤 Enviando estado inicial al frontend', {
+        category: 'SOCKET_INITIAL_SYNC_SEND',
+        userEmail: userEmail.substring(0, 20) + '...',
+        conversationsCount: conversations.length,
+        unreadCountsKeys: Object.keys(unreadCounts).length,
+        onlineUsersKeys: Object.keys(onlineUsers).length
+      });
+      
       socket.emit(SOCKET_EVENTS.STATE_SYNCED, {
         conversations,
         unreadCounts,
@@ -2346,10 +2411,13 @@ class EnterpriseSocketManager {
         syncId: `initial_${Date.now()}`
       });
 
-      logger.debug('Initial state sync sent', {
-        category: 'SOCKET_INITIAL_SYNC',
+      logger.info('🎉 SYNC INICIAL COMPLETADO EXITOSAMENTE', {
+        category: 'SOCKET_INITIAL_SYNC_COMPLETE',
         email: userEmail.substring(0, 20) + '...',
-        conversationsCount: conversations.length
+        conversationsCount: conversations.length,
+        unreadCountsKeys: Object.keys(unreadCounts).length,
+        onlineUsersKeys: Object.keys(onlineUsers).length,
+        socketId: socket?.id?.substring(0, 8) + '...'
       });
 
     } catch (error) {
