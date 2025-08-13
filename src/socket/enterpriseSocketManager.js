@@ -109,6 +109,15 @@ class EnterpriseSocketManager {
     this.Conversation = deps.Conversation || null;
     this.Message = deps.Message || null;
     
+    // Log de diagnóstico de dependencias
+    logger.info('Socket.IO: Dependencies injected', {
+      category: 'SOCKET_DEPS_INJECTION',
+      userModelAvailable: !!this.User,
+      conversationModelAvailable: !!this.Conversation,
+      messageModelAvailable: !!this.Message,
+      userModelType: this.User ? this.User.constructor.name : 'null'
+    });
+    
     // Managed maps for enterprise memory management
     this.connectedUsers = null;       // email -> UserSession
     this.userConversations = null;    // email -> Set(conversationIds)
@@ -369,10 +378,21 @@ class EnterpriseSocketManager {
         const jwtConfig = getAccessTokenConfig();
         if (!jwtConfig.secret) {
           logger.error('Socket.IO: JWT_SECRET not configured', {
-            category: 'SOCKET_AUTH_CONFIG_ERROR'
+            category: 'SOCKET_AUTH_CONFIG_ERROR',
+            socketId: socket.id,
+            jwtConfigAvailable: !!jwtConfig,
+            hasSecret: !!jwtConfig.secret
           });
           return next(new Error('SERVER_CONFIGURATION_ERROR'));
         }
+        
+        logger.info('Socket.IO: JWT configuration validated', {
+          category: 'SOCKET_AUTH_JWT_CONFIG',
+          socketId: socket.id,
+          hasSecret: !!jwtConfig.secret,
+          issuer: jwtConfig.issuer,
+          audience: jwtConfig.audience
+        });
 
         let decodedToken;
         try {
@@ -405,31 +425,73 @@ class EnterpriseSocketManager {
         if (!userRole) {
           try {
             // Verificar si User está disponible
-            if (!User) {
+            if (!this.User) {
               logger.warn('Socket.IO: User model not available, using default role', {
                 category: 'SOCKET_AUTH_USER_MODEL_UNAVAILABLE',
                 email: email.substring(0, 20) + '...',
-                socketId: socket.id
+                socketId: socket.id,
+                userModelAvailable: false
               });
               userRole = 'agent'; // Role por defecto
             } else {
-                          const user = await this.User?.getByEmail(email);
-            if (!user || !user.isActive) {
-              logger.warn('Socket.IO: User not found or inactive', {
-                category: 'SOCKET_AUTH_USER_NOT_FOUND',
+              // Test de conectividad Firestore antes de intentar obtener usuario
+              try {
+                const { firestore } = require('../config/firebase');
+                if (!firestore) {
+                  throw new Error('Firestore not initialized');
+                }
+                
+                logger.info('Socket.IO: Firestore connectivity test passed', {
+                  category: 'SOCKET_AUTH_FIRESTORE_TEST',
+                  email: email.substring(0, 20) + '...',
+                  socketId: socket.id,
+                  firestoreAvailable: !!firestore
+                });
+              } catch (firestoreError) {
+                logger.error('Socket.IO: Firestore connectivity test failed', {
+                  category: 'SOCKET_AUTH_FIRESTORE_ERROR',
+                  error: firestoreError.message,
+                  email: email.substring(0, 20) + '...',
+                  socketId: socket.id
+                });
+                throw firestoreError;
+              }
+              logger.info('Socket.IO: Attempting to get user from database', {
+                category: 'SOCKET_AUTH_DB_ATTEMPT',
                 email: email.substring(0, 20) + '...',
-                socketId: socket.id
+                socketId: socket.id,
+                userModelAvailable: true
               });
-              return next(new Error('AUTHENTICATION_FAILED: User not found or inactive'));
-            }
-            userRole = user.role;
+              
+              const user = await this.User.getByEmail(email);
+              
+              if (!user || !user.isActive) {
+                logger.warn('Socket.IO: User not found or inactive', {
+                  category: 'SOCKET_AUTH_USER_NOT_FOUND',
+                  email: email.substring(0, 20) + '...',
+                  socketId: socket.id,
+                  userFound: !!user,
+                  userActive: user?.isActive
+                });
+                return next(new Error('AUTHENTICATION_FAILED: User not found or inactive'));
+              }
+              
+              userRole = user.role;
+              logger.info('Socket.IO: User retrieved successfully', {
+                category: 'SOCKET_AUTH_USER_SUCCESS',
+                email: email.substring(0, 20) + '...',
+                socketId: socket.id,
+                userRole: userRole
+              });
             }
             this.userRoleCache.set(email, userRole);
           } catch (dbError) {
             logger.error('Socket.IO: Database error during auth', {
               category: 'SOCKET_AUTH_DB_ERROR',
               error: dbError.message,
-              socketId: socket.id
+              stack: dbError.stack,
+              socketId: socket.id,
+              email: email.substring(0, 20) + '...'
             });
             return next(new Error('AUTHENTICATION_FAILED: Database error'));
           }
