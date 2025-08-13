@@ -47,10 +47,10 @@ const knowledgeRoutes = require('./routes/knowledge');
 const mediaRoutes = require('./routes/media');
 const dashboardRoutes = require('./routes/dashboard');
 const twilioRoutes = require('./routes/twilio');
-const aiRoutes = require('./routes/ai').router;
-const reportRoutes = require('./routes/reports').router;
-const ragRoutes = require('./routes/rag').router;
-const aiOpsRoutes = require('./routes/aiOps').router;
+const aiRoutes = require('./routes/ai');
+const reportRoutes = require('./routes/reports');
+const ragRoutes = require('./routes/rag');
+const aiOpsRoutes = require('./routes/aiOps');
 
 // Servicios
 // SocketManager se importa dinámicamente en initializeSocketIO()
@@ -797,8 +797,8 @@ class ConsolidatedServer {
       console.log('🔧 Configurando rutas principales de la API...');
 
       // ✅ CRÍTICO: Agregar middleware de logging ANTES de todas las rutas /api
-      const { databaseLoggingMiddleware } = require('./middleware/logging');
-      this.app.use('/api', databaseLoggingMiddleware);
+      const loggingMiddleware = require('./middleware/logging');
+      this.app.use('/api', loggingMiddleware);
       console.log('✅ Middleware de logging configurado para /api');
 
       try {
@@ -815,7 +815,7 @@ class ConsolidatedServer {
           routes: {
             list_conversations: [
               'correlationMiddleware',
-              'databaseLoggingMiddleware(/api)',
+              'loggingMiddleware(/api)',
               'authMiddleware',
               'requireReadAccess',
               'conversationValidators.validateList',
@@ -823,7 +823,7 @@ class ConsolidatedServer {
             ],
             webhook_inbound: [
               'correlationMiddleware',
-              'databaseLoggingMiddleware(/api)',
+              'loggingMiddleware(/api)',
               'messageValidators.validateWebhook',
               'MessageController.handleWebhookSafe'
             ]
@@ -905,7 +905,7 @@ class ConsolidatedServer {
 
       try {
         console.log('🤖 Intentando configurar /api/ai...');
-        this.app.use('/api/ai', aiRoutes);
+        this.app.use('/api/ai', aiRoutes.router);
         console.log('✅ /api/ai configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/ai:', error.message);
@@ -913,7 +913,7 @@ class ConsolidatedServer {
 
       try {
         console.log('📊 Intentando configurar /api/ai/reports...');
-        this.app.use('/api/ai/reports', reportRoutes);
+        this.app.use('/api/ai/reports', reportRoutes.router);
         console.log('✅ /api/ai/reports configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/ai/reports:', error.message);
@@ -921,15 +921,15 @@ class ConsolidatedServer {
 
       try {
         console.log('🔍 Intentando configurar /api/ai/rag...');
-        this.app.use('/api/ai/rag', ragRoutes);
+        this.app.use('/api/ai/rag', ragRoutes.router);
         console.log('✅ /api/ai/rag configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/ai/rag:', error.message);
       }
 
       try {
-        console.log('🔧 Intentando configurar /api/ai/ops...');
-        this.app.use('/api/ai', aiOpsRoutes);
+        console.log('⚙️ Intentando configurar /api/ai/ops...');
+        this.app.use('/api/ai/ops', aiOpsRoutes.router);
         console.log('✅ /api/ai/ops configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/ai/ops:', error.message);
