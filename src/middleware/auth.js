@@ -1,233 +1,193 @@
-/**
- * 🔐 MIDDLEWARE DE AUTENTICACIÓN CON LOGGING VISUAL
- * 
- * Middleware para verificar la autenticación de usuarios con logging detallado
- * para detectar problemas de autenticación y autorización
- * 
- * @version 2.0.0
- * @author Backend Team
- */
-
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
+const { getAccessTokenConfig } = require('../config/jwt');
 
 /**
- * Middleware de autenticación con logging visual
+ * Middleware de autenticación con JWT INTERNO
+ *
+ * CRÍTICO: Este middleware valida los JWT generados por nuestro backend.
+ * En cada petición válida, obtiene el usuario completo desde Firestore
+ * y adjunta la instancia del modelo User a `req.user`.
  */
-const authenticateToken = async (req, res, next) => {
-  const startTime = Date.now();
-  
+const authMiddleware = async (req, res, next) => {
   try {
-    req.logger?.info('🔐 Iniciando verificación de autenticación', {
-      category: 'AUTH_MIDDLEWARE_START',
-      method: req.method,
-      path: req.path,
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
     const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      req.logger?.warn('❌ Header de autorización no encontrado', {
-        category: 'AUTH_MISSING_HEADER',
-        method: req.method,
-        path: req.path,
-        ip: req.ip,
-        headers: Object.keys(req.headers)
-      });
-      
-      return res.status(401).json({
-        success: false,
-        error: 'Access token required'
-      });
-    }
 
-    req.logger?.debug('🔍 Header de autorización encontrado', {
-      category: 'AUTH_HEADER_FOUND',
-      headerLength: authHeader.length,
-      startsWithBearer: authHeader.startsWith('Bearer ')
-    });
-
-    if (!authHeader.startsWith('Bearer ')) {
-      req.logger?.warn('❌ Formato de autorización inválido', {
-        category: 'AUTH_INVALID_FORMAT',
-        method: req.method,
-        path: req.path,
-        headerPrefix: authHeader.substring(0, 10) + '...'
-      });
-      
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid authorization format'
-      });
-    }
-
-    const token = authHeader.split(' ')[1];
-    
-    if (!token) {
-      req.logger?.warn('❌ Token no encontrado en header', {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.warn('Token de autorización faltante o con formato incorrecto', {
         category: 'AUTH_MISSING_TOKEN',
-        method: req.method,
-        path: req.path
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        url: req.originalUrl,
+        authHeader: authHeader ? authHeader.substring(0, 20) + '...' : 'N/A',
       });
-      
       return res.status(401).json({
-        success: false,
-        error: 'Token not found'
+        error: 'Token de autorización inválido',
+        message: 'Se requiere un token "Bearer" válido.',
+        code: 'MISSING_TOKEN',
       });
     }
 
-    req.logger?.debug('🔍 Token extraído del header', {
-      category: 'AUTH_TOKEN_EXTRACTED',
-      tokenLength: token.length,
-      tokenPreview: token.substring(0, 20) + '...'
-    });
+    const token = authHeader.substring(7); // Remover "Bearer "
 
-    // Verificar token JWT
-    req.logger?.info('🔑 Verificando token JWT', {
-      category: 'AUTH_JWT_VERIFICATION',
-      tokenLength: token.length
-    });
+    if (!token) {
+      logger.warn('Token vacío detectado', { 
+        category: 'AUTH_EMPTY_TOKEN',
+        ip: req.ip 
+      });
+      return res.status(401).json({
+        error: 'Token vacío',
+        message: 'El token no puede estar vacío.',
+        code: 'EMPTY_TOKEN',
+      });
+    }
+
+    // Verificar JWT interno con configuración centralizada
+    const jwtConfig = getAccessTokenConfig();
+    
+    if (!jwtConfig.secret) {
+      logger.error('💥 JWT_SECRET no configurado en servidor', {
+        category: 'AUTH_CONFIG_ERROR'
+      });
+      return res.status(500).json({
+        error: 'Error de configuración del servidor',
+        message: 'Servidor mal configurado.',
+        code: 'SERVER_CONFIG_ERROR',
+      });
+    }
 
     let decodedToken;
     try {
-      decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-      
-      req.logger?.info('✅ Token JWT verificado exitosamente', {
-        category: 'AUTH_JWT_SUCCESS',
-        email: decodedToken.email,
-        role: decodedToken.role,
-        type: decodedToken.type,
-        exp: decodedToken.exp
+      decodedToken = jwt.verify(token, jwtConfig.secret, {
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
       });
+      
+      // ✅ VALIDACIÓN ADICIONAL DE CLAIMS CRÍTICOS
+      if (!decodedToken.email) {
+        logger.error('Token sin claim email requerido', {
+          category: 'AUTH_INVALID_CLAIMS',
+          tokenPayload: decodedToken,
+          ip: req.ip,
+        });
+        return res.status(401).json({
+          error: 'Token inválido',
+          message: 'El token no contiene el email requerido.',
+          code: 'MISSING_EMAIL_CLAIM',
+        });
+      }
+      
+      if (!decodedToken.role) {
+        logger.warn('Token sin claim role', {
+          category: 'AUTH_MISSING_ROLE',
+          email: decodedToken.email,
+          ip: req.ip,
+        });
+        // No es crítico, pero es recomendable
+      }
     } catch (jwtError) {
-      req.logger?.error('❌ Error en verificación JWT', {
+      let errorMessage = 'Token inválido o expirado.';
+      let errorCode = 'INVALID_TOKEN';
+
+      if (jwtError.name === 'TokenExpiredError') {
+        errorMessage = 'El token ha expirado. Por favor, inicia sesión de nuevo.';
+        errorCode = 'TOKEN_EXPIRED';
+      } else if (jwtError.name === 'JsonWebTokenError') {
+        errorMessage = 'El token proporcionado no es válido.';
+        errorCode = 'MALFORMED_TOKEN';
+      } else if (jwtError.name === 'NotBeforeError') {
+        errorMessage = 'El token aún no es válido.';
+        errorCode = 'TOKEN_NOT_ACTIVE';
+      }
+
+      logger.warn('JWT inválido', {
         category: 'AUTH_JWT_ERROR',
         error: jwtError.message,
-        errorName: jwtError.name,
-        method: req.method,
-        path: req.path,
-        details: jwtError
+        name: jwtError.name,
+        ip: req.ip,
+        tokenPrefix: token ? token.substring(0, 20) + '...' : 'N/A',
       });
-      
-      if (jwtError.name === 'TokenExpiredError') {
-        return res.status(401).json({
-          success: false,
-          error: 'Token expired'
-        });
-      }
-      
-      if (jwtError.name === 'JsonWebTokenError') {
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid token'
-        });
-      }
-      
+
       return res.status(401).json({
-        success: false,
-        error: 'Token verification failed'
+        error: 'Token inválido',
+        message: errorMessage,
+        code: errorCode,
       });
     }
 
-    // Buscar usuario en base de datos
-    req.logger?.info('👤 Buscando usuario en base de datos', {
-      category: 'AUTH_USER_LOOKUP',
-      email: decodedToken.email
-    });
-
-    req.logger?.database('query_started', {
-      operation: 'user_by_email_for_auth',
-      email: decodedToken.email
-    });
-
-    let user;
-    try {
-      user = await User.getByEmail(decodedToken.email);
-      
-      req.logger?.database('query_completed', {
-        operation: 'user_by_email_for_auth',
-        email: decodedToken.email,
-        userFound: !!user,
-        userRole: user?.role || 'not_found'
+    // OBTENER usuario completo desde Firestore usando email del token
+    const email = decodedToken.email;
+    
+    if (!email) {
+      logger.error('Token sin email', {
+        category: 'AUTH_NO_EMAIL',
+        tokenPayload: decodedToken,
+        ip: req.ip,
       });
-    } catch (dbError) {
-      req.logger?.error('❌ Error consultando usuario en base de datos', {
-        category: 'AUTH_DB_ERROR',
-        email: decodedToken.email,
-        error: dbError.message,
-        stack: dbError.stack?.split('\n').slice(0, 3),
-        details: dbError
-      });
-      
-      return res.status(500).json({
-        success: false,
-        error: 'Database error during authentication'
+      return res.status(401).json({
+        error: 'Token inválido',
+        message: 'El token no contiene un email válido.',
+        code: 'INVALID_TOKEN_PAYLOAD',
       });
     }
 
-    if (!user) {
-      req.logger?.warn('❌ Usuario no encontrado en base de datos', {
+    const userFromDb = await User.getByEmail(email);
+
+    if (!userFromDb) {
+      logger.error('Usuario del token no encontrado en Firestore', {
         category: 'AUTH_USER_NOT_FOUND',
-        email: decodedToken.email,
-        method: req.method,
-        path: req.path
+        email,
+        ip: req.ip,
       });
-      
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-
-    // Verificar si el usuario está activo
-    if (user.status !== 'active') {
-      req.logger?.warn('❌ Usuario inactivo', {
-        category: 'AUTH_USER_INACTIVE',
-        email: user.email,
-        status: user.status,
-        method: req.method,
-        path: req.path
-      });
-      
       return res.status(403).json({
-        success: false,
-        error: 'User account is not active'
+        error: 'Usuario no encontrado',
+        message: 'El usuario autenticado no existe en la base de datos.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+    
+    // VERIFICACIÓN DE ESTADO: Asegurarse que el usuario esté activo
+    if (!userFromDb.isActive) {
+      logger.warn('Intento de acceso de usuario inactivo', {
+        category: 'AUTH_USER_INACTIVE',
+        email: userFromDb.email,
+        name: userFromDb.name,
+        ip: req.ip,
+      });
+      return res.status(403).json({
+        error: 'Cuenta inactiva',
+        message: 'Tu cuenta ha sido desactivada. Contacta al administrador.',
+        code: 'USER_INACTIVE',
       });
     }
 
-    // Agregar usuario al request
-    req.user = user;
-    req.token = decodedToken;
+    // Adjuntar la instancia completa del usuario de Firestore a la petición
+    req.user = userFromDb;
 
-    req.logger?.info('✅ Autenticación exitosa', {
+    logger.debug('Usuario autenticado correctamente', {
       category: 'AUTH_SUCCESS',
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      method: req.method,
-      path: req.path,
-      executionTime: Date.now() - startTime
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      ip: req.ip,
+      url: req.originalUrl,
     });
 
     next();
-
   } catch (error) {
-    req.logger?.error('❌ Error general en middleware de autenticación', {
-      category: 'AUTH_GENERAL_ERROR',
+    logger.error('💥 Error inesperado en middleware de autenticación', {
+      category: 'AUTH_SYSTEM_ERROR',
       error: error.message,
-      stack: error.stack?.split('\n').slice(0, 3),
-      method: req.method,
-      path: req.path,
-      executionTime: Date.now() - startTime,
-      details: error
+      stack: error.stack,
+      ip: req.ip,
+      url: req.originalUrl,
     });
 
     return res.status(500).json({
-      success: false,
-      error: 'Authentication error'
+      error: 'Error interno del servidor',
+      message: 'Error procesando la autenticación.',
+      code: 'INTERNAL_ERROR',
     });
   }
 };
@@ -406,7 +366,7 @@ const requireOwnerOrAdmin = (resourceIdParam = 'id', userIdField = 'userId') => 
 };
 
 module.exports = {
-  authenticateToken,
+  authMiddleware,
   requireRole,
   requireAdmin,
   requireAdminOrSuperAdmin,

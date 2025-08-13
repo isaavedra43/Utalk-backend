@@ -79,7 +79,7 @@ function enhancedErrorHandler(err, req, res, next) {
   if (err.statusCode === 401 || err.code === 'UNAUTHORIZED') {
     return res.status(401).json({
       success: false,
-      error: {
+        error: {
         type: 'AUTHENTICATION_ERROR',
         code: 'UNAUTHORIZED',
         message: 'No tienes permisos para realizar esta acción.',
@@ -166,10 +166,10 @@ function unhandledErrorHandler(err, req, res, next) {
       message: 'Error interno del servidor.',
       timestamp: new Date().toISOString()
     }
-  });
-}
+    });
+  }
 
-/**
+  /**
  * Middleware para manejo de promesas rechazadas
  */
 function promiseRejectionHandler(reason, promise) {

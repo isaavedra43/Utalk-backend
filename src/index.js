@@ -507,14 +507,14 @@ class ConsolidatedServer {
    * 🔒 CONFIGURACIÓN CORS SEGURA Y CENTRALIZADA
    */
   setupCORS() {
-    const { corsWithLogging } = require('./config/cors');
+    const { corsOptions } = require('./config/cors');
     
-    // ----- CORS global (ANTES de rutas) con logging visual
-    this.app.use(corsWithLogging);
+    // ----- CORS global (ANTES de rutas)
+    this.app.use(cors(corsOptions));
     // Respuesta a preflight para cualquier ruta
-    this.app.options('*', corsWithLogging);
+    this.app.options('*', cors(corsOptions));
     
-    logger.info('✅ CORS configurado con logging visual', {
+    logger.info('✅ CORS configurado con función de validación', {
       category: 'CORS_SETUP_SUCCESS',
       environment: process.env.NODE_ENV || 'development'
     });

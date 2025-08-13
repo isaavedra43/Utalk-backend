@@ -6,14 +6,6 @@ const logger = require('../utils/logger');
  */
 function normalizeConversationId(req, res, next) {
   try {
-    req.logger?.info('🔄 Iniciando normalización de conversationId', {
-      category: 'CONVERSATION_ID_NORMALIZATION_START',
-      method: req.method,
-      path: req.path,
-      paramsConversationId: req.params.conversationId,
-      queryConversationId: req.query.conversationId
-    });
-
     const rawConversationId = req.params.conversationId || req.params.id;
     
     if (!rawConversationId) {
@@ -88,41 +80,18 @@ function normalizeConversationId(req, res, next) {
 function parseConversationId(conversationId) {
   try {
     if (!conversationId || typeof conversationId !== 'string') {
-      logger.debug('❌ ConversationId inválido: entrada vacía o no string', {
-        category: 'CONVERSATION_ID_PARSE_ERROR',
-        conversationId: conversationId,
-        type: typeof conversationId
-      });
       return { valid: false, participants: null };
     }
-
-    logger.debug('🔍 Parseando conversationId', {
-      category: 'CONVERSATION_ID_PARSE_START',
-      conversationId: conversationId,
-      length: conversationId.length
-    });
 
     // CORREGIDO: Validar patrón conv_+<from>_+<to> con regex más flexible
     const pattern = /^conv_(\+[1-9]\d{1,14})_(\+[1-9]\d{1,14})$/;
     const match = conversationId.match(pattern);
 
     if (!match) {
-      logger.warn('❌ ConversationId no coincide con patrón esperado', {
-        category: 'CONVERSATION_ID_PATTERN_MISMATCH',
-        conversationId: conversationId,
-        pattern: pattern.toString()
-      });
       return { valid: false, participants: null };
     }
 
     const [, from, to] = match;
-
-    logger.info('✅ ConversationId parseado exitosamente', {
-      category: 'CONVERSATION_ID_PARSE_SUCCESS',
-      conversationId: conversationId,
-      from: from,
-      to: to
-    });
 
     return {
       valid: true,
@@ -132,12 +101,6 @@ function parseConversationId(conversationId) {
       }
     };
   } catch (error) {
-    logger.error('❌ Error durante parseo de conversationId', {
-      category: 'CONVERSATION_ID_PARSE_EXCEPTION',
-      conversationId: conversationId,
-      error: error.message,
-      stack: error.stack?.split('\n').slice(0, 3)
-    });
     return { valid: false, participants: null };
   }
 }
