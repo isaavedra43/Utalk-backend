@@ -17,6 +17,12 @@ const logger = require('../utils/logger');
  * Middleware para manejo mejorado de errores
  */
 function enhancedErrorHandler(err, req, res, next) {
+  // ✅ CRÍTICO: Verificar que next sea una función válida
+  if (typeof next !== 'function') {
+    console.error('❌ ERROR: next no es función en enhancedErrorHandler');
+    return;
+  }
+
   // Si ya se envió una respuesta, no hacer nada
   if (res.headersSent) {
     return next(err);
@@ -79,7 +85,7 @@ function enhancedErrorHandler(err, req, res, next) {
   if (err.statusCode === 401 || err.code === 'UNAUTHORIZED') {
     return res.status(401).json({
       success: false,
-        error: {
+      error: {
         type: 'AUTHENTICATION_ERROR',
         code: 'UNAUTHORIZED',
         message: 'No tienes permisos para realizar esta acción.',
@@ -137,6 +143,12 @@ function enhancedErrorHandler(err, req, res, next) {
  * Middleware para capturar errores no manejados
  */
 function unhandledErrorHandler(err, req, res, next) {
+  // ✅ CRÍTICO: Verificar que next sea una función válida
+  if (typeof next !== 'function') {
+    console.error('❌ ERROR: next no es función en unhandledErrorHandler');
+    return;
+  }
+
   // Log del error no manejado
   logger.error('Error no manejado detectado', {
     error: {
@@ -166,10 +178,10 @@ function unhandledErrorHandler(err, req, res, next) {
       message: 'Error interno del servidor.',
       timestamp: new Date().toISOString()
     }
-    });
-  }
+  });
+}
 
-  /**
+/**
  * Middleware para manejo de promesas rechazadas
  */
 function promiseRejectionHandler(reason, promise) {

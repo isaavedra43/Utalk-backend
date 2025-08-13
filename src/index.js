@@ -972,21 +972,46 @@ class ConsolidatedServer {
    * 🛡️ CONFIGURAR MANEJO DE ERRORES MEJORADO
    */
   setupErrorHandling() {
-    // Importar el middleware de manejo de errores mejorado
-    const { enhancedErrorHandler, unhandledErrorHandler, promiseRejectionHandler } = require('./middleware/enhancedErrorHandler');
+    try {
+      // Importar el middleware de manejo de errores mejorado
+      const { enhancedErrorHandler, unhandledErrorHandler, promiseRejectionHandler } = require('./middleware/enhancedErrorHandler');
 
-    // Configurar manejo de promesas rechazadas
-    process.on('unhandledRejection', promiseRejectionHandler);
+      // Configurar manejo de promesas rechazadas
+      process.on('unhandledRejection', promiseRejectionHandler);
 
-    // Middleware de manejo de errores mejorado
-    this.app.use(enhancedErrorHandler);
+      // Middleware de manejo de errores mejorado
+      this.app.use(enhancedErrorHandler);
 
-    // Middleware para errores no manejados
-    this.app.use(unhandledErrorHandler);
+      // Middleware para errores no manejados (solo si no se envió respuesta)
+      this.app.use((err, req, res, next) => {
+        if (!res.headersSent) {
+          return unhandledErrorHandler(err, req, res, next);
+        }
+      });
 
-    logger.info('✅ Manejo de errores mejorado configurado', {
-      category: 'ERROR_HANDLING_SETUP_SUCCESS'
-    });
+      logger.info('✅ Manejo de errores mejorado configurado', {
+        category: 'ERROR_HANDLING_SETUP_SUCCESS'
+      });
+    } catch (error) {
+      logger.error('❌ Error configurando manejo de errores', {
+        category: 'ERROR_HANDLING_SETUP_FAILURE',
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // Fallback: middleware de errores básico
+      this.app.use((err, req, res, next) => {
+        if (!res.headersSent) {
+          return res.status(500).json({
+            success: false,
+            error: {
+              type: 'INTERNAL_SERVER_ERROR',
+              message: 'Error interno del servidor'
+            }
+          });
+        }
+      });
+    }
   }
 
   /**

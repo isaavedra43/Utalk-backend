@@ -31,6 +31,23 @@ function asyncWrapper(fn, options = {}) {
   } = options;
 
   return async (req, res, next) => {
+    // ✅ CRÍTICO: Verificar que next sea una función válida
+    if (typeof next !== 'function') {
+      console.error('❌ ERROR: next no es una función válida en asyncWrapper', {
+        operationName,
+        nextType: typeof next,
+        nextValue: next
+      });
+      return res.status(500).json({
+        success: false,
+        error: {
+          type: 'MIDDLEWARE_ERROR',
+          code: 'NEXT_FUNCTION_INVALID',
+          message: 'Error interno del servidor: middleware mal configurado'
+        }
+      });
+    }
+
     const startTime = Date.now();
     const requestId = req.requestId || 'unknown';
     
@@ -50,7 +67,12 @@ function asyncWrapper(fn, options = {}) {
         severity: 'HIGH'
       });
       
-      next(error);
+      // ✅ CRÍTICO: Verificar que next sea una función antes de llamarla
+      if (typeof next === 'function') {
+        next(error);
+      } else {
+        console.error('❌ ERROR: next no es función en timeout handler');
+      }
     }, timeoutMs);
 
     try {
@@ -107,8 +129,28 @@ function asyncWrapper(fn, options = {}) {
         severity: 'HIGH'
       });
 
-      // Pasar al error handler global
-      next(error);
+      // ✅ CRÍTICO: Verificar que next sea una función antes de llamarla
+      if (typeof next === 'function') {
+        next(error);
+      } else {
+        console.error('❌ ERROR: next no es función en catch handler', {
+          operationName,
+          nextType: typeof next,
+          error: error.message
+        });
+        
+        // Fallback: enviar respuesta de error directamente
+        if (!res.headersSent) {
+          return res.status(500).json({
+            success: false,
+            error: {
+              type: 'MIDDLEWARE_ERROR',
+              code: 'NEXT_FUNCTION_INVALID',
+              message: 'Error interno del servidor: middleware mal configurado'
+            }
+          });
+        }
+      }
     }
   };
 }
