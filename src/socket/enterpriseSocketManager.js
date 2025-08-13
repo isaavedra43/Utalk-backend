@@ -1779,7 +1779,17 @@ class EnterpriseSocketManager {
    */
   broadcastUserPresence(userEmail, status, userRole) {
     try {
-      if (!userEmail) return;
+      // ✅ VALIDACIÓN: Verificar que userEmail sea válido
+      if (!userEmail || typeof userEmail !== 'string') {
+        logger.warn('userEmail inválido en broadcastUserPresence', {
+          category: 'SOCKET_PRESENCE_WARNING',
+          userEmail: userEmail,
+          userEmailType: typeof userEmail,
+          status,
+          userRole
+        });
+        return;
+      }
 
       const presenceData = {
         email: userEmail,
@@ -1807,8 +1817,9 @@ class EnterpriseSocketManager {
       logger.error('Error broadcasting user presence', {
         category: 'SOCKET_PRESENCE_ERROR',
         error: error.message,
-        userEmail: userEmail?.substring(0, 20) + '...',
-        status
+        userEmail: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'invalid',
+        status,
+        userRole
       });
     }
   }
@@ -1818,11 +1829,47 @@ class EnterpriseSocketManager {
    */
   async getUserConversations(userEmail, userRole) {
     try {
+      // ✅ VALIDACIÓN: Verificar que userEmail sea válido
+      if (!userEmail || typeof userEmail !== 'string') {
+        logger.warn('userEmail inválido en getUserConversations', {
+          category: 'SOCKET_CONVERSATIONS_WARNING',
+          userEmail: userEmail,
+          userEmailType: typeof userEmail
+        });
+        return [];
+      }
+
+      // ✅ VALIDACIÓN: Verificar que Conversation model esté disponible
+      if (!this.Conversation) {
+        logger.warn('Conversation model no disponible', {
+          category: 'SOCKET_CONVERSATIONS_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...'
+        });
+        return [];
+      }
+
       // Use existing Conversation model method
-      const conversations = await this.Conversation?.list({
+      const conversations = await this.Conversation.list({
         participantEmail: userEmail,
         limit: 100,
         includeMessages: false
+      });
+
+      // ✅ VALIDACIÓN: Asegurar que el resultado sea un array
+      if (!Array.isArray(conversations)) {
+        logger.warn('Conversation.list no devolvió un array', {
+          category: 'SOCKET_CONVERSATIONS_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...',
+          conversationsType: typeof conversations,
+          conversationsValue: conversations
+        });
+        return [];
+      }
+
+      logger.debug('User conversations retrieved successfully', {
+        category: 'SOCKET_CONVERSATIONS_SUCCESS',
+        userEmail: userEmail.substring(0, 20) + '...',
+        conversationsCount: conversations.length
       });
 
       return conversations;
@@ -1831,7 +1878,8 @@ class EnterpriseSocketManager {
       logger.error('Error getting user conversations', {
         category: 'SOCKET_CONVERSATIONS_ERROR',
         error: error.message,
-        userEmail: userEmail?.substring(0, 20) + '...'
+        userEmail: userEmail?.substring(0, 20) + '...',
+        stack: error.stack?.split('\n').slice(0, 3)
       });
       return [];
     }
@@ -1983,14 +2031,24 @@ class EnterpriseSocketManager {
    */
   async sendInitialStateSync(socket) {
     try {
-      const { userEmail, userRole } = socket;
-
-      // ✅ VALIDACIÓN: Verificar que el socket esté conectado
+      // ✅ VALIDACIÓN: Verificar que el socket exista y esté conectado
       if (!socket || !socket.connected) {
         logger.warn('Socket no conectado durante sync inicial', {
           category: 'SOCKET_INITIAL_SYNC_WARNING',
-          userEmail: userEmail?.substring(0, 20) + '...',
+          socketExists: !!socket,
           socketConnected: !!socket?.connected
+        });
+        return;
+      }
+
+      const { userEmail, userRole } = socket;
+
+      // ✅ VALIDACIÓN: Verificar que userEmail sea válido
+      if (!userEmail || typeof userEmail !== 'string') {
+        logger.warn('userEmail inválido en sendInitialStateSync', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail,
+          userEmailType: typeof userEmail
         });
         return;
       }
@@ -2002,7 +2060,7 @@ class EnterpriseSocketManager {
       if (!Array.isArray(conversations)) {
         logger.warn('getUserConversations no devolvió un array', {
           category: 'SOCKET_INITIAL_SYNC_WARNING',
-          userEmail: userEmail?.substring(0, 20) + '...',
+          userEmail: userEmail.substring(0, 20) + '...',
           conversationsType: typeof conversations
         });
         conversations = [];
@@ -2013,6 +2071,15 @@ class EnterpriseSocketManager {
       
       // Get online users
       const onlineUsers = this.getOnlineUsersInConversations(conversations);
+
+      // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado antes de enviar
+      if (!socket.connected) {
+        logger.warn('Socket desconectado antes de enviar sync', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...'
+        });
+        return;
+      }
 
       // Send initial state
       socket.emit(SOCKET_EVENTS.STATE_SYNCED, {
@@ -2025,7 +2092,7 @@ class EnterpriseSocketManager {
 
       logger.debug('Initial state sync sent', {
         category: 'SOCKET_INITIAL_SYNC',
-        email: userEmail?.substring(0, 20) + '...',
+        email: userEmail.substring(0, 20) + '...',
         conversationsCount: conversations.length
       });
 
@@ -2033,16 +2100,24 @@ class EnterpriseSocketManager {
       logger.error('Error sending initial state sync', {
         category: 'SOCKET_INITIAL_SYNC_ERROR',
         error: error.message,
-        userEmail: socket.userEmail?.substring(0, 20) + '...',
+        userEmail: socket?.userEmail?.substring(0, 20) + '...',
         stack: error.stack?.split('\n').slice(0, 3)
       });
       
-      // ✅ NO desconectar el socket, solo enviar error
+      // ✅ NO desconectar el socket, solo enviar error si aún está conectado
       if (socket && socket.connected) {
-        socket.emit(SOCKET_EVENTS.ERROR, {
-          error: 'INITIAL_SYNC_FAILED',
-          message: 'Error loading initial state, but connection maintained'
-        });
+        try {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            error: 'INITIAL_SYNC_FAILED',
+            message: 'Error loading initial state, but connection maintained'
+          });
+        } catch (emitError) {
+          logger.warn('Error enviando error al socket', {
+            category: 'SOCKET_EMIT_ERROR',
+            error: emitError.message,
+            userEmail: socket?.userEmail?.substring(0, 20) + '...'
+          });
+        }
       }
     }
   }
