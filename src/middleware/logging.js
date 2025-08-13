@@ -143,8 +143,8 @@ function loggingMiddleware(req, res, next) {
   // ✅ SUPER ROBUSTO: Logging de fin de petición
   res.on('finish', () => {
     const duration = Date.now() - startTime;
-    const statusCode = res.statusCode;
-    const statusMessage = res.statusMessage;
+    const statusCode = res?.statusCode || 0;
+    const statusMessage = res?.statusMessage || 'Unknown';
     
     // ✅ SUPER ROBUSTO: Categorizar petición por tipo
     let category = 'HTTP_REQUEST_COMPLETE';

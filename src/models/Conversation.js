@@ -8,30 +8,42 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class Conversation {
   constructor (data) {
+    // ✅ VALIDACIÓN: Asegurar que data sea un objeto válido
+    if (!data || typeof data !== 'object') {
+      logger.warn('Datos inválidos en constructor de Conversation', {
+        category: 'CONVERSATION_CONSTRUCTOR_WARNING',
+        dataType: typeof data,
+        dataValue: data
+      });
+      data = {};
+    }
+
     // ID: Usar UUIDv4 si no se proporciona uno. EMAIL-FIRST.
     this.id = data.id || uuidv4();
 
     // PARTICIPANTS: Array de emails de usuarios internos y/o teléfonos de externos.
-    this.participants = data.participants || [];
+    this.participants = Array.isArray(data.participants) ? data.participants : [];
 
     // CUSTOMER: Identificador del cliente externo.
-    this.customerPhone = data.customerPhone;
+    this.customerPhone = data.customerPhone || '';
 
     // DEPRECATED: agentPhone se elimina, se usa assignedTo (EMAIL).
     // this.agentPhone = data.agentPhone;
 
     // CONTACT: Info del cliente.
-    this.contact = data.contact || { id: this.customerPhone, name: this.customerPhone };
+    this.contact = data.contact && typeof data.contact === 'object' 
+      ? data.contact 
+      : { id: this.customerPhone, name: this.customerPhone };
 
     // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
     this.lastMessage = data.lastMessage || null;
     this.lastMessageId = data.lastMessageId || null;
     this.lastMessageAt = data.lastMessageAt || null;
-    this.unreadCount = data.unreadCount || 0;
-    this.messageCount = data.messageCount || 0;
+    this.unreadCount = typeof data.unreadCount === 'number' ? data.unreadCount : 0;
+    this.messageCount = typeof data.messageCount === 'number' ? data.messageCount : 0;
     this.status = data.status || 'open';
     this.priority = data.priority || 'normal'; // NUEVO: Prioridad
-    this.tags = data.tags || []; // NUEVO: Etiquetas
+    this.tags = Array.isArray(data.tags) ? data.tags : []; // NUEVO: Etiquetas
     
     // ASSIGNED_TO: EMAIL del agente asignado. La única fuente de verdad.
     this.assignedTo = data.assignedTo || null;
@@ -278,7 +290,29 @@ class Conversation {
     // 🔍 LOG CRÍTICO DE CONSULTA ESPECÍFICA
     logger.info(`[BACKEND][CONVERSATIONS][FIRESTORE] Consulta específica: ${snapshot.size} documentos | Filtros: participantEmail=${participantEmail}, assignedTo=${assignedTo}, status=${status}`);
     
-    const conversations = snapshot.docs.map(doc => new Conversation({ id: doc.id, ...doc.data() }));
+    const conversations = snapshot.docs.map(doc => {
+      try {
+        const conversationData = doc.data();
+        // ✅ VALIDACIÓN: Asegurar que los datos de Firestore sean válidos
+        if (!conversationData || typeof conversationData !== 'object') {
+          logger.warn('Datos de conversación inválidos en Firestore', {
+            category: 'CONVERSATION_MODEL_WARNING',
+            docId: doc.id,
+            dataType: typeof conversationData
+          });
+          return null;
+        }
+        
+        return new Conversation({ id: doc.id, ...conversationData });
+      } catch (error) {
+        logger.error('Error creando instancia de Conversation', {
+          category: 'CONVERSATION_MODEL_ERROR',
+          docId: doc.id,
+          error: error.message
+        });
+        return null;
+      }
+    }).filter(conv => conv !== null); // Remover conversaciones inválidas
 
     const hasMore = conversations.length > validatedLimit;
     if (hasMore) conversations.pop();
@@ -869,7 +903,28 @@ class Conversation {
         query = query.limit(limit);
         
         const snapshot = await query.get();
-        snapshot.docs.forEach(doc => finalResults.push(new Conversation({ id: doc.id, ...doc.data() })));
+        snapshot.docs.forEach(doc => {
+          try {
+            const conversationData = doc.data();
+            // ✅ VALIDACIÓN: Asegurar que los datos de Firestore sean válidos
+            if (!conversationData || typeof conversationData !== 'object') {
+              logger.warn('Datos de conversación inválidos en Firestore (consulta combinada)', {
+                category: 'CONVERSATION_MODEL_WARNING',
+                docId: doc.id,
+                dataType: typeof conversationData
+              });
+              return;
+            }
+            
+            finalResults.push(new Conversation({ id: doc.id, ...conversationData }));
+          } catch (error) {
+            logger.error('Error creando instancia de Conversation (consulta combinada)', {
+              category: 'CONVERSATION_MODEL_ERROR',
+              docId: doc.id,
+              error: error.message
+            });
+          }
+        });
       }
 
       // 3. Unificar y ordenar resultados

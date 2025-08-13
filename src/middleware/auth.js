@@ -178,6 +178,17 @@ const authMiddleware = async (req, res, next) => {
         });
       }
 
+      // ✅ VALIDACIÓN: Asegurar que res sea válido antes de enviar respuesta
+      if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+        logger.error('Objeto res inválido en middleware de auth', {
+          category: 'AUTH_MIDDLEWARE_ERROR',
+          resType: typeof res,
+          hasStatus: typeof res?.status === 'function',
+          hasJson: typeof res?.json === 'function'
+        });
+        return;
+      }
+
       return res.status(statusCode).json({
         success: false,
         error: {
@@ -197,6 +208,24 @@ const authMiddleware = async (req, res, next) => {
         tokenPayload: decodedToken,
         ip: req.ip,
       });
+      // ✅ VALIDACIÓN: Asegurar que res sea válido
+      if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+        logger.error('Objeto res inválido en middleware de auth (MISSING_EMAIL_CLAIM)', {
+          category: 'AUTH_MIDDLEWARE_ERROR',
+          resType: typeof res
+        });
+        return;
+      }
+
+      // ✅ VALIDACIÓN: Asegurar que res sea válido
+      if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+        logger.error('Objeto res inválido en middleware de auth (USER_NOT_FOUND)', {
+          category: 'AUTH_MIDDLEWARE_ERROR',
+          resType: typeof res
+        });
+        return;
+      }
+
       return res.status(401).json({
         success: false,
         error: {
@@ -250,6 +279,15 @@ const authMiddleware = async (req, res, next) => {
         stack: dbError.stack?.split('\n').slice(0, 3)
       });
       
+      // ✅ VALIDACIÓN: Asegurar que res sea válido
+      if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+        logger.error('Objeto res inválido en middleware de auth (DATABASE_ERROR)', {
+          category: 'AUTH_MIDDLEWARE_ERROR',
+          resType: typeof res
+        });
+        return;
+      }
+
       return res.status(503).json({
         success: false,
         error: {

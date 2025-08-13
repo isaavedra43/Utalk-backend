@@ -26,11 +26,11 @@ function enhancedErrorHandler(err, req, res, next) {
 
   // ✅ SUPER ROBUSTO: Si ya se envió una respuesta, no hacer nada
   if (res.headersSent) {
-    logger.warn('Respuesta ya enviada, no procesando error', {
-      category: 'ERROR_HANDLER_RESPONSE_SENT',
-      error: err.message,
-      statusCode: res.statusCode
-    });
+          logger.warn('Respuesta ya enviada, no procesando error', {
+        category: 'ERROR_HANDLER_RESPONSE_SENT',
+        error: err.message,
+        statusCode: res?.statusCode || 0
+      });
     return next(err);
   }
 

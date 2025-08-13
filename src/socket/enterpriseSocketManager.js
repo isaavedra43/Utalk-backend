@@ -1969,6 +1969,34 @@ class EnterpriseSocketManager {
         return [];
       }
 
+      // ✅ VALIDACIÓN: Asegurar que cada conversación tenga las propiedades requeridas
+      conversations = conversations.map(conv => {
+        if (!conv || typeof conv !== 'object') {
+          logger.warn('Conversación inválida en getUserConversations', {
+            category: 'SOCKET_CONVERSATIONS_WARNING',
+            convType: typeof conv,
+            convValue: conv,
+            userEmail: userEmail.substring(0, 20) + '...'
+          });
+          return null;
+        }
+        
+        // Asegurar que tenga las propiedades básicas con valores por defecto
+        return {
+          id: conv.id || 'unknown',
+          status: conv.status || 'open',
+          customerPhone: conv.customerPhone || '',
+          assignedTo: conv.assignedTo || null,
+          lastMessage: conv.lastMessage || null,
+          lastMessageAt: conv.lastMessageAt || null,
+          unreadCount: conv.unreadCount || 0,
+          messageCount: conv.messageCount || 0,
+          participants: Array.isArray(conv.participants) ? conv.participants : [],
+          createdAt: conv.createdAt || new Date(),
+          updatedAt: conv.updatedAt || new Date()
+        };
+      }).filter(conv => conv !== null); // Remover conversaciones inválidas
+
       // ✅ VALIDACIÓN: Asegurar que conversations sea un array válido
       if (!Array.isArray(conversations)) {
         logger.warn('conversations no es un array válido después del procesamiento', {
@@ -2015,9 +2043,26 @@ class EnterpriseSocketManager {
         return {};
       }
 
+      // ✅ VALIDACIÓN: Filtrar conversaciones válidas
+      const validConversations = conversations.filter(conv => 
+        conv && 
+        typeof conv === 'object' && 
+        conv.id && 
+        typeof conv.id === 'string'
+      );
+
+      if (validConversations.length !== conversations.length) {
+        logger.warn('Algunas conversaciones fueron filtradas por ser inválidas', {
+          category: 'SOCKET_UNREAD_WARNING',
+          originalCount: conversations.length,
+          validCount: validConversations.length,
+          userEmail: userEmail?.substring(0, 20) + '...'
+        });
+      }
+
       const unreadCounts = {};
 
-      for (const conversation of conversations) {
+      for (const conversation of validConversations) {
         // ✅ VALIDACIÓN: Asegurar que conversation tenga un id válido
         if (!conversation || !conversation.id) {
           logger.warn('Conversation inválida encontrada en getUnreadMessagesCounts', {
@@ -2064,9 +2109,25 @@ class EnterpriseSocketManager {
         return {};
       }
 
+      // ✅ VALIDACIÓN: Filtrar conversaciones válidas
+      const validConversations = conversations.filter(conv => 
+        conv && 
+        typeof conv === 'object' && 
+        conv.id && 
+        typeof conv.id === 'string'
+      );
+
+      if (validConversations.length !== conversations.length) {
+        logger.warn('Algunas conversaciones fueron filtradas por ser inválidas en getOnlineUsersInConversations', {
+          category: 'SOCKET_ONLINE_USERS_WARNING',
+          originalCount: conversations.length,
+          validCount: validConversations.length
+        });
+      }
+
       const onlineUsers = {};
 
-      for (const conversation of conversations) {
+      for (const conversation of validConversations) {
         // ✅ VALIDACIÓN: Asegurar que conversation tenga un id válido
         if (!conversation || !conversation.id) {
           logger.warn('Conversation inválida encontrada', {
@@ -2184,7 +2245,7 @@ class EnterpriseSocketManager {
         logger.warn('Socket desconectado después de obtener conversaciones', {
           category: 'SOCKET_INITIAL_SYNC_WARNING',
           userEmail: userEmail.substring(0, 20) + '...',
-          conversationsCount: conversations.length
+          conversationsCount: conversations?.length || 0
         });
         return;
       }
@@ -2198,6 +2259,33 @@ class EnterpriseSocketManager {
         });
         conversations = [];
       }
+      
+      // ✅ VALIDACIÓN: Asegurar que cada conversación tenga las propiedades requeridas
+      conversations = conversations.map(conv => {
+        if (!conv || typeof conv !== 'object') {
+          logger.warn('Conversación inválida encontrada', {
+            category: 'SOCKET_INITIAL_SYNC_WARNING',
+            convType: typeof conv,
+            convValue: conv
+          });
+          return null;
+        }
+        
+        // Asegurar que tenga las propiedades básicas
+        return {
+          id: conv.id || 'unknown',
+          status: conv.status || 'open',
+          customerPhone: conv.customerPhone || '',
+          assignedTo: conv.assignedTo || null,
+          lastMessage: conv.lastMessage || null,
+          lastMessageAt: conv.lastMessageAt || null,
+          unreadCount: conv.unreadCount || 0,
+          messageCount: conv.messageCount || 0,
+          participants: Array.isArray(conv.participants) ? conv.participants : [],
+          createdAt: conv.createdAt || new Date(),
+          updatedAt: conv.updatedAt || new Date()
+        };
+      }).filter(conv => conv !== null); // Remover conversaciones inválidas
       
       // Get unread counts
       const unreadCounts = await this.getUnreadMessagesCounts(userEmail, conversations);

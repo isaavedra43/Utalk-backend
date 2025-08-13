@@ -46,7 +46,17 @@ function formatSuccessResponse(data = null, message = 'Operación exitosa', stat
       requestId: req.requestId
     });
 
-    res.status(statusCode).json(response);
+    // ✅ VALIDACIÓN: Asegurar que res sea válido antes de enviar respuesta
+    if (res && typeof res.status === 'function' && typeof res.json === 'function') {
+      res.status(statusCode).json(response);
+    } else {
+      logger.error('Objeto res inválido en formatSuccessResponse', {
+        category: 'RESPONSE_MIDDLEWARE_ERROR',
+        resType: typeof res,
+        hasStatus: typeof res?.status === 'function',
+        hasJson: typeof res?.json === 'function'
+      });
+    }
   };
 }
 
@@ -85,7 +95,17 @@ function formatErrorResponse(error, statusCode = 500) {
       requestId: req.requestId
     });
 
-    res.status(statusCode).json(errorResponse);
+    // ✅ VALIDACIÓN: Asegurar que res sea válido antes de enviar respuesta
+    if (res && typeof res.status === 'function' && typeof res.json === 'function') {
+      res.status(statusCode).json(errorResponse);
+    } else {
+      logger.error('Objeto res inválido en formatErrorResponse', {
+        category: 'RESPONSE_MIDDLEWARE_ERROR',
+        resType: typeof res,
+        hasStatus: typeof res?.status === 'function',
+        hasJson: typeof res?.json === 'function'
+      });
+    }
   };
 }
 
