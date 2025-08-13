@@ -509,35 +509,13 @@ class ConsolidatedServer {
   setupCORS() {
     const { corsOptions } = require('./config/cors');
     
-    // ✅ CRÍTICO: CORS global (ANTES de rutas)
+    // ✅ CRÍTICO: CORS global (ANTES de rutas) - SOLO Express CORS
     this.app.use(cors(corsOptions));
     
-    // ✅ CRÍTICO: Respuesta a preflight para cualquier ruta
+    // ✅ CRÍTICO: Respuesta a preflight para cualquier ruta - SOLO Express CORS
     this.app.options('*', cors(corsOptions));
     
-    // ✅ CRÍTICO: Middleware adicional para asegurar headers CORS
-    this.app.use((req, res, next) => {
-      // Agregar headers CORS manualmente como respaldo
-      const origin = req.headers.origin;
-      if (origin) {
-        console.log('🔧 Adding CORS headers for origin:', origin);
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Credentials', 'true');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key');
-        res.header('Access-Control-Max-Age', '86400');
-      }
-      
-      // Manejar preflight OPTIONS
-      if (req.method === 'OPTIONS') {
-        console.log('🛡️ Handling OPTIONS preflight for:', req.path);
-        return res.status(204).end();
-      }
-      
-      next();
-    });
-    
-    logger.info('✅ CORS configurado con función de validación', {
+    logger.info('✅ CORS configurado con Express CORS robusto', {
       category: 'CORS_SETUP_SUCCESS',
       environment: process.env.NODE_ENV || 'development'
     });
@@ -624,10 +602,23 @@ class ConsolidatedServer {
           timestamp: new Date().toISOString(),
           origin: req.headers.origin,
           headers: req.headers,
-          message: 'CORS está funcionando correctamente'
+          message: 'CORS está funcionando correctamente',
+          serverInfo: {
+            environment: process.env.NODE_ENV || 'development',
+            corsConfigured: true,
+            staticWhitelist: require('./config/cors').STATIC_WHITELIST,
+            regexWhitelist: require('./config/cors').REGEX_WHITELIST.map(r => r.toString())
+          }
         });
       });
       console.log('✅ /cors-test configurado');
+
+      // ✅ SUPER ROBUSTO: Endpoint para probar OPTIONS preflight
+      this.app.options('/cors-test', (req, res) => {
+        console.log('🛡️ OPTIONS preflight test para /cors-test');
+        res.status(204).end();
+      });
+      console.log('✅ OPTIONS /cors-test configurado');
 
       // Health check detallado enterprise
       this.app.get('/health/detailed', async (req, res) => {
