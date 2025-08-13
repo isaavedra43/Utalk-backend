@@ -690,7 +690,19 @@ class EnterpriseSocketManager {
    */
   setupSocketEventListeners(socket) {
     const { userEmail, socketId } = socket;
-    const listenersMap = this.eventListeners.get(socketId);
+    let listenersMap = this.eventListeners.get(socketId);
+    
+    // Ensure listenersMap exists
+    if (!listenersMap) {
+      logger.info('Creating new listenersMap for socket', {
+        category: 'SOCKET_LISTENERS_CREATION',
+        socketId,
+        userEmail: userEmail?.substring(0, 20) + '...',
+        eventListenersSize: this.eventListeners.size
+      });
+      listenersMap = new Map();
+      this.eventListeners.set(socketId, listenersMap);
+    }
 
     // Helper to register event with cleanup
     const registerEvent = (eventName, handler, options = {}) => {
