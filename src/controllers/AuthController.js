@@ -712,7 +712,36 @@ class AuthController {
         email: decodedToken.email
       });
 
-      const user = await User.getByEmail(decodedToken.email);
+      let user;
+      try {
+        user = await User.getByEmail(decodedToken.email);
+        
+        req.logger.database('query_completed', {
+          operation: 'user_by_email_for_validation',
+          email: decodedToken.email,
+          userFound: !!user,
+          userRole: user?.role || 'not_found'
+        });
+      } catch (dbError) {
+        req.logger.error('Error consultando usuario en Firestore', {
+          operation: 'user_by_email_for_validation',
+          email: decodedToken.email,
+          error: dbError.message,
+          stack: dbError.stack?.split('\n').slice(0, 3),
+          ip: req.ip
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'DATABASE_ERROR',
+          'Error de conexión con la base de datos',
+          'Intenta nuevamente en unos momentos',
+          503,
+          { 
+            originalError: process.env.NODE_ENV === 'development' ? dbError.message : undefined,
+            timestamp: new Date().toISOString()
+          }
+        ));
+      }
 
       if (!user) {
         req.logger.auth('user_not_found', {
