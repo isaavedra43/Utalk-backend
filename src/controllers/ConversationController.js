@@ -66,6 +66,23 @@ class ConversationController {
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
+      // 🔍 LOGGING VISUAL Y CONCRETO PARA DETECTAR ERRORES
+      req.logger?.info('🔄 Iniciando listado de conversaciones', {
+        category: 'CONVERSATION_LIST_START',
+        requestId: req.requestId,
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        userRole: req.user?.role,
+        ip: req.ip,
+        filters: {
+          status: statusFilter,
+          search: search ? search.trim() : undefined,
+          limit: limitNum,
+          page: pageNum
+        },
+        query: req.query
+      });
+
       // 🔍 LOGGING ESTRUCTURADO CON CORRELACIÓN + shape
       const hasInfo = typeof req.logger?.info === 'function';
       const hasAuth = typeof req.logger?.auth === 'function';
@@ -95,6 +112,12 @@ class ConversationController {
       // Usar el nuevo repositorio unificado
       const conversationsRepo = getConversationsRepository();
       
+      req.logger?.info('📊 Usando repositorio de conversaciones', {
+        category: 'CONVERSATION_REPO_SETUP',
+        workspaceId: req.user.workspaceId,
+        userEmail: req.user?.email
+      });
+      
       // Preparar parámetros para el repositorio
       const repoParams = {
         workspaceId: req.user.workspaceId,
@@ -111,7 +134,19 @@ class ConversationController {
       };
 
       // Ejecutar query a través del repositorio
+      req.logger?.info('🔍 Ejecutando consulta de conversaciones', {
+        category: 'CONVERSATION_QUERY_EXECUTION',
+        repoParams: JSON.stringify(repoParams).substring(0, 200)
+      });
+
       const result = await conversationsRepo.list(repoParams);
+      
+      req.logger?.info('✅ Consulta de conversaciones completada', {
+        category: 'CONVERSATION_QUERY_SUCCESS',
+        conversationCount: result.conversations?.length || 0,
+        hasPagination: !!result.pagination,
+        executionTime: Date.now() - startTime
+      });
 
       // Aplicar filtro de búsqueda post-snapshot si es necesario
       let filteredConversations = result.conversations;
@@ -257,6 +292,17 @@ class ConversationController {
           });
         }
       }
+
+      req.logger?.error('❌ Error al listar conversaciones', {
+        category: 'CONVERSATION_LIST_ERROR',
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        userEmail: req.user?.email,
+        userId: req.user?.id,
+        query: req.query,
+        executionTime: Date.now() - startTime,
+        details: error
+      });
 
       logger.error('get_conversations_error', {
         error: error.message,
