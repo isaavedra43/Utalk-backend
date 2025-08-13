@@ -83,8 +83,8 @@ function parseConversationId(conversationId) {
       return { valid: false, participants: null };
     }
 
-    // Validar patrón conv_+<from>_+<to>
-    const pattern = /^conv_\+([1-9]\d{1,14})_\+([1-9]\d{1,14})$/;
+    // CORREGIDO: Validar patrón conv_+<from>_+<to> con regex más flexible
+    const pattern = /^conv_(\+[1-9]\d{1,14})_(\+[1-9]\d{1,14})$/;
     const match = conversationId.match(pattern);
 
     if (!match) {
@@ -96,8 +96,8 @@ function parseConversationId(conversationId) {
     return {
       valid: true,
       participants: {
-        from: `+${from}`,
-        to: `+${to}`
+        from: from,
+        to: to
       }
     };
   } catch (error) {
