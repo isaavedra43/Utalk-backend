@@ -945,8 +945,18 @@ class EnterpriseSocketManager {
         socketId: socket.id
       });
 
-      // Get user conversations
-      const conversations = await this.getUserConversations(userEmail, userRole);
+      // Get user's conversations
+      let conversations = await this.getUserConversations(userEmail, userRole);
+      
+      // ✅ VALIDACIÓN: Asegurar que conversations sea un array
+      if (!Array.isArray(conversations)) {
+        logger.warn('getUserConversations no devolvió un array', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationsType: typeof conversations
+        });
+        conversations = [];
+      }
       
       // Get unread messages count
       const unreadCounts = await this.getUnreadMessagesCounts(userEmail, conversations);
@@ -1986,7 +1996,7 @@ class EnterpriseSocketManager {
       }
 
       // Get user's conversations
-      const conversations = await this.getUserConversations(userEmail, userRole);
+      let conversations = await this.getUserConversations(userEmail, userRole);
       
       // ✅ VALIDACIÓN: Asegurar que conversations sea un array
       if (!Array.isArray(conversations)) {
