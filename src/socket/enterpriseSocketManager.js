@@ -588,14 +588,36 @@ class EnterpriseSocketManager {
   }
 
   /**
-   * 🤝 HANDLE NEW CONNECTION (AFTER AUTHENTICATION)
+   * 🔌 HANDLE NEW CONNECTION
    */
-  handleNewConnection(socket) {
-    const { userEmail, userRole, connectedAt } = socket;
+  async handleNewConnection(socket) {
+    const { userEmail, userRole } = socket;
+    const connectedAt = Date.now();
 
     try {
-      // Update metrics
-      this.metrics.connectionsPerSecond++;
+      // ✅ VALIDACIÓN: Verificar que userEmail sea válido
+      if (!userEmail || typeof userEmail !== 'string') {
+        logger.warn('Conexión sin userEmail válido', {
+          category: 'SOCKET_CONNECTION_WARNING',
+          userEmail: userEmail,
+          userEmailType: typeof userEmail,
+          socketId: socket.id
+        });
+        socket.disconnect(true);
+        return;
+      }
+
+      // ✅ VALIDACIÓN: Verificar que userRole sea válido
+      if (!userRole) {
+        logger.warn('Conexión sin userRole válido', {
+          category: 'SOCKET_CONNECTION_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...',
+          userRole: userRole,
+          socketId: socket.id
+        });
+        socket.disconnect(true);
+        return;
+      }
 
       // Create user session
       const session = {
@@ -636,11 +658,46 @@ class EnterpriseSocketManager {
       // Setup socket event listeners with automatic cleanup
       this.setupSocketEventListeners(socket);
 
-      // Send initial state synchronization
-      this.sendInitialStateSync(socket);
+      // ✅ MEJORA: Agregar un pequeño delay antes de enviar el sync inicial
+      // Esto ayuda a evitar desconexiones inmediatas
+      setTimeout(async () => {
+        try {
+          // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado
+          if (!socket.connected) {
+            logger.warn('Socket desconectado antes del sync inicial', {
+              category: 'SOCKET_INITIAL_SYNC_WARNING',
+              userEmail: userEmail.substring(0, 20) + '...',
+              socketId: socket.id
+            });
+            return;
+          }
 
-      // Notify other users about new user online
-      this.broadcastUserPresence(userEmail, 'online', userRole);
+          // Send initial state synchronization
+          await this.sendInitialStateSync(socket);
+
+          // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado después del sync
+          if (!socket.connected) {
+            logger.warn('Socket desconectado después del sync inicial', {
+              category: 'SOCKET_INITIAL_SYNC_WARNING',
+              userEmail: userEmail.substring(0, 20) + '...',
+              socketId: socket.id
+            });
+            return;
+          }
+
+          // Notify other users about new user online
+          this.broadcastUserPresence(userEmail, 'online', userRole);
+
+        } catch (syncError) {
+          logger.error('Error en sync inicial con delay', {
+            category: 'SOCKET_INITIAL_SYNC_ERROR',
+            error: syncError.message,
+            userEmail: userEmail.substring(0, 20) + '...',
+            socketId: socket.id,
+            stack: syncError.stack?.split('\n').slice(0, 3)
+          });
+        }
+      }, 100); // 100ms delay
 
     } catch (error) {
       logger.error('Error handling new connection', {
@@ -1548,10 +1605,24 @@ class EnterpriseSocketManager {
    * 🔌 HANDLE DISCONNECT
    */
   async handleDisconnect(socket, reason) {
-    const { userEmail, socketId } = socket;
+    // ✅ VALIDACIÓN: Extraer userEmail de manera segura
+    const userEmail = socket?.userEmail;
+    const socketId = socket?.id;
+    const userRole = socket?.userRole;
 
     try {
       this.metrics.disconnectionsPerSecond++;
+
+      // ✅ VALIDACIÓN: Verificar que socketId sea válido
+      if (!socketId) {
+        logger.warn('Socket desconectado sin socketId válido', {
+          category: 'SOCKET_DISCONNECT_WARNING',
+          reason,
+          hasUserEmail: !!userEmail,
+          userEmailType: typeof userEmail
+        });
+        return;
+      }
 
       // 🔧 SOCKET ROBUSTO: Limpiar todas las rooms del socket
       const socketRooms = this.socketConversations.get(socketId);
@@ -1573,12 +1644,14 @@ class EnterpriseSocketManager {
         this.socketConversations.delete(socketId);
       }
 
-      // 🔧 SOCKET ROBUSTO: Limpiar de userSessions
-      const userSocketIds = this.userSessions.get(userEmail);
-      if (userSocketIds) {
-        userSocketIds.delete(socketId);
-        if (userSocketIds.size === 0) {
-          this.userSessions.delete(userEmail);
+      // 🔧 SOCKET ROBUSTO: Limpiar de userSessions solo si userEmail es válido
+      if (userEmail && typeof userEmail === 'string') {
+        const userSocketIds = this.userSessions.get(userEmail);
+        if (userSocketIds) {
+          userSocketIds.delete(socketId);
+          if (userSocketIds.size === 0) {
+            this.userSessions.delete(userEmail);
+          }
         }
       }
 
@@ -1595,24 +1668,35 @@ class EnterpriseSocketManager {
           email: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'undefined',
           socketId,
           reason,
-          connectedDuration: socket.connectedAt ? Date.now() - socket.connectedAt : 0,
+          connectedDuration: socket?.connectedAt ? Date.now() - socket.connectedAt : 0,
           roomsCleaned: socketRooms?.size || 0
         });
       }
 
-      // Clean up user session
-      await this.cleanupUserSession(userEmail, socketId);
-
-      // Broadcast user offline status
-      this.broadcastUserPresence(userEmail, 'offline', socket.userRole);
+      // Clean up user session solo si userEmail es válido
+      if (userEmail && typeof userEmail === 'string') {
+        await this.cleanupUserSession(userEmail, socketId);
+        
+        // Broadcast user offline status solo si userEmail es válido
+        this.broadcastUserPresence(userEmail, 'offline', userRole);
+      } else {
+        logger.warn('No se pudo limpiar sesión de usuario - userEmail inválido', {
+          category: 'SOCKET_DISCONNECT_WARNING',
+          socketId,
+          reason,
+          userEmail: userEmail,
+          userEmailType: typeof userEmail
+        });
+      }
 
     } catch (error) {
       logger.error('Error handling disconnect', {
         category: 'SOCKET_DISCONNECT_ERROR',
         error: error.message,
         userEmail: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'undefined',
-        socketId,
-        reason
+        socketId: socketId || 'unknown',
+        reason,
+        stack: error.stack?.split('\n').slice(0, 3)
       });
     }
   }
@@ -1621,13 +1705,15 @@ class EnterpriseSocketManager {
    * ❌ HANDLE SOCKET ERROR
    */
   async handleSocketError(socket, error) {
-    const { userEmail, socketId } = socket;
+    // ✅ VALIDACIÓN: Extraer propiedades de manera segura
+    const userEmail = socket?.userEmail;
+    const socketId = socket?.id;
 
     logger.error('Socket error occurred', {
       category: 'SOCKET_ERROR',
       error: error.message || error,
-      email: userEmail?.substring(0, 20) + '...',
-      socketId,
+      email: userEmail && typeof userEmail === 'string' ? userEmail.substring(0, 20) + '...' : 'undefined',
+      socketId: socketId || 'unknown',
       severity: 'HIGH'
     });
 
