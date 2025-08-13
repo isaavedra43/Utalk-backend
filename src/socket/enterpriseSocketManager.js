@@ -1849,15 +1849,43 @@ class EnterpriseSocketManager {
       }
 
       // Use existing Conversation model method
-      const conversations = await this.Conversation.list({
+      const result = await this.Conversation.list({
         participantEmail: userEmail,
         limit: 100,
         includeMessages: false
       });
 
-      // ✅ VALIDACIÓN: Asegurar que el resultado sea un array
+      // ✅ VALIDACIÓN: Manejar diferentes formatos de respuesta
+      let conversations = [];
+      
+      if (Array.isArray(result)) {
+        // Si devuelve un array directamente
+        conversations = result;
+      } else if (result && typeof result === 'object' && Array.isArray(result.conversations)) {
+        // Si devuelve un objeto con propiedad conversations
+        conversations = result.conversations;
+        logger.debug('Conversation.list devolvió objeto con propiedad conversations', {
+          category: 'SOCKET_CONVERSATIONS_DEBUG',
+          userEmail: userEmail.substring(0, 20) + '...',
+          conversationsCount: conversations.length,
+          hasPagination: !!result.pagination
+        });
+      } else {
+        // Si no es ninguno de los formatos esperados
+        logger.warn('Conversation.list devolvió formato inesperado', {
+          category: 'SOCKET_CONVERSATIONS_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...',
+          resultType: typeof result,
+          isArray: Array.isArray(result),
+          hasConversations: !!(result && result.conversations),
+          resultKeys: result ? Object.keys(result) : 'null'
+        });
+        return [];
+      }
+
+      // ✅ VALIDACIÓN: Asegurar que conversations sea un array válido
       if (!Array.isArray(conversations)) {
-        logger.warn('Conversation.list no devolvió un array', {
+        logger.warn('conversations no es un array válido después del procesamiento', {
           category: 'SOCKET_CONVERSATIONS_WARNING',
           userEmail: userEmail.substring(0, 20) + '...',
           conversationsType: typeof conversations,
@@ -2053,8 +2081,27 @@ class EnterpriseSocketManager {
         return;
       }
 
+      // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado antes de obtener conversaciones
+      if (!socket.connected) {
+        logger.warn('Socket desconectado antes de obtener conversaciones', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...'
+        });
+        return;
+      }
+
       // Get user's conversations
       let conversations = await this.getUserConversations(userEmail, userRole);
+      
+      // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado después de obtener conversaciones
+      if (!socket.connected) {
+        logger.warn('Socket desconectado después de obtener conversaciones', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...',
+          conversationsCount: conversations.length
+        });
+        return;
+      }
       
       // ✅ VALIDACIÓN: Asegurar que conversations sea un array
       if (!Array.isArray(conversations)) {
@@ -2068,6 +2115,15 @@ class EnterpriseSocketManager {
       
       // Get unread counts
       const unreadCounts = await this.getUnreadMessagesCounts(userEmail, conversations);
+      
+      // ✅ VALIDACIÓN: Verificar que el socket aún esté conectado antes de obtener usuarios en línea
+      if (!socket.connected) {
+        logger.warn('Socket desconectado antes de obtener usuarios en línea', {
+          category: 'SOCKET_INITIAL_SYNC_WARNING',
+          userEmail: userEmail.substring(0, 20) + '...'
+        });
+        return;
+      }
       
       // Get online users
       const onlineUsers = this.getOnlineUsersInConversations(conversations);
