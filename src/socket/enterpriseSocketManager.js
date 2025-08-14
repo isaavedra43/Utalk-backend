@@ -90,12 +90,12 @@ const RATE_LIMITS = {
   [SOCKET_EVENTS.SYNC_STATE]: 2000            // 2 seconds (más permisivo)
 };
 
-// 🔧 SOCKET ROBUSTO: Límites de configuración - MÁS PERMISIVOS
+// 🔧 SOCKET ROBUSTO: Límites de configuración - OPTIMIZADOS PARA ESTABILIDAD
 const SOCKET_LIMITS = {
-  MAX_ROOMS_PER_SOCKET: parseInt(process.env.SOCKET_MAX_ROOMS_PER_SOCKET) || 100, // Aumentado de 50 a 100
-  MAX_JOINS_PER_10S: 20, // Aumentado de 10 a 20
-  HEARTBEAT_INTERVAL: 25000,
-  HEARTBEAT_TIMEOUT: 60000
+  MAX_ROOMS_PER_SOCKET: parseInt(process.env.SOCKET_MAX_ROOMS_PER_SOCKET) || 50, // Reducido para estabilidad
+  MAX_JOINS_PER_10S: 10, // Reducido para estabilidad
+  HEARTBEAT_INTERVAL: 15000, // 🔧 CORRECCIÓN: Reducido de 25s a 15s
+  HEARTBEAT_TIMEOUT: 30000   // 🔧 CORRECCIÓN: Reducido de 60s a 30s
 };
 
 class EnterpriseSocketManager {
@@ -309,22 +309,22 @@ class EnterpriseSocketManager {
       // Transport configuration
       transports: ['websocket', 'polling'],
       
-      // Timeouts and intervals
-      pingTimeout: SOCKET_LIMITS.HEARTBEAT_TIMEOUT,     // 60 seconds
-      pingInterval: SOCKET_LIMITS.HEARTBEAT_INTERVAL,   // 25 seconds
+      // 🔧 CORRECCIÓN: Timeouts optimizados para evitar Status 0
+      pingTimeout: SOCKET_LIMITS.HEARTBEAT_TIMEOUT,     // 30 seconds (reducido)
+      pingInterval: SOCKET_LIMITS.HEARTBEAT_INTERVAL,   // 15 seconds (reducido)
       
       // Connection limits
-      maxHttpBufferSize: 2e6, // 2MB
+      maxHttpBufferSize: 1e6, // 🔧 CORRECCIÓN: Reducido de 2MB a 1MB
       
-      // Performance optimizations
-      connectTimeout: 30000,
-      upgradeTimeout: 10000,
+      // 🔧 CORRECCIÓN: Timeouts de conexión optimizados
+      connectTimeout: 15000,  // 🔧 CORRECCIÓN: Reducido de 30s a 15s
+      upgradeTimeout: 5000,   // 🔧 CORRECCIÓN: Reducido de 10s a 5s
       allowUpgrades: true,
       perMessageDeflate: false,
       
       // Memory usage optimization
       connectionStateRecovery: {
-        maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+        maxDisconnectionDuration: 60 * 1000, // 🔧 CORRECCIÓN: Reducido de 2min a 1min
         skipMiddlewares: false,
       },
       
@@ -654,6 +654,9 @@ class EnterpriseSocketManager {
 
       // Join role-based rooms
       this.joinRoleBasedRooms(socket, userRole);
+
+      // 🔧 CORRECCIÓN: Delay para asegurar que los listeners estén configurados
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // ✅ VALIDACIÓN: Verificar que el socket esté conectado antes de configurar listeners
       if (!socket.connected) {
@@ -3281,6 +3284,93 @@ class EnterpriseSocketManager {
         err: error.message,
         conversationId: conversationId?.substring(0, 20) + '...'
       });
+    }
+  }
+
+  /**
+   * 🔧 HELPER: Verificar si hay listeners antes de emitir eventos
+   */
+  hasListenersForEvent(eventName) {
+    try {
+      // Verificar si hay sockets conectados
+      const connectedSockets = this.io.sockets.sockets.size;
+      
+      // Verificar si hay listeners registrados para este evento
+      const eventListeners = this.io.sockets.adapter.rooms.get(eventName);
+      const hasRoomListeners = eventListeners && eventListeners.size > 0;
+      
+      // Verificar si hay listeners en nuestros maps
+      let hasCustomListeners = false;
+      for (const [socketId, listenersMap] of this.eventListeners.entries()) {
+        if (listenersMap.has(eventName)) {
+          hasCustomListeners = true;
+          break;
+        }
+      }
+      
+      return connectedSockets > 0 && (hasRoomListeners || hasCustomListeners);
+    } catch (error) {
+      logger.warn('Error checking listeners for event', {
+        category: 'SOCKET_LISTENERS_CHECK_ERROR',
+        eventName,
+        error: error.message
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🔧 HELPER: Emitir evento solo si hay listeners
+   */
+  safeEmit(socket, eventName, data) {
+    try {
+      if (socket && socket.connected && this.hasListenersForEvent(eventName)) {
+        socket.emit(eventName, data);
+        return true;
+      } else {
+        logger.debug('Skipping event emission - no listeners or socket disconnected', {
+          category: 'SOCKET_SAFE_EMIT_SKIP',
+          eventName,
+          socketConnected: socket?.connected,
+          hasListeners: this.hasListenersForEvent(eventName)
+        });
+        return false;
+      }
+    } catch (error) {
+      logger.warn('Error in safeEmit', {
+        category: 'SOCKET_SAFE_EMIT_ERROR',
+        eventName,
+        error: error.message
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🔧 HELPER: Emitir evento a room solo si hay listeners
+   */
+  safeEmitToRoom(roomId, eventName, data) {
+    try {
+      if (this.hasListenersForEvent(eventName)) {
+        this.io.to(roomId).emit(eventName, data);
+        return true;
+      } else {
+        logger.debug('Skipping room event emission - no listeners', {
+          category: 'SOCKET_SAFE_EMIT_ROOM_SKIP',
+          eventName,
+          roomId,
+          hasListeners: this.hasListenersForEvent(eventName)
+        });
+        return false;
+      }
+    } catch (error) {
+      logger.warn('Error in safeEmitToRoom', {
+        category: 'SOCKET_SAFE_EMIT_ROOM_ERROR',
+        eventName,
+        roomId,
+        error: error.message
+      });
+      return false;
     }
   }
 }
