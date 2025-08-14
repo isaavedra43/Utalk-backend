@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
  * Genera un conversationId único y consistente para dos números de teléfono
  * @param {string} phone1 - Primer número de teléfono (ya validado)
  * @param {string} phone2 - Segundo número de teléfono (ya validado)
- * @returns {string} - conversationId único (UUID)
+ * @returns {string} - conversationId único con formato conv_+phone1_+phone2
  */
 function generateConversationId (phone1, phone2) {
   if (!phone1 || !phone2) {
@@ -25,8 +25,8 @@ function generateConversationId (phone1, phone2) {
   // Ordenar los números para asegurar consistencia
   const sorted = [normalized1, normalized2].sort();
   
-  // Generar ID determinístico basado en los números
-  return `conv_${sorted[0]}_${sorted[1]}`;
+  // 🔧 CORRECCIÓN: Generar ID con formato conv_+phone1_+phone2 para mantener los símbolos +
+  return `conv_+${sorted[0]}_+${sorted[1]}`;
 }
 
 /**
@@ -39,15 +39,20 @@ function extractParticipants (conversationId) {
     throw new Error('conversationId inválido');
   }
 
+  // 🔧 CORRECCIÓN: Manejar formato conv_+phone1_+phone2
   const phones = conversationId.replace('conv_', '').split('_');
 
   if (phones.length !== 2) {
     throw new Error('conversationId debe contener exactamente 2 números');
   }
 
+  // Remover símbolos + si están presentes
+  const phone1 = phones[0].replace('+', '');
+  const phone2 = phones[1].replace('+', '');
+
   return {
-    phone1: phones[0],
-    phone2: phones[1],
+    phone1: phone1,
+    phone2: phone2,
   };
 }
 
@@ -60,10 +65,12 @@ function isValidConversationId (conversationId) {
   try {
     if (!conversationId || typeof conversationId !== 'string') return false;
     
-    // CORREGIDO: Validar formato conv_phone1_phone2
+    // 🔧 CORRECCIÓN: Validar formato conv_+phone1_+phone2
     if (conversationId.startsWith('conv_')) {
       const parts = conversationId.replace('conv_', '').split('_');
-      return parts.length === 2 && parts.every(part => part.length > 0);
+      // Verificar que hay exactamente 2 partes y que cada una tenga al menos un dígito
+      return parts.length === 2 && 
+             parts.every(part => part.length > 0 && /^\+?\d+$/.test(part));
     }
     
     // También aceptar UUID por compatibilidad
@@ -80,35 +87,29 @@ function isValidConversationId (conversationId) {
  * @returns {string} - Número normalizado
  */
 function normalizePhoneNumber (phone) {
-  if (!phone) return null;
-  
-  // Remover prefijo WhatsApp si existe
-  let normalized = phone.replace(/^whatsapp:/, '');
-  
-  // Remover espacios, guiones, paréntesis y otros caracteres
-  normalized = normalized.replace(/[\s\-()]/g, '');
-  
-  // Obtener solo dígitos para validación
-  const digitsOnly = normalized.replace(/\D/g, '');
-  
-  // Validar que tenga al menos 7 dígitos (mínimo para números válidos)
-  if (digitsOnly.length < 7) {
+  if (!phone || typeof phone !== 'string') {
     return null;
   }
+
+  // 🔧 CORRECCIÓN: Mejorar normalización para manejar símbolos +
+  let normalized = phone.trim();
   
-  // Asegurar que comience con +
-  if (!normalized.startsWith('+')) {
-    // Si no tiene código de país, asumir +1 (EEUU) solo para números de 10 dígitos
-    if (digitsOnly.length === 10) {
-      normalized = '+1' + digitsOnly;
-    } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
-      normalized = '+' + digitsOnly;
-    } else if (digitsOnly.length >= 7) {
-      // Solo agregar + si tiene al menos 7 dígitos
-      normalized = '+' + digitsOnly;
-    } else {
-      return null; // Rechazar números muy cortos
+  // Remover espacios y caracteres especiales excepto +
+  normalized = normalized.replace(/[^\d+]/g, '');
+  
+  // Asegurar que tenga el formato correcto
+  if (normalized.startsWith('+')) {
+    // Formato internacional: +1234567890
+    if (normalized.length < 11) {
+      return null; // Muy corto para ser válido
     }
+  } else {
+    // Formato local: 1234567890
+    if (normalized.length < 10) {
+      return null; // Muy corto para ser válido
+    }
+    // Agregar + si no lo tiene
+    normalized = '+' + normalized;
   }
   
   return normalized;

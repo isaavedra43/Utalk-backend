@@ -99,6 +99,7 @@ router.get('/',
 router.get('/:id',
   authMiddleware,
   requireReadAccess,
+  normalizeConversationId, // 🔧 CORRECCIÓN: Normalizar conversationId en params
   validateId('id'),
   ConversationController.getConversation
 );

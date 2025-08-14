@@ -384,7 +384,27 @@ class ConversationController {
    */
   static async getConversation(req, res, next) {
     try {
-      const { conversationId } = req.params;
+      // 🔧 CORRECCIÓN: Decodificar conversationId para manejar caracteres especiales
+      let { conversationId } = req.params;
+      
+      // Decodificar URL encoding para manejar caracteres como +
+      try {
+        conversationId = decodeURIComponent(conversationId);
+      } catch (decodeError) {
+        logger.warn('Error decodificando conversationId', {
+          originalId: req.params.conversationId,
+          error: decodeError.message
+        });
+        // Continuar con el ID original si falla la decodificación
+      }
+
+      // 🔍 LOGGING PARA DEBUG
+      logger.info('ConversationController.getConversation - Procesando request', {
+        originalId: req.params.conversationId,
+        decodedId: conversationId,
+        userEmail: req.user?.email,
+        userRole: req.user?.role
+      });
 
       const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {

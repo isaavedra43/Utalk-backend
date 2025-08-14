@@ -4,6 +4,7 @@ const MessageController = require('../controllers/MessageController');
 const { validateRequest } = require('../middleware/validation');
 const { validatePhoneInBody, validateMultiplePhonesInBody } = require('../middleware/phoneValidation');
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
+const { normalizeConversationIdQuery } = require('../middleware/conversationIdNormalization');
 const Joi = require('joi');
 
 // Validadores específicos para mensajes
@@ -103,6 +104,7 @@ const { validateId } = require('../middleware/validation');
 router.get('/',
   authMiddleware,
   requireReadAccess,
+  normalizeConversationIdQuery, // 🔧 CORRECCIÓN: Normalizar conversationId en query
   messageValidators.validateList,
   MessageController.getMessages
 );
