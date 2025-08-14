@@ -233,6 +233,9 @@ class RefreshTokenAuth {
           role: user.role,
           name: user.name,
           type: 'access',
+          userId: user.id,           // 🔧 CORRECCIÓN: Agregar userId
+          workspaceId: user.workspaceId || 'default',  // 🔧 CORRECCIÓN: Agregar workspaceId
+          tenantId: user.tenantId || 'na',             // 🔧 CORRECCIÓN: Agregar tenantId
           iat: Math.floor(Date.now() / 1000),
         },
         accessConfig.secret,

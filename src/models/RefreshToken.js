@@ -440,6 +440,8 @@ class RefreshToken {
         type: 'refresh',
         userEmail,
         userId,
+        workspaceId: 'default',  // 🔧 CORRECCIÓN: Agregar workspaceId
+        tenantId: 'na',          // 🔧 CORRECCIÓN: Agregar tenantId
         familyId: uuidv4(),
         deviceId: deviceInfo.deviceId || uuidv4(),
         iat: Math.floor(Date.now() / 1000)

@@ -199,6 +199,9 @@ class AuthController {
         role: user.role,
         name: user.name,
         type: 'access',
+        userId: user.id,           // 🔧 CORRECCIÓN: Agregar userId
+        workspaceId: user.workspaceId || 'default',  // 🔧 CORRECCIÓN: Agregar workspaceId
+        tenantId: user.tenantId || 'na',             // 🔧 CORRECCIÓN: Agregar tenantId
         iat: Math.floor(Date.now() / 1000),
       };
       console.log('🔍 [LOGIN] accessTokenPayload creado:', { 
@@ -206,6 +209,9 @@ class AuthController {
         role: accessTokenPayload.role, 
         name: accessTokenPayload.name,
         type: accessTokenPayload.type,
+        userId: accessTokenPayload.userId,           // 🔧 CORRECCIÓN: Log userId
+        workspaceId: accessTokenPayload.workspaceId, // 🔧 CORRECCIÓN: Log workspaceId
+        tenantId: accessTokenPayload.tenantId,       // 🔧 CORRECCIÓN: Log tenantId
         iat: accessTokenPayload.iat 
       });
 
