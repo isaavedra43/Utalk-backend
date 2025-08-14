@@ -47,7 +47,6 @@ class MessageController {
   static async getMessages(req, res, next) {
     try {
       const {
-        conversationId: rawConversationId,
         limit = 50,
         cursor,
         direction,
@@ -56,17 +55,8 @@ class MessageController {
         search
       } = req.query;
 
-      // 🔧 CORRECCIÓN: Decodificar conversationId para manejar caracteres especiales
-      let conversationId;
-      try {
-        conversationId = rawConversationId ? decodeURIComponent(rawConversationId) : null;
-      } catch (decodeError) {
-        logger.warn('Error decodificando conversationId en query', {
-          originalId: rawConversationId,
-          error: decodeError.message
-        });
-        conversationId = rawConversationId; // Usar el original si falla la decodificación
-      }
+      // 🔧 CORRECCIÓN CRÍTICA: Usar el conversationId ya normalizado por el middleware
+      const conversationId = req.query.conversationId;
 
       // Validar conversationId (requerido)
       if (!conversationId) {
@@ -78,12 +68,13 @@ class MessageController {
         );
       }
 
-      // 🔍 LOGGING PARA DEBUG
+      // 🔍 LOGGING MEJORADO PARA DEBUG
       logger.info('MessageController.getMessages - Procesando request', {
-        originalId: rawConversationId,
-        decodedId: conversationId,
+        conversationId,
         userEmail: req.user?.email,
-        userRole: req.user?.role
+        userRole: req.user?.role,
+        method: req.method,
+        url: req.originalUrl
       });
 
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));

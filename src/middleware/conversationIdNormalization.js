@@ -19,10 +19,21 @@ function normalizeConversationId(req, res, next) {
       });
     }
 
-    // 🔧 CORRECCIÓN: Mejorar normalización URL encoding
+    // 🔧 CORRECCIÓN CRÍTICA: Mejorar decodificación URL encoding
     let normalized;
     try {
+      // Decodificar URL encoding para manejar %2B -> +
       normalized = decodeURIComponent(rawConversationId);
+      
+      // 🔍 LOGGING PARA DEBUG - Ver qué se recibe y qué se decodifica
+      logger.info('ConversationId decodificación', {
+        requestId: req.id || 'unknown',
+        rawConversationId,
+        decodedConversationId: normalized,
+        method: req.method,
+        url: req.originalUrl
+      });
+      
     } catch (decodeError) {
       logger.warn('Error decodificando conversationId', {
         requestId: req.id || 'unknown',
@@ -104,10 +115,21 @@ function normalizeConversationIdQuery(req, res, next) {
       return next(); // No hay conversationId, continuar
     }
 
-    // 🔧 CORRECCIÓN: Decodificar conversationId en query parameters
+    // 🔧 CORRECCIÓN CRÍTICA: Decodificar conversationId en query parameters
     let normalized;
     try {
+      // Decodificar URL encoding para manejar %2B -> +
       normalized = decodeURIComponent(rawConversationId);
+      
+      // 🔍 LOGGING PARA DEBUG - Ver qué se recibe y qué se decodifica
+      logger.info('ConversationId query decodificación', {
+        requestId: req.id || 'unknown',
+        rawConversationId,
+        decodedConversationId: normalized,
+        method: req.method,
+        url: req.originalUrl
+      });
+      
     } catch (decodeError) {
       logger.warn('Error decodificando conversationId en query', {
         requestId: req.id || 'unknown',
@@ -188,7 +210,7 @@ function parseConversationId(conversationId) {
       return { valid: false, error: 'conversationId debe ser una cadena válida' };
     }
 
-    // 🔧 CORRECCIÓN: Validar formato conv_+phone1_+phone2
+    // 🔧 CORRECCIÓN CRÍTICA: Validar formato conv_+phone1_+phone2
     if (!conversationId.startsWith('conv_')) {
       return { valid: false, error: 'conversationId debe comenzar con conv_' };
     }
@@ -203,13 +225,14 @@ function parseConversationId(conversationId) {
     const phone1 = parts[0];
     const phone2 = parts[1];
 
-    // Verificar formato: +1234567890 o 1234567890
-    const phoneRegex = /^\+?\d{10,15}$/;
+    // 🔧 CORRECCIÓN: Validación más flexible para conversationId
+    // Aceptar números con o sin +, entre 7 y 15 dígitos
+    const phoneRegex = /^\+?\d{7,15}$/;
     
     if (!phoneRegex.test(phone1) || !phoneRegex.test(phone2)) {
       return { 
         valid: false, 
-        error: 'Los números de teléfono deben tener entre 10 y 15 dígitos y pueden incluir +' 
+        error: 'Los números de teléfono deben tener entre 7 y 15 dígitos y pueden incluir +' 
       };
     }
 

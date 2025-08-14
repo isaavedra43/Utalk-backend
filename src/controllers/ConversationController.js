@@ -379,31 +379,27 @@ class ConversationController {
   }
 
   /**
-   * 👁️ GET /api/conversations/:conversationId
-   * Obtiene una conversación específica con validación de permisos
+   * 📋 GET /api/conversations/:id
+   * Obtiene una conversación específica por ID
    */
   static async getConversation(req, res, next) {
     try {
-      // 🔧 CORRECCIÓN: Decodificar conversationId para manejar caracteres especiales
-      let { conversationId } = req.params;
+      // 🔧 CORRECCIÓN CRÍTICA: Usar el conversationId ya normalizado por el middleware
+      const conversationId = req.normalizedConversationId || req.params.conversationId || req.params.id;
       
-      // Decodificar URL encoding para manejar caracteres como +
-      try {
-        conversationId = decodeURIComponent(conversationId);
-      } catch (decodeError) {
-        logger.warn('Error decodificando conversationId', {
-          originalId: req.params.conversationId,
-          error: decodeError.message
-        });
-        // Continuar con el ID original si falla la decodificación
+      if (!conversationId) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND('undefined');
       }
 
-      // 🔍 LOGGING PARA DEBUG
+      // 🔍 LOGGING MEJORADO PARA DEBUG
       logger.info('ConversationController.getConversation - Procesando request', {
         originalId: req.params.conversationId,
-        decodedId: conversationId,
+        normalizedId: req.normalizedConversationId,
+        finalId: conversationId,
         userEmail: req.user?.email,
-        userRole: req.user?.role
+        userRole: req.user?.role,
+        method: req.method,
+        url: req.originalUrl
       });
 
       const conversation = await ConversationService.getConversationById(conversationId);
@@ -416,7 +412,7 @@ class ConversationController {
         throw CommonErrors.USER_NOT_AUTHORIZED('ver esta conversación', conversationId);
       }
 
-      logger.info('Conversación obtenida', {
+      logger.info('Conversación obtenida exitosamente', {
         conversationId,
         userEmail: req.user.email,
         assignedTo: conversation.assignedTo
