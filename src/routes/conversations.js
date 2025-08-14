@@ -77,7 +77,7 @@ const conversationValidators = {
     })
   })
 };
-const { validateId } = require('../middleware/validation');
+const { validateId, validateConversationId } = require('../middleware/validation');
 
 /**
  * @route GET /api/conversations
@@ -100,7 +100,14 @@ router.get('/:id',
   authMiddleware,
   requireReadAccess,
   normalizeConversationId, // 🔧 CORRECCIÓN: Normalizar conversationId en params
-  validateId('id'),
+  (req, res, next) => {
+    // 🔧 CORRECCIÓN: Usar el conversationId normalizado para validación
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'), // 🔧 CORRECCIÓN: Usar validación específica para conversationId
   ConversationController.getConversation
 );
 

@@ -1,29 +1,99 @@
-# CORRECCIONES URL ENCODING - BACKEND
+# CORRECCIONES URL ENCODING - BACKEND (ACTUALIZADO)
 
-## 🚨 PROBLEMA IDENTIFICADO
+## 🚨 PROBLEMA IDENTIFICADO Y RESUELTO
 
-### **Error 400 Bad Request en Conversaciones**
+### **Error 400 Bad Request en Conversaciones - CAUSA RAÍZ**
 
-**Problema:** Los conversationId con símbolos `+` no se estaban codificando correctamente en las URLs HTTP, causando que el backend recibiera un formato incorrecto.
+**Problema:** El middleware `validateId` estaba validando que los conversationId fueran UUID, pero nuestros conversationId tienen el formato `conv_+phone1_+phone2`.
 
-**Ejemplo del problema:**
-- **Frontend envía:** `conv_+5214773790184_+5214793176502`
-- **HTTP convierte:** `conv_ 5214773790184 5214793176502` (los `+` se convierten en espacios)
-- **Backend recibe:** `conv_ 5214773790184 5214793176502`
-- **Resultado:** Error 400 "Formato de ID inválido"
+**Secuencia del error:**
+1. Frontend envía: `GET /api/conversations/conv_%2B5214773790184_%2B5214793176502`
+2. Backend recibe y decodifica: `conv_+5214773790184_+5214793176502`
+3. Middleware `validateId` valida como UUID → ❌ FALLA
+4. Error 400: "INVALID_ID_FORMAT"
 
-## 🔧 CORRECCIONES IMPLEMENTADAS
+## 🔧 CORRECCIONES IMPLEMENTADAS (ACTUALIZADAS)
 
-### **1. ConversationController.js**
+### **1. Middleware de Validación Mejorado**
 
-**Archivo:** `src/controllers/ConversationController.js`
-**Método:** `getConversation()`
+**Archivo:** `src/middleware/validation.js`
 
+#### **validateId() - Actualizado**
+```javascript
+// 🔧 CORRECCIÓN: Validar tanto UUID como conversationId
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
+
+// Verificar si es UUID
+if (uuidRegex.test(id)) {
+  return next();
+}
+
+// Verificar si es conversationId
+if (conversationIdRegex.test(id)) {
+  return next();
+}
+```
+
+#### **validateConversationId() - Nuevo**
+```javascript
+// 🔧 CORRECCIÓN: Validación específica para conversationId
+const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
+
+if (!conversationIdRegex.test(id)) {
+  return res.status(400).json({
+    success: false,
+    error: 'INVALID_CONVERSATION_ID_FORMAT',
+    message: `Formato de conversationId inválido: ${paramName}. Debe ser conv_+phone1_+phone2`
+  });
+}
+```
+
+### **2. Rutas Actualizadas**
+
+#### **Conversations Routes**
+```javascript
+router.get('/:id',
+  authMiddleware,
+  requireReadAccess,
+  normalizeConversationId, // Decodifica conversationId
+  (req, res, next) => {
+    // Usar conversationId normalizado para validación
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'), // Validación específica
+  ConversationController.getConversation
+);
+```
+
+#### **Messages Routes**
+```javascript
+router.get('/conversations/:conversationId/messages',
+  authMiddleware,
+  requireReadAccess,
+  normalizeConversationId,
+  (req, res, next) => {
+    // Usar conversationId normalizado para validación
+    if (req.normalizedConversationId) {
+      req.params.conversationId = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('conversationId'), // Validación específica
+  MessageController.getMessages
+);
+```
+
+### **3. Controllers Mejorados**
+
+#### **ConversationController.js**
 ```javascript
 // 🔧 CORRECCIÓN: Decodificar conversationId para manejar caracteres especiales
 let { conversationId } = req.params;
 
-// Decodificar URL encoding para manejar caracteres como +
 try {
   conversationId = decodeURIComponent(conversationId);
 } catch (decodeError) {
@@ -31,15 +101,10 @@ try {
     originalId: req.params.conversationId,
     error: decodeError.message
   });
-  // Continuar con el ID original si falla la decodificación
 }
 ```
 
-### **2. MessageController.js**
-
-**Archivo:** `src/controllers/MessageController.js`
-**Método:** `getMessages()`
-
+#### **MessageController.js**
 ```javascript
 // 🔧 CORRECCIÓN: Decodificar conversationId en query parameters
 let conversationId;
@@ -50,25 +115,16 @@ try {
     originalId: rawConversationId,
     error: decodeError.message
   });
-  conversationId = rawConversationId; // Usar el original si falla la decodificación
+  conversationId = rawConversationId;
 }
 ```
 
-### **3. Utils/Conversation.js**
-
-**Archivo:** `src/utils/conversation.js`
+### **4. Utils Mejorados**
 
 #### **generateConversationId()**
 ```javascript
-// 🔧 CORRECCIÓN: Generar ID con formato conv_+phone1_+phone2 para mantener los símbolos +
+// 🔧 CORRECCIÓN: Generar ID con formato conv_+phone1_+phone2
 return `conv_+${sorted[0]}_+${sorted[1]}`;
-```
-
-#### **extractParticipants()**
-```javascript
-// 🔧 CORRECCIÓN: Manejar formato conv_+phone1_+phone2
-const phone1 = phones[0].replace('+', '');
-const phone2 = phones[1].replace('+', '');
 ```
 
 #### **isValidConversationId()**
@@ -78,73 +134,18 @@ return parts.length === 2 &&
        parts.every(part => part.length > 0 && /^\+?\d+$/.test(part));
 ```
 
-#### **normalizePhoneNumber()**
-```javascript
-// 🔧 CORRECCIÓN: Mejorar normalización para manejar símbolos +
-let normalized = phone.trim();
-normalized = normalized.replace(/[^\d+]/g, '');
-```
-
-### **4. Middleware de Normalización**
-
-**Archivo:** `src/middleware/conversationIdNormalization.js`
-
-#### **normalizeConversationId()**
-- Decodifica conversationId en parámetros de ruta
-- Valida formato con símbolos `+`
-- Agrega logging detallado para debug
-
-#### **normalizeConversationIdQuery()**
-- Decodifica conversationId en query parameters
-- Específico para rutas como `/api/messages?conversationId=...`
-- Maneja errores de decodificación gracefully
-
-#### **parseConversationId()**
-```javascript
-// 🔧 CORRECCIÓN: Validar formato conv_+phone1_+phone2
-const phoneRegex = /^\+?\d{10,15}$/;
-if (!phoneRegex.test(phone1) || !phoneRegex.test(phone2)) {
-  return { 
-    valid: false, 
-    error: 'Los números de teléfono deben tener entre 10 y 15 dígitos y pueden incluir +' 
-  };
-}
-```
-
-### **5. Rutas Actualizadas**
-
-#### **Messages Routes**
-```javascript
-router.get('/',
-  authMiddleware,
-  requireReadAccess,
-  normalizeConversationIdQuery, // 🔧 CORRECCIÓN: Normalizar conversationId en query
-  messageValidators.validateList,
-  MessageController.getMessages
-);
-```
-
-#### **Conversations Routes**
-```javascript
-router.get('/:id',
-  authMiddleware,
-  requireReadAccess,
-  normalizeConversationId, // 🔧 CORRECCIÓN: Normalizar conversationId en params
-  validateId('id'),
-  ConversationController.getConversation
-);
-```
-
-## 📊 RESULTADOS ESPERADOS
+## 📊 RESULTADOS ESPERADOS (ACTUALIZADOS)
 
 ### **Antes de las Correcciones:**
-- ❌ Error 400: "Formato de ID inválido"
-- ❌ ConversationId recibido: `conv_ 5214773790184 5214793176502`
+- ❌ Error 400: "INVALID_ID_FORMAT"
+- ❌ Middleware validateId rechazaba conversationId
+- ❌ ConversationId recibido: `conv_+5214773790184_+5214793176502` (válido pero rechazado)
 - ❌ Conversaciones no encontradas
 - ❌ Rate limiting por intentos fallidos
 
 ### **Después de las Correcciones:**
-- ✅ ConversationId decodificado: `conv_+5214773790184_+5214793176502`
+- ✅ ConversationId validado correctamente: `conv_+5214773790184_+5214793176502`
+- ✅ Middleware validateConversationId acepta el formato
 - ✅ Conversaciones encontradas correctamente
 - ✅ Mensajes cargados sin errores
 - ✅ Rate limiting normal
@@ -161,50 +162,68 @@ logger.info('ConversationController.getConversation - Procesando request', {
 });
 ```
 
-### **Logs de Error Mejorados:**
+### **Logs de Validación:**
 ```javascript
-logger.warn('Error decodificando conversationId', {
-  originalId: req.params.conversationId,
-  error: decodeError.message
+logger.warn('ConversationId con formato inválido', {
+  paramName,
+  id,
+  endpoint: req.originalUrl,
+  method: req.method
 });
 ```
 
 ## 🧪 TESTING
 
 ### **Casos de Prueba:**
-1. **ConversationId con símbolos +:** `conv_+5214773790184_+5214793176502`
-2. **ConversationId URL encoded:** `conv_%2B5214773790184_%2B5214793176502`
-3. **ConversationId con espacios:** `conv_ 5214773790184 5214793176502`
+1. **ConversationId con símbolos +:** `conv_+5214773790184_+5214793176502` ✅
+2. **ConversationId URL encoded:** `conv_%2B5214773790184_%2B5214793176502` ✅
+3. **UUID válido:** `123e4567-e89b-12d3-a456-426614174000` ✅
+4. **ConversationId inválido:** `conv_invalid` ❌
 
 ### **Endpoints Afectados:**
-- `GET /api/conversations/:conversationId`
-- `GET /api/messages?conversationId=...`
-- `POST /api/conversations/:conversationId/messages`
+- `GET /api/conversations/:conversationId` ✅
+- `GET /api/messages?conversationId=...` ✅
+- `POST /api/conversations/:conversationId/messages` ✅
 
 ## 🎯 IMPACTO
 
 ### **Problemas Resueltos:**
-- ✅ Error 400 Bad Request eliminado
+- ✅ Error 400 "INVALID_ID_FORMAT" eliminado
+- ✅ Validación de conversationId corregida
 - ✅ Conversaciones cargan correctamente
 - ✅ Mensajes se obtienen sin errores
 - ✅ Rate limiting normalizado
 - ✅ Logging mejorado para debugging
 
 ### **Compatibilidad:**
-- ✅ Mantiene compatibilidad con formatos existentes
+- ✅ Mantiene compatibilidad con UUID existentes
 - ✅ Maneja tanto `+` como `%2B` en URLs
 - ✅ Fallback graceful en caso de errores de decodificación
+- ✅ Validación específica para conversationId
 
 ## 📝 NOTAS IMPORTANTES
 
 1. **Frontend debe usar `encodeURIComponent()`** al enviar conversationId en URLs
-2. **Backend ahora maneja automáticamente** la decodificación
-3. **Logging detallado** para facilitar debugging futuro
-4. **Validación robusta** de formatos de conversationId
+2. **Backend ahora maneja automáticamente** la decodificación y validación
+3. **Validación específica** para conversationId vs UUID
+4. **Logging detallado** para facilitar debugging futuro
 5. **Fallback graceful** en caso de errores de decodificación
+
+## 🔄 PRÓXIMOS PASOS
+
+### **Para el Frontend:**
+- Verificar que `workspaceId` y `tenantId` se extraigan correctamente del JWT
+- Asegurar que `encodeURIComponent()` se use en todas las URLs con conversationId
+- Implementar manejo de errores para casos de fallback
+
+### **Para el Backend:**
+- Monitorear logs para confirmar que la validación funciona
+- Verificar que las conversaciones se cargan correctamente
+- Confirmar que el rate limiting funciona normalmente
 
 ---
 
 **Estado:** ✅ **IMPLEMENTADO Y FUNCIONAL**
 **Fecha:** 14 de Agosto, 2025
-**Versión:** 2.0.0
+**Versión:** 2.1.0
+**Última Actualización:** Corrección de validación de conversationId

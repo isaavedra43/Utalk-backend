@@ -6,6 +6,7 @@ const { validatePhoneInBody, validateMultiplePhonesInBody } = require('../middle
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const { normalizeConversationIdQuery } = require('../middleware/conversationIdNormalization');
 const Joi = require('joi');
+const { validateId, validateConversationId } = require('../middleware/validation');
 
 // Validadores específicos para mensajes
 const messageValidators = {
@@ -94,7 +95,6 @@ const messageValidators = {
     })
   })
 };
-const { validateId } = require('../middleware/validation');
 
 /**
  * @route GET /api/messages
@@ -117,7 +117,15 @@ router.get('/',
 router.get('/conversations/:conversationId/messages',
   authMiddleware,
   requireReadAccess,
-  validateId('conversationId'),
+  normalizeConversationId,
+  (req, res, next) => {
+    // 🔧 CORRECCIÓN: Usar el conversationId normalizado para validación
+    if (req.normalizedConversationId) {
+      req.params.conversationId = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('conversationId'), // 🔧 CORRECCIÓN: Usar validación específica
   MessageController.getMessages
 );
 
@@ -129,7 +137,15 @@ router.get('/conversations/:conversationId/messages',
 router.post('/conversations/:conversationId/messages',
   authMiddleware,
   requireWriteAccess,
-  validateId('conversationId'),
+  normalizeConversationId,
+  (req, res, next) => {
+    // 🔧 CORRECCIÓN: Usar el conversationId normalizado para validación
+    if (req.normalizedConversationId) {
+      req.params.conversationId = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('conversationId'), // 🔧 CORRECCIÓN: Usar validación específica
   messageValidators.validateCreateInConversation,
   MessageController.createMessageInConversation
 );

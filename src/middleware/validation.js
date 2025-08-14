@@ -255,14 +255,74 @@ function validateId(paramName = 'id') {
         });
       }
 
-      // Validar formato UUID
+      // 🔧 CORRECCIÓN: Validar tanto UUID como conversationId
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
       
-      if (!uuidRegex.test(id)) {
+      // Verificar si es UUID
+      if (uuidRegex.test(id)) {
+        return next();
+      }
+      
+      // Verificar si es conversationId
+      if (conversationIdRegex.test(id)) {
+        return next();
+      }
+      
+      // Si no es ninguno de los formatos válidos
+      logger.warn('ID con formato inválido', {
+        paramName,
+        id,
+        endpoint: req.originalUrl,
+        method: req.method
+      });
+      
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_ID_FORMAT',
+        message: `Formato de ID inválido: ${paramName}. Debe ser UUID o conversationId (conv_+phone1_+phone2)`,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error en validación de ID:', error);
+      next(new ApiError('ID_VALIDATION_ERROR', 'Error validando ID', 500));
+    }
+  };
+}
+
+/**
+ * Middleware de validación específica para conversationId
+ */
+function validateConversationId(paramName = 'conversationId') {
+  return (req, res, next) => {
+    try {
+      const id = req.params[paramName] || req.query[paramName];
+      
+      if (!id) {
         return res.status(400).json({
           success: false,
-          error: 'INVALID_ID_FORMAT',
-          message: `Formato de ID inválido: ${paramName}`,
+          error: 'MISSING_CONVERSATION_ID',
+          message: `conversationId requerido en parámetro: ${paramName}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // 🔧 CORRECCIÓN: Validar formato conversationId específicamente
+      const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
+      
+      if (!conversationIdRegex.test(id)) {
+        logger.warn('ConversationId con formato inválido', {
+          paramName,
+          id,
+          endpoint: req.originalUrl,
+          method: req.method
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_CONVERSATION_ID_FORMAT',
+          message: `Formato de conversationId inválido: ${paramName}. Debe ser conv_+phone1_+phone2`,
           timestamp: new Date().toISOString()
         });
       }
@@ -270,8 +330,8 @@ function validateId(paramName = 'id') {
       next();
 
     } catch (error) {
-      logger.error('Error en validación de ID:', error);
-      next(new ApiError('ID_VALIDATION_ERROR', 'Error validando ID', 500));
+      logger.error('Error en validación de conversationId:', error);
+      next(new ApiError('CONVERSATION_ID_VALIDATION_ERROR', 'Error validando conversationId', 500));
     }
   };
 }
@@ -410,6 +470,7 @@ module.exports = {
   validateRequest,
   validateFile,
   validateId,
+  validateConversationId,
   validatePagination,
   validateSearch,
   formatFileSize,
