@@ -119,7 +119,14 @@ router.get('/:id',
 router.put('/:id',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   conversationValidators.validateUpdate,
   ConversationController.updateConversation
 );
@@ -132,7 +139,14 @@ router.put('/:id',
 router.put('/:id/assign',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   conversationValidators.validateAssign,
   ConversationController.assignConversation
 );
@@ -145,7 +159,14 @@ router.put('/:id/assign',
 router.put('/:id/unassign',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   ConversationController.unassignConversation
 );
 
@@ -157,7 +178,14 @@ router.put('/:id/unassign',
 router.post('/:id/transfer',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   conversationValidators.validateTransfer,
   ConversationController.transferConversation
 );
@@ -170,7 +198,14 @@ router.post('/:id/transfer',
 router.put('/:id/status',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   conversationValidators.validateChangeStatus,
   ConversationController.changeConversationStatus
 );
@@ -183,7 +218,14 @@ router.put('/:id/status',
 router.put('/:id/priority',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   conversationValidators.validateChangePriority,
   ConversationController.changeConversationPriority
 );
@@ -196,8 +238,15 @@ router.put('/:id/priority',
 router.put('/:id/read-all',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
-  ConversationController.markConversationAsRead
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
+  ConversationController.markAllMessagesAsRead
 );
 
 /**
@@ -209,6 +258,13 @@ router.post('/:id/messages',
   authMiddleware,
   requireWriteAccess,
   normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   autoGenerateMessageId,
   fallbackSenderIdentifier,
   validateMessagePayload,
@@ -223,7 +279,14 @@ router.post('/:id/messages',
 router.post('/:id/typing',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   ConversationController.indicateTyping
 );
 
@@ -247,7 +310,14 @@ router.post('/',
 router.delete('/:id',
   authMiddleware,
   requireWriteAccess,
-  validateId('id'),
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  validateConversationId('id'),
   ConversationController.deleteConversation
 );
 
