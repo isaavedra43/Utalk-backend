@@ -25,13 +25,14 @@ function normalizeConversationId(req, res, next) {
       // Decodificar URL encoding para manejar %2B -> +
       normalized = decodeURIComponent(rawConversationId);
       
-      // 🔍 LOGGING PARA DEBUG - Ver qué se recibe y qué se decodifica
-      logger.info('ConversationId decodificación', {
+      // 🔍 LOGGING MEJORADO PARA DEBUG - Ver qué se recibe y qué se decodifica
+      logger.info('ConversationId decodificación EXITOSA', {
         requestId: req.id || 'unknown',
         rawConversationId,
         decodedConversationId: normalized,
         method: req.method,
-        url: req.originalUrl
+        url: req.originalUrl,
+        timestamp: new Date().toISOString()
       });
       
     } catch (decodeError) {

@@ -240,12 +240,13 @@ function validateFile(options = {}) {
 
 /**
  * Middleware de validación para IDs
- * 🔧 CORRECCIÓN CRÍTICA: Decodificar URL encoding antes de validar
+ * 🔧 CORRECCIÓN CRÍTICA: Usar conversationId ya normalizado si está disponible
  */
 function validateId(paramName = 'id') {
   return (req, res, next) => {
     try {
-      let id = req.params[paramName];
+      // 🔧 CORRECCIÓN CRÍTICA: Usar el ID ya normalizado si está disponible
+      const id = req.normalizedConversationId || req.params[paramName];
       
       if (!id) {
         return res.status(400).json({
@@ -256,53 +257,24 @@ function validateId(paramName = 'id') {
         });
       }
 
-      // 🔧 CORRECCIÓN CRÍTICA: Decodificar URL encoding ANTES de validar
-      let decodedId = id;
-      try {
-        decodedId = decodeURIComponent(id);
-        
-        // 🔍 LOGGING PARA DEBUG
-        logger.info('ID decodificado en validación', {
-          paramName,
-          originalId: id,
-          decodedId: decodedId,
-          endpoint: req.originalUrl,
-          method: req.method
-        });
-        
-      } catch (decodeError) {
-        logger.warn('Error decodificando ID en validación', {
-          paramName,
-          originalId: id,
-          error: decodeError.message
-        });
-        // Continuar con el ID original si falla la decodificación
-        decodedId = id;
-      }
-
-      // 🔧 CORRECCIÓN: Validar tanto UUID como conversationId DESPUÉS de decodificar
+      // 🔧 CORRECCIÓN: Validar tanto UUID como conversationId (ya normalizado)
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
       
       // Verificar si es UUID
-      if (uuidRegex.test(decodedId)) {
-        // Actualizar el request con el ID decodificado
-        req.params[paramName] = decodedId;
+      if (uuidRegex.test(id)) {
         return next();
       }
       
       // Verificar si es conversationId
-      if (conversationIdRegex.test(decodedId)) {
-        // Actualizar el request con el ID decodificado
-        req.params[paramName] = decodedId;
+      if (conversationIdRegex.test(id)) {
         return next();
       }
       
       // Si no es ninguno de los formatos válidos
-      logger.warn('ID con formato inválido después de decodificar', {
+      logger.warn('ID con formato inválido (ya normalizado)', {
         paramName,
-        originalId: id,
-        decodedId: decodedId,
+        id: id,
         endpoint: req.originalUrl,
         method: req.method
       });
@@ -311,8 +283,7 @@ function validateId(paramName = 'id') {
         success: false,
         error: 'INVALID_ID_FORMAT',
         message: `Formato de ID inválido: ${paramName}. Debe ser UUID o conversationId (conv_+phone1_+phone2)`,
-        originalValue: id,
-        decodedValue: decodedId,
+        value: id,
         timestamp: new Date().toISOString()
       });
 
@@ -325,12 +296,14 @@ function validateId(paramName = 'id') {
 
 /**
  * Middleware de validación específica para conversationId
- * 🔧 CORRECCIÓN CRÍTICA: Decodificar URL encoding antes de validar
+ * 🔧 CORRECCIÓN CRÍTICA: Usar el conversationId ya normalizado por normalizeConversationId
  */
 function validateConversationId(paramName = 'conversationId') {
   return (req, res, next) => {
     try {
-      let id = req.params[paramName] || req.query[paramName];
+      // 🔧 CORRECCIÓN CRÍTICA: Usar el conversationId ya normalizado
+      // El middleware normalizeConversationId ya se encarga de la decodificación
+      const id = req.normalizedConversationId || req.params[paramName] || req.query[paramName];
       
       if (!id) {
         return res.status(400).json({
@@ -341,38 +314,13 @@ function validateConversationId(paramName = 'conversationId') {
         });
       }
 
-      // 🔧 CORRECCIÓN CRÍTICA: Decodificar URL encoding ANTES de validar
-      let decodedId = id;
-      try {
-        decodedId = decodeURIComponent(id);
-        
-        // 🔍 LOGGING PARA DEBUG
-        logger.info('ConversationId decodificado en validación', {
-          paramName,
-          originalId: id,
-          decodedId: decodedId,
-          endpoint: req.originalUrl,
-          method: req.method
-        });
-        
-      } catch (decodeError) {
-        logger.warn('Error decodificando conversationId en validación', {
-          paramName,
-          originalId: id,
-          error: decodeError.message
-        });
-        // Continuar con el ID original si falla la decodificación
-        decodedId = id;
-      }
-
-      // 🔧 CORRECCIÓN: Validar formato conversationId específicamente DESPUÉS de decodificar
+      // 🔧 CORRECCIÓN: El conversationId ya está normalizado, solo validar formato
       const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
       
-      if (!conversationIdRegex.test(decodedId)) {
-        logger.warn('ConversationId con formato inválido después de decodificar', {
+      if (!conversationIdRegex.test(id)) {
+        logger.warn('ConversationId con formato inválido (ya normalizado)', {
           paramName,
-          originalId: id,
-          decodedId: decodedId,
+          conversationId: id,
           endpoint: req.originalUrl,
           method: req.method
         });
@@ -381,8 +329,7 @@ function validateConversationId(paramName = 'conversationId') {
           success: false,
           error: 'INVALID_CONVERSATION_ID_FORMAT',
           message: `Formato de conversationId inválido: ${paramName}. Debe ser conv_+phone1_+phone2`,
-          originalValue: id,
-          decodedValue: decodedId,
+          value: id,
           timestamp: new Date().toISOString()
         });
       }
