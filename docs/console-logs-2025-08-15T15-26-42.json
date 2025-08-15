@@ -1,0 +1,2219 @@
+{
+  "exportDate": "2025-08-15T15:26:42.572Z",
+  "totalLogs": 125,
+  "logs": [
+    {
+      "timestamp": "2025-08-15T15:23:46.234Z",
+      "level": "info",
+      "message": "ConsoleExporter: Captura de logs iniciada automáticamente"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.235Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:46.234Z] [INFO] [SYSTEM] Iniciando aplicación UTALK | Data: {\n  \"version\": \"1.0.0\",\n  \"environment\": \"development\",\n  \"debug\": true,\n  \"timestamp\": \"2025-08-15T15:23:46.234Z\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.235Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:46.235Z] [INFO] [CONFIG] Configuración válida al iniciar | Data: {\n  \"allSystemsReady\": true,\n  \"timestamp\": \"2025-08-15T15:23:46.235Z\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.245Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "disconnected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.245Z",
+      "level": "log",
+      "message": "🔗 Room Config - No se puede validar (sin autenticación válida)"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.245Z",
+      "level": "log",
+      "message": "🔐 AuthProvider - Estado actual:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": true,
+          "isAuthenticating": false,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.245Z",
+      "level": "log",
+      "message": "🔐 AuthContext - Estado que se pasa al contexto:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": true,
+          "isAuthenticating": false,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.246Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "disconnected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.246Z",
+      "level": "log",
+      "message": "🔗 Room Config - No se puede validar (sin autenticación válida)"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.246Z",
+      "level": "log",
+      "message": "🔐 AuthProvider - Estado actual:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": true,
+          "isAuthenticating": false,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.246Z",
+      "level": "log",
+      "message": "🔐 AuthContext - Estado que se pasa al contexto:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": true,
+          "isAuthenticating": false,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.257Z",
+      "level": "log",
+      "message": "🔐 AuthProvider - Estado actual:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": false,
+          "isAuthenticating": false,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:46.257Z",
+      "level": "log",
+      "message": "🔐 AuthContext - Estado que se pasa al contexto:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": false,
+          "isAuthenticating": false,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:58.323Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:58.323Z] [INFO] [AUTH] Iniciando login con backend | Data: {\n  \"email\": \"admin@company.com\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:58.326Z",
+      "level": "log",
+      "message": "🔐 AuthProvider - Estado actual:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": true,
+          "isAuthenticating": true,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:58.326Z",
+      "level": "log",
+      "message": "🔐 AuthContext - Estado que se pasa al contexto:",
+      "data": [
+        {
+          "isAuthenticated": false,
+          "loading": true,
+          "isAuthenticating": true,
+          "hasUser": false,
+          "hasBackendUser": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:58.327Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:58.327Z] [INFO] [API] Request sin token | Data: {\n  \"method\": \"POST\",\n  \"url\": \"/api/auth/login\",\n  \"isAuthEndpoint\": true\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:58.327Z",
+      "level": "debug",
+      "message": "[2025-08-15T15:23:58.327Z] [DEBUG] [API] Request: POST /api/auth/login | Data: {\n  \"email\": \"admin@company.com\",\n  \"password\": \"12345678\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.218Z",
+      "level": "debug",
+      "message": "[2025-08-15T15:23:59.218Z] [DEBUG] [API] Response: POST /api/auth/login | Data: {\n  \"success\": true,\n  \"message\": \"Login exitoso\",\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHQiLCJ0ZW5hbnRJZCI6Im5hIiwiaWF0IjoxNzU1MjcxNDM5LCJleHAiOjE3NTUyNzIzMzksImF1ZCI6InV0YWxrLWFwaSIsImlzcyI6InV0YWxrLWJhY2tlbmQifQ.frTl5KY2PME_2qmkB05eNhOh953DVibkB39wyjV2u2c\",\n  \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoicmVmcmVzaCIsInVzZXJFbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHQiLCJ0ZW5hbnRJZCI6Im5hIiwiZmFtaWx5SWQiOiI1Mzg4MmU0MC0xMWY3LTQ3OWEtYWExOC1iNzVmNDFhOWNmN2MiLCJkZXZpY2VJZCI6ImVhYmVlYzg5LThkNDItNGMyZS04YjUxLWVmODMwOTk1NTZlNSIsImlhdCI6MTc1NTI3MTQzOSwiZXhwIjoxNzU1ODc2MjM5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.WJNkFrpBvKssGXKws8hbaqedoeVUeZkyyhnXagq4DH8\",\n  \"expiresIn\": \"15m\",\n  \"refreshExpiresIn\": \"7d\",\n  \"user\": {\n    \"id\": \"admin@company.com\",\n    \"email\": \"admin@company.com\",\n    \"name\": \"Administrador del Sistema\",\n    \"phone\": null,\n    \"role\": \"admin\",\n    \"permissions\": [\n      \"users.read\",\n      \"users.write\",\n      \"users.delete\",\n      \"conversations.read\",\n      \"conversations.write\",\n      \"conversations.delete\",\n      \"messages.read\",\n      \"messages.write\",\n      \"campaigns.read\",\n      \"campaigns.write\",\n      \"campaigns.delete\",\n      \"dashboard.read\",\n      \"settings.read\",\n      \"settings.write\",\n      \"crm.read\",\n      \"crm.write\"\n    ],\n    \"department\": \"admin\",\n    \"isActive\": true,\n    \"settings\": {\n      \"notifications\": true,\n      \"language\": \"es\",\n      \"timezone\": \"America/Mexico_City\"\n    },\n    \"lastLoginAt\": {\n      \"_seconds\": 1752719278,\n      \"_nanoseconds\": 484000000\n    },\n    \"createdAt\": {\n      \"_seconds\": 1755271438,\n      \"_nanoseconds\": 859000000\n    },\n    \"updatedAt\": {\n      \"_seconds\": 1753925658,\n      \"_nanoseconds\": 131000000\n    },\n    \"performance\": null\n  },\n  \"deviceInfo\": {\n    \"deviceId\": \"eabeec89-8d42-4c2e-8b51-ef83099556e5\",\n    \"deviceType\": \"web\",\n    \"loginAt\": \"2025-08-15T15:23:59.068Z\"\n  }\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.218Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:59.218Z] [INFO] [API] Response exitosa | Data: {\n  \"method\": \"POST\",\n  \"url\": \"/api/auth/login\",\n  \"status\": 200,\n  \"statusText\": \"\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.218Z",
+      "level": "log",
+      "message": "✅ Login exitoso, navegando al dashboard..."
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.221Z",
+      "level": "log",
+      "message": "🔐 AuthProvider - Estado actual:",
+      "data": [
+        {
+          "isAuthenticated": true,
+          "loading": false,
+          "isAuthenticating": false,
+          "hasUser": true,
+          "hasBackendUser": true
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.221Z",
+      "level": "log",
+      "message": "🔐 AuthContext - Estado que se pasa al contexto:",
+      "data": [
+        {
+          "isAuthenticated": true,
+          "loading": false,
+          "isAuthenticating": false,
+          "hasUser": true,
+          "hasBackendUser": true
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.223Z",
+      "level": "log",
+      "message": "🔐 ProtectedRoute - Estado:",
+      "data": [
+        {
+          "isAuthenticated": true,
+          "loading": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.223Z",
+      "level": "log",
+      "message": "🔐 ProtectedRoute - Estado:",
+      "data": [
+        {
+          "isAuthenticated": true,
+          "loading": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.228Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:59.228Z] [INFO] [SYSTEM] Obteniendo datos del dashboard | Data: {\n  \"useMockData\": true\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.229Z",
+      "level": "info",
+      "message": "[2025-08-15T15:23:59.229Z] [INFO] [SYSTEM] Obteniendo datos del dashboard | Data: {\n  \"useMockData\": true\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.319Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Login exitoso, conectando WebSocket inmediatamente..."
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.319Z",
+      "level": "log",
+      "message": "🔌 Iniciando conexión de socket..."
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.320Z",
+      "level": "log",
+      "message": "🔌 Configurando socket con URL:",
+      "data": [
+        "wss://utalk-backend-production.up.railway.app"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.320Z",
+      "level": "log",
+      "message": "🔌 Token disponible:",
+      "data": [
+        "Sí"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.320Z",
+      "level": "log",
+      "message": "🔌 Configuración de entorno:",
+      "data": [
+        {
+          "WS_URL": "wss://utalk-backend-production.up.railway.app",
+          "BACKEND_URL": "https://utalk-backend-production.up.railway.app",
+          "DEV_MODE": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.320Z",
+      "level": "log",
+      "message": "🔌 Conectando socket con timeout de",
+      "data": [
+        45000,
+        "ms..."
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.322Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Configurando listeners globales"
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.714Z",
+      "level": "log",
+      "message": "✅ WebSocket: Conectado exitosamente",
+      "data": [
+        {
+          "socketId": "9hIhrspJydUuw9eWAAAK",
+          "url": "wss://utalk-backend-production.up.railway.app",
+          "timestamp": "2025-08-15T15:23:59.714Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.714Z",
+      "level": "log",
+      "message": "✅ Socket conectado:",
+      "data": [
+        "9hIhrspJydUuw9eWAAAK"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:23:59.715Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "connected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:00.329Z",
+      "level": "log",
+      "message": "✅ WebSocketContext - Estado sincronizado:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:24:00.453Z",
+          "syncId": "initial_1755271440453"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:00.329Z",
+      "level": "log",
+      "message": "🚀 WebSocketContext - Emitiendo evento websocket:state-synced..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:00.330Z",
+      "level": "log",
+      "message": "✅ WebSocketContext - Evento websocket:state-synced emitido exitosamente"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.892Z",
+      "level": "log",
+      "message": "🔐 ProtectedRoute - Estado:",
+      "data": [
+        {
+          "isAuthenticated": true,
+          "loading": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.892Z",
+      "level": "log",
+      "message": "🔐 ProtectedRoute - Estado:",
+      "data": [
+        {
+          "isAuthenticated": true,
+          "loading": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.926Z",
+      "level": "log",
+      "message": "🔄 useConversations - Sincronización inicial..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.928Z",
+      "level": "log",
+      "message": "🔄 useConversations - Sincronización inicial..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.929Z",
+      "level": "log",
+      "message": "🔄 useConversations - Sincronización inicial..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.930Z",
+      "level": "log",
+      "message": "🔄 useChat - Cambio de conversación detectado:",
+      "data": [
+        {
+          "anterior": null,
+          "nueva": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.940Z",
+      "level": "info",
+      "message": "[2025-08-15T15:24:02.940Z] [INFO] [API] Token agregado a request | Data: {\n  \"method\": \"GET\",\n  \"url\": \"/api/conversations?page=1&limit=20&status=all\",\n  \"hasToken\": true,\n  \"tokenPreview\": \"eyJhbGciOiJIUzI1NiIs...\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.940Z",
+      "level": "debug",
+      "message": "[2025-08-15T15:24:02.940Z] [DEBUG] [API] Request: GET /api/conversations?page=1&limit=20&status=all"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.940Z",
+      "level": "info",
+      "message": "[2025-08-15T15:24:02.940Z] [INFO] [API] Token agregado a request | Data: {\n  \"method\": \"GET\",\n  \"url\": \"/api/conversations?page=1&limit=20&status=all\",\n  \"hasToken\": true,\n  \"tokenPreview\": \"eyJhbGciOiJIUzI1NiIs...\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:02.940Z",
+      "level": "debug",
+      "message": "[2025-08-15T15:24:02.940Z] [DEBUG] [API] Request: GET /api/conversations?page=1&limit=20&status=all"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:03.479Z",
+      "level": "debug",
+      "message": "[2025-08-15T15:24:03.479Z] [DEBUG] [API] Response: GET /api/conversations?page=1&limit=20&status=all | Data: {\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"conv_++5214773790184_++5214793176502\",\n      \"customerPhone\": \"+5214773790184\",\n      \"lastMessage\": {\n        \"sender\": \"+5214773790184\",\n        \"direction\": \"inbound\",\n        \"messageId\": \"MSG_1755254559614_mnodznxjv\",\n        \"content\": \"PRUEBA CHAT 3\",\n        \"timestamp\": {\n          \"_seconds\": 1755254559,\n          \"_nanoseconds\": 614000000\n        },\n        \"timestampMs\": 1755254559614,\n        \"timestampISO\": \"2025-08-15T10:42:39.614Z\"\n      },\n      \"unreadCount\": 2,\n      \"status\": \"open\",\n      \"workspaceId\": \"default_workspace\",\n      \"tenantId\": \"default_tenant\",\n      \"participants\": [\n        \"+5214773790184\",\n        \"system@utalk.local\",\n        \"admin@company.com\"\n      ],\n      \"lastMessageAt\": {\n        \"_seconds\": 1755254559,\n        \"_nanoseconds\": 614000000\n      },\n      \"contact\": {\n        \"phone\": \"+5214773790184\"\n      },\n      \"createdAt\": {\n        \"_seconds\": 1755253044,\n        \"_nanoseconds\": 907000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755254559,\n        \"_nanoseconds\": 752000000\n      },\n      \"messageCount\": 2,\n      \"lastMessageAtMs\": 1755254559614,\n      \"lastMessageAtISO\": \"2025-08-15T10:42:39.614Z\"\n    },\n    {\n      \"id\": \"conv_+5214773790184_+5214793176502\",\n      \"customerPhone\": \"+5214773790184\",\n      \"lastMessage\": {\n        \"sender\": \"+5214773790184\",\n        \"messageId\": \"MSG_1755083537705_r20ypc265\",\n        \"content\": \"Holaaa\",\n        \"direction\": \"inbound\",\n        \"timestamp\": {\n          \"_seconds\": 1755083537,\n          \"_nanoseconds\": 705000000\n        },\n        \"timestampMs\": 1755083537705,\n        \"timestampISO\": \"2025-08-13T11:12:17.705Z\"\n      },\n      \"unreadCount\": 6,\n      \"status\": \"open\",\n      \"workspaceId\": \"default_workspace\",\n      \"tenantId\": \"default_tenant\",\n      \"participants\": [\n        \"+5214773790184\",\n        \"system@utalk.local\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214773790184\"\n      ],\n      \"lastMessageAt\": {\n        \"_seconds\": 1755083537,\n        \"_nanoseconds\": 705000000\n      },\n      \"contact\": {\n        \"phone\": \"+5214773790184\"\n      },\n      \"createdAt\": {\n        \"_seconds\": 1754699629,\n        \"_nanoseconds\": 900000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755083537,\n        \"_nanoseconds\": 919000000\n      },\n      \"messageCount\": 23,\n      \"lastMessageAtMs\": 1755083537705,\n      \"lastMessageAtISO\": \"2025-08-13T11:12:17.705Z\"\n    },\n    {\n      \"id\": \"conv_+5214775211021_+5214793176502\",\n      \"customerPhone\": \"+5214775211021\",\n      \"lastMessage\": {\n        \"sender\": \"agent:admin@company.com\",\n        \"direction\": \"outbound\",\n        \"messageId\": \"fae9a2c6-78c1-4842-ab2b-79de81845499\",\n        \"content\": \"HOLA HERMOSO YA FUNCIONO\",\n        \"timestamp\": {\n          \"_seconds\": 1754952144,\n          \"_nanoseconds\": 737000000\n        },\n        \"timestampMs\": 1754952144737,\n        \"timestampISO\": \"2025-08-11T22:42:24.737Z\"\n      },\n      \"unreadCount\": 1,\n      \"status\": \"open\",\n      \"workspaceId\": \"default_workspace\",\n      \"tenantId\": \"default_tenant\",\n      \"participants\": [\n        \"+5214775211021\",\n        \"system@utalk.local\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214775211021\"\n      ],\n      \"lastMessageAt\": {\n        \"_seconds\": 1754952144,\n        \"_nanoseconds\": 737000000\n      },\n      \"contact\": {\n        \"phone\": \"+5214775211021\"\n      },\n      \"createdAt\": {\n        \"_seconds\": 1754755652,\n        \"_nanoseconds\": 223000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1754952144,\n        \"_nanoseconds\": 953000000\n      },\n      \"messageCount\": 4,\n      \"lastMessageAtMs\": 1754952144737,\n      \"lastMessageAtISO\": \"2025-08-11T22:42:24.737Z\"\n    }\n  ],\n  \"message\": \"3 conversaciones encontradas\",\n  \"timestamp\": \"2025-08-15T15:24:03.603Z\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:03.479Z",
+      "level": "info",
+      "message": "[2025-08-15T15:24:03.479Z] [INFO] [API] Response exitosa | Data: {\n  \"method\": \"GET\",\n  \"url\": \"/api/conversations?page=1&limit=20&status=all\",\n  \"status\": 200,\n  \"statusText\": \"\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:03.662Z",
+      "level": "debug",
+      "message": "[2025-08-15T15:24:03.662Z] [DEBUG] [API] Response: GET /api/conversations?page=1&limit=20&status=all | Data: {\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"conv_++5214773790184_++5214793176502\",\n      \"customerPhone\": \"+5214773790184\",\n      \"lastMessage\": {\n        \"sender\": \"+5214773790184\",\n        \"direction\": \"inbound\",\n        \"messageId\": \"MSG_1755254559614_mnodznxjv\",\n        \"content\": \"PRUEBA CHAT 3\",\n        \"timestamp\": {\n          \"_seconds\": 1755254559,\n          \"_nanoseconds\": 614000000\n        },\n        \"timestampMs\": 1755254559614,\n        \"timestampISO\": \"2025-08-15T10:42:39.614Z\"\n      },\n      \"unreadCount\": 2,\n      \"status\": \"open\",\n      \"workspaceId\": \"default_workspace\",\n      \"tenantId\": \"default_tenant\",\n      \"participants\": [\n        \"+5214773790184\",\n        \"system@utalk.local\",\n        \"admin@company.com\"\n      ],\n      \"lastMessageAt\": {\n        \"_seconds\": 1755254559,\n        \"_nanoseconds\": 614000000\n      },\n      \"contact\": {\n        \"phone\": \"+5214773790184\"\n      },\n      \"createdAt\": {\n        \"_seconds\": 1755253044,\n        \"_nanoseconds\": 907000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755254559,\n        \"_nanoseconds\": 752000000\n      },\n      \"messageCount\": 2,\n      \"lastMessageAtMs\": 1755254559614,\n      \"lastMessageAtISO\": \"2025-08-15T10:42:39.614Z\"\n    },\n    {\n      \"id\": \"conv_+5214773790184_+5214793176502\",\n      \"customerPhone\": \"+5214773790184\",\n      \"lastMessage\": {\n        \"sender\": \"+5214773790184\",\n        \"messageId\": \"MSG_1755083537705_r20ypc265\",\n        \"content\": \"Holaaa\",\n        \"direction\": \"inbound\",\n        \"timestamp\": {\n          \"_seconds\": 1755083537,\n          \"_nanoseconds\": 705000000\n        },\n        \"timestampMs\": 1755083537705,\n        \"timestampISO\": \"2025-08-13T11:12:17.705Z\"\n      },\n      \"unreadCount\": 6,\n      \"status\": \"open\",\n      \"workspaceId\": \"default_workspace\",\n      \"tenantId\": \"default_tenant\",\n      \"participants\": [\n        \"+5214773790184\",\n        \"system@utalk.local\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214773790184\"\n      ],\n      \"lastMessageAt\": {\n        \"_seconds\": 1755083537,\n        \"_nanoseconds\": 705000000\n      },\n      \"contact\": {\n        \"phone\": \"+5214773790184\"\n      },\n      \"createdAt\": {\n        \"_seconds\": 1754699629,\n        \"_nanoseconds\": 900000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755083537,\n        \"_nanoseconds\": 919000000\n      },\n      \"messageCount\": 23,\n      \"lastMessageAtMs\": 1755083537705,\n      \"lastMessageAtISO\": \"2025-08-13T11:12:17.705Z\"\n    },\n    {\n      \"id\": \"conv_+5214775211021_+5214793176502\",\n      \"customerPhone\": \"+5214775211021\",\n      \"lastMessage\": {\n        \"sender\": \"agent:admin@company.com\",\n        \"direction\": \"outbound\",\n        \"messageId\": \"fae9a2c6-78c1-4842-ab2b-79de81845499\",\n        \"content\": \"HOLA HERMOSO YA FUNCIONO\",\n        \"timestamp\": {\n          \"_seconds\": 1754952144,\n          \"_nanoseconds\": 737000000\n        },\n        \"timestampMs\": 1754952144737,\n        \"timestampISO\": \"2025-08-11T22:42:24.737Z\"\n      },\n      \"unreadCount\": 1,\n      \"status\": \"open\",\n      \"workspaceId\": \"default_workspace\",\n      \"tenantId\": \"default_tenant\",\n      \"participants\": [\n        \"+5214775211021\",\n        \"system@utalk.local\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214775211021\"\n      ],\n      \"lastMessageAt\": {\n        \"_seconds\": 1754952144,\n        \"_nanoseconds\": 737000000\n      },\n      \"contact\": {\n        \"phone\": \"+5214775211021\"\n      },\n      \"createdAt\": {\n        \"_seconds\": 1754755652,\n        \"_nanoseconds\": 223000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1754952144,\n        \"_nanoseconds\": 953000000\n      },\n      \"messageCount\": 4,\n      \"lastMessageAtMs\": 1754952144737,\n      \"lastMessageAtISO\": \"2025-08-11T22:42:24.737Z\"\n    }\n  ],\n  \"message\": \"3 conversaciones encontradas\",\n  \"timestamp\": \"2025-08-15T15:24:03.603Z\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:03.663Z",
+      "level": "info",
+      "message": "[2025-08-15T15:24:03.663Z] [INFO] [API] Response exitosa | Data: {\n  \"method\": \"GET\",\n  \"url\": \"/api/conversations?page=1&limit=20&status=all\",\n  \"status\": 200,\n  \"statusText\": \"\"\n}"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:30.152Z",
+      "level": "warn",
+      "message": "⚠️ WebSocketContext - WebSocket timeout, continuando sin tiempo real"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:30.152Z",
+      "level": "warn",
+      "message": "⚠️ WebSocketContext - Login HTTP exitoso, navegando al dashboard..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:30.153Z",
+      "level": "warn",
+      "message": "⚠️ WebSocketContext - Activando modo fallback:",
+      "data": [
+        {
+          "reason": "timeout",
+          "timestamp": "2025-08-15T15:24:30.153Z",
+          "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHQiLCJ0ZW5hbnRJZCI6Im5hIiwiaWF0IjoxNzU1MjcxNDM5LCJleHAiOjE3NTUyNzIzMzksImF1ZCI6InV0YWxrLWFwaSIsImlzcyI6InV0YWxrLWJhY2tlbmQifQ.frTl5KY2PME_2qmkB05eNhOh953DVibkB39wyjV2u2c"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:30.153Z",
+      "level": "warn",
+      "message": "⚠️ Modo offline activado - Funcionalidad de tiempo real limitada"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:34.356Z",
+      "level": "log",
+      "message": "🔄 Servidor reiniciándose:",
+      "data": [
+        {
+          "message": "Server is restarting. You will be reconnected automatically.",
+          "timestamp": "2025-08-15T15:24:34.485Z",
+          "reason": "SIGTERM"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.413Z",
+      "level": "log",
+      "message": "🔌 WebSocket: Desconectado",
+      "data": [
+        {
+          "reason": "transport close",
+          "timestamp": "2025-08-15T15:24:35.413Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.414Z",
+      "level": "log",
+      "message": "❌ Socket desconectado:",
+      "data": [
+        "transport close"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.414Z",
+      "level": "log",
+      "message": "🔄 Intentando reconexión automática..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.414Z",
+      "level": "log",
+      "message": "🔄 Reconexión en 1000ms (intento 1)"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.435Z",
+      "level": "log",
+      "message": "📊 ChatComponent - Estado actualizado:",
+      "data": [
+        {
+          "conversationId": "",
+          "isConnected": false,
+          "isJoined": false,
+          "loading": false,
+          "error": null,
+          "messagesCount": 0
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.436Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Token encontrado, conectando WebSocket automáticamente..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.436Z",
+      "level": "log",
+      "message": "🔌 Iniciando conexión de socket..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.436Z",
+      "level": "log",
+      "message": "🔌 Configurando socket con URL:",
+      "data": [
+        "wss://utalk-backend-production.up.railway.app"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.436Z",
+      "level": "log",
+      "message": "🔌 Token disponible:",
+      "data": [
+        "Sí"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.436Z",
+      "level": "log",
+      "message": "🔌 Configuración de entorno:",
+      "data": [
+        {
+          "WS_URL": "wss://utalk-backend-production.up.railway.app",
+          "BACKEND_URL": "https://utalk-backend-production.up.railway.app",
+          "DEV_MODE": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.436Z",
+      "level": "log",
+      "message": "🔌 Conectando socket con timeout de",
+      "data": [
+        45000,
+        "ms..."
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.437Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "disconnected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.448Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Limpiando listeners"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.448Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Configurando listeners globales"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.953Z",
+      "level": "log",
+      "message": "✅ WebSocket: Conectado exitosamente",
+      "data": [
+        {
+          "socketId": "D_vt1xCX2Suh3Ou_AAAB",
+          "url": "wss://utalk-backend-production.up.railway.app",
+          "timestamp": "2025-08-15T15:24:35.953Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.954Z",
+      "level": "log",
+      "message": "✅ Socket conectado:",
+      "data": [
+        "D_vt1xCX2Suh3Ou_AAAB"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.971Z",
+      "level": "log",
+      "message": "📊 ChatComponent - Estado actualizado:",
+      "data": [
+        {
+          "conversationId": "",
+          "isConnected": true,
+          "isJoined": false,
+          "loading": false,
+          "error": null,
+          "messagesCount": 0
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:35.971Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "connected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.460Z",
+      "level": "log",
+      "message": "✅ WebSocketContext - Estado sincronizado:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:24:36.600Z",
+          "syncId": "initial_1755271476600"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.460Z",
+      "level": "log",
+      "message": "🚀 WebSocketContext - Emitiendo evento websocket:state-synced..."
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.460Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado desde WebSocket:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:24:36.600Z",
+          "syncId": "initial_1755271476600"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.461Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.461Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado desde WebSocket:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:24:36.600Z",
+          "syncId": "initial_1755271476600"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.461Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.461Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado desde WebSocket:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:24:36.600Z",
+          "syncId": "initial_1755271476600"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.461Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.461Z",
+      "level": "log",
+      "message": "✅ WebSocketContext - Evento websocket:state-synced emitido exitosamente"
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.541Z",
+      "level": "log",
+      "message": "✅ WebSocket: Conectado exitosamente",
+      "data": [
+        {
+          "socketId": "gKJST4UKC329WMCJAAAE",
+          "url": "wss://utalk-backend-production.up.railway.app",
+          "timestamp": "2025-08-15T15:24:36.541Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.541Z",
+      "level": "log",
+      "message": "✅ Socket conectado:",
+      "data": [
+        "gKJST4UKC329WMCJAAAE"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.964Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:24:37.101Z",
+          "syncId": "initial_1755271477101"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:24:36.964Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.973Z",
+      "level": "warn",
+      "message": "⚠️ WebSocket - Timeout detectado, iniciando reconexión"
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.976Z",
+      "level": "log",
+      "message": "🔌 WebSocket: Desconectado",
+      "data": [
+        {
+          "reason": "io client disconnect",
+          "timestamp": "2025-08-15T15:26:35.976Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.976Z",
+      "level": "log",
+      "message": "❌ Socket desconectado:",
+      "data": [
+        "io client disconnect"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.977Z",
+      "level": "log",
+      "message": "🔄 WebSocket - Intentando reconexión 1/5 en 2000ms"
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.999Z",
+      "level": "log",
+      "message": "📊 ChatComponent - Estado actualizado:",
+      "data": [
+        {
+          "conversationId": "",
+          "isConnected": false,
+          "isJoined": false,
+          "loading": false,
+          "error": null,
+          "messagesCount": 0
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.999Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Token encontrado, conectando WebSocket automáticamente..."
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.999Z",
+      "level": "log",
+      "message": "🔌 Iniciando conexión de socket..."
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.999Z",
+      "level": "log",
+      "message": "🔌 Configurando socket con URL:",
+      "data": [
+        "wss://utalk-backend-production.up.railway.app"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.999Z",
+      "level": "log",
+      "message": "🔌 Token disponible:",
+      "data": [
+        "Sí"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:35.999Z",
+      "level": "log",
+      "message": "🔌 Configuración de entorno:",
+      "data": [
+        {
+          "WS_URL": "wss://utalk-backend-production.up.railway.app",
+          "BACKEND_URL": "https://utalk-backend-production.up.railway.app",
+          "DEV_MODE": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.000Z",
+      "level": "log",
+      "message": "🔌 Conectando socket con timeout de",
+      "data": [
+        45000,
+        "ms..."
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.000Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "disconnected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.010Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Limpiando listeners"
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.010Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Configurando listeners globales"
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.062Z",
+      "level": "log",
+      "message": "🔄 WebSocketContext - Sincronización requerida:",
+      "data": [
+        {
+          "reason": "session_expired",
+          "message": "Session expired, please reconnect"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "🔄 useConversations - Sincronización requerida desde WebSocket:",
+      "data": [
+        {
+          "reason": "session_expired",
+          "message": "Session expired, please reconnect"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "🔄 useConversations - Sincronización requerida desde WebSocket:",
+      "data": [
+        {
+          "reason": "session_expired",
+          "message": "Session expired, please reconnect"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "🔄 useConversations - Sincronización requerida desde WebSocket:",
+      "data": [
+        {
+          "reason": "session_expired",
+          "message": "Session expired, please reconnect"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "🔌 WebSocket: Desconectado",
+      "data": [
+        {
+          "reason": "io server disconnect",
+          "timestamp": "2025-08-15T15:26:36.063Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "❌ Socket desconectado:",
+      "data": [
+        "io server disconnect"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "🔄 Intentando reconexión automática..."
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.063Z",
+      "level": "log",
+      "message": "🔄 Reconexión en 1000ms (intento 1)"
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.425Z",
+      "level": "log",
+      "message": "✅ WebSocket: Conectado exitosamente",
+      "data": [
+        {
+          "socketId": "uccvV1mmlzGUew1_AAAH",
+          "url": "wss://utalk-backend-production.up.railway.app",
+          "timestamp": "2025-08-15T15:26:36.425Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.425Z",
+      "level": "log",
+      "message": "✅ Socket conectado:",
+      "data": [
+        "uccvV1mmlzGUew1_AAAH"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.447Z",
+      "level": "log",
+      "message": "📊 ChatComponent - Estado actualizado:",
+      "data": [
+        {
+          "conversationId": "",
+          "isConnected": true,
+          "isJoined": false,
+          "loading": false,
+          "error": null,
+          "messagesCount": 0
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.447Z",
+      "level": "log",
+      "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
+      "data": [
+        "connected"
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.903Z",
+      "level": "log",
+      "message": "✅ WebSocketContext - Estado sincronizado:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:26:37.044Z",
+          "syncId": "initial_1755271597044"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "🚀 WebSocketContext - Emitiendo evento websocket:state-synced..."
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado desde WebSocket:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:26:37.044Z",
+          "syncId": "initial_1755271597044"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado desde WebSocket:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:26:37.044Z",
+          "syncId": "initial_1755271597044"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "✅ useConversations - Estado sincronizado desde WebSocket:",
+      "data": [
+        {
+          "conversations": [
+            {
+              "id": "conv_++5214773790184_++5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "direction": "inbound",
+                "messageId": "MSG_1755254559614_mnodznxjv",
+                "content": "PRUEBA CHAT 3",
+                "timestamp": {
+                  "_seconds": 1755254559,
+                  "_nanoseconds": 614000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 614000000
+              },
+              "unreadCount": 2,
+              "messageCount": 2,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755253044,
+                "_nanoseconds": 907000000
+              },
+              "updatedAt": {
+                "_seconds": 1755254559,
+                "_nanoseconds": 752000000
+              }
+            },
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "+5214773790184",
+                "messageId": "MSG_1755083537705_r20ypc265",
+                "content": "Holaaa",
+                "direction": "inbound",
+                "timestamp": {
+                  "_seconds": 1755083537,
+                  "_nanoseconds": 705000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 705000000
+              },
+              "unreadCount": 6,
+              "messageCount": 23,
+              "participants": [
+                "+5214773790184",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1754699629,
+                "_nanoseconds": 900000000
+              },
+              "updatedAt": {
+                "_seconds": 1755083537,
+                "_nanoseconds": 919000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "fae9a2c6-78c1-4842-ab2b-79de81845499",
+                "content": "HOLA HERMOSO YA FUNCIONO",
+                "timestamp": {
+                  "_seconds": 1754952144,
+                  "_nanoseconds": 737000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 737000000
+              },
+              "unreadCount": 1,
+              "messageCount": 4,
+              "participants": [
+                "+5214775211021",
+                "system@utalk.local",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214775211021"
+              ],
+              "createdAt": {
+                "_seconds": 1754755652,
+                "_nanoseconds": 223000000
+              },
+              "updatedAt": {
+                "_seconds": 1754952144,
+                "_nanoseconds": 953000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_++5214773790184_++5214793176502": 2,
+            "conv_+5214773790184_+5214793176502": 6,
+            "conv_+5214775211021_+5214793176502": 1
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-15T15:26:37.044Z",
+          "syncId": "initial_1755271597044"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "📋 useConversations - Actualizando conversaciones sincronizadas:",
+      "data": [
+        3
+      ]
+    },
+    {
+      "timestamp": "2025-08-15T15:26:36.904Z",
+      "level": "log",
+      "message": "✅ WebSocketContext - Evento websocket:state-synced emitido exitosamente"
+    }
+  ]
+}

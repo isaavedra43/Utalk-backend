@@ -266,6 +266,33 @@ class LogMonitorService {
       timeline: this.getTimelineData(rateLimitLogs, oneHourAgo)
     };
   }
+
+  /**
+   * 📊 GET TIMELINE DATA
+   * Genera datos de timeline para métricas
+   */
+  getTimelineData(logs, startTime) {
+    const timeline = [];
+    const now = new Date();
+    const interval = 5 * 60 * 1000; // 5 minutos
+
+    for (let time = startTime.getTime(); time <= now.getTime(); time += interval) {
+      const intervalStart = new Date(time);
+      const intervalEnd = new Date(time + interval);
+      
+      const logsInInterval = logs.filter(log => {
+        const logTime = new Date(log.timestamp);
+        return logTime >= intervalStart && logTime < intervalEnd;
+      });
+
+      timeline.push({
+        timestamp: intervalStart.toISOString(),
+        count: logsInInterval.length
+      });
+    }
+
+    return timeline;
+  }
 }
 
 // Singleton instance
