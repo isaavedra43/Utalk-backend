@@ -411,6 +411,43 @@ class LogDashboardController {
       const initialStats = logMonitor.getStats();
       const initialDataScript = `<script>window.__INITIAL_LOGS__ = ${JSON.stringify(initialLogs).replace(/</g, '\u003c')}; window.__INITIAL_STATS__ = ${JSON.stringify(initialStats).replace(/</g, '\u003c')};</script>`;
 
+      // HTML SSR de stats y logs para render inmediato
+      const statsGridHTML = `
+                <div class="stat-card">
+                    <h3>📊 Total Logs</h3>
+                    <p>${initialStats.total}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>⏰ Última Hora</h3>
+                    <p>${initialStats.lastHour}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>📅 Últimas 24h</h3>
+                    <p>${initialStats.last24Hours}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>🚨 Errores</h3>
+                    <p>${initialStats.byLevel?.error || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>⚠️ Warnings</h3>
+                    <p>${initialStats.byLevel?.warn || 0}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>ℹ️ Info</h3>
+                    <p>${initialStats.byLevel?.info || 0}</p>
+                </div>`;
+
+      const logsListHTML = initialLogs.map(log => `
+                <div class="log-entry">
+                    <div class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</div>
+                    <div class="log-level ${log.level}">${String(log.level || '').toUpperCase()}</div>
+                    <div class="log-category">${log.category || 'N/A'}</div>
+                    <div class="log-message">${typeof log.message === 'object' ? JSON.stringify(log.message) : (log.message || '')}</div>
+                    <div class="log-user">${log.userId || 'system'}</div>
+                </div>
+      `).join('');
+
       const html = `
 <!DOCTYPE html>
 <html lang="es">
@@ -466,7 +503,7 @@ ${initialDataScript}
         </div>
 
         <div class="stats-grid" id="statsGrid">
-            <!-- Stats se cargarán dinámicamente -->
+            ${statsGridHTML}
         </div>
 
         <div class="controls">
@@ -512,9 +549,7 @@ ${initialDataScript}
                 <span id="logsCount">0 logs</span>
             </div>
             <div class="logs-list" id="logsList">
-                <div class="log-entry">
-                    <div class="log-message">🔄 Cargando logs...</div>
-                </div>
+                ${logsListHTML || '<div class="log-entry"><div class="log-message">(sin logs)</div></div>'}
             </div>
         </div>
     </div>
