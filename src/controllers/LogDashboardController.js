@@ -791,7 +791,12 @@ ${initialDataScript}
 </html>
       `;
 
-      res.set('Content-Type', 'text/html');
+      // Permitir script inline solo en este dashboard (para el JS embebido)
+      res.set({
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'self'; frame-ancestors 'self'"
+      });
       res.send(html);
     } catch (error) {
       logger.error('Error generando dashboard HTML', {
