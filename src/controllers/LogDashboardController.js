@@ -140,7 +140,7 @@ class LogDashboardController {
       }
 
       // 🔧 GENERAR LOGS DE PRUEBA SI NO HAY SUFICIENTES
-      this.ensureTestLogs(logMonitor);
+      LogDashboardController.ensureTestLogs(logMonitor);
 
       console.log('📊 Obteniendo stats...');
       const stats = logMonitor.getStats();
@@ -195,7 +195,7 @@ class LogDashboardController {
       }
 
       // 🔧 GENERAR LOGS DE PRUEBA SI NO HAY SUFICIENTES
-      this.ensureTestLogs(logMonitor);
+      LogDashboardController.ensureTestLogs(logMonitor);
 
       const {
         level = 'all',
