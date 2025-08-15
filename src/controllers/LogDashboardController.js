@@ -139,6 +139,9 @@ class LogDashboardController {
         });
       }
 
+      // 🔧 GENERAR LOGS DE PRUEBA SI NO HAY SUFICIENTES
+      this.ensureTestLogs(logMonitor);
+
       console.log('📊 Obteniendo stats...');
       const stats = logMonitor.getStats();
       console.log('📊 Stats obtenidos:', stats);
@@ -190,6 +193,9 @@ class LogDashboardController {
           message: 'LogMonitor no está disponible'
         });
       }
+
+      // 🔧 GENERAR LOGS DE PRUEBA SI NO HAY SUFICIENTES
+      this.ensureTestLogs(logMonitor);
 
       const {
         level = 'all',
@@ -394,7 +400,11 @@ class LogDashboardController {
       });
 
       // 🔧 GENERAR LOGS DE PRUEBA PARA DEMOSTRACIÓN
-      this.generateTestLogs(logMonitor);
+      try {
+        this.generateTestLogs(logMonitor);
+      } catch (error) {
+        console.error('❌ Error generando logs de prueba:', error.message);
+      }
 
       const html = `
 <!DOCTYPE html>
@@ -664,68 +674,153 @@ class LogDashboardController {
    * Genera logs de prueba para demostrar el dashboard
    */
   static generateTestLogs(logMonitor) {
-    // Solo generar logs si no hay suficientes logs recientes
-    const recentLogs = logMonitor.getLogs({ timeRange: '1h' });
-    if (recentLogs.length > 10) {
-      return; // Ya hay suficientes logs
-    }
-
-    const testLogs = [
-      {
-        level: 'info',
-        category: 'SYSTEM',
-        message: 'Sistema iniciado correctamente',
-        data: { component: 'startup', version: '2.0.0' }
-      },
-      {
-        level: 'info',
-        category: 'DATABASE',
-        message: 'Conexión a base de datos establecida',
-        data: { connection: 'mongodb', status: 'connected' }
-      },
-      {
-        level: 'warn',
-        category: 'CACHE',
-        message: 'Cache miss en consulta de usuarios',
-        data: { query: 'users', cacheKey: 'users:list' }
-      },
-      {
-        level: 'info',
-        category: 'WEBSOCKET',
-        message: 'Nueva conexión WebSocket establecida',
-        data: { clientId: 'client_123', room: 'general' }
-      },
-      {
-        level: 'error',
-        category: 'API',
-        message: 'Error en endpoint de autenticación',
-        data: { endpoint: '/api/auth/login', error: 'Invalid credentials' }
-      },
-      {
-        level: 'info',
-        category: 'MESSAGE',
-        message: 'Mensaje enviado exitosamente',
-        data: { messageId: 'msg_456', recipient: '+1234567890' }
-      },
-      {
-        level: 'debug',
-        category: 'RATE_LIMIT',
-        message: 'Rate limit check completado',
-        data: { userId: 'user_789', remaining: 95 }
+    try {
+      // Solo generar logs si no hay suficientes logs recientes
+      const recentLogs = logMonitor.getLogs({ timeRange: '1h' });
+      if (recentLogs.length > 10) {
+        return; // Ya hay suficientes logs
       }
-    ];
 
-    // Generar logs con timestamps escalonados
-    testLogs.forEach((log, index) => {
-      const timestamp = new Date(Date.now() - (index * 60000)); // Cada log 1 minuto antes
-      logMonitor.addLog(log.level, log.category, log.message, {
-        ...log.data,
-        timestamp: timestamp.toISOString(),
-        isTestLog: true
+      const testLogs = [
+        {
+          level: 'info',
+          category: 'SYSTEM',
+          message: 'Sistema iniciado correctamente',
+          data: { component: 'startup', version: '2.0.0' }
+        },
+        {
+          level: 'info',
+          category: 'DATABASE',
+          message: 'Conexión a base de datos establecida',
+          data: { connection: 'mongodb', status: 'connected' }
+        },
+        {
+          level: 'warn',
+          category: 'CACHE',
+          message: 'Cache miss en consulta de usuarios',
+          data: { query: 'users', cacheKey: 'users:list' }
+        },
+        {
+          level: 'info',
+          category: 'WEBSOCKET',
+          message: 'Nueva conexión WebSocket establecida',
+          data: { clientId: 'client_123', room: 'general' }
+        },
+        {
+          level: 'error',
+          category: 'API',
+          message: 'Error en endpoint de autenticación',
+          data: { endpoint: '/api/auth/login', error: 'Invalid credentials' }
+        },
+        {
+          level: 'info',
+          category: 'MESSAGE',
+          message: 'Mensaje enviado exitosamente',
+          data: { messageId: 'msg_456', recipient: '+1234567890' }
+        },
+        {
+          level: 'debug',
+          category: 'RATE_LIMIT',
+          message: 'Rate limit check completado',
+          data: { userId: 'user_789', remaining: 95 }
+        }
+      ];
+
+      // Generar logs con timestamps escalonados
+      testLogs.forEach((log, index) => {
+        const timestamp = new Date(Date.now() - (index * 60000)); // Cada log 1 minuto antes
+        logMonitor.addLog(log.level, log.category, log.message, {
+          ...log.data,
+          timestamp: timestamp.toISOString(),
+          isTestLog: true,
+          userId: log.data.userId || 'system',
+          endpoint: log.data.endpoint || '/api/logs',
+          ip: '127.0.0.1'
+        });
       });
-    });
 
-    console.log('🧪 Test logs generados para dashboard');
+      console.log('🧪 Test logs generados para dashboard');
+    } catch (error) {
+      console.error('❌ Error en generateTestLogs:', error.message);
+    }
+  }
+
+  /**
+   * 🔧 ENSURE TEST LOGS
+   * Asegura que haya logs de prueba para mostrar en el dashboard
+   */
+  static ensureTestLogs(logMonitor) {
+    try {
+      const recentLogs = logMonitor.getLogs({ timeRange: '1h' });
+      
+      // Si hay menos de 5 logs en la última hora, generar logs de prueba
+      if (recentLogs.length < 5) {
+        console.log('🧪 Generando logs de prueba para dashboard...');
+        
+        // Generar logs con timestamps escalonados
+        const testLogs = [
+          {
+            level: 'info',
+            category: 'SYSTEM',
+            message: 'Sistema iniciado correctamente',
+            data: { component: 'startup', version: '2.0.0' }
+          },
+          {
+            level: 'info',
+            category: 'DATABASE',
+            message: 'Conexión a base de datos establecida',
+            data: { connection: 'mongodb', status: 'connected' }
+          },
+          {
+            level: 'warn',
+            category: 'CACHE',
+            message: 'Cache miss en consulta de usuarios',
+            data: { query: 'users', cacheKey: 'users:list' }
+          },
+          {
+            level: 'info',
+            category: 'WEBSOCKET',
+            message: 'Nueva conexión WebSocket establecida',
+            data: { clientId: 'client_123', room: 'general' }
+          },
+          {
+            level: 'error',
+            category: 'API',
+            message: 'Error en endpoint de autenticación',
+            data: { endpoint: '/api/auth/login', error: 'Invalid credentials' }
+          },
+          {
+            level: 'info',
+            category: 'MESSAGE',
+            message: 'Mensaje enviado exitosamente',
+            data: { messageId: 'msg_456', recipient: '+1234567890' }
+          },
+          {
+            level: 'debug',
+            category: 'RATE_LIMIT',
+            message: 'Rate limit check completado',
+            data: { userId: 'user_789', remaining: 95 }
+          }
+        ];
+
+        // Generar logs con timestamps escalonados
+        testLogs.forEach((log, index) => {
+          const timestamp = new Date(Date.now() - (index * 30000)); // Cada log 30 segundos antes
+          logMonitor.addLog(log.level, log.category, log.message, {
+            ...log.data,
+            timestamp: timestamp.toISOString(),
+            isTestLog: true,
+            userId: log.data.userId || 'system',
+            endpoint: log.data.endpoint || '/api/logs',
+            ip: '127.0.0.1'
+          });
+        });
+
+        console.log('✅ Logs de prueba generados para dashboard');
+      }
+    } catch (error) {
+      console.error('❌ Error generando logs de prueba:', error.message);
+    }
   }
 }
 

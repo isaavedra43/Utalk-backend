@@ -27,8 +27,9 @@ let logMonitor;
 try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
   logMonitor = monitor;
+  console.log('✅ LogMonitorService integrado correctamente');
 } catch (error) {
-  console.log('⚠️ LogMonitorService no disponible, continuando sin integración');
+  console.log('⚠️ LogMonitorService no disponible, continuando sin integración:', error.message);
   logMonitor = null;
 }
 
@@ -52,25 +53,46 @@ class LogMonitorTransport extends winston.Transport {
   constructor(opts) {
     super(opts);
     this.logMonitor = logMonitor;
+    this.name = 'LogMonitorTransport';
   }
 
   log(info, callback) {
-    if (this.logMonitor) {
-      // Extraer información del log
-      const level = info.level;
-      const message = info.message;
-      const category = info.category || 'SYSTEM';
-      const data = {
-        userId: info.userId || 'system',
-        endpoint: info.endpoint || 'unknown',
-        ip: info.ip || 'unknown',
-        userAgent: info.userAgent || 'unknown',
-        requestId: info.requestId,
-        ...info
-      };
+    try {
+      if (this.logMonitor) {
+        // Extraer información del log
+        const level = info.level;
+        const message = info.message || info[Symbol.for('message')] || 'No message';
+        const category = info.category || 'SYSTEM';
+        
+        // Extraer datos adicionales
+        const data = {
+          userId: info.userId || 'system',
+          endpoint: info.endpoint || 'unknown',
+          ip: info.ip || 'unknown',
+          userAgent: info.userAgent || 'unknown',
+          requestId: info.requestId,
+          timestamp: info.timestamp,
+          service: info.service,
+          environment: info.environment,
+          ...info
+        };
 
-      // Capturar en LogMonitorService
-      this.logMonitor.addLog(level, category, message, data);
+        // Limpiar datos sensibles
+        delete data.password;
+        delete data.token;
+        delete data.secret;
+        delete data.key;
+
+        // Capturar en LogMonitorService
+        this.logMonitor.addLog(level, category, message, data);
+        
+        // Debug: confirmar que se está capturando
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`📊 LogMonitor: Capturado log [${level}] ${category}: ${message}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error en LogMonitorTransport:', error.message);
     }
     
     callback();
@@ -102,10 +124,6 @@ const logger = winston.createLogger({
           return `${timestamp} [${level}]: ${message}${metaStr}`;
         })
       )
-    }),
-    // Transporte para LogMonitorService
-    new LogMonitorTransport({
-      level: 'info'
     })
   ],
   // Manejo de excepciones no capturadas
@@ -128,6 +146,14 @@ const logger = winston.createLogger({
   ]
 });
 
+// Agregar LogMonitorTransport si está disponible
+if (logMonitor) {
+  logger.add(new LogMonitorTransport({
+    level: 'info'
+  }));
+  console.log('✅ LogMonitorTransport agregado al logger');
+}
+
 // Configuración específica para Railway
 if (process.env.RAILWAY_ENVIRONMENT) {
   // Reducir verbosidad en Railway para evitar límites de velocidad
@@ -149,6 +175,24 @@ logger.getStats = function() {
     transports: logger.transports.length,
     logMonitor: logMonitor ? 'active' : 'inactive'
   };
+};
+
+// Método para generar logs de prueba
+logger.generateTestLogs = function() {
+  if (logMonitor) {
+    console.log('🧪 Generando logs de prueba para dashboard...');
+    
+    // Generar logs de diferentes niveles y categorías
+    logger.info('Sistema iniciado correctamente', { category: 'SYSTEM', userId: 'system' });
+    logger.info('Conexión a base de datos establecida', { category: 'DATABASE', userId: 'system' });
+    logger.warn('Cache miss en consulta de usuarios', { category: 'CACHE', userId: 'system' });
+    logger.info('Nueva conexión WebSocket establecida', { category: 'WEBSOCKET', userId: 'user_123' });
+    logger.error('Error en endpoint de autenticación', { category: 'API', userId: 'user_456' });
+    logger.info('Mensaje enviado exitosamente', { category: 'MESSAGE', userId: 'user_789' });
+    logger.debug('Rate limit check completado', { category: 'RATE_LIMIT', userId: 'user_101' });
+    
+    console.log('✅ Logs de prueba generados');
+  }
 };
 
 module.exports = logger;
