@@ -959,8 +959,16 @@ class ConsolidatedServer {
       // 🔧 DASHBOARD DE LOGS
       try {
         console.log('⚙️ Intentando configurar /logs...');
+        
+        // Ruta para API de logs (debe ir primero)
         this.app.use('/api/logs', logRoutes);
-        this.app.use('/logs', logRoutes);
+        
+        // Ruta para dashboard HTML (debe ir después)
+        this.app.get('/logs', (req, res) => {
+          const LogDashboardController = require('./controllers/LogDashboardController');
+          return LogDashboardController.getDashboardHTML(req, res);
+        });
+        
         console.log('✅ Dashboard de logs configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando dashboard de logs:', error.message);
