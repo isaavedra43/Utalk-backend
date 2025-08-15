@@ -51,6 +51,7 @@ const aiRoutes = require('./routes/ai');
 const reportRoutes = require('./routes/reports');
 const ragRoutes = require('./routes/rag');
 const aiOpsRoutes = require('./routes/aiOps');
+const logRoutes = require('./routes/logs');
 
 // Servicios
 // SocketManager se importa dinámicamente en initializeSocketIO()
@@ -953,6 +954,16 @@ class ConsolidatedServer {
         console.log('✅ /api/ai/ops configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /api/ai/ops:', error.message);
+      }
+
+      // 🔧 DASHBOARD DE LOGS
+      try {
+        console.log('⚙️ Intentando configurar /logs...');
+        this.app.use('/logs', logRoutes);
+        this.app.use('/api/logs', logRoutes);
+        console.log('✅ Dashboard de logs configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando dashboard de logs:', error.message);
       }
 
       // Ruta catch-all para 404

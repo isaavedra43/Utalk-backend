@@ -10,6 +10,7 @@
 
 const logger = require('../utils/logger');
 const { cacheService } = require('../services/CacheService');
+const { logMonitor } = require('../services/LogMonitorService');
 
 // Configuración de rate limits por tipo de usuario
 const RATE_LIMIT_CONFIG = {
@@ -199,6 +200,16 @@ function intelligentRateLimit(req, res, next) {
       // 🔧 LOG CRÍTICO PARA RAILWAY: Rate limit alcanzado
       console.log(`🚨 RATE_LIMIT_EXCEEDED: ${req.user?.email || 'anonymous'} - ${path} - ${rateLimitResult.reason} - Limit: ${rateLimitResult.limit}`);
       
+      // 🔧 CAPTURAR EN LOG MONITOR
+      logMonitor.addLog('error', 'RATE_LIMIT', `Rate limit exceeded: ${rateLimitResult.reason}`, {
+        userId: req.user?.email || 'anonymous',
+        ip: req.ip,
+        endpoint: path,
+        reason: rateLimitResult.reason,
+        limit: rateLimitResult.limit,
+        userAgent: req.headers['user-agent']
+      });
+      
       logger.warn('Rate limit exceeded', {
         category: 'RATE_LIMIT_EXCEEDED',
         userId: req.user?.email || 'anonymous',
@@ -228,6 +239,16 @@ function intelligentRateLimit(req, res, next) {
     // 🔧 LOG PARA RAILWAY: Rate limit status
     if (rateLimitResult.remaining < 5) {
       console.log(`⚠️ RATE_LIMIT_WARNING: ${req.user?.email || 'anonymous'} - ${path} - Remaining: ${rateLimitResult.remaining}/${rateLimitResult.limit}`);
+      
+      // 🔧 CAPTURAR EN LOG MONITOR
+      logMonitor.addLog('warn', 'RATE_LIMIT', `Rate limit warning: ${rateLimitResult.remaining} remaining`, {
+        userId: req.user?.email || 'anonymous',
+        ip: req.ip,
+        endpoint: path,
+        remaining: rateLimitResult.remaining,
+        limit: rateLimitResult.limit,
+        userAgent: req.headers['user-agent']
+      });
     }
     
     next();
@@ -264,6 +285,14 @@ function cacheMiddleware(ttlSeconds = 300) {
       // 🔧 LOG PARA RAILWAY: Cache hit
       console.log(`✅ CACHE_HIT: ${req.path} - ${req.user?.email || 'anonymous'}`);
       
+      // 🔧 CAPTURAR EN LOG MONITOR
+      logMonitor.addLog('info', 'CACHE', `Cache hit: ${req.path}`, {
+        userId: req.user?.email || 'anonymous',
+        ip: req.ip,
+        endpoint: req.path,
+        userAgent: req.headers['user-agent']
+      });
+      
       logger.debug('API response from cache', {
         category: 'API_CACHE_HIT',
         path: req.path,
@@ -282,6 +311,15 @@ function cacheMiddleware(ttlSeconds = 300) {
         
         // 🔧 LOG PARA RAILWAY: Cache miss y set
         console.log(`🔄 CACHE_MISS: ${req.path} - ${req.user?.email || 'anonymous'} - TTL: ${ttlSeconds}s`);
+        
+        // 🔧 CAPTURAR EN LOG MONITOR
+        logMonitor.addLog('info', 'CACHE', `Cache miss: ${req.path}`, {
+          userId: req.user?.email || 'anonymous',
+          ip: req.ip,
+          endpoint: req.path,
+          ttlSeconds,
+          userAgent: req.headers['user-agent']
+        });
         
         logger.debug('API response cached', {
           category: 'API_CACHE_SET',

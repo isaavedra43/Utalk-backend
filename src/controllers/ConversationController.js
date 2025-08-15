@@ -28,6 +28,7 @@ const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors } = require('../utils/responseHandler');
 const ConversationService = require('../services/ConversationService');
 const { cacheService } = require('../services/CacheService');
+const { logMonitor } = require('../services/LogMonitorService');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { safeFirestoreToJSON, analyzeFirestoreDocument } = require('../utils/firestore');
@@ -130,6 +131,15 @@ class ConversationController {
         // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a base de datos
         console.log(`📊 DB_CALL: conversations - ${userEmail} - page:${pageNum} - limit:${limitNum} - search:${search ? 'yes' : 'no'}`);
         
+        // 🔧 CAPTURAR EN LOG MONITOR
+        logMonitor.addLog('info', 'DB', `Database call: conversations`, {
+          userId: userEmail,
+          endpoint: '/api/conversations',
+          page: pageNum,
+          limit: limitNum,
+          search: search ? 'yes' : 'no'
+        });
+        
         logger.info('Conversaciones obtenidas de base de datos', {
           category: 'CACHE_MISS',
           cacheKey: cacheKey.substring(0, 50) + '...'
@@ -137,6 +147,14 @@ class ConversationController {
       } else {
         // 🔧 LOG PARA RAILWAY: Cache hit en conversaciones
         console.log(`✅ CACHE_HIT: conversations - ${userEmail} - page:${pageNum} - limit:${limitNum}`);
+        
+        // 🔧 CAPTURAR EN LOG MONITOR
+        logMonitor.addLog('info', 'CACHE', `Cache hit: conversations`, {
+          userId: userEmail,
+          endpoint: '/api/conversations',
+          page: pageNum,
+          limit: limitNum
+        });
         
         logger.info('Conversaciones obtenidas de cache', {
           category: 'CACHE_HIT',
