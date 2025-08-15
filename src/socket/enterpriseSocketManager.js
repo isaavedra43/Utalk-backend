@@ -78,24 +78,24 @@ const SOCKET_EVENTS = {
   ADMIN_USER_STATUS: 'admin-user-status'
 };
 
-// Rate limiting configuration (per user per event) - LÍMITES MÁS PERMISIVOS
+// Rate limiting configuration (per user per event) - OPTIMIZADO PARA REDUCIR RATE LIMIT
 const RATE_LIMITS = {
-  [SOCKET_EVENTS.MESSAGE_TYPING]: 200,        // 0.2 seconds (más permisivo)
-  [SOCKET_EVENTS.MESSAGE_TYPING_STOP]: 50,    // 0.05 seconds (más permisivo)
-  [SOCKET_EVENTS.JOIN_CONVERSATION]: 500,     // 0.5 seconds (más permisivo)
-  [SOCKET_EVENTS.LEAVE_CONVERSATION]: 500,    // 0.5 seconds (más permisivo)
-  [SOCKET_EVENTS.NEW_MESSAGE]: 50,            // 0.05 seconds (más permisivo)
-  [SOCKET_EVENTS.MESSAGE_READ]: 50,           // 0.05 seconds (más permisivo)
-  [SOCKET_EVENTS.USER_STATUS_CHANGE]: 1000,   // 1 second (más permisivo)
-  [SOCKET_EVENTS.SYNC_STATE]: 2000            // 2 seconds (más permisivo)
+  [SOCKET_EVENTS.MESSAGE_TYPING]: 500,        // 🔧 CORRECCIÓN: 0.5 seconds (más permisivo)
+  [SOCKET_EVENTS.MESSAGE_TYPING_STOP]: 200,   // 🔧 CORRECCIÓN: 0.2 seconds (más permisivo)
+  [SOCKET_EVENTS.JOIN_CONVERSATION]: 1000,    // 🔧 CORRECCIÓN: 1 second (más permisivo)
+  [SOCKET_EVENTS.LEAVE_CONVERSATION]: 1000,   // 🔧 CORRECCIÓN: 1 second (más permisivo)
+  [SOCKET_EVENTS.NEW_MESSAGE]: 200,           // 🔧 CORRECCIÓN: 0.2 seconds (más permisivo)
+  [SOCKET_EVENTS.MESSAGE_READ]: 200,          // 🔧 CORRECCIÓN: 0.2 seconds (más permisivo)
+  [SOCKET_EVENTS.USER_STATUS_CHANGE]: 2000,   // 🔧 CORRECCIÓN: 2 seconds (más permisivo)
+  [SOCKET_EVENTS.SYNC_STATE]: 5000            // 🔧 CORRECCIÓN: 5 seconds (más permisivo)
 };
 
 // 🔧 SOCKET ROBUSTO: Límites de configuración - OPTIMIZADOS PARA ESTABILIDAD
 const SOCKET_LIMITS = {
   MAX_ROOMS_PER_SOCKET: parseInt(process.env.SOCKET_MAX_ROOMS_PER_SOCKET) || 50, // Reducido para estabilidad
   MAX_JOINS_PER_10S: 10, // Reducido para estabilidad
-  HEARTBEAT_INTERVAL: 15000, // 🔧 CORRECCIÓN: Reducido de 25s a 15s
-  HEARTBEAT_TIMEOUT: 30000   // 🔧 CORRECCIÓN: Reducido de 60s a 30s
+  HEARTBEAT_INTERVAL: 25000, // 🔧 CORRECCIÓN: Aumentado a 25s para estabilidad
+  HEARTBEAT_TIMEOUT: 45000   // 🔧 CORRECCIÓN: Aumentado a 45s para evitar timeouts
 };
 
 class EnterpriseSocketManager {
@@ -310,8 +310,8 @@ class EnterpriseSocketManager {
       transports: ['websocket', 'polling'],
       
       // 🔧 CORRECCIÓN CRÍTICA: Timeouts optimizados para evitar Status 0
-      pingTimeout: 60000,     // 🔧 CORRECCIÓN: Aumentado a 60s para evitar timeouts
-      pingInterval: 30000,    // 🔧 CORRECCIÓN: Aumentado a 30s para mantener conexión
+      pingTimeout: 90000,     // 🔧 CORRECCIÓN: Aumentado a 90s para evitar timeouts
+      pingInterval: 25000,    // 🔧 CORRECCIÓN: Aumentado a 25s para mantener conexión
       
       // Connection limits
       maxHttpBufferSize: 1e6, // 🔧 CORRECCIÓN: Reducido de 2MB a 1MB
@@ -1842,7 +1842,7 @@ class EnterpriseSocketManager {
   }
 
   /**
-   * ❌ HANDLE SOCKET ERROR
+   * 🔌 HANDLE SOCKET ERROR
    */
   async handleSocketError(socket, error) {
     // ✅ VALIDACIÓN: Extraer propiedades de manera segura

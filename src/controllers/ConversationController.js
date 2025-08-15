@@ -27,6 +27,7 @@
 const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors } = require('../utils/responseHandler');
 const ConversationService = require('../services/ConversationService');
+const { cacheService } = require('../services/CacheService');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { safeFirestoreToJSON, analyzeFirestoreDocument } = require('../utils/firestore');
@@ -95,26 +96,47 @@ class ConversationController {
         }
       });
 
-      // Usar el nuevo repositorio unificado
-      const conversationsRepo = getConversationsRepository();
+      // 🔧 CACHE: Generar clave única para cache
+      const cacheKey = `conversations:${userEmail}:${statusFilter}:${search}:${limitNum}:${pageNum}`;
       
-      // Preparar parámetros para el repositorio
-      const repoParams = {
-        workspaceId: req.user.workspaceId,
-        tenantId: req.user.tenantId,
-        filters: {
-          status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
-          participantsContains: userEmail, // CRÍTICO: pasar el email del usuario
-          search: search ? search.trim() : undefined
-        },
-        pagination: {
-          limit: limitNum,
-          cursor: req.query.cursor
-        }
-      };
+      // 🔧 CACHE: Intentar obtener del cache primero
+      let result = cacheService.get(cacheKey);
+      
+      if (!result) {
+        // Usar el nuevo repositorio unificado
+        const conversationsRepo = getConversationsRepository();
+        
+        // Preparar parámetros para el repositorio
+        const repoParams = {
+          workspaceId: req.user.workspaceId,
+          tenantId: req.user.tenantId,
+          filters: {
+            status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
+            participantsContains: userEmail, // CRÍTICO: pasar el email del usuario
+            search: search ? search.trim() : undefined
+          },
+          pagination: {
+            limit: limitNum,
+            cursor: req.query.cursor
+          }
+        };
 
-      // Ejecutar query a través del repositorio
-      const result = await conversationsRepo.list(repoParams);
+        // Ejecutar query a través del repositorio
+        result = await conversationsRepo.list(repoParams);
+        
+        // 🔧 CACHE: Guardar en cache por 2 minutos
+        cacheService.set(cacheKey, result, 120);
+        
+        logger.info('Conversaciones obtenidas de base de datos', {
+          category: 'CACHE_MISS',
+          cacheKey: cacheKey.substring(0, 50) + '...'
+        });
+      } else {
+        logger.info('Conversaciones obtenidas de cache', {
+          category: 'CACHE_HIT',
+          cacheKey: cacheKey.substring(0, 50) + '...'
+        });
+      }
 
       // Aplicar filtro de búsqueda post-snapshot si es necesario
       let filteredConversations = result.conversations;

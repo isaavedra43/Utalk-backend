@@ -7,6 +7,7 @@ const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../mi
 const { normalizeConversationId } = require('../middleware/conversationIdNormalization');
 const { validateMessagePayload, autoGenerateMessageId, fallbackSenderIdentifier } = require('../middleware/messageValidation');
 const { validateId, validateConversationId } = require('../middleware/validation');
+const { intelligentRateLimit, cacheMiddleware } = require('../middleware/intelligentRateLimit');
 const Joi = require('joi');
 
 // Validadores específicos para conversaciones
@@ -87,6 +88,8 @@ const conversationValidators = {
 router.get('/',
   authMiddleware,
   requireReadAccess,
+  intelligentRateLimit,
+  cacheMiddleware(120), // Cache por 2 minutos
   conversationValidators.validateList,
   ConversationController.listConversations
 );
