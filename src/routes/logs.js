@@ -60,7 +60,7 @@ router.get('/dashboard',
  * @desc Obtener logs con filtros
  * @access Public (sin autenticación para debugging)
  */
-router.get('/logs',
+router.get('/',
   LogDashboardController.getLogs
 );
 
