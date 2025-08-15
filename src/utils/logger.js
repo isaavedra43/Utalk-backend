@@ -22,6 +22,16 @@ const winston = require('winston');
 const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 
+// Importar LogMonitorService para integración
+let logMonitor;
+try {
+  const { logMonitor: monitor } = require('../services/LogMonitorService');
+  logMonitor = monitor;
+} catch (error) {
+  console.log('⚠️ LogMonitorService no disponible, continuando sin integración');
+  logMonitor = null;
+}
+
 /**
  * Detecta si la aplicación se está ejecutando en un entorno de contenedor/serverless
  * 
@@ -33,6 +43,38 @@ function isContainerizedEnvironment() {
          process.env.VERCEL_ENV ||
          process.env.DOCKER_ENV ||
          process.env.KUBERNETES_SERVICE_HOST;
+}
+
+/**
+ * Transporte personalizado para integrar con LogMonitorService
+ */
+class LogMonitorTransport extends winston.Transport {
+  constructor(opts) {
+    super(opts);
+    this.logMonitor = logMonitor;
+  }
+
+  log(info, callback) {
+    if (this.logMonitor) {
+      // Extraer información del log
+      const level = info.level;
+      const message = info.message;
+      const category = info.category || 'SYSTEM';
+      const data = {
+        userId: info.userId || 'system',
+        endpoint: info.endpoint || 'unknown',
+        ip: info.ip || 'unknown',
+        userAgent: info.userAgent || 'unknown',
+        requestId: info.requestId,
+        ...info
+      };
+
+      // Capturar en LogMonitorService
+      this.logMonitor.addLog(level, category, message, data);
+    }
+    
+    callback();
+  }
 }
 
 /**
@@ -60,6 +102,10 @@ const logger = winston.createLogger({
           return `${timestamp} [${level}]: ${message}${metaStr}`;
         })
       )
+    }),
+    // Transporte para LogMonitorService
+    new LogMonitorTransport({
+      level: 'info'
     })
   ],
   // Manejo de excepciones no capturadas
@@ -95,5 +141,14 @@ if (process.env.RAILWAY_ENVIRONMENT) {
     handleRejections: true
   }));
 }
+
+// Método para obtener estadísticas del logger
+logger.getStats = function() {
+  return {
+    level: logger.level,
+    transports: logger.transports.length,
+    logMonitor: logMonitor ? 'active' : 'inactive'
+  };
+};
 
 module.exports = logger;

@@ -959,8 +959,8 @@ class ConsolidatedServer {
       // 🔧 DASHBOARD DE LOGS
       try {
         console.log('⚙️ Intentando configurar /logs...');
-        this.app.use('/logs', logRoutes);
         this.app.use('/api/logs', logRoutes);
+        this.app.use('/logs', logRoutes);
         console.log('✅ Dashboard de logs configurado exitosamente');
       } catch (error) {
         console.error('❌ Error configurando dashboard de logs:', error.message);

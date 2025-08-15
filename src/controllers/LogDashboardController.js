@@ -240,6 +240,10 @@ class LogDashboardController {
         userAgent: req.headers['user-agent'],
         endpoint: '/logs'
       });
+
+      // 🔧 GENERAR LOGS DE PRUEBA PARA DEMOSTRACIÓN
+      this.generateTestLogs(logMonitor);
+
       const html = `
 <!DOCTYPE html>
 <html lang="es">
@@ -501,6 +505,75 @@ class LogDashboardController {
         message: 'Error generando dashboard HTML'
       });
     }
+  }
+
+  /**
+   * 🧪 GENERATE TEST LOGS
+   * Genera logs de prueba para demostrar el dashboard
+   */
+  static generateTestLogs(logMonitor) {
+    // Solo generar logs si no hay suficientes logs recientes
+    const recentLogs = logMonitor.getLogs({ timeRange: '1h' });
+    if (recentLogs.length > 10) {
+      return; // Ya hay suficientes logs
+    }
+
+    const testLogs = [
+      {
+        level: 'info',
+        category: 'SYSTEM',
+        message: 'Sistema iniciado correctamente',
+        data: { component: 'startup', version: '2.0.0' }
+      },
+      {
+        level: 'info',
+        category: 'DATABASE',
+        message: 'Conexión a base de datos establecida',
+        data: { connection: 'mongodb', status: 'connected' }
+      },
+      {
+        level: 'warn',
+        category: 'CACHE',
+        message: 'Cache miss en consulta de usuarios',
+        data: { query: 'users', cacheKey: 'users:list' }
+      },
+      {
+        level: 'info',
+        category: 'WEBSOCKET',
+        message: 'Nueva conexión WebSocket establecida',
+        data: { clientId: 'client_123', room: 'general' }
+      },
+      {
+        level: 'error',
+        category: 'API',
+        message: 'Error en endpoint de autenticación',
+        data: { endpoint: '/api/auth/login', error: 'Invalid credentials' }
+      },
+      {
+        level: 'info',
+        category: 'MESSAGE',
+        message: 'Mensaje enviado exitosamente',
+        data: { messageId: 'msg_456', recipient: '+1234567890' }
+      },
+      {
+        level: 'debug',
+        category: 'RATE_LIMIT',
+        message: 'Rate limit check completado',
+        data: { userId: 'user_789', remaining: 95 }
+      }
+    ];
+
+    // Generar logs con timestamps escalonados
+    testLogs.forEach((log, index) => {
+      const timestamp = new Date(Date.now() - (index * 60000)); // Cada log 1 minuto antes
+      logMonitor.addLog(log.level, log.category, log.message, {
+        ...log.data,
+        timestamp: timestamp.toISOString(),
+        isTestLog: true
+      });
+    });
+
+    console.log('🧪 Test logs generados para dashboard');
   }
 }
 
