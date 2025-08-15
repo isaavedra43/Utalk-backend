@@ -8,7 +8,24 @@
  * @author Backend Team
  */
 
-const { logMonitor } = require('../services/LogMonitorService');
+let logMonitor;
+try {
+  const { logMonitor: monitor } = require('../services/LogMonitorService');
+  logMonitor = monitor;
+} catch (error) {
+  console.error('❌ Error importando LogMonitorService:', error.message);
+  // Crear un mock del logMonitor para evitar errores
+  logMonitor = {
+    getStats: () => ({ total: 0, lastHour: 0, last24Hours: 0, byLevel: { error: 0, warn: 0, info: 0, debug: 0 } }),
+    getLogs: () => [],
+    getRateLimitMetrics: () => ({ total: 0, lastHour: 0 }),
+    addLog: () => {},
+    clearLogs: () => 0,
+    exportLogs: () => ({ format: 'json', data: '[]', filename: 'logs.json' }),
+    searchLogs: () => []
+  };
+}
+
 const logger = require('../utils/logger');
 
 class LogDashboardController {
@@ -234,7 +251,6 @@ class LogDashboardController {
       console.log(`📊 DASHBOARD_ACCESS: ${req.ip} - ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
       
       // 🔧 CAPTURAR EN LOG MONITOR
-      const { logMonitor } = require('../services/LogMonitorService');
       logMonitor.addLog('info', 'DASHBOARD', 'Dashboard HTML requested', {
         ip: req.ip,
         userAgent: req.headers['user-agent'],
