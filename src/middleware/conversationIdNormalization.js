@@ -40,17 +40,37 @@ function normalizeConversationId(req, res, next) {
       });
     }
 
-    // 🔧 CORRECCIÓN CRÍTICA: Mejorar decodificación URL encoding
+    // 🔧 CORRECCIÓN CRÍTICA: Mejorar decodificación URL encoding con manejo de doble encoding
     let normalized;
     try {
-      // Decodificar URL encoding para manejar %2B -> +
-      normalized = decodeURIComponent(rawConversationId);
+      // 🔧 NUEVA LÓGICA: Manejar doble encoding y casos edge
+      let decodedId = rawConversationId;
+      
+      // Intentar decodificar múltiples veces para manejar doble encoding
+      let previousDecoded = null;
+      let decodeAttempts = 0;
+      const maxDecodeAttempts = 3;
+      
+      while (decodeAttempts < maxDecodeAttempts) {
+        previousDecoded = decodedId;
+        decodedId = decodeURIComponent(decodedId);
+        
+        // Si no cambió nada, ya está completamente decodificado
+        if (decodedId === previousDecoded) {
+          break;
+        }
+        
+        decodeAttempts++;
+      }
+      
+      normalized = decodedId;
       
       // 🔍 LOGGING MEJORADO PARA DEBUG - Ver qué se recibe y qué se decodifica
       logger.info('ConversationId decodificación EXITOSA', {
         requestId: req.id || 'unknown',
         rawConversationId,
         decodedConversationId: normalized,
+        decodeAttempts,
         method: req.method,
         url: req.originalUrl,
         timestamp: new Date().toISOString()
@@ -137,17 +157,37 @@ function normalizeConversationIdQuery(req, res, next) {
       return next(); // No hay conversationId, continuar
     }
 
-    // 🔧 CORRECCIÓN CRÍTICA: Decodificar conversationId en query parameters
+    // 🔧 CORRECCIÓN CRÍTICA: Decodificar conversationId en query parameters con manejo de doble encoding
     let normalized;
     try {
-      // Decodificar URL encoding para manejar %2B -> +
-      normalized = decodeURIComponent(rawConversationId);
+      // 🔧 NUEVA LÓGICA: Manejar doble encoding y casos edge
+      let decodedId = rawConversationId;
+      
+      // Intentar decodificar múltiples veces para manejar doble encoding
+      let previousDecoded = null;
+      let decodeAttempts = 0;
+      const maxDecodeAttempts = 3;
+      
+      while (decodeAttempts < maxDecodeAttempts) {
+        previousDecoded = decodedId;
+        decodedId = decodeURIComponent(decodedId);
+        
+        // Si no cambió nada, ya está completamente decodificado
+        if (decodedId === previousDecoded) {
+          break;
+        }
+        
+        decodeAttempts++;
+      }
+      
+      normalized = decodedId;
       
       // 🔍 LOGGING PARA DEBUG - Ver qué se recibe y qué se decodifica
       logger.info('ConversationId query decodificación', {
         requestId: req.id || 'unknown',
         rawConversationId,
         decodedConversationId: normalized,
+        decodeAttempts,
         method: req.method,
         url: req.originalUrl
       });
@@ -247,20 +287,30 @@ function parseConversationId(conversationId) {
     const phone1 = parts[0];
     const phone2 = parts[1];
 
-    // 🔧 CORRECCIÓN: Validación más flexible para conversationId
+    // 🔧 CORRECCIÓN CRÍTICA: Validación más flexible para conversationId
     // Aceptar números con o sin +, entre 7 y 15 dígitos
+    // También aceptar doble + (++5214773790184)
     const phoneRegex = /^\+?\d{7,15}$/;
     
-    if (!phoneRegex.test(phone1) || !phoneRegex.test(phone2)) {
+    // 🔧 NUEVA LÓGICA: Manejar doble + correctamente
+    const normalizePhone = (phone) => {
+      // Remover todos los + al inicio y agregar uno solo
+      return '+' + phone.replace(/^\+*/, '');
+    };
+    
+    // Validar formato básico (debe contener solo dígitos y +)
+    const basicPhoneRegex = /^\+*\d{7,15}$/;
+    
+    if (!basicPhoneRegex.test(phone1) || !basicPhoneRegex.test(phone2)) {
       return { 
         valid: false, 
         error: 'Los números de teléfono deben tener entre 7 y 15 dígitos y pueden incluir +' 
       };
     }
 
-    // Normalizar números (agregar + si no lo tienen)
-    const normalizedPhone1 = phone1.startsWith('+') ? phone1 : '+' + phone1;
-    const normalizedPhone2 = phone2.startsWith('+') ? phone2 : '+' + phone2;
+    // Normalizar números (agregar + si no lo tienen, manejar doble +)
+    const normalizedPhone1 = normalizePhone(phone1);
+    const normalizedPhone2 = normalizePhone(phone2);
 
     return {
       valid: true,
