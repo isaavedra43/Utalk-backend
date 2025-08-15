@@ -818,6 +818,15 @@ class EnterpriseSocketManager {
       { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
     );
 
+    logger.info('🎯 EVENTO JOIN-CONVERSATION REGISTRADO', {
+      category: 'SOCKET_EVENT_REGISTRATION',
+      eventName: SOCKET_EVENTS.JOIN_CONVERSATION,
+      handlerFunction: 'handleJoinConversation',
+      socketId: socket.id,
+      userEmail: userEmail?.substring(0, 20) + '...',
+      timestamp: new Date().toISOString()
+    });
+
     // Leave conversation event - MÁS PERMISIVO
     registerEvent(SOCKET_EVENTS.LEAVE_CONVERSATION, 
       this.handleLeaveConversation.bind(this), 
@@ -1114,8 +1123,26 @@ class EnterpriseSocketManager {
     const { userEmail, userRole } = socket;
     const { conversationId, roomId } = data;
 
+    // 🔧 CORRECCIÓN CRÍTICA: Logging detallado para diagnosticar el problema
+    logger.info('🎯 EVENTO JOIN-CONVERSATION RECIBIDO EN BACKEND', {
+      category: 'SOCKET_JOIN_CONVERSATION_RECEIVED',
+      userEmail: userEmail?.substring(0, 20) + '...',
+      conversationId: conversationId?.substring(0, 30) + '...',
+      roomId: roomId?.substring(0, 30) + '...',
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+      dataKeys: Object.keys(data || {}),
+      hasUserEmail: !!userEmail,
+      hasUserRole: !!userRole
+    });
+
     try {
       if (!conversationId) {
+        logger.error('❌ conversationId es requerido pero no se proporcionó', {
+          category: 'SOCKET_JOIN_CONVERSATION_MISSING_ID',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          data: data
+        });
         throw new Error('conversationId is required');
       }
 
@@ -1224,28 +1251,54 @@ class EnterpriseSocketManager {
       });
 
       // 🔧 CORRECCIÓN CRÍTICA: Confirmar join al usuario inmediatamente
-      socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, {
+      const confirmationData = {
         conversationId: decodedConversationId,
         roomId: targetRoomId,
         onlineUsers: Array.from(conversationUsers),
         success: true,
         timestamp: new Date().toISOString()
+      };
+
+      logger.info('📤 ENVIANDO CONFIRMACIÓN CONVERSATION_JOINED', {
+        category: 'SOCKET_JOIN_CONVERSATION_CONFIRMATION_SENT',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId: decodedConversationId,
+        roomId: targetRoomId,
+        socketId: socket.id,
+        confirmationData: confirmationData,
+        timestamp: new Date().toISOString()
       });
 
+      socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, confirmationData);
+
       // 🔧 CORRECCIÓN: Emitir evento adicional para sincronización
-      socket.emit('websocket:state-synced', {
+      const syncData = {
         conversationId: decodedConversationId,
         roomId: targetRoomId,
         success: true,
         timestamp: new Date().toISOString()
+      };
+
+      logger.info('📤 ENVIANDO EVENTO WEBSOCKET:STATE-SYNCED', {
+        category: 'SOCKET_JOIN_CONVERSATION_SYNC_SENT',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId: decodedConversationId,
+        roomId: targetRoomId,
+        socketId: socket.id,
+        syncData: syncData,
+        timestamp: new Date().toISOString()
       });
 
-      logger.info('Usuario unido exitosamente a conversación', {
+      socket.emit('websocket:state-synced', syncData);
+
+      logger.info('✅ USUARIO UNIDO EXITOSAMENTE A CONVERSACIÓN', {
         category: 'SOCKET_JOIN_CONVERSATION_SUCCESS',
         userEmail: userEmail?.substring(0, 20) + '...',
         conversationId: decodedConversationId,
         roomId: targetRoomId,
-        socketId: socket.id
+        socketId: socket.id,
+        onlineUsersCount: conversationUsers.size,
+        timestamp: new Date().toISOString()
       });
 
     } catch (error) {
