@@ -537,13 +537,13 @@ ${initialDataScript}
                 <input type="text" id="searchFilter" placeholder="Buscar en logs...">
             </div>
             <div class="buttons">
-                <button class="btn btn-primary" onclick="loadLogs()">🔄 Actualizar</button>
-                <button class="btn btn-export" onclick="exportLogs('json')">📤 Exportar JSON</button>
-                <button class="btn btn-export" onclick="exportLogs('csv')">📤 Exportar CSV</button>
-                <button class="btn btn-secondary" onclick="clearLogs()">🗑️ Limpiar Logs</button>
-                <button class="btn btn-primary" onclick="generateTestLogs()">🧪 Generar Logs</button>
+                <button id="btnUpdate" class="btn btn-primary">🔄 Actualizar</button>
+                <button id="btnExportJSON" class="btn btn-export">📤 Exportar JSON</button>
+                <button id="btnExportCSV" class="btn btn-export">📤 Exportar CSV</button>
+                <button id="btnClear" class="btn btn-secondary">🗑️ Limpiar Logs</button>
+                <button id="btnGenerate" class="btn btn-primary">🧪 Generar Logs</button>
                 <div class="auto-refresh">
-                    <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+                    <input type="checkbox" id="autoRefresh">
                     <label for="autoRefresh">Auto-refresh (5s)</label>
                 </div>
             </div>
@@ -578,7 +578,20 @@ ${initialDataScript}
 
         // Esperar a que el DOM esté completamente cargado
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Dashboard DOM cargado, iniciando carga de datos...');
+            // Listeners de botones (evitar inline handlers bloqueados por CSP o navegadores)
+            var btnUpdate = document.getElementById('btnUpdate');
+            var btnExportJSON = document.getElementById('btnExportJSON');
+            var btnExportCSV = document.getElementById('btnExportCSV');
+            var btnClear = document.getElementById('btnClear');
+            var btnGenerate = document.getElementById('btnGenerate');
+            var autoRefresh = document.getElementById('autoRefresh');
+
+            if (btnUpdate) btnUpdate.addEventListener('click', loadLogs);
+            if (btnExportJSON) btnExportJSON.addEventListener('click', function(){ exportLogs('json'); });
+            if (btnExportCSV) btnExportCSV.addEventListener('click', function(){ exportLogs('csv'); });
+            if (btnClear) btnClear.addEventListener('click', clearLogs);
+            if (btnGenerate) btnGenerate.addEventListener('click', generateTestLogs);
+            if (autoRefresh) autoRefresh.addEventListener('change', toggleAutoRefresh);
 
             // Pintar datos iniciales si vienen embebidos
             try {
@@ -589,11 +602,8 @@ ${initialDataScript}
                     displayLogs(window.__INITIAL_LOGS__);
                     document.getElementById('logsCount').textContent = window.__INITIAL_LOGS__.length + ' logs';
                 }
-            } catch (e) {
-                console.error('❌ Error pintando datos iniciales:', e);
-            }
+            } catch (e) {}
             
-            // Luego refrescar desde la API
             loadStats();
             loadLogs();
         });
