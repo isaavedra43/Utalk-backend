@@ -488,6 +488,12 @@ class LogDashboardController {
         .log-user { color: #888; font-size: 0.9em; }
         .auto-refresh { margin-left: 10px; }
         .auto-refresh input { margin-right: 5px; }
+        /* Toasts visuales */
+        .toast { position: fixed; right: 20px; top: 20px; background: #2b2b2b; color: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.4); z-index: 9999; min-width: 260px; border-left: 4px solid #4dabf7; }
+        .toast + .toast { margin-top: 10px; }
+        .toast.success { border-left-color: #00ff88; }
+        .toast.error { border-left-color: #ff6b6b; }
+        .toast.info { border-left-color: #4dabf7; }
         @media (max-width: 768px) {
             .log-entry { grid-template-columns: 1fr; gap: 5px; }
             .buttons { flex-direction: column; }
@@ -557,6 +563,19 @@ ${initialDataScript}
     <script>
         let autoRefreshInterval;
 
+        // Utilidad: toasts visuales
+        function showToast(message, type = 'info', timeoutMs = 3500) {
+            try {
+                const el = document.createElement('div');
+                el.className = 'toast ' + type;
+                el.textContent = message;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), timeoutMs);
+            } catch (_) {
+                // fallback silencioso
+            }
+        }
+
         // Esperar a que el DOM esté completamente cargado
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard DOM cargado, iniciando carga de datos...');
@@ -564,11 +583,9 @@ ${initialDataScript}
             // Pintar datos iniciales si vienen embebidos
             try {
                 if (window.__INITIAL_STATS__) {
-                    console.log('📊 Pintando estadísticas iniciales embebidas');
                     displayStats(window.__INITIAL_STATS__);
                 }
                 if (Array.isArray(window.__INITIAL_LOGS__) && window.__INITIAL_LOGS__.length) {
-                    console.log('📝 Pintando logs iniciales embebidos:', window.__INITIAL_LOGS__.length);
                     displayLogs(window.__INITIAL_LOGS__);
                     document.getElementById('logsCount').textContent = window.__INITIAL_LOGS__.length + ' logs';
                 }
@@ -588,44 +605,42 @@ ${initialDataScript}
                     if (data.success) {
                         displayStats(data.data.stats);
                     } else {
-                        console.error('Error en respuesta de stats:', data);
+                        showToast('Error al cargar estadísticas: ' + (data.message || 'desconocido'), 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error cargando stats:', error);
-                    // Mostrar error en la interfaz
-                    document.getElementById('statsGrid').innerHTML = '<div class="stat-card"><h3>❌ Error</h3><p>No se pudieron cargar las estadísticas</p></div>';
+                    showToast('Error de red al cargar estadísticas', 'error');
                 });
         }
 
         function displayStats(stats) {
             const statsGrid = document.getElementById('statsGrid');
-            statsGrid.innerHTML = \`
-                <div class="stat-card">
-                    <h3>📊 Total Logs</h3>
-                    <p>\${stats.total}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>⏰ Última Hora</h3>
-                    <p>\${stats.lastHour}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>📅 Últimas 24h</h3>
-                    <p>\${stats.last24Hours}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>🚨 Errores</h3>
-                    <p>\${stats.byLevel.error}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>⚠️ Warnings</h3>
-                    <p>\${stats.byLevel.warn}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>ℹ️ Info</h3>
-                    <p>\${stats.byLevel.info}</p>
-                </div>
-            \`;
+            statsGrid.innerHTML = '
+                <div class="stat-card">\
+                    <h3>📊 Total Logs</h3>\
+                    <p>' + stats.total + '</p>\
+                </div>\
+                <div class="stat-card">\
+                    <h3>⏰ Última Hora</h3>\
+                    <p>' + stats.lastHour + '</p>\
+                </div>\
+                <div class="stat-card">\
+                    <h3>📅 Últimas 24h</h3>\
+                    <p>' + stats.last24Hours + '</p>\
+                </div>\
+                <div class="stat-card">\
+                    <h3>🚨 Errores</h3>\
+                    <p>' + stats.byLevel.error + '</p>\
+                </div>\
+                <div class="stat-card">\
+                    <h3>⚠️ Warnings</h3>\
+                    <p>' + stats.byLevel.warn + '</p>\
+                </div>\
+                <div class="stat-card">\
+                    <h3>ℹ️ Info</h3>\
+                    <p>' + stats.byLevel.info + '</p>\
+                </div>';
         }
 
         function loadLogs() {
@@ -638,52 +653,68 @@ ${initialDataScript}
                 level, category, timeRange, search, limit: 100
             });
 
-            console.log('🔍 Cargando logs con parámetros:', params.toString());
-
-            fetch(\`/api/logs?\${params}\`)
-                .then(response => {
-                    console.log('📡 Respuesta recibida:', response.status, response.statusText);
-                    return response.json();
-                })
+            fetch('/api/logs?' + params)
+                .then(response => response.json())
                 .then(data => {
-                    console.log('📊 Datos recibidos:', data);
                     if (data.success) {
                         displayLogs(data.data.logs);
-                        document.getElementById('logsCount').textContent = \`\${data.data.logs.length} logs\`;
+                        document.getElementById('logsCount').textContent = (data.data.logs.length + ' logs');
+                        showToast('Logs actualizados (' + data.data.logs.length + ')', 'success', 1500);
                     } else {
-                        console.error('❌ Error en respuesta de logs:', data);
-                        document.getElementById('logsList').innerHTML = '<div class="log-entry"><div class="log-message">❌ Error cargando logs: ' + (data.message || 'Error desconocido') + '</div></div>';
+                        showToast('Error cargando logs: ' + (data.message || 'desconocido'), 'error');
                     }
                 })
                 .catch(error => {
                     console.error('❌ Error cargando logs:', error);
-                    document.getElementById('logsList').innerHTML = '<div class="log-entry"><div class="log-message">❌ Error de conexión: ' + error.message + '</div></div>';
+                    showToast('Error de red al cargar logs', 'error');
                 });
         }
 
         function displayLogs(logs) {
             const logsList = document.getElementById('logsList');
-            logsList.innerHTML = logs.map(log => \`
-                <div class="log-entry">
-                    <div class="log-timestamp">\${new Date(log.timestamp).toLocaleString()}</div>
-                    <div class="log-level \${log.level}">\${log.level.toUpperCase()}</div>
-                    <div class="log-category">\${log.category}</div>
-                    <div class="log-message">\${log.message}</div>
-                    <div class="log-user">\${log.userId}</div>
-                </div>
-            \`).join('');
+            logsList.innerHTML = logs.map(function(log) {
+                return '<div class="log-entry">' +
+                    '<div class="log-timestamp">' + new Date(log.timestamp).toLocaleString() + '</div>' +
+                    '<div class="log-level ' + (log.level || '') + '">' + (String(log.level || '').toUpperCase()) + '</div>' +
+                    '<div class="log-category">' + (log.category || '') + '</div>' +
+                    '<div class="log-message">' + (typeof log.message === 'object' ? JSON.stringify(log.message) : (log.message || '')) + '</div>' +
+                    '<div class="log-user">' + (log.userId || '') + '</div>' +
+                '</div>';
+            }).join('');
         }
 
-        function exportLogs(format) {
-            const level = document.getElementById('levelFilter').value;
-            const category = document.getElementById('categoryFilter').value;
-            const timeRange = document.getElementById('timeRangeFilter').value;
+        async function exportLogs(format) {
+            try {
+                const level = document.getElementById('levelFilter').value;
+                const category = document.getElementById('categoryFilter').value;
+                const timeRange = document.getElementById('timeRangeFilter').value;
 
-            const params = new URLSearchParams({
-                format, level, category, timeRange
-            });
+                const params = new URLSearchParams({ format, level, category, timeRange });
 
-            window.open(\`/api/logs/export?\${params}\`, '_blank');
+                const res = await fetch('/api/logs/export?' + params);
+                if (!res.ok) {
+                    showToast('No se pudo exportar (' + res.status + ')', 'error');
+                    return;
+                }
+
+                const contentDisposition = res.headers.get('content-disposition') || '';
+                const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+                const filename = match ? match[1] : ('logs-' + new Date().toISOString().slice(0,10) + '.' + format);
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showToast('Exportación iniciada: ' + filename, 'success', 2000);
+            } catch (err) {
+                console.error('Error exportando:', err);
+                showToast('Error de red al exportar', 'error');
+            }
         }
 
         function clearLogs() {
@@ -692,44 +723,48 @@ ${initialDataScript}
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            alert(\`Se limpiaron \${data.data.clearedCount} logs\`);
+                            showToast('Se limpiaron ' + data.data.clearedCount + ' logs', 'success');
                             loadStats();
                             loadLogs();
+                        } else {
+                            showToast('No se pudieron limpiar los logs', 'error');
                         }
                     })
-                    .catch(error => console.error('Error limpiando logs:', error));
+                    .catch(error => {
+                        console.error('Error limpiando logs:', error);
+                        showToast('Error de red al limpiar logs', 'error');
+                    });
             }
         }
 
         function generateTestLogs() {
-            console.log('🧪 Generando logs de prueba...');
             fetch('/api/logs/generate-test', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        console.log('✅ Logs de prueba generados:', data);
-                        alert(\`Se generaron \${data.logsGenerated} logs de prueba\`);
+                        showToast('Se generaron ' + data.logsGenerated + ' logs de prueba', 'success');
                         loadStats();
                         loadLogs();
                     } else {
-                        console.error('❌ Error generando logs:', data);
-                        alert('Error generando logs de prueba');
+                        showToast('Error generando logs de prueba', 'error');
                     }
                 })
                 .catch(error => {
                     console.error('❌ Error en la petición:', error);
-                    alert('Error de conexión al generar logs');
+                    showToast('Error de red al generar logs', 'error');
                 });
         }
 
         function toggleAutoRefresh() {
             const autoRefresh = document.getElementById('autoRefresh');
             if (autoRefresh.checked) {
+                showToast('Auto-refresh activado (5s)', 'info', 1500);
                 autoRefreshInterval = setInterval(() => {
                     loadStats();
                     loadLogs();
                 }, 5000);
             } else {
+                showToast('Auto-refresh desactivado', 'info', 1500);
                 clearInterval(autoRefreshInterval);
             }
         }
