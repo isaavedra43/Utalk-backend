@@ -963,8 +963,9 @@ class ConsolidatedServer {
         // Ruta para API de logs (debe ir primero)
         this.app.use('/api/logs', logRoutes);
         
-        // Ruta para dashboard HTML (debe ir después)
+        // Ruta para dashboard HTML (debe ir después y ser más específica)
         this.app.get('/logs', (req, res) => {
+          console.log('📊 Dashboard HTML solicitado desde:', req.ip);
           const LogDashboardController = require('./controllers/LogDashboardController');
           return LogDashboardController.getDashboardHTML(req, res);
         });

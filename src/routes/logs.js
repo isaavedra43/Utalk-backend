@@ -91,7 +91,7 @@ router.post('/generate-test', (req, res) => {
  * @desc Dashboard visual de logs
  * @access Public (sin autenticación para debugging)
  */
-router.get('/', 
+router.get('/dashboard-html', 
   LogDashboardController.getDashboardHTML
 );
 
