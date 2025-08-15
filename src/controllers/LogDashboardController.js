@@ -492,6 +492,7 @@ class LogDashboardController {
                 <button class="btn btn-export" onclick="exportLogs('json')">📤 Exportar JSON</button>
                 <button class="btn btn-export" onclick="exportLogs('csv')">📤 Exportar CSV</button>
                 <button class="btn btn-secondary" onclick="clearLogs()">🗑️ Limpiar Logs</button>
+                <button class="btn btn-primary" onclick="generateTestLogs()">🧪 Generar Logs</button>
                 <div class="auto-refresh">
                     <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
                     <label for="autoRefresh">Auto-refresh (5s)</label>
@@ -523,9 +524,15 @@ class LogDashboardController {
                 .then(data => {
                     if (data.success) {
                         displayStats(data.data.stats);
+                    } else {
+                        console.error('Error en respuesta de stats:', data);
                     }
                 })
-                .catch(error => console.error('Error cargando stats:', error));
+                .catch(error => {
+                    console.error('Error cargando stats:', error);
+                    // Mostrar error en la interfaz
+                    document.getElementById('statsGrid').innerHTML = '<div class="stat-card"><h3>❌ Error</h3><p>No se pudieron cargar las estadísticas</p></div>';
+                });
         }
 
         function displayStats(stats) {
@@ -568,15 +575,27 @@ class LogDashboardController {
                 level, category, timeRange, search, limit: 100
             });
 
+            console.log('🔍 Cargando logs con parámetros:', params.toString());
+
             fetch(\`/api/logs?\${params}\`)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('📡 Respuesta recibida:', response.status, response.statusText);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('📊 Datos recibidos:', data);
                     if (data.success) {
                         displayLogs(data.data.logs);
                         document.getElementById('logsCount').textContent = \`\${data.data.logs.length} logs\`;
+                    } else {
+                        console.error('❌ Error en respuesta de logs:', data);
+                        document.getElementById('logsList').innerHTML = '<div class="log-entry"><div class="log-message">❌ Error cargando logs: ' + (data.message || 'Error desconocido') + '</div></div>';
                     }
                 })
-                .catch(error => console.error('Error cargando logs:', error));
+                .catch(error => {
+                    console.error('❌ Error cargando logs:', error);
+                    document.getElementById('logsList').innerHTML = '<div class="log-entry"><div class="log-message">❌ Error de conexión: ' + error.message + '</div></div>';
+                });
         }
 
         function displayLogs(logs) {
@@ -617,6 +636,27 @@ class LogDashboardController {
                     })
                     .catch(error => console.error('Error limpiando logs:', error));
             }
+        }
+
+        function generateTestLogs() {
+            console.log('🧪 Generando logs de prueba...');
+            fetch('/api/logs/generate-test', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('✅ Logs de prueba generados:', data);
+                        alert(\`Se generaron \${data.logsGenerated} logs de prueba\`);
+                        loadStats();
+                        loadLogs();
+                    } else {
+                        console.error('❌ Error generando logs:', data);
+                        alert('Error generando logs de prueba');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error en la petición:', error);
+                    alert('Error de conexión al generar logs');
+                });
         }
 
         function toggleAutoRefresh() {
