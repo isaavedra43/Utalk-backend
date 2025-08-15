@@ -506,7 +506,9 @@ class LogDashboardController {
                 <span id="logsCount">0 logs</span>
             </div>
             <div class="logs-list" id="logsList">
-                <!-- Logs se cargarán dinámicamente -->
+                <div class="log-entry">
+                    <div class="log-message">🔄 Cargando logs...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -514,9 +516,14 @@ class LogDashboardController {
     <script>
         let autoRefreshInterval;
 
-        // Cargar datos iniciales
-        loadStats();
-        loadLogs();
+        // Esperar a que el DOM esté completamente cargado
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Dashboard DOM cargado, iniciando carga de datos...');
+            
+            // Cargar datos iniciales
+            loadStats();
+            loadLogs();
+        });
 
         function loadStats() {
             fetch('/api/logs/dashboard')
