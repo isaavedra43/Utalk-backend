@@ -1,156 +1,138 @@
 /**
- * Script de prueba para verificar la corrección del doble encoding en conversationId
+ * 🧪 SCRIPT DE PRUEBA: Verificar corrección de IDs de conversación con doble ++
  * 
- * Este script simula las peticiones que están fallando y verifica que la normalización funcione
+ * Este script prueba la solución para prevenir IDs con doble ++
  */
 
-const { normalizeConversationId, normalizeConversationIdQuery, parseConversationId } = require('../src/middleware/conversationIdNormalization');
+const { 
+  generateConversationId, 
+  normalizePhoneNumber, 
+  validateConversationIdForDatabase 
+} = require('../src/utils/conversation');
 
-// Mock del logger para evitar logs durante las pruebas
-const mockLogger = {
-  info: () => {},
-  warn: () => {},
-  error: () => {}
-};
-
-// Mock del request y response
-function createMockRequest(conversationId, isQuery = false) {
-  const req = {
-    id: 'test-request-id',
-    method: 'GET',
-    originalUrl: isQuery ? `/api/messages?conversationId=${conversationId}` : `/api/conversations/${conversationId}`,
-    headers: {
-      'user-agent': 'test-agent'
-    },
-    ip: '127.0.0.1',
-    params: {},
-    query: {}
-  };
-
-  if (isQuery) {
-    req.query.conversationId = conversationId;
-  } else {
-    req.params.conversationId = conversationId;
-  }
-
-  return req;
-}
-
-function createMockResponse() {
-  const res = {
-    status: function(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json: function(data) {
-      this.responseData = data;
-      return this;
-    }
-  };
-  return res;
-}
+console.log('🧪 INICIANDO PRUEBAS DE CORRECCIÓN DE CONVERSATION ID\n');
 
 // Casos de prueba
 const testCases = [
-  // Caso 1: ID normal con +
   {
-    name: 'ID normal con +',
-    input: 'conv_++5214773790184_++5214793176502',
-    expected: 'conv_++5214773790184_++5214793176502',
-    shouldPass: true
+    name: 'Números normales',
+    phone1: '+5214773790184',
+    phone2: '+5214793176502',
+    expected: 'conv_+5214773790184_+5214793176502'
   },
-  // Caso 2: ID con encoding simple
   {
-    name: 'ID con encoding simple',
-    input: 'conv_%2B%2B5214773790184_%2B%2B5214793176502',
-    expected: 'conv_++5214773790184_++5214793176502',
-    shouldPass: true
+    name: 'Números sin +',
+    phone1: '5214773790184',
+    phone2: '5214793176502',
+    expected: 'conv_+5214773790184_+5214793176502'
   },
-  // Caso 3: ID con doble encoding
   {
-    name: 'ID con doble encoding',
-    input: 'conv_%252B%252B5214773790184_%252B%252B5214793176502',
-    expected: 'conv_++5214773790184_++5214793176502',
-    shouldPass: true
+    name: 'Números con doble ++ (caso problemático)',
+    phone1: '++5214773790184',
+    phone2: '++5214793176502',
+    expected: 'conv_+5214773790184_+5214793176502'
   },
-  // Caso 4: ID inválido
   {
-    name: 'ID inválido',
-    input: 'invalid_id',
-    expected: null,
-    shouldPass: false
+    name: 'Números mixtos',
+    phone1: '+5214773790184',
+    phone2: '++5214793176502',
+    expected: 'conv_+5214773790184_+5214793176502'
   }
 ];
 
-console.log('🧪 Iniciando pruebas de normalización de conversationId...\n');
-
-// Probar parseConversationId directamente
-console.log('📋 Probando parseConversationId:');
+// Probar normalización de números
+console.log('📱 PRUEBAS DE NORMALIZACIÓN DE NÚMEROS:');
 testCases.forEach((testCase, index) => {
-  console.log(`\n${index + 1}. ${testCase.name}`);
-  console.log(`   Input: ${testCase.input}`);
+  console.log(`\n${index + 1}. ${testCase.name}:`);
   
-  const result = parseConversationId(testCase.input);
+  const normalized1 = normalizePhoneNumber(testCase.phone1);
+  const normalized2 = normalizePhoneNumber(testCase.phone2);
   
-  if (result.valid) {
-    console.log(`   ✅ Válido: ${result.participants.from} -> ${result.participants.to}`);
+  console.log(`   Phone1: "${testCase.phone1}" -> "${normalized1}"`);
+  console.log(`   Phone2: "${testCase.phone2}" -> "${normalized2}"`);
+  
+  if (normalized1 && normalized2) {
+    console.log(`   ✅ Normalización exitosa`);
   } else {
-    console.log(`   ❌ Inválido: ${result.error}`);
+    console.log(`   ❌ Error en normalización`);
   }
 });
 
-// Probar middleware de normalización
-console.log('\n🔧 Probando middleware de normalización:');
-
+// Probar generación de IDs
+console.log('\n🆔 PRUEBAS DE GENERACIÓN DE CONVERSATION ID:');
 testCases.forEach((testCase, index) => {
-  console.log(`\n${index + 1}. ${testCase.name}`);
-  console.log(`   Input: ${testCase.input}`);
+  console.log(`\n${index + 1}. ${testCase.name}:`);
   
-  const req = createMockRequest(testCase.input);
-  const res = createMockResponse();
-  let nextCalled = false;
-  
-  const next = () => {
-    nextCalled = true;
-  };
-  
-  normalizeConversationId(req, res, next);
-  
-  if (nextCalled && !res.responseData) {
-    console.log(`   ✅ Normalizado: ${req.normalizedConversationId}`);
-    if (req.conversationParticipants) {
-      console.log(`   📞 Participantes: ${req.conversationParticipants.from} -> ${req.conversationParticipants.to}`);
+  try {
+    const generatedId = generateConversationId(testCase.phone1, testCase.phone2);
+    console.log(`   Generado: "${generatedId}"`);
+    console.log(`   Esperado: "${testCase.expected}"`);
+    
+    if (generatedId === testCase.expected) {
+      console.log(`   ✅ ID generado correctamente`);
+    } else {
+      console.log(`   ❌ ID no coincide con el esperado`);
     }
-  } else {
-    console.log(`   ❌ Error: ${res.responseData?.error || 'Unknown error'}`);
-  }
-});
-
-// Probar middleware de query parameters
-console.log('\n🔍 Probando middleware de query parameters:');
-
-testCases.forEach((testCase, index) => {
-  console.log(`\n${index + 1}. ${testCase.name}`);
-  console.log(`   Input: ${testCase.input}`);
-  
-  const req = createMockRequest(testCase.input, true);
-  const res = createMockResponse();
-  let nextCalled = false;
-  
-  const next = () => {
-    nextCalled = true;
-  };
-  
-  normalizeConversationIdQuery(req, res, next);
-  
-  if (nextCalled && !res.responseData) {
-    console.log(`   ✅ Normalizado: ${req.query.conversationId}`);
-    if (req.conversationParticipants) {
-      console.log(`   📞 Participantes: ${req.conversationParticipants.from} -> ${req.conversationParticipants.to}`);
+    
+    // Verificar que no contenga doble ++
+    if (generatedId.includes('++')) {
+      console.log(`   🚨 ERROR: ID contiene doble ++`);
+    } else {
+      console.log(`   ✅ ID no contiene doble ++`);
     }
-  } else {
-    console.log(`   ❌ Error: ${res.responseData?.error || 'Unknown error'}`);
+  } catch (error) {
+    console.log(`   ❌ Error generando ID: ${error.message}`);
   }
 });
 
-console.log('\n✅ Pruebas completadas.'); 
+// Probar validación de IDs
+console.log('\n🔍 PRUEBAS DE VALIDACIÓN DE CONVERSATION ID:');
+const validationTests = [
+  {
+    id: 'conv_+5214773790184_+5214793176502',
+    name: 'ID válido',
+    shouldBeValid: true
+  },
+  {
+    id: 'conv_++5214773790184_++5214793176502',
+    name: 'ID con doble ++ (problemático)',
+    shouldBeValid: false
+  },
+  {
+    id: 'conv_5214773790184_5214793176502',
+    name: 'ID sin +',
+    shouldBeValid: true
+  },
+  {
+    id: 'invalid_id',
+    name: 'ID inválido',
+    shouldBeValid: false
+  }
+];
+
+validationTests.forEach((testCase, index) => {
+  console.log(`\n${index + 1}. ${testCase.name}:`);
+  console.log(`   ID: "${testCase.id}"`);
+  
+  const validation = validateConversationIdForDatabase(testCase.id);
+  console.log(`   Validación: ${validation.isValid ? '✅ Válido' : '❌ Inválido'}`);
+  
+  if (!validation.isValid && validation.correctedId) {
+    console.log(`   ID corregido: "${validation.correctedId}"`);
+  }
+  
+  if (validation.error) {
+    console.log(`   Error: ${validation.error}`);
+  }
+  
+  if (validation.isValid === testCase.shouldBeValid) {
+    console.log(`   ✅ Resultado esperado`);
+  } else {
+    console.log(`   ❌ Resultado inesperado`);
+  }
+});
+
+console.log('\n🎯 PRUEBAS COMPLETADAS');
+console.log('✅ La solución debería prevenir IDs con doble ++');
+console.log('✅ Los IDs existentes con doble ++ serán corregidos automáticamente');
+console.log('✅ Nuevas conversaciones usarán el formato correcto'); 

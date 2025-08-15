@@ -1,5 +1,7 @@
 const twilio = require('twilio');
-const { logger } = require('../utils/logger');
+const { firestore, FieldValue, Timestamp } = require('../config/firebase');
+const logger = require('../utils/logger');
+const { generateConversationId, validateConversationIdForDatabase } = require('../utils/conversation');
 
 class TwilioService {
   constructor(client) {
@@ -569,7 +571,30 @@ class TwilioService {
   async createOrUpdateConversation(customerPhone, agentPhone, messageData, contactInfo) {
     try {
       // Generar ID de conversación consistente
-      const conversationId = `conv_${customerPhone.replace('+', '')}_${agentPhone.replace('+', '')}`;
+      let conversationId = generateConversationId(customerPhone, agentPhone);
+
+      // 🔧 VALIDACIÓN CRÍTICA: Verificar que el ID no contenga doble ++
+      const validation = validateConversationIdForDatabase(conversationId);
+      if (!validation.isValid) {
+        logger.error('❌ ConversationId inválido detectado', {
+          originalId: conversationId,
+          correctedId: validation.correctedId,
+          error: validation.error,
+          customerPhone,
+          agentPhone
+        });
+        
+        // Usar el ID corregido si está disponible
+        if (validation.correctedId) {
+          logger.warn('🔧 Usando conversationId corregido', {
+            original: conversationId,
+            corrected: validation.correctedId
+          });
+          conversationId = validation.correctedId;
+        } else {
+          throw new Error(`ConversationId inválido: ${validation.error}`);
+        }
+      }
 
       logger.info('🔍 Buscando conversación existente', { conversationId });
 
