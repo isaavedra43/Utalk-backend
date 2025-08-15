@@ -6,9 +6,30 @@ const logger = require('../utils/logger');
  */
 function normalizeConversationId(req, res, next) {
   try {
-    const rawConversationId = req.params.conversationId || req.params.id;
+    // 🔧 CORRECCIÓN CRÍTICA: Buscar conversationId en múltiples ubicaciones
+    const rawConversationId = req.params.conversationId || req.params.id || req.query.conversationId;
+    
+    // 🔍 LOGGING CRÍTICO PARA DEBUG - Ver qué parámetros están disponibles
+    logger.info('ConversationId middleware - Parámetros disponibles', {
+      requestId: req.id || 'unknown',
+      paramsConversationId: req.params.conversationId,
+      paramsId: req.params.id,
+      queryConversationId: req.query.conversationId,
+      rawConversationId: rawConversationId,
+      method: req.method,
+      url: req.originalUrl,
+      timestamp: new Date().toISOString()
+    });
     
     if (!rawConversationId) {
+      logger.warn('ConversationId no encontrado en ningún parámetro', {
+        requestId: req.id || 'unknown',
+        params: req.params,
+        query: req.query,
+        method: req.method,
+        url: req.originalUrl
+      });
+      
       return res.status(400).json({
         error: 'validation_error',
         details: [{
