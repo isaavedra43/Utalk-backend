@@ -136,6 +136,55 @@ router.get('/export',
 );
 
 /**
+ * 🧪 TEST EXPORT
+ * @route GET /api/logs/test-export
+ * @desc Endpoint de prueba para exportación
+ * @access Public
+ */
+router.get('/test-export', (req, res) => {
+  try {
+    console.log('🧪 TEST_EXPORT: Probando exportación...');
+    
+    const testData = [
+      { timestamp: new Date().toISOString(), level: 'info', message: 'Test log 1' },
+      { timestamp: new Date().toISOString(), level: 'warn', message: 'Test log 2' },
+      { timestamp: new Date().toISOString(), level: 'error', message: 'Test log 3' }
+    ];
+    
+    const format = req.query.format || 'json';
+    let data, contentType, filename;
+    
+    if (format === 'json') {
+      data = JSON.stringify(testData, null, 2);
+      contentType = 'application/json';
+      filename = 'test-logs.json';
+    } else {
+      data = 'timestamp,level,message\n' + testData.map(log => 
+        `"${log.timestamp}","${log.level}","${log.message}"`
+      ).join('\n');
+      contentType = 'text/csv';
+      filename = 'test-logs.csv';
+    }
+    
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-cache'
+    });
+    
+    console.log('🧪 TEST_EXPORT: Enviando archivo de prueba:', filename);
+    res.send(data);
+  } catch (error) {
+    console.error('❌ Error en test-export:', error);
+    res.status(500).json({
+      success: false,
+      error: 'TEST_EXPORT_ERROR',
+      message: 'Error en exportación de prueba'
+    });
+  }
+});
+
+/**
  * 🗑️ CLEAR LOGS
  * @route POST /api/logs/clear
  * @desc Limpiar todos los logs

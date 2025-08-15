@@ -540,6 +540,7 @@ ${initialDataScript}
                 <button id="btnUpdate" class="btn btn-primary">🔄 Actualizar</button>
                 <button id="btnExportJSON" class="btn btn-export">📤 Exportar JSON</button>
                 <button id="btnExportCSV" class="btn btn-export">📤 Exportar CSV</button>
+                <button id="btnTestExport" class="btn btn-export">🧪 Test Export</button>
                 <button id="btnClear" class="btn btn-secondary">🗑️ Limpiar Logs</button>
                 <button id="btnGenerate" class="btn btn-primary">🧪 Generar Logs</button>
                 <div class="auto-refresh">
@@ -578,20 +579,33 @@ ${initialDataScript}
 
         // Esperar a que el DOM esté completamente cargado
         document.addEventListener('DOMContentLoaded', function() {
-            // Listeners de botones (evitar inline handlers bloqueados por CSP o navegadores)
-            var btnUpdate = document.getElementById('btnUpdate');
-            var btnExportJSON = document.getElementById('btnExportJSON');
-            var btnExportCSV = document.getElementById('btnExportCSV');
-            var btnClear = document.getElementById('btnClear');
-            var btnGenerate = document.getElementById('btnGenerate');
-            var autoRefresh = document.getElementById('autoRefresh');
+                    // Listeners de botones (evitar inline handlers bloqueados por CSP o navegadores)
+        var btnUpdate = document.getElementById('btnUpdate');
+        var btnExportJSON = document.getElementById('btnExportJSON');
+        var btnExportCSV = document.getElementById('btnExportCSV');
+        var btnTestExport = document.getElementById('btnTestExport');
+        var btnClear = document.getElementById('btnClear');
+        var btnGenerate = document.getElementById('btnGenerate');
+        var autoRefresh = document.getElementById('autoRefresh');
 
-            if (btnUpdate) btnUpdate.addEventListener('click', loadLogs);
-            if (btnExportJSON) btnExportJSON.addEventListener('click', function(){ exportLogs('json'); });
-            if (btnExportCSV) btnExportCSV.addEventListener('click', function(){ exportLogs('csv'); });
-            if (btnClear) btnClear.addEventListener('click', clearLogs);
-            if (btnGenerate) btnGenerate.addEventListener('click', generateTestLogs);
-            if (autoRefresh) autoRefresh.addEventListener('change', toggleAutoRefresh);
+        if (btnUpdate) btnUpdate.addEventListener('click', loadLogs);
+        if (btnExportJSON) btnExportJSON.addEventListener('click', function(){ exportLogs('json'); });
+        if (btnExportCSV) btnExportCSV.addEventListener('click', function(){ exportLogs('csv'); });
+        if (btnTestExport) btnTestExport.addEventListener('click', function(){ testExport(); });
+        if (btnClear) btnClear.addEventListener('click', clearLogs);
+        if (btnGenerate) btnGenerate.addEventListener('click', generateTestLogs);
+        if (autoRefresh) autoRefresh.addEventListener('change', toggleAutoRefresh);
+
+        // Event listeners para filtros (mover aquí para evitar errores)
+        var levelFilter = document.getElementById('levelFilter');
+        var categoryFilter = document.getElementById('categoryFilter');
+        var timeRangeFilter = document.getElementById('timeRangeFilter');
+        var searchFilter = document.getElementById('searchFilter');
+
+        if (levelFilter) levelFilter.addEventListener('change', loadLogs);
+        if (categoryFilter) categoryFilter.addEventListener('change', loadLogs);
+        if (timeRangeFilter) timeRangeFilter.addEventListener('change', loadLogs);
+        if (searchFilter) searchFilter.addEventListener('input', debounce(loadLogs, 500));
 
             // Pintar datos iniciales si vienen embebidos
             try {
@@ -695,15 +709,25 @@ ${initialDataScript}
 
         async function exportLogs(format) {
             try {
+                console.log('📤 Iniciando exportación:', format);
+                
                 const level = document.getElementById('levelFilter').value;
                 const category = document.getElementById('categoryFilter').value;
                 const timeRange = document.getElementById('timeRangeFilter').value;
 
                 const params = new URLSearchParams({ format, level, category, timeRange });
+                const url = '/api/logs/export?' + params;
+                
+                console.log('📤 URL de exportación:', url);
+                showToast('Iniciando exportación...', 'info', 1000);
 
-                const res = await fetch('/api/logs/export?' + params);
+                const res = await fetch(url);
+                console.log('📤 Respuesta del servidor:', res.status, res.statusText);
+                
                 if (!res.ok) {
-                    showToast('No se pudo exportar (' + res.status + ')', 'error');
+                    const errorText = await res.text();
+                    console.error('📤 Error en respuesta:', errorText);
+                    showToast('Error del servidor: ' + res.status + ' - ' + res.statusText, 'error');
                     return;
                 }
 
@@ -711,19 +735,25 @@ ${initialDataScript}
                 const match = contentDisposition.match(/filename="?([^";]+)"?/i);
                 const filename = match ? match[1] : ('logs-' + new Date().toISOString().slice(0,10) + '.' + format);
 
+                console.log('📤 Descargando archivo:', filename);
                 const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
+                console.log('📤 Blob creado, tamaño:', blob.size);
+                
+                const url2 = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = url2;
                 a.download = filename;
+                a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
-                URL.revokeObjectURL(url);
-                showToast('Exportación iniciada: ' + filename, 'success', 2000);
+                URL.revokeObjectURL(url2);
+                
+                console.log('📤 Exportación completada:', filename);
+                showToast('Exportación completada: ' + filename, 'success', 3000);
             } catch (err) {
-                console.error('Error exportando:', err);
-                showToast('Error de red al exportar', 'error');
+                console.error('📤 Error exportando:', err);
+                showToast('Error de red al exportar: ' + err.message, 'error');
             }
         }
 
@@ -779,11 +809,48 @@ ${initialDataScript}
             }
         }
 
-        // Event listeners para filtros
-        document.getElementById('levelFilter').addEventListener('change', loadLogs);
-        document.getElementById('categoryFilter').addEventListener('change', loadLogs);
-        document.getElementById('timeRangeFilter').addEventListener('change', loadLogs);
-        document.getElementById('searchFilter').addEventListener('input', debounce(loadLogs, 500));
+        async function testExport() {
+            try {
+                console.log('🧪 Iniciando test de exportación...');
+                showToast('Probando exportación...', 'info', 1000);
+
+                const res = await fetch('/api/logs/test-export?format=json');
+                console.log('🧪 Respuesta del test:', res.status, res.statusText);
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error('🧪 Error en test:', errorText);
+                    showToast('Error en test: ' + res.status, 'error');
+                    return;
+                }
+
+                const contentDisposition = res.headers.get('content-disposition') || '';
+                const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+                const filename = match ? match[1] : 'test-logs.json';
+
+                console.log('🧪 Descargando archivo de test:', filename);
+                const blob = await res.blob();
+                console.log('🧪 Blob de test creado, tamaño:', blob.size);
+                
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                
+                console.log('🧪 Test de exportación completado:', filename);
+                showToast('Test completado: ' + filename, 'success', 3000);
+            } catch (err) {
+                console.error('🧪 Error en test de exportación:', err);
+                showToast('Error en test: ' + err.message, 'error');
+            }
+        }
+
+        // Event listeners para filtros ya configurados arriba
 
         function debounce(func, wait) {
             let timeout;
