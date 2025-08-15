@@ -68,10 +68,10 @@ router.post('/validate-token',
 /**
  * @route POST /api/auth/logout
  * @desc Cerrar sesión e invalidar refresh tokens
- * @access Private
+ * @access Public (idempotente)
  */
 router.post('/logout', 
-  authMiddleware,
+  // authMiddleware,  // Eliminado para permitir logout con token expirado
   AuthController.logout
 );
 

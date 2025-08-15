@@ -18,11 +18,6 @@ const logger = require('../utils/logger');
 const consoleRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
   max: 10, // máximo 10 requests por minuto
-  message: {
-    error: 'Rate limit excedido',
-    message: 'Demasiadas solicitudes de configuración IA. Intenta de nuevo en 1 minuto.',
-    code: 'RATE_LIMIT_EXCEEDED'
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -32,16 +27,30 @@ const consoleRateLimiter = rateLimit({
     return `ai_console:${workspaceId}:${userId}`;
   },
   handler: (req, res) => {
+    const workspaceId = req.params.workspaceId || req.body.workspaceId || 'default';
+    const userId = req.user?.email || req.ip;
+    const now = Date.now();
+    const retryAfter = 60;
+    const resetEpoch = Math.ceil((now + 60000) / 1000);
+
     logger.warn('🚫 Rate limit excedido en consola IA', {
-      workspaceId: req.params.workspaceId || req.body.workspaceId,
+      workspaceId,
       userEmail: req.user?.email,
       ip: req.ip,
       url: req.originalUrl
     });
+
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': '10',
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
     res.status(429).json({
-      error: 'Rate limit excedido',
-      message: 'Demasiadas solicitudes de configuración IA. Intenta de nuevo en 1 minuto.',
-      code: 'RATE_LIMIT_EXCEEDED'
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { scope: 'ai_console', workspaceId, windowMs: 60000, limit: 10 },
+      retryAfter
     });
   }
 });
@@ -53,11 +62,6 @@ const consoleRateLimiter = rateLimit({
 const qaRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
   max: 10, // máximo 10 requests por minuto
-  message: {
-    error: 'Rate limit excedido',
-    message: 'Demasiadas solicitudes QA de IA. Intenta de nuevo en 1 minuto.',
-    code: 'RATE_LIMIT_EXCEEDED'
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -67,16 +71,29 @@ const qaRateLimiter = rateLimit({
     return `ai_qa:${workspaceId}:${userId}`;
   },
   handler: (req, res) => {
+    const workspaceId = req.body.workspaceId || 'default';
+    const now = Date.now();
+    const retryAfter = 60;
+    const resetEpoch = Math.ceil((now + 60000) / 1000);
+
     logger.warn('🚫 Rate limit excedido en QA IA', {
-      workspaceId: req.body.workspaceId,
+      workspaceId,
       userEmail: req.user?.email,
       ip: req.ip,
       url: req.originalUrl
     });
+
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': '10',
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
     res.status(429).json({
-      error: 'Rate limit excedido',
-      message: 'Demasiadas solicitudes QA de IA. Intenta de nuevo en 1 minuto.',
-      code: 'RATE_LIMIT_EXCEEDED'
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { scope: 'ai_qa', workspaceId, windowMs: 60000, limit: 10 },
+      retryAfter
     });
   }
 });
@@ -88,11 +105,6 @@ const qaRateLimiter = rateLimit({
 const validationRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
   max: 5, // máximo 5 requests por minuto
-  message: {
-    error: 'Rate limit excedido',
-    message: 'Demasiadas validaciones de configuración. Intenta de nuevo en 1 minuto.',
-    code: 'RATE_LIMIT_EXCEEDED'
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -101,15 +113,28 @@ const validationRateLimiter = rateLimit({
     return `ai_validation:${userId}`;
   },
   handler: (req, res) => {
+    const userId = req.user?.email || req.ip;
+    const now = Date.now();
+    const retryAfter = 60;
+    const resetEpoch = Math.ceil((now + 60000) / 1000);
+
     logger.warn('🚫 Rate limit excedido en validación IA', {
       userEmail: req.user?.email,
       ip: req.ip,
       url: req.originalUrl
     });
+
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': '5',
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
     res.status(429).json({
-      error: 'Rate limit excedido',
-      message: 'Demasiadas validaciones de configuración. Intenta de nuevo en 1 minuto.',
-      code: 'RATE_LIMIT_EXCEEDED'
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { scope: 'ai_validation', userId, windowMs: 60000, limit: 5 },
+      retryAfter
     });
   }
 });

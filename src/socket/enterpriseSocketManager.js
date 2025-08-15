@@ -310,8 +310,8 @@ class EnterpriseSocketManager {
       transports: ['websocket', 'polling'],
       
       // 🔧 CORRECCIÓN CRÍTICA: Timeouts optimizados para evitar Status 0
-      pingTimeout: 90000,     // 🔧 CORRECCIÓN: Aumentado a 90s para evitar timeouts
-      pingInterval: 25000,    // 🔧 CORRECCIÓN: Aumentado a 25s para mantener conexión
+      pingTimeout: 60000,     // 60s para evitar timeouts espurios
+      pingInterval: 25000,    // 25s para mantener conexión
       
       // Connection limits
       maxHttpBufferSize: 1e6, // 🔧 CORRECCIÓN: Reducido de 2MB a 1MB
@@ -323,10 +323,7 @@ class EnterpriseSocketManager {
       perMessageDeflate: false,
       
       // Memory usage optimization
-      connectionStateRecovery: {
-        maxDisconnectionDuration: 120 * 1000, // 🔧 CORRECCIÓN: Aumentado a 2min para reconexión
-        skipMiddlewares: false,
-      },
+      connectionStateRecovery: true,
       
       // Additional settings
       allowEIO3: false,
@@ -364,9 +361,11 @@ class EnterpriseSocketManager {
     this.io.use(async (socket, next) => {
       try {
         // Extract JWT token from handshake
-        const token = socket.handshake.auth?.token || 
-                     socket.handshake.headers?.authorization?.replace('Bearer ', '') ||
-                     socket.handshake.query?.token;
+        const rawAuthToken = socket.handshake.auth?.token || socket.handshake.query?.token || socket.handshake.headers?.authorization;
+        let token = rawAuthToken || '';
+        if (typeof token === 'string' && token.startsWith('Bearer ')) {
+          token = token.slice('Bearer '.length);
+        }
 
         if (!token) {
           logger.warn('Socket.IO: Connection attempt without JWT token', {
@@ -809,73 +808,76 @@ class EnterpriseSocketManager {
       });
     };
 
-    // Sync state event - MÁS PERMISIVO
+    // Alias helper: registra múltiples nombres apuntando al mismo handler
+    const registerAliases = (names, handler, options = {}) => {
+      names.forEach((n) => registerEvent(n, handler, options));
+    };
+
+    // Sync state
     registerEvent(SOCKET_EVENTS.SYNC_STATE, 
       this.handleSyncState.bind(this), 
-      { rateLimited: true, maxCalls: 200, timeout: 30000 } // Aumentado de 100 a 200
+      { rateLimited: true, maxCalls: 200, timeout: 30000 }
     );
 
-    // Join conversation event - MÁS PERMISIVO
-    registerEvent(SOCKET_EVENTS.JOIN_CONVERSATION, 
-      this.handleJoinConversation.bind(this), 
-      { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
-    );
+    // Join conversation (alias)
+    registerAliases([
+      SOCKET_EVENTS.JOIN_CONVERSATION,
+      'conversation:join'
+    ], this.handleJoinConversation.bind(this), { rateLimited: true, maxCalls: 100, timeout: 15000 });
 
-    logger.info('🎯 EVENTO JOIN-CONVERSATION REGISTRADO', {
-      category: 'SOCKET_EVENT_REGISTRATION',
-      eventName: SOCKET_EVENTS.JOIN_CONVERSATION,
-      handlerFunction: 'handleJoinConversation',
-      socketId: socket.id,
-      userEmail: userEmail?.substring(0, 20) + '...',
-      timestamp: new Date().toISOString()
-    });
+    // Leave conversation (alias)
+    registerAliases([
+      SOCKET_EVENTS.LEAVE_CONVERSATION,
+      'conversation:leave'
+    ], this.handleLeaveConversation.bind(this), { rateLimited: true, maxCalls: 100, timeout: 15000 });
 
-    // Leave conversation event - MÁS PERMISIVO
-    registerEvent(SOCKET_EVENTS.LEAVE_CONVERSATION, 
-      this.handleLeaveConversation.bind(this), 
-      { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
-    );
-
-    // New message event - MÁS PERMISIVO
+    // New message (mantener principal)
     registerEvent(SOCKET_EVENTS.NEW_MESSAGE, 
       this.handleNewMessage.bind(this), 
-      { rateLimited: true, maxCalls: 400, timeout: 30000 } // Aumentado de 200 a 400
+      { rateLimited: true, maxCalls: 400, timeout: 30000 }
     );
 
-    // Message read event - MÁS PERMISIVO
-    registerEvent(SOCKET_EVENTS.MESSAGE_READ, 
-      this.handleMessageRead.bind(this), 
-      { rateLimited: true, maxCalls: 200, timeout: 15000 } // Aumentado de 100 a 200
-    );
+    // Message read (alias)
+    registerAliases([
+      SOCKET_EVENTS.MESSAGE_READ,
+      'messages:read'
+    ], this.handleMessageRead.bind(this), { rateLimited: true, maxCalls: 200, timeout: 15000 });
 
-    // Typing event - MÁS PERMISIVO
+    // Typing
     registerEvent(SOCKET_EVENTS.MESSAGE_TYPING, 
       this.handleTyping.bind(this), 
-      { rateLimited: true, maxCalls: 600, timeout: 10000 } // Aumentado de 300 a 600
+      { rateLimited: true, maxCalls: 600, timeout: 10000 }
     );
 
-    // Typing stop event - MÁS PERMISIVO
+    // Typing stop
     registerEvent(SOCKET_EVENTS.MESSAGE_TYPING_STOP, 
       this.handleTypingStop.bind(this), 
-      { rateLimited: true, maxCalls: 600, timeout: 10000 } // Aumentado de 300 a 600
+      { rateLimited: true, maxCalls: 600, timeout: 10000 }
     );
 
-    // Status change event - MÁS PERMISIVO
+    // Status change
     registerEvent(SOCKET_EVENTS.USER_STATUS_CHANGE, 
       this.handleStatusChange.bind(this), 
-      { rateLimited: true, maxCalls: 100, timeout: 15000 } // Aumentado de 50 a 100
+      { rateLimited: true, maxCalls: 100, timeout: 15000 }
     );
 
-    // Disconnect event
+    // Disconnect
     registerEvent(SOCKET_EVENTS.DISCONNECT, 
       this.handleDisconnect.bind(this), 
       { maxCalls: 1, timeout: null }
     );
 
-    // Error event
+    // Error (de negocio): no desconectar
     registerEvent(SOCKET_EVENTS.ERROR, 
-      this.handleSocketError.bind(this), 
-      { maxCalls: 10, timeout: 5000 }
+      (sock, payload) => {
+        logger.warn('WS business error reported by client', {
+          category: 'SOCKET_CLIENT_ERROR',
+          payload: typeof payload === 'string' ? payload : (payload?.error || 'unknown'),
+          socketId: sock.id
+        });
+        // No desconectar; sólo loggear
+      }, 
+      { maxCalls: 50, timeout: 5000 }
     );
 
     logger.info('Socket event listeners configurados con cleanup automático', {
@@ -884,7 +886,7 @@ class EnterpriseSocketManager {
       totalEvents: listenersMap.size
     });
 
-    // 🔧 CORRECCIÓN: Agregar heartbeat manual para mantener conexión activa
+    // Heartbeat manual
     this.setupHeartbeat(socket, userEmail);
   }
 
@@ -940,9 +942,9 @@ class EnterpriseSocketManager {
             socketId: socket.id
           });
           socket.emit(SOCKET_EVENTS.ERROR, {
-            error: 'AUTHENTICATION_REQUIRED',
+            code: 'AUTHENTICATION_REQUIRED',
             message: 'Authentication required for this event',
-            eventName
+            details: { eventName }
           });
           return;
         }
@@ -956,10 +958,10 @@ class EnterpriseSocketManager {
             socketId: socket.id
           });
           socket.emit(SOCKET_EVENTS.ERROR, {
-            error: 'RATE_LIMIT_EXCEEDED',
-            message: 'Too many requests. Please slow down.',
-            eventName,
-            retryAfter: RATE_LIMITS[eventName] || 1000
+            code: 'RATE_LIMITED',
+            message: 'Too many events',
+            details: { event: eventName, windowMs: RATE_LIMITS[eventName] || 1000 },
+            retryAfter: Math.ceil((RATE_LIMITS[eventName] || 1000) / 1000)
           });
           return;
         }
@@ -989,9 +991,9 @@ class EnterpriseSocketManager {
         // ✅ CRÍTICO: Verificar que socket existe antes de emitir
         if (socket && typeof socket.emit === 'function') {
           socket.emit(SOCKET_EVENTS.ERROR, {
-            error: 'EVENT_HANDLER_ERROR',
+            code: 'EVENT_HANDLER_ERROR',
             message: 'Error processing event',
-            eventName
+            details: { eventName }
           });
         }
       }
@@ -1173,15 +1175,13 @@ class EnterpriseSocketManager {
         decodedConversationId = conversationId;
       }
 
-      // 🔧 CORRECCIÓN: Usar el roomId que envía el frontend si está disponible
-      let targetRoomId = roomId;
-      
-      // Si no viene roomId del frontend, construir uno compatible
-      if (!targetRoomId) {
-        const workspaceId = socket.decodedToken?.workspaceId || 'default';
-        const tenantId = socket.decodedToken?.tenantId || 'na';
-        targetRoomId = `conversation:${conversationId}`;
-      }
+      // 🔒 Room generado únicamente por el servidor (unificación)
+      const { getConversationRoom } = require('./index');
+      const targetRoomId = getConversationRoom({
+        workspaceId: socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.decodedToken?.tenantId || 'na',
+        conversationId: decodedConversationId
+      });
 
       // 🔧 CORRECCIÓN CRÍTICA: Verificar permisos con el conversationId decodificado
       const hasPermission = await this.verifyConversationPermission(userEmail, decodedConversationId, 'read');
@@ -1528,9 +1528,9 @@ class EnterpriseSocketManager {
       });
 
       socket.emit(SOCKET_EVENTS.ERROR, {
-        error: 'MESSAGE_FAILED',
+        code: 'MESSAGE_FAILED',
         message: 'Failed to send message',
-        conversationId: messageData?.conversationId
+        details: { conversationId: messageData?.conversationId }
       });
     }
   }
@@ -1552,21 +1552,52 @@ class EnterpriseSocketManager {
 
       // Actualizar en BD en lote usando el modelo Message
       const Message = require('../models/Message');
-      await Message.markManyAsRead(conversationId, messageIds, userEmail, readTimestamp);
+      const result = await Message.markManyAsRead(conversationId, messageIds, userEmail, readTimestamp);
 
-      // Notificar a otros usuarios en la conversación
+      // Determinar room unificado
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
         workspaceId: socket.decodedToken?.workspaceId || 'default',
         tenantId: socket.decodedToken?.tenantId || 'na',
-        conversationId 
+        conversationId
       });
+
+      // Broadcast a otros usuarios
       socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_READ, {
         conversationId,
         messageIds,
         readBy: userEmail,
         timestamp: readTimestamp.toISOString()
       });
+
+      // Ack al emisor (no rompe FE si lo ignora)
+      socket.emit('message-read-ack', {
+        ok: true,
+        conversationId,
+        messageIds,
+        updated: result?.updated ?? messageIds.length,
+        timestamp: readTimestamp.toISOString()
+      });
+
+      // Emitir actualización de conversación con unreadCount recalculado
+      try {
+        const workspaceId = socket.decodedToken?.workspaceId || 'default';
+        const tenantId = socket.decodedToken?.tenantId || 'na';
+        const unreadCount = await Message.getUnreadCount(conversationId, userEmail);
+        this.emitConversationUpdated({
+          workspaceId,
+          tenantId,
+          conversationId,
+          unreadCount,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (updateErr) {
+        logger.warn('No se pudo emitir conversation updated tras read', {
+          category: 'SOCKET_MESSAGE_READ_UPDATE_WARN',
+          error: updateErr.message,
+          conversationId
+        });
+      }
 
       logger.debug('Messages marked as read', {
         category: 'SOCKET_MESSAGE_READ',
@@ -1584,9 +1615,12 @@ class EnterpriseSocketManager {
       });
 
       socket.emit(SOCKET_EVENTS.ERROR, {
-        error: 'READ_FAILED',
+        code: 'READ_FAILED',
         message: 'Failed to mark messages as read',
-        conversationId
+        details: {
+          conversationId,
+          count: Array.isArray(messageIds) ? messageIds.length : 0
+        }
       });
     }
   }

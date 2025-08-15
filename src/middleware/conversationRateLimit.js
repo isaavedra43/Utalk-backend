@@ -62,11 +62,6 @@ const syncStateRateLimiter = rateLimit({
     const limits = getUserLimits(userRole);
     return limits.syncState.max;
   },
-  message: {
-    error: 'RATE_LIMIT_EXCEEDED',
-    message: 'Demasiadas sincronizaciones de estado. Intenta de nuevo en 1 minuto.',
-    retryAfter: 60
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -76,22 +71,31 @@ const syncStateRateLimiter = rateLimit({
   handler: (req, res) => {
     const userEmail = req.user?.email || req.ip;
     const userRole = req.user?.role || 'default';
+    const now = Date.now();
+    const retryAfter = 60; // por windowMs
+    const resetEpoch = Math.ceil((now + 60000) / 1000);
     
     logger.warn('Rate limit excedido para sync-state', {
       category: 'RATE_LIMIT_SYNC_STATE',
-      userEmail: userEmail.substring(0, 20) + '...',
+      userEmail: String(userEmail).substring(0, 20) + '...',
       userRole,
       ip: req.ip,
       url: req.originalUrl,
       userAgent: req.headers['user-agent']?.substring(0, 100)
     });
 
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': String(getUserLimits(userRole).syncState.max),
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
+
     res.status(429).json({
-      error: 'RATE_LIMIT_EXCEEDED',
-      message: 'Demasiadas sincronizaciones de estado. Intenta de nuevo en 1 minuto.',
-      retryAfter: 60,
-      eventName: 'sync-state',
-      timestamp: new Date().toISOString()
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { limit: getUserLimits(userRole).syncState.max, windowMs: 60000 },
+      retryAfter
     });
   }
 });
@@ -107,11 +111,6 @@ const conversationJoinLeaveRateLimiter = rateLimit({
     const limits = getUserLimits(userRole);
     return limits.joinLeave.max;
   },
-  message: {
-    error: 'RATE_LIMIT_EXCEEDED',
-    message: 'Demasiadas operaciones de conversación. Intenta de nuevo en 1 minuto.',
-    retryAfter: 60
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -121,21 +120,30 @@ const conversationJoinLeaveRateLimiter = rateLimit({
   handler: (req, res) => {
     const userEmail = req.user?.email || req.ip;
     const userRole = req.user?.role || 'default';
+    const now = Date.now();
+    const retryAfter = 60;
+    const resetEpoch = Math.ceil((now + 60000) / 1000);
     
     logger.warn('Rate limit excedido para join/leave conversación', {
       category: 'RATE_LIMIT_CONVERSATION_JOIN_LEAVE',
-      userEmail: userEmail.substring(0, 20) + '...',
+      userEmail: String(userEmail).substring(0, 20) + '...',
       userRole,
       ip: req.ip,
       url: req.originalUrl
     });
 
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': String(getUserLimits(userRole).joinLeave.max),
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
+
     res.status(429).json({
-      error: 'RATE_LIMIT_EXCEEDED',
-      message: 'Demasiadas operaciones de conversación. Intenta de nuevo en 1 minuto.',
-      retryAfter: 60,
-      eventName: req.path.includes('join') ? 'join-conversation' : 'leave-conversation',
-      timestamp: new Date().toISOString()
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { limit: getUserLimits(userRole).joinLeave.max, windowMs: 60000 },
+      retryAfter
     });
   }
 });
@@ -151,11 +159,6 @@ const messageRateLimiter = rateLimit({
     const limits = getUserLimits(userRole);
     return limits.messages.max;
   },
-  message: {
-    error: 'RATE_LIMIT_EXCEEDED',
-    message: 'Demasiados mensajes. Intenta de nuevo en 1 minuto.',
-    retryAfter: 60
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -165,21 +168,30 @@ const messageRateLimiter = rateLimit({
   handler: (req, res) => {
     const userEmail = req.user?.email || req.ip;
     const userRole = req.user?.role || 'default';
+    const now = Date.now();
+    const retryAfter = 60;
+    const resetEpoch = Math.ceil((now + 60000) / 1000);
     
     logger.warn('Rate limit excedido para mensajes', {
       category: 'RATE_LIMIT_MESSAGES',
-      userEmail: userEmail.substring(0, 20) + '...',
+      userEmail: String(userEmail).substring(0, 20) + '...',
       userRole,
       ip: req.ip,
       url: req.originalUrl
     });
 
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': String(getUserLimits(userRole).messages.max),
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
+
     res.status(429).json({
-      error: 'RATE_LIMIT_EXCEEDED',
-      message: 'Demasiados mensajes. Intenta de nuevo en 1 minuto.',
-      retryAfter: 60,
-      eventName: 'new-message',
-      timestamp: new Date().toISOString()
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { limit: getUserLimits(userRole).messages.max, windowMs: 60000 },
+      retryAfter
     });
   }
 });
@@ -194,11 +206,6 @@ const conversationGeneralRateLimiter = rateLimit({
     const limits = getUserLimits(userRole);
     return limits.general.max;
   },
-  message: {
-    error: 'RATE_LIMIT_EXCEEDED',
-    message: 'Demasiadas solicitudes. Intenta de nuevo en 15 minutos.',
-    retryAfter: 15 * 60
-  },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -208,20 +215,30 @@ const conversationGeneralRateLimiter = rateLimit({
   handler: (req, res) => {
     const userEmail = req.user?.email || req.ip;
     const userRole = req.user?.role || 'default';
+    const now = Date.now();
+    const retryAfter = 15 * 60;
+    const resetEpoch = Math.ceil((now + 15 * 60 * 1000) / 1000);
     
     logger.warn('Rate limit general excedido para conversaciones', {
       category: 'RATE_LIMIT_CONVERSATION_GENERAL',
-      userEmail: userEmail.substring(0, 20) + '...',
+      userEmail: String(userEmail).substring(0, 20) + '...',
       userRole,
       ip: req.ip,
       url: req.originalUrl
     });
 
+    res.set({
+      'Retry-After': String(retryAfter),
+      'X-RateLimit-Limit': String(getUserLimits(userRole).general.max),
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetEpoch)
+    });
+
     res.status(429).json({
-      error: 'RATE_LIMIT_EXCEEDED',
-      message: 'Demasiadas solicitudes. Intenta de nuevo en 15 minutos.',
-      retryAfter: 15 * 60,
-      timestamp: new Date().toISOString()
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+      details: { limit: getUserLimits(userRole).general.max, windowMs: 15 * 60 * 1000 },
+      retryAfter
     });
   }
 });

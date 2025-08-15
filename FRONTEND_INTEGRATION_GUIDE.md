@@ -1206,3 +1206,159 @@ Para soporte técnico o preguntas sobre la integración:
 ---
 
 **¡Feliz integración! 🚀** 
+
+---
+
+## 📜 CONTRATOS Y CONVENCIONES (IDs, Rooms, Eventos)
+
+### Reglas de ID de conversación (conv_{phone1}_{phone2})
+- **En path HTTP**: usar `+` literal. Ej.: `/api/conversations/conv_+5214773790184_+5214793176502`
+- **En query HTTP**: URL-encode de `+` como `%2B`. Ej.: `/api/messages?conversationId=conv_%2B5211477...`
+- **En WebSocket**: enviar y escuchar siempre con `+` literal.
+
+### Rooms de Socket.IO
+- Formato: `ws:{workspace}:ten:{tenant}:conv:{id}`
+- Ejemplo: `ws:default:ten:na:conv:conv_+5214773790184_+5214793176502`
+
+### Eventos y acks relevantes
+- **Join a conversación**
+  - Emit: `join-conversation` `{ conversationId }`
+  - Ack: evento `conversation-joined` con payload `{ ok:true, conversationId, roomId, onlineUsers, timestamp }`
+
+- **Marcar mensajes como leídos (lote)**
+  - Emit: `message-read` `{ conversationId, messageIds[] }`
+  - Ack: `message-read-ack` `{ ok:true, conversationId, messageIds, updated, timestamp }`
+  - Broadcast a la sala: `message-read` `{ conversationId, messageIds, readBy, timestamp }`
+  - Además, se recalcula `unreadCount` y se emite actualización de conversación (ver abajo).
+
+- **Actualización de conversación (contador)**
+  - Eventos gemelos emitidos a la sala tras reads o cambios:
+    - `conversation-event`
+    - `conversation.updated`
+  - Payload: `{ conversationId, unreadCount, updatedAt, lastMessage?, correlationId? }`
+
+### Manejo de 429 (HTTP/WS) y shape de errores
+- **HTTP 429**
+  - Respuesta JSON típica:
+    ```json
+    {
+      "success": false,
+      "error": {
+        "type": "RATE_LIMIT_ERROR",
+        "code": "TOO_MANY_REQUESTS",
+        "message": "Has superado el límite de solicitudes.",
+        "timestamp": "2025-01-01T00:00:00.000Z"
+      }
+    }
+    ```
+  - Recomendación FE: backoff exponencial y retry después de `Retry-After` si está presente.
+
+- **WS rate limit / errores**
+  - Canal de errores: evento `error`
+  - Shape sugerido por backend:
+    ```json
+    {
+      "code": "RATE_LIMIT_EXCEEDED",
+      "message": "Too many events in a short time",
+      "details": { "windowMs": 10000, "limit": 30 }
+    }
+    ```
+  - Recomendación FE: pausar envíos por `windowMs` y reintentar. 
+
+---
+
+## 🔧 Helpers recomendados (IDs y encoding)
+
+```javascript
+// ID de conversación canónico con +
+export const encodeConversationIdForUrl = (id) => id; // Path usa +
+export const encodeConversationIdForQuery = (id) => id.replace(/\+/g, '%2B'); // Query encode de +
+export const encodeConversationIdForWebSocket = (id) => id; // WS usa +
+
+// Ejemplo de uso (HTTP):
+const conversationId = 'conv_+5214773790184_+5214793176502';
+const url = `/api/messages?conversationId=${encodeConversationIdForQuery(conversationId)}&limit=50`;
+```
+
+## 🔔 Listeners recomendados (acks y actualizaciones)
+
+```javascript
+// Acks y actualizaciones clave
+socket.on('conversation-joined', (data) => {
+  console.log('JOIN ACK:', data); // { ok:true, roomId, ... }
+});
+
+socket.on('message-read-ack', (data) => {
+  console.log('READ ACK:', data); // { ok:true, updated, ... }
+});
+
+// Actualización de contador sin refresh
+socket.on('conversation-event', (payload) => {
+  // { conversationId, unreadCount, updatedAt, ... }
+  updateConversationCounters(payload);
+});
+
+socket.on('conversation.updated', (payload) => {
+  updateConversationCounters(payload);
+});
+```
+
+## 🧪 Ejemplo completo: marcar leídos con ack + contador
+
+```javascript
+const markAsRead = (conversationId, messageIds) => {
+  socket.emit('message-read', { conversationId, messageIds });
+};
+
+// Listeners (ver sección anterior)
+socket.on('message-read-ack', ({ ok, updated, conversationId }) => {
+  if (ok) {
+    console.log(`Marcados como leídos: ${updated}`);
+  }
+});
+
+socket.on('conversation-event', ({ conversationId, unreadCount }) => {
+  // Reflejar en UI inmediatamente
+  setConversationUnread(conversationId, unreadCount);
+});
+```
+
+## 🔁 Manejo de 429 (HTTP y WS)
+
+```javascript
+// HTTP backoff simple
+const withBackoff = async (fn, { tries = 3, baseDelay = 500 } = {}) => {
+  let attempt = 0;
+  while (attempt < tries) {
+    try { return await fn(); } catch (e) {
+      const status = e?.response?.status;
+      if (status !== 429) throw e;
+      const retryAfter = Number(e.response.headers['retry-after'] || 0);
+      const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelay * 2 ** attempt;
+      await new Promise(r => setTimeout(r, Math.min(delay, 8000)));
+      attempt++;
+    }
+  }
+  throw new Error('Too many requests');
+};
+
+// WS: pausar envíos al recibir error de rate limit
+let wsBlockedUntil = 0;
+socket.on('error', (err) => {
+  if (err?.code === 'RATE_LIMIT_EXCEEDED') {
+    const { windowMs = 10000 } = err.details || {};
+    wsBlockedUntil = Date.now() + windowMs;
+  }
+});
+
+const safeEmit = (event, payload) => {
+  if (Date.now() < wsBlockedUntil) return; // descartar hasta liberar
+  socket.emit(event, payload);
+};
+```
+
+## ℹ️ Logout idempotente (contrato)
+
+- No requiere token válido; si el access token expiró, responde 200 igualmente.
+- Cuerpo opcional: `{ refreshToken?: string, invalidateAll?: boolean }`.
+- Recomendación FE: llamar siempre a `/api/auth/logout` y luego limpiar storage; ignorar errores. 

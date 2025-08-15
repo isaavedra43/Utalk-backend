@@ -11,231 +11,109 @@ const { URL } = require('node:url');
 const logger = require('../utils/logger');
 
 // Lista estática desde variables y dominios propios
+const FRONTEND_ENV = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(s => s && s.trim())
+  .filter(Boolean);
+
 const STATIC_WHITELIST = [
-  process.env.FRONTEND_URL,      // ej: https://utalk-frontend.vercel.app
-  process.env.FRONTEND_URL_2,    // ej: https://utalk-frontend-glt2-git-main-israels-projects-xxxx.vercel.app
-  process.env.FRONTEND_URL_3,    // opcional
-  'https://utalk.com',
-  'https://www.utalk.com',
-  'https://app.utalk.com',
-  'https://admin.utalk.com',
-  // ✅ CRÍTICO: Agregar el dominio específico de Vercel que está causando el problema
-  'https://utalk-frontend-glt2.vercel.app',
-  'https://utalk-frontend-glt2-git-main-israels-projects-8c8c.vercel.app',
-  'https://utalk-frontend-glt2-git-feature-israels-projects-8c8c.vercel.app',
-  // ✅ SUPER ROBUSTO: Agregar todos los posibles dominios de Vercel
-  'https://utalk-frontend-glt2.vercel.app',
-  'https://utalk-frontend-glt2-git-main-israels-projects.vercel.app',
-  'https://utalk-frontend-glt2-git-feature-israels-projects.vercel.app',
-  'https://utalk-frontend-glt2-git-develop-israels-projects.vercel.app',
-  'https://utalk-frontend-glt2-git-staging-israels-projects.vercel.app',
-  'https://utalk-frontend-glt2-git-production-israels-projects.vercel.app',
-  // ✅ CRÍTICO: Agregar localhost:5173 para desarrollo frontend
-  'http://localhost:5173',
-  'https://localhost:5173',
-  // Incluye el propio backend si lo usas en pruebas
-  'https://utalk-backend-production.up.railway.app',
-  'https://utalk-backend-staging.up.railway.app',
-  'https://utalk-backend-development.up.railway.app',
-  // ✅ CRÍTICO: Permitir cualquier dominio de Vercel temporalmente
-  'https://*.vercel.app',
-  'https://*.vercel.com',
+  ...FRONTEND_ENV,                 // e.g. https://utalk-frontend-glt2-git-main-...vercel.app, https://utalk-frontend-glt2.vercel.app
+  process.env.FRONTEND_URL_2,
+  process.env.FRONTEND_URL_3,
+  'http://localhost:5173'
 ].filter(Boolean);
 
-// Patrones permitidos (subdominios dinámicos)
+// Patrones permitidos (subdominios dinámicos) — minimizar a lo necesario
 const REGEX_WHITELIST = [
-  /\.vercel\.app$/i,
-  /\.railway\.app$/i,
-  /^localhost$/i,
-  /^localhost:\d+$/i,
 ];
 
 /**
- * 🛡️ VALIDAR ORIGEN CON FUNCIÓN Y REGEX - SUPER ROBUSTO
+ * 🛡️ VALIDAR ORIGEN CON FUNCIÓN — HTTP (Express)
  */
 function isOriginAllowed(origin) {
-  if (!origin) return true; // peticiones server-to-server (curl/postman) sin Origin
-  
+  // Para HTTP no aceptamos Origin undefined (salvo rutas especiales que se configuran aparte)
+  if (!origin) return false;
   try {
     const u = new URL(origin);
-    
-    // ✅ SUPER ROBUSTO: Log para debugging CORS (OPTIMIZADO)
-    console.log(`🔍 CORS Check: origin=${origin}, hostname=${u.hostname}, allowed=${STATIC_WHITELIST.includes(u.origin)}`);
-    
-    // ✅ SUPER ROBUSTO: Verificar lista estática
-    if (STATIC_WHITELIST.includes(u.origin)) {
-      logger.info('✅ CORS permitido (estático)', {
-        category: 'CORS_ALLOWED',
-        origin,
-        type: 'static'
-      });
+    const allowedStatic = STATIC_WHITELIST.includes(u.origin);
+    console.log(`🔍 CORS Check: origin=${origin}, hostname=${u.hostname}, allowed=${allowedStatic}`);
+    if (allowedStatic) {
+      logger.info('✅ CORS permitido (estático)', { category: 'CORS_ALLOWED', origin, type: 'static' });
       return true;
     }
-    
-    // ✅ SUPER ROBUSTO: Verificar patrones regex
+    // Patrones opcionales (actualmente vacíos)
     const isRegexMatch = REGEX_WHITELIST.some((re) => re.test(u.hostname));
     if (isRegexMatch) {
-      logger.info('✅ CORS permitido (regex)', {
-        category: 'CORS_ALLOWED',
-        origin,
-        hostname: u.hostname,
-        type: 'regex'
-      });
+      logger.info('✅ CORS permitido (regex)', { category: 'CORS_ALLOWED', origin, hostname: u.hostname, type: 'regex' });
       return true;
     }
-    
-    // ✅ SUPER ROBUSTO: Permitir localhost en desarrollo
-    if (process.env.NODE_ENV === 'development' && u.hostname.includes('localhost')) {
-      logger.info('✅ CORS permitido (localhost en desarrollo)', {
-        category: 'CORS_ALLOWED',
-        origin,
-        type: 'localhost_dev'
-      });
-      return true;
-    }
-    
-    // ✅ CRÍTICO: Permitir específicamente localhost:5173 y sus variantes
-    if (u.hostname === 'localhost' && (u.port === '5173' || u.port === '')) {
-      logger.info('✅ CORS permitido (localhost:5173 específico)', {
-        category: 'CORS_ALLOWED',
-        origin,
-        hostname: u.hostname,
-        port: u.port,
-        type: 'localhost_5173'
-      });
-      return true;
-    }
-    
-    // ✅ SUPER ROBUSTO: Permitir dominios de Vercel dinámicos
-    if (u.hostname.includes('vercel.app') || u.hostname.includes('railway.app')) {
-      logger.info('✅ CORS permitido (Vercel/Railway dinámico)', {
-        category: 'CORS_ALLOWED',
-        origin,
-        hostname: u.hostname,
-        type: 'vercel_railway_dynamic'
-      });
-      return true;
-    }
-    
-    // ✅ CRÍTICO: Permitir cualquier dominio de Vercel temporalmente
-    if (u.hostname.endsWith('.vercel.app') || u.hostname.endsWith('.vercel.com')) {
-      logger.info('✅ CORS permitido (Vercel wildcard)', {
-        category: 'CORS_ALLOWED',
-        origin,
-        hostname: u.hostname,
-        type: 'vercel_wildcard'
-      });
-      return true;
-    }
-    
-    // Origin no permitido
     logger.warn('🚫 CORS bloqueado - Origin no permitido', {
-      category: 'CORS_BLOCKED',
-      origin,
-      hostname: u.hostname,
-      staticWhitelist: STATIC_WHITELIST,
-      regexPatterns: REGEX_WHITELIST.map(r => r.toString())
+      category: 'CORS_BLOCKED', origin, hostname: u.hostname, staticWhitelist: STATIC_WHITELIST
     });
-    
     return false;
-    
   } catch (error) {
-    // Origin inválido
-    logger.warn('🚫 CORS bloqueado - Origin inválido', {
-      category: 'CORS_INVALID',
-      origin,
-      error: error.message
-    });
+    logger.warn('🚫 CORS bloqueado - Origin inválido', { category: 'CORS_INVALID', origin, error: error.message });
     return false;
   }
 }
 
 /**
- * 🔧 OPCIONES DE CORS PARA EXPRESS - SUPER ROBUSTO
+ * 🔧 OPCIONES DE CORS PARA EXPRESS
  */
 const corsOptions = {
   origin(origin, cb) {
     console.log('🌐 CORS Origin Check:', origin);
-    
     if (isOriginAllowed(origin)) {
       console.log('✅ CORS Origin Allowed:', origin);
       return cb(null, true);
     }
-    
     console.log('❌ CORS Origin Blocked:', origin);
-    // Importante: no dispares error → no 500 en preflight
     return cb(null, false);
   },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+  credentials: false, // no cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-Requested-With',
-    'Accept',
-    'Origin',
-    'X-API-Key',
-    'X-Request-ID',
-    'X-Correlation-ID',
-    'X-Forwarded-For',
-    'X-Real-IP',
-    'User-Agent',
-    'Cache-Control',
-    'Pragma',
-    'Expires'
+    'Authorization',
+    'Content-Type',
+    'X-Request-Id'
   ],
   exposedHeaders: [
-    'X-Total-Count', 
-    'X-Request-ID',
-    'X-Correlation-ID',
-    'X-Rate-Limit-Limit',
-    'X-Rate-Limit-Remaining',
-    'X-Rate-Limit-Reset'
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining',
+    'X-RateLimit-Reset'
   ],
   preflightContinue: false,
   optionsSuccessStatus: 204,
-  // ✅ SUPER ROBUSTO: Agregar maxAge para cachear preflight
-  maxAge: 86400, // 24 horas
-  // ✅ SUPER ROBUSTO: Permitir múltiples orígenes
-  credentials: true,
-  // ✅ SUPER ROBUSTO: Manejo de errores robusto
+  maxAge: 86400,
   failOnError: false
 };
 
 /**
- * 🔧 OPCIONES DE CORS PARA SOCKET.IO - SUPER ROBUSTO
+ * 🔧 OPCIONES DE CORS PARA SOCKET.IO — permite Origin undefined (clientes WS)
  */
 const socketCorsOptions = {
   origin(origin, cb) {
     console.log('🔌 Socket CORS Origin Check:', origin);
-    
+    if (!origin) {
+      // Aceptar handshakes sin Origin (clientes WS/herramientas)
+      console.log('✅ Socket CORS Origin Allowed (no origin)');
+      return cb(null, true);
+    }
     if (isOriginAllowed(origin)) {
       console.log('✅ Socket CORS Origin Allowed:', origin);
       return cb(null, true);
     }
-    
     console.log('❌ Socket CORS Origin Blocked:', origin);
     return cb(null, false);
   },
-  credentials: true,
+  credentials: false, // no cookies en WS
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-Requested-With',
-    'Accept',
-    'Origin',
-    'X-API-Key',
-    'X-Request-ID',
-    'X-Correlation-ID'
+    'Authorization',
+    'Content-Type',
+    'X-Request-Id'
   ],
-  // ✅ SUPER ROBUSTO: Configuración adicional para Socket.IO
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  cors: {
-    origin: true, // Permitir todos los orígenes para Socket.IO
-    credentials: true
-  }
+  transports: ['websocket', 'polling']
 };
 
 module.exports = { 

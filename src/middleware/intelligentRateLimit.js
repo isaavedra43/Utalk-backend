@@ -96,13 +96,14 @@ class IntelligentRateLimiter {
     
     // Usar el límite más restrictivo
     const effectiveConfig = endpointConfig || userConfig;
+    const windowMs = 60000; // Ventana de 1 minuto
     
     // Verificar límite por minuto
     const minuteKeyStr = `${userId}:${minuteKey}`;
-    let minuteCount = this.requestCounts.get(minuteKeyStr) || { count: 0, resetTime: now + 60000 };
+    let minuteCount = this.requestCounts.get(minuteKeyStr) || { count: 0, resetTime: now + windowMs };
     
     if (now > minuteCount.resetTime) {
-      minuteCount = { count: 0, resetTime: now + 60000 };
+      minuteCount = { count: 0, resetTime: now + windowMs };
     }
     
     if (minuteCount.count >= effectiveConfig.requestsPerMinute) {
@@ -110,7 +111,8 @@ class IntelligentRateLimiter {
         allowed: false,
         reason: 'rate_limit_exceeded',
         limit: effectiveConfig.requestsPerMinute,
-        resetTime: minuteCount.resetTime
+        resetTime: minuteCount.resetTime,
+        windowMs
       };
     }
     
@@ -128,7 +130,8 @@ class IntelligentRateLimiter {
         allowed: false,
         reason: 'burst_limit_exceeded',
         limit: effectiveConfig.burstLimit,
-        resetTime: burstCount.resetTime
+        resetTime: burstCount.resetTime,
+        windowMs: 1000
       };
     }
     
@@ -142,7 +145,10 @@ class IntelligentRateLimiter {
     return {
       allowed: true,
       remaining: effectiveConfig.requestsPerMinute - minuteCount.count,
-      burstRemaining: effectiveConfig.burstLimit - burstCount.count
+      burstRemaining: effectiveConfig.burstLimit - burstCount.count,
+      limit: effectiveConfig.requestsPerMinute,
+      resetTime: minuteCount.resetTime,
+      windowMs
     };
   }
 
@@ -190,17 +196,32 @@ const rateLimiter = new IntelligentRateLimiter();
  */
 function intelligentRateLimit(req, res, next) {
   try {
+    const path = req.path || req.originalUrl || '';
+
+    // Exclusiones: login/refresh, socket handshake y health
+    if (
+      path.startsWith('/socket.io') ||
+      path.startsWith('/health') ||
+      path.includes('/auth/login') ||
+      path.includes('/auth/refresh') ||
+      path.includes('/api/auth/login') ||
+      path.includes('/api/auth/refresh')
+    ) {
+      return next();
+    }
+
     const userId = req.user?.email || req.ip;
-    const path = req.path;
     
     // Verificar rate limit
     const rateLimitResult = rateLimiter.checkRateLimit(userId, path);
     
     if (!rateLimitResult.allowed) {
-      // 🔧 LOG CRÍTICO PARA RAILWAY: Rate limit alcanzado
+      const now = Date.now();
+      const retryAfterSec = Math.max(1, Math.ceil((rateLimitResult.resetTime - now) / 1000));
+      const resetEpoch = Math.ceil(rateLimitResult.resetTime / 1000);
+
+      // Logs
       console.log(`🚨 RATE_LIMIT_EXCEEDED: ${req.user?.email || 'anonymous'} - ${path} - ${rateLimitResult.reason} - Limit: ${rateLimitResult.limit}`);
-      
-      // 🔧 CAPTURAR EN LOG MONITOR
       logMonitor.addLog('error', 'RATE_LIMIT', `Rate limit exceeded: ${rateLimitResult.reason}`, {
         userId: req.user?.email || 'anonymous',
         ip: req.ip,
@@ -209,7 +230,6 @@ function intelligentRateLimit(req, res, next) {
         limit: rateLimitResult.limit,
         userAgent: req.headers['user-agent']
       });
-      
       logger.warn('Rate limit exceeded', {
         category: 'RATE_LIMIT_EXCEEDED',
         userId: req.user?.email || 'anonymous',
@@ -217,30 +237,35 @@ function intelligentRateLimit(req, res, next) {
         path,
         reason: rateLimitResult.reason,
         limit: rateLimitResult.limit,
-        resetTime: new Date(rateLimitResult.resetTime).toISOString()
+        resetTimeISO: new Date(rateLimitResult.resetTime).toISOString()
+      });
+
+      // Headers estándar
+      res.set({
+        'Retry-After': String(retryAfterSec),
+        'X-RateLimit-Limit': String(rateLimitResult.limit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(resetEpoch)
       });
       
       return res.status(429).json({
-        success: false,
-        error: 'RATE_LIMIT_EXCEEDED',
-        message: 'Demasiadas solicitudes. Intenta de nuevo más tarde.',
-        retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
-        timestamp: new Date().toISOString()
+        code: 'RATE_LIMITED',
+        message: 'Too many requests',
+        details: { limit: rateLimitResult.limit, windowMs: rateLimitResult.windowMs || 60000 },
+        retryAfter: retryAfterSec
       });
     }
     
-    // Agregar headers de rate limit
+    // Agregar headers de rate limit (cuando permitido)
+    const resetEpoch = Math.ceil((rateLimitResult.resetTime || (Date.now() + 60000)) / 1000);
     res.set({
-      'X-RateLimit-Limit': rateLimitResult.limit || 'unknown',
-      'X-RateLimit-Remaining': rateLimitResult.remaining || 'unknown',
-      'X-RateLimit-Reset': new Date(rateLimitResult.resetTime).toISOString()
+      'X-RateLimit-Limit': String(rateLimitResult.limit || 'unknown'),
+      'X-RateLimit-Remaining': String(rateLimitResult.remaining ?? 'unknown'),
+      'X-RateLimit-Reset': String(resetEpoch)
     });
     
-    // 🔧 LOG PARA RAILWAY: Rate limit status
-    if (rateLimitResult.remaining < 5) {
+    if (typeof rateLimitResult.remaining === 'number' && rateLimitResult.remaining < 5) {
       console.log(`⚠️ RATE_LIMIT_WARNING: ${req.user?.email || 'anonymous'} - ${path} - Remaining: ${rateLimitResult.remaining}/${rateLimitResult.limit}`);
-      
-      // 🔧 CAPTURAR EN LOG MONITOR
       logMonitor.addLog('warn', 'RATE_LIMIT', `Rate limit warning: ${rateLimitResult.remaining} remaining`, {
         userId: req.user?.email || 'anonymous',
         ip: req.ip,
@@ -259,8 +284,6 @@ function intelligentRateLimit(req, res, next) {
       userId: req.user?.email || 'anonymous',
       path: req.path
     });
-    
-    // En caso de error, permitir la solicitud
     next();
   }
 }

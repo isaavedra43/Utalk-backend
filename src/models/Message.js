@@ -634,34 +634,62 @@ class Message {
       return { updated: 0 };
     }
 
-    const batch = firestore.batch();
-    const readAtTs = Timestamp.fromDate(readTimestamp);
+    // Construir referencias
+    const refs = messageIds.map(messageId => firestore
+      .collection('conversations')
+      .doc(conversationId)
+      .collection('messages')
+      .doc(messageId)
+    );
 
-    messageIds.forEach(messageId => {
-      const ref = firestore
-        .collection('conversations')
-        .doc(conversationId)
-        .collection('messages')
-        .doc(messageId);
+    // Obtener documentos al vuelo y filtrar existentes (opción B)
+    const snapshots = await firestore.getAll(...refs);
+    const existingDocs = snapshots.filter(doc => doc.exists);
+    const missingCount = snapshots.length - existingDocs.length;
 
-      batch.update(ref, {
-        status: 'read',
-        readBy: FieldValue.arrayUnion(userEmail),
-        readAt: readAtTs,
-        updatedAt: FieldValue.serverTimestamp()
+    if (existingDocs.length === 0) {
+      logger.info('Mensajes a marcar como leídos no existen', {
+        category: 'MESSAGES_MARK_READ_BATCH_EMPTY',
+        conversationId: conversationId.substring(0, 30) + '...',
+        userEmail: (userEmail || '').substring(0, 30) + '...',
+        requested: messageIds.length,
+        missing: missingCount
       });
-    });
+      return { updated: 0 };
+    }
 
-    await batch.commit();
+    const readAtTs = Timestamp.fromDate(readTimestamp);
+    const updateData = {
+      status: 'read',
+      readBy: FieldValue.arrayUnion(userEmail),
+      readAt: readAtTs,
+      updatedAt: FieldValue.serverTimestamp()
+    };
 
-    logger.info('Mensajes marcados como leídos (batch)', {
+    // Firestore limita a 500 operaciones por batch. Dividir si es necesario.
+    const MAX_BATCH_OPS = 450; // margen de seguridad
+    let updatedTotal = 0;
+
+    for (let i = 0; i < existingDocs.length; i += MAX_BATCH_OPS) {
+      const slice = existingDocs.slice(i, i + MAX_BATCH_OPS);
+      const batch = firestore.batch();
+      slice.forEach(docSnap => {
+        batch.update(docSnap.ref, updateData);
+      });
+      await batch.commit();
+      updatedTotal += slice.length;
+    }
+
+    logger.info('Mensajes marcados como leídos (batch robusto)', {
       category: 'MESSAGES_MARK_READ_BATCH',
       conversationId: conversationId.substring(0, 30) + '...',
       userEmail: (userEmail || '').substring(0, 30) + '...',
-      count: messageIds.length
+      requested: messageIds.length,
+      updated: updatedTotal,
+      skipped: missingCount
     });
 
-    return { updated: messageIds.length };
+    return { updated: updatedTotal };
   }
 
   /**

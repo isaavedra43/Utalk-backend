@@ -540,59 +540,139 @@ class AuthController {
    */
   static async logout(req, res, next) {
     try {
-      const email = req.user?.email;
-      const { refreshToken, invalidateAll = false } = req.body;
+      // Extraer bearer token del header de autorización sin depender de req.user
+      const authHeader = req.headers && req.headers.authorization;
+      const bearerToken = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.substring(7) : null;
 
-      req.logger.auth('logout_attempt', {
-        email,
-        hasRefreshToken: !!refreshToken,
-        invalidateAll,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']?.substring(0, 100)
-      });
+      let emailFromToken = null;
+      let decoded = null;
 
-      // Invalidar refresh token específico si se proporciona
-      if (refreshToken) {
-        const storedRefreshToken = await RefreshToken.getByToken(refreshToken);
-        if (storedRefreshToken && storedRefreshToken.userEmail === email) {
-          await storedRefreshToken.invalidate();
-          
-          req.logger.auth('refresh_token_invalidated', {
-            tokenId: storedRefreshToken.id,
-            userEmail: email,
-            ip: req.ip
+      if (bearerToken) {
+        try {
+          // Intentar verificar normalmente
+          const jwtConfig = getAccessTokenConfig();
+          decoded = jwt.verify(bearerToken, jwtConfig.secret, {
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            algorithms: ['HS256']
+          });
+          emailFromToken = decoded?.email || null;
+        } catch (jwtError) {
+          if (jwtError && jwtError.name === 'TokenExpiredError') {
+            // Token expirado: idempotente y silencioso → solo decodificar sin verificar
+            decoded = jwt.decode(bearerToken);
+            emailFromToken = decoded?.email || null;
+            if (req.logger && typeof req.logger.info === 'function') {
+              req.logger.info('Logout con token expirado (idempotente)', {
+                category: 'AUTH_LOGOUT',
+                userEmail: emailFromToken || 'unknown',
+                reason: 'token_expired'
+              });
+            }
+          } else {
+            // Token inválido/malformado: continuar idempotente sin bloquear
+            decoded = jwt.decode(bearerToken);
+            emailFromToken = decoded?.email || null;
+            if (req.logger && typeof req.logger.info === 'function') {
+              req.logger.info('Logout con token inválido, continuando idempotente', {
+                category: 'AUTH_LOGOUT',
+                userEmail: emailFromToken || 'unknown',
+                jwtError: jwtError?.message
+              });
+            }
+          }
+        }
+      } else {
+        if (req.logger && typeof req.logger.info === 'function') {
+          req.logger.info('Logout sin header Authorization, continuando idempotente', {
+            category: 'AUTH_LOGOUT'
           });
         }
       }
 
-      // Invalidar todos los refresh tokens del usuario si se solicita
-      if (invalidateAll) {
-        const invalidatedCount = await RefreshToken.invalidateAllForUser(email);
-        
-        req.logger.auth('all_refresh_tokens_invalidated', {
-          userEmail: email,
-          count: invalidatedCount,
-          ip: req.ip
+      const { refreshToken, invalidateAll = false } = req.body || {};
+
+      // Intentar invalidar refresh token específico si se proporciona (no falla si no existe)
+      if (refreshToken) {
+        try {
+          const storedRefreshToken = await RefreshToken.getByToken(refreshToken);
+          if (storedRefreshToken) {
+            // Si tenemos email en token y no coincide, igualmente invalidamos de forma segura
+            if (!emailFromToken || storedRefreshToken.userEmail === emailFromToken) {
+              await storedRefreshToken.invalidate();
+            } else {
+              // Email no coincide: invalidación defensiva pero idempotente
+              await storedRefreshToken.invalidate();
+            }
+
+            if (req.logger && typeof req.logger.auth === 'function') {
+              req.logger.auth('refresh_token_invalidated', {
+                tokenId: storedRefreshToken.id,
+                userEmail: storedRefreshToken.userEmail,
+                byEmail: emailFromToken || 'unknown'
+              });
+            }
+          } else {
+            // No encontrado: idempotente → 200 igual
+            if (req.logger && typeof req.logger.info === 'function') {
+              req.logger.info('Logout: refresh token no encontrado, nada que invalidar', {
+                category: 'AUTH_LOGOUT'
+              });
+            }
+          }
+        } catch (rtError) {
+          // No bloquear logout; log informativo
+          if (req.logger && typeof req.logger.info === 'function') {
+            req.logger.info('Logout: error invalidando refresh token (continuando idempotente)', {
+              category: 'AUTH_LOGOUT',
+              error: rtError.message
+            });
+          }
+        }
+      }
+
+      // Invalidar todos los refresh tokens del usuario si se solicita y tenemos email
+      if (invalidateAll && emailFromToken) {
+        try {
+          const invalidatedCount = await RefreshToken.invalidateAllForUser(emailFromToken);
+          if (req.logger && typeof req.logger.auth === 'function') {
+            req.logger.auth('all_refresh_tokens_invalidated', {
+              userEmail: emailFromToken,
+              count: invalidatedCount
+            });
+          }
+        } catch (allErr) {
+          if (req.logger && typeof req.logger.info === 'function') {
+            req.logger.info('Logout: error invalidando todos los tokens (continuando idempotente)', {
+              category: 'AUTH_LOGOUT',
+              error: allErr.message,
+              userEmail: emailFromToken
+            });
+          }
+        }
+      }
+
+      // Log de éxito silencioso
+      if (req.logger && typeof req.logger.auth === 'function') {
+        req.logger.auth('logout_success', {
+          email: emailFromToken || 'unknown'
         });
       }
 
-      req.logger.auth('logout_success', {
-        email,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']?.substring(0, 100)
-      });
-
-      res.json({
+      return res.status(200).json({
         success: true,
         message: 'Logout exitoso',
-        invalidatedTokens: invalidateAll ? 'all' : refreshToken ? 1 : 0
+        invalidatedTokens: invalidateAll ? 'all' : (refreshToken ? 1 : 0)
       });
     } catch (error) {
-      req.logger.error('Error en logout', {
-        error: error.message,
-        email: req.user?.email,
-      });
-      next(error);
+      // Idempotente: nunca propagar error; loggear y responder 200
+      if (req.logger && typeof req.logger.info === 'function') {
+        req.logger.info('Logout: error inesperado (continuando idempotente)', {
+          category: 'AUTH_LOGOUT',
+          error: error.message
+        });
+      }
+      return res.status(200).json({ success: true, message: 'Logout exitoso' });
     }
   }
 
