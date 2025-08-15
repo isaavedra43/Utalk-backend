@@ -34,27 +34,49 @@ class LogDashboardController {
    */
   static async getDashboard(req, res) {
     try {
-      const stats = logMonitor.getStats();
-      const rateLimitMetrics = logMonitor.getRateLimitMetrics();
+      console.log('🔍 getDashboard llamado');
       
-      res.json({
+      if (!logMonitor) {
+        console.error('❌ logMonitor no está disponible');
+        return res.status(500).json({
+          success: false,
+          error: 'LOG_MONITOR_UNAVAILABLE',
+          message: 'LogMonitor no está disponible'
+        });
+      }
+
+      console.log('📊 Obteniendo stats...');
+      const stats = logMonitor.getStats();
+      console.log('📊 Stats obtenidos:', stats);
+      
+      console.log('📈 Obteniendo rate limit metrics...');
+      const rateLimitMetrics = logMonitor.getRateLimitMetrics();
+      console.log('📈 Rate limit metrics obtenidos:', rateLimitMetrics);
+      
+      const response = {
         success: true,
         data: {
           stats,
           rateLimitMetrics,
           timestamp: new Date().toISOString()
         }
-      });
+      };
+
+      console.log('✅ Enviando respuesta:', response);
+      res.json(response);
     } catch (error) {
+      console.error('❌ Error en getDashboard:', error);
       logger.error('Error obteniendo dashboard de logs', {
         category: 'LOG_DASHBOARD_ERROR',
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
       
       res.status(500).json({
         success: false,
         error: 'DASHBOARD_ERROR',
-        message: 'Error obteniendo dashboard de logs'
+        message: 'Error obteniendo dashboard de logs',
+        details: error.message
       });
     }
   }
@@ -64,6 +86,17 @@ class LogDashboardController {
    */
   static async getLogs(req, res) {
     try {
+      console.log('🔍 getLogs llamado con query:', req.query);
+      
+      if (!logMonitor) {
+        console.error('❌ logMonitor no está disponible en getLogs');
+        return res.status(500).json({
+          success: false,
+          error: 'LOG_MONITOR_UNAVAILABLE',
+          message: 'LogMonitor no está disponible'
+        });
+      }
+
       const {
         level = 'all',
         category = 'all',
@@ -81,14 +114,17 @@ class LogDashboardController {
         limit: parseInt(limit)
       };
 
+      console.log('🔍 Aplicando filtros:', filters);
       const logs = logMonitor.getLogs(filters);
+      console.log('📋 Logs obtenidos:', logs.length);
+      
       const total = logs.length;
       const pageSize = 100;
       const startIndex = (parseInt(page) - 1) * pageSize;
       const endIndex = startIndex + pageSize;
       const paginatedLogs = logs.slice(startIndex, endIndex);
 
-      res.json({
+      const response = {
         success: true,
         data: {
           logs: paginatedLogs,
@@ -100,17 +136,23 @@ class LogDashboardController {
           },
           filters
         }
-      });
+      };
+
+      console.log('✅ Enviando respuesta getLogs con', paginatedLogs.length, 'logs');
+      res.json(response);
     } catch (error) {
+      console.error('❌ Error en getLogs:', error);
       logger.error('Error obteniendo logs', {
         category: 'LOG_DASHBOARD_ERROR',
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
       
       res.status(500).json({
         success: false,
         error: 'LOGS_ERROR',
-        message: 'Error obteniendo logs'
+        message: 'Error obteniendo logs',
+        details: error.message
       });
     }
   }
