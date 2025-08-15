@@ -230,6 +230,16 @@ class LogDashboardController {
    */
   static async getDashboardHTML(req, res) {
     try {
+      // 🔧 LOG PARA RAILWAY: Acceso al dashboard
+      console.log(`📊 DASHBOARD_ACCESS: ${req.ip} - ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+      
+      // 🔧 CAPTURAR EN LOG MONITOR
+      const { logMonitor } = require('../services/LogMonitorService');
+      logMonitor.addLog('info', 'DASHBOARD', 'Dashboard HTML requested', {
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+        endpoint: '/logs'
+      });
       const html = `
 <!DOCTYPE html>
 <html lang="es">
