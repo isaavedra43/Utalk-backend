@@ -309,22 +309,22 @@ class EnterpriseSocketManager {
       // Transport configuration
       transports: ['websocket', 'polling'],
       
-      // 🔧 CORRECCIÓN: Timeouts optimizados para evitar Status 0
-      pingTimeout: SOCKET_LIMITS.HEARTBEAT_TIMEOUT,     // 30 seconds (reducido)
-      pingInterval: SOCKET_LIMITS.HEARTBEAT_INTERVAL,   // 15 seconds (reducido)
+      // 🔧 CORRECCIÓN CRÍTICA: Timeouts optimizados para evitar Status 0
+      pingTimeout: 60000,     // 🔧 CORRECCIÓN: Aumentado a 60s para evitar timeouts
+      pingInterval: 30000,    // 🔧 CORRECCIÓN: Aumentado a 30s para mantener conexión
       
       // Connection limits
       maxHttpBufferSize: 1e6, // 🔧 CORRECCIÓN: Reducido de 2MB a 1MB
       
       // 🔧 CORRECCIÓN: Timeouts de conexión optimizados
-      connectTimeout: 15000,  // 🔧 CORRECCIÓN: Reducido de 30s a 15s
-      upgradeTimeout: 5000,   // 🔧 CORRECCIÓN: Reducido de 10s a 5s
+      connectTimeout: 30000,  // 🔧 CORRECCIÓN: Aumentado a 30s para conexiones lentas
+      upgradeTimeout: 10000,  // 🔧 CORRECCIÓN: Aumentado a 10s para upgrades
       allowUpgrades: true,
       perMessageDeflate: false,
       
       // Memory usage optimization
       connectionStateRecovery: {
-        maxDisconnectionDuration: 60 * 1000, // 🔧 CORRECCIÓN: Reducido de 2min a 1min
+        maxDisconnectionDuration: 120 * 1000, // 🔧 CORRECCIÓN: Aumentado a 2min para reconexión
         skipMiddlewares: false,
       },
       
@@ -871,6 +871,40 @@ class EnterpriseSocketManager {
       userEmail: userEmail?.substring(0, 20) + '...',
       totalEvents: listenersMap.size
     });
+
+    // 🔧 CORRECCIÓN: Agregar heartbeat manual para mantener conexión activa
+    this.setupHeartbeat(socket, userEmail);
+  }
+
+  /**
+   * 🔧 CORRECCIÓN: SETUP HEARTBEAT MANUAL
+   */
+  setupHeartbeat(socket, userEmail) {
+    // Emitir heartbeat cada 15 segundos para mantener conexión activa
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('heartbeat', {
+          timestamp: new Date().toISOString(),
+          serverTime: Date.now(),
+          socketId: socket.id
+        });
+      } else {
+        clearInterval(heartbeatInterval);
+      }
+    }, 15000);
+
+    // Limpiar intervalo cuando el socket se desconecte
+    socket.on('disconnect', () => {
+      clearInterval(heartbeatInterval);
+    });
+
+    // Log del heartbeat configurado
+    logger.info('Heartbeat configurado para socket', {
+      category: 'SOCKET_HEARTBEAT_SETUP',
+      socketId: socket.id.substring(0, 8) + '...',
+      userEmail: userEmail?.substring(0, 20) + '...',
+      interval: '20s'
+    });
   }
 
   /**
@@ -1078,34 +1112,66 @@ class EnterpriseSocketManager {
    */
   async handleJoinConversation(socket, data) {
     const { userEmail, userRole } = socket;
-    const { conversationId } = data;
+    const { conversationId, roomId } = data;
 
     try {
       if (!conversationId) {
         throw new Error('conversationId is required');
       }
 
-      // 🔧 SOCKET ROBUSTO: Obtener workspaceId y tenantId del socket
-      const workspaceId = socket.decodedToken?.workspaceId || 'default';
-      const tenantId = socket.decodedToken?.tenantId || 'na';
+      // 🔧 CORRECCIÓN CRÍTICA: Decodificar conversationId del frontend
+      let decodedConversationId = conversationId;
+      try {
+        // El frontend envía conversationId codificado (ej: conv_%2B5214773790184_%2B5214793176502)
+        // Necesitamos decodificarlo para que coincida con el formato de la base de datos
+        decodedConversationId = decodeURIComponent(conversationId);
+        logger.info('ConversationId decodificado', {
+          category: 'SOCKET_JOIN_CONVERSATION_DECODE',
+          original: conversationId,
+          decoded: decodedConversationId,
+          userEmail: userEmail?.substring(0, 20) + '...'
+        });
+      } catch (decodeError) {
+        logger.warn('Error decodificando conversationId, usando original', {
+          category: 'SOCKET_JOIN_CONVERSATION_DECODE_ERROR',
+          conversationId,
+          error: decodeError.message,
+          userEmail: userEmail?.substring(0, 20) + '...'
+        });
+        decodedConversationId = conversationId;
+      }
 
-      // Verify user has permission to join conversation
-      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      // 🔧 CORRECCIÓN: Usar el roomId que envía el frontend si está disponible
+      let targetRoomId = roomId;
+      
+      // Si no viene roomId del frontend, construir uno compatible
+      if (!targetRoomId) {
+        const workspaceId = socket.decodedToken?.workspaceId || 'default';
+        const tenantId = socket.decodedToken?.tenantId || 'na';
+        targetRoomId = `conversation:${conversationId}`;
+      }
+
+      // 🔧 CORRECCIÓN CRÍTICA: Verificar permisos con el conversationId decodificado
+      const hasPermission = await this.verifyConversationPermission(userEmail, decodedConversationId, 'read');
       if (!hasPermission) {
+        logger.warn('Permiso denegado para unirse a conversación', {
+          category: 'SOCKET_JOIN_CONVERSATION_PERMISSION_DENIED',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationId: decodedConversationId,
+          originalConversationId: conversationId
+        });
+        
         socket.emit(SOCKET_EVENTS.ERROR, {
           error: 'PERMISSION_DENIED',
           message: 'No permission to join this conversation',
-          conversationId
+          conversationId: decodedConversationId
         });
         return;
       }
 
-      // 🔧 SOCKET ROBUSTO: Construir roomId con convención establecida
-      const roomId = `ws:${workspaceId}:ten:${tenantId}:conv:${conversationId}`;
-
-      // 🔧 SOCKET ROBUSTO: Inicializar estructuras si no existen
-      if (!this.rooms.has(roomId)) {
-        this.rooms.set(roomId, new Set());
+      // 🔧 CORRECCIÓN: Inicializar estructuras si no existen
+      if (!this.rooms.has(targetRoomId)) {
+        this.rooms.set(targetRoomId, new Set());
       }
       if (!this.userSessions.has(userEmail)) {
         this.userSessions.set(userEmail, new Set());
@@ -1114,85 +1180,83 @@ class EnterpriseSocketManager {
         this.socketConversations.set(socket.id, new Set());
       }
 
-      // 🔧 SOCKET ROBUSTO: Verificar límite de rooms por socket
+      // 🔧 CORRECCIÓN: Verificar límite de rooms por socket
       const socketRooms = this.socketConversations.get(socket.id);
       if (socketRooms && socketRooms.size >= SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET) {
         socket.emit(SOCKET_EVENTS.ERROR, {
           error: 'ROOM_LIMIT_EXCEEDED',
           message: `Maximum rooms per socket exceeded (${SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET})`,
-          conversationId
+          conversationId: decodedConversationId
         });
         return;
       }
 
       // Join socket room
-      socket.join(roomId);
+      socket.join(targetRoomId);
 
-      // 🔧 SOCKET ROBUSTO: Registrar en estructuras de tracking (DEFENSIVO)
-      safeGetSet(this.rooms, roomId).add(socket.id);
+      // 🔧 CORRECCIÓN: Registrar en estructuras de tracking (DEFENSIVO)
+      safeGetSet(this.rooms, targetRoomId).add(socket.id);
       safeGetSet(this.userSessions, userEmail).add(socket.id);
-      safeGetSet(this.socketConversations, socket.id).add(roomId);
+      safeGetSet(this.socketConversations, socket.id).add(targetRoomId);
 
       // Update user session
       const session = this.connectedUsers.get(userEmail);
       if (session) {
-        session.conversations.add(conversationId);
+        session.conversations.add(decodedConversationId);
         this.connectedUsers.set(userEmail, session);
       }
 
       // Update conversation users mapping
-      let conversationUsers = this.conversationUsers.get(conversationId) || new Set();
+      let conversationUsers = this.conversationUsers.get(decodedConversationId) || new Set();
       conversationUsers.add(userEmail);
-      this.conversationUsers.set(conversationId, conversationUsers);
+      this.conversationUsers.set(decodedConversationId, conversationUsers);
 
       // Update user conversations mapping
       let userConversations = this.userConversations.get(userEmail) || new Set();
-      userConversations.add(conversationId);
+      userConversations.add(decodedConversationId);
       this.userConversations.set(userEmail, userConversations);
 
       // Notify other users in conversation
-      socket.to(roomId).emit(SOCKET_EVENTS.USER_ONLINE, {
+      socket.to(targetRoomId).emit(SOCKET_EVENTS.USER_ONLINE, {
         email: userEmail,
-        conversationId,
+        conversationId: decodedConversationId,
         timestamp: new Date().toISOString()
       });
 
-      // Confirm join to user
+      // 🔧 CORRECCIÓN CRÍTICA: Confirmar join al usuario inmediatamente
       socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, {
-        conversationId,
-        roomId,
+        conversationId: decodedConversationId,
+        roomId: targetRoomId,
         onlineUsers: Array.from(conversationUsers),
+        success: true,
         timestamp: new Date().toISOString()
       });
 
-      // Logging estructurado sin PII
-      logger.info('RT:JOIN', { 
-        room: roomId.substring(0, 30) + '...', 
-        conversationId: conversationId.substring(0, 20) + '...',
-        userEmail: userEmail.substring(0, 20) + '...',
-        socketId: socket.id.substring(0, 8) + '...'
+      // 🔧 CORRECCIÓN: Emitir evento adicional para sincronización
+      socket.emit('websocket:state-synced', {
+        conversationId: decodedConversationId,
+        roomId: targetRoomId,
+        success: true,
+        timestamp: new Date().toISOString()
       });
-      
-      if (process.env.SOCKET_LOG_VERBOSE === 'true') {
-        logger.info('User joined conversation', {
-          category: 'SOCKET_CONVERSATION_JOIN',
-          email: userEmail.substring(0, 20) + '...',
-          conversationId: conversationId.substring(0, 20) + '...',
-          roomId: roomId.substring(0, 30) + '...',
-          onlineUsersCount: conversationUsers.size,
-          workspaceId: workspaceId ? 'present' : 'none',
-          tenantId: tenantId ? 'present' : 'none'
-        });
-      }
+
+      logger.info('Usuario unido exitosamente a conversación', {
+        category: 'SOCKET_JOIN_CONVERSATION_SUCCESS',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId: decodedConversationId,
+        roomId: targetRoomId,
+        socketId: socket.id
+      });
 
     } catch (error) {
       logger.error('Error joining conversation', {
-        category: 'SOCKET_JOIN_ERROR',
+        category: 'SOCKET_JOIN_CONVERSATION_ERROR',
         error: error.message,
-        email: userEmail?.substring(0, 20) + '...',
-        conversationId: conversationId?.substring(0, 20) + '...'
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId,
+        stack: error.stack
       });
-
+      
       socket.emit(SOCKET_EVENTS.ERROR, {
         error: 'JOIN_FAILED',
         message: 'Failed to join conversation',
@@ -2225,41 +2289,129 @@ class EnterpriseSocketManager {
    */
   async verifyConversationPermission(userEmail, conversationId, action = 'read') {
     try {
+      // 🔧 CORRECCIÓN: Validación más robusta de parámetros
+      if (!userEmail || !conversationId) {
+        logger.warn('Parámetros inválidos en verifyConversationPermission', {
+          category: 'SOCKET_PERMISSION_INVALID_PARAMS',
+          userEmail: userEmail ? 'present' : 'missing',
+          conversationId: conversationId ? 'present' : 'missing'
+        });
+        return false;
+      }
+
+      // 🔧 CORRECCIÓN: Decodificar conversationId si está codificado
+      let decodedConversationId = conversationId;
+      try {
+        decodedConversationId = decodeURIComponent(conversationId);
+        if (decodedConversationId !== conversationId) {
+          logger.info('ConversationId decodificado en verificación de permisos', {
+            category: 'SOCKET_PERMISSION_DECODE',
+            original: conversationId,
+            decoded: decodedConversationId,
+            userEmail: userEmail?.substring(0, 20) + '...'
+          });
+        }
+      } catch (decodeError) {
+        logger.warn('Error decodificando conversationId en verificación, usando original', {
+          category: 'SOCKET_PERMISSION_DECODE_ERROR',
+          conversationId,
+          error: decodeError.message,
+          userEmail: userEmail?.substring(0, 20) + '...'
+        });
+        decodedConversationId = conversationId;
+      }
+
       // Si Conversation no está disponible, permitir acceso (modo desarrollo)
       if (!this.Conversation) {
         logger.warn('Conversation model not available, allowing access', {
           category: 'SOCKET_PERMISSION_MODEL_UNAVAILABLE',
           userEmail: userEmail?.substring(0, 20) + '...',
-          conversationId: conversationId?.substring(0, 20) + '...'
+          conversationId: decodedConversationId?.substring(0, 20) + '...'
         });
         return true;
       }
 
       // Use existing Conversation model method if available
-      const conversation = await this.Conversation.getById(conversationId);
+      const conversation = await this.Conversation.getById(decodedConversationId);
       if (!conversation) {
+        logger.warn('Conversación no encontrada', {
+          category: 'SOCKET_PERMISSION_CONVERSATION_NOT_FOUND',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationId: decodedConversationId?.substring(0, 20) + '...'
+        });
         return false;
       }
 
-      // Check if user is participant
-      const isParticipant = conversation.participants?.some(p => 
-        p.email === userEmail || p.identifier === userEmail
+      // 🔧 CORRECCIÓN: Verificación más robusta de participantes
+      const participants = conversation.participants || [];
+      
+      // Verificar si el usuario es participante directo
+      const isDirectParticipant = participants.some(p => 
+        p === userEmail || 
+        p.email === userEmail || 
+        p.identifier === userEmail ||
+        p.userId === userEmail ||
+        p === `agent:${userEmail}` || // Verificar formato de agente
+        p === `admin:${userEmail}`    // Verificar formato de admin
       );
 
-      if (!isParticipant) {
-        // Check if user is admin/agent with access
-        const userRole = this.userRoleCache.get(userEmail);
-        return userRole === 'admin' || userRole === 'superadmin' || userRole === 'agent';
+      if (isDirectParticipant) {
+        logger.info('Usuario es participante directo de la conversación', {
+          category: 'SOCKET_PERMISSION_DIRECT_PARTICIPANT',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationId: decodedConversationId?.substring(0, 20) + '...',
+          participantsCount: participants.length
+        });
+        return true;
       }
 
-      return true;
+      // 🔧 CORRECCIÓN: Verificar si el usuario es agente/admin
+      const userRole = this.userRoleCache.get(userEmail);
+      const isAdminOrAgent = userRole === 'admin' || userRole === 'superadmin' || userRole === 'agent';
+      
+      if (isAdminOrAgent) {
+        logger.info('Usuario es admin/agent con acceso a la conversación', {
+          category: 'SOCKET_PERMISSION_ADMIN_ACCESS',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationId: decodedConversationId?.substring(0, 20) + '...',
+          role: userRole
+        });
+        return true;
+      }
+
+      // 🔧 CORRECCIÓN: Verificar si el usuario está en el workspace/tenant correcto
+      const workspaceId = conversation.workspaceId || 'default';
+      const tenantId = conversation.tenantId || 'na';
+      
+      // Si la conversación es del workspace/tenant por defecto, permitir acceso
+      if (workspaceId === 'default' && tenantId === 'na') {
+        logger.info('Conversación del workspace por defecto, permitiendo acceso', {
+          category: 'SOCKET_PERMISSION_DEFAULT_WORKSPACE',
+          userEmail: userEmail?.substring(0, 20) + '...',
+          conversationId: decodedConversationId?.substring(0, 20) + '...'
+        });
+        return true;
+      }
+
+      logger.warn('Usuario no tiene permisos para la conversación', {
+        category: 'SOCKET_PERMISSION_DENIED',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId: decodedConversationId?.substring(0, 20) + '...',
+        participantsCount: participants.length,
+        userRole: userRole || 'none',
+        workspaceId,
+        tenantId
+      });
+
+      return false;
 
     } catch (error) {
       logger.error('Error verifying conversation permission', {
         category: 'SOCKET_PERMISSION_ERROR',
         error: error.message,
         userEmail: userEmail?.substring(0, 20) + '...',
-        conversationId: conversationId?.substring(0, 20) + '...'
+        conversationId: conversationId?.substring(0, 20) + '...',
+        stack: error.stack
       });
       return false;
     }
