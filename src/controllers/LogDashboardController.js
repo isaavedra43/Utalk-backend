@@ -406,6 +406,11 @@ class LogDashboardController {
         console.error('❌ Error generando logs de prueba:', error.message);
       }
 
+      // Datos iniciales para render inmediato
+      const initialLogs = logMonitor.getLogs({ timeRange: '1h', limit: 100 });
+      const initialStats = logMonitor.getStats();
+      const initialDataScript = `<script>window.__INITIAL_LOGS__ = ${JSON.stringify(initialLogs).replace(/</g, '\u003c')}; window.__INITIAL_STATS__ = ${JSON.stringify(initialStats).replace(/</g, '\u003c')};</script>`;
+
       const html = `
 <!DOCTYPE html>
 <html lang="es">
@@ -451,6 +456,7 @@ class LogDashboardController {
             .buttons { flex-direction: column; }
         }
     </style>
+${initialDataScript}
 </head>
 <body>
     <div class="container">
@@ -519,8 +525,23 @@ class LogDashboardController {
         // Esperar a que el DOM esté completamente cargado
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard DOM cargado, iniciando carga de datos...');
+
+            // Pintar datos iniciales si vienen embebidos
+            try {
+                if (window.__INITIAL_STATS__) {
+                    console.log('📊 Pintando estadísticas iniciales embebidas');
+                    displayStats(window.__INITIAL_STATS__);
+                }
+                if (Array.isArray(window.__INITIAL_LOGS__) && window.__INITIAL_LOGS__.length) {
+                    console.log('📝 Pintando logs iniciales embebidos:', window.__INITIAL_LOGS__.length);
+                    displayLogs(window.__INITIAL_LOGS__);
+                    document.getElementById('logsCount').textContent = window.__INITIAL_LOGS__.length + ' logs';
+                }
+            } catch (e) {
+                console.error('❌ Error pintando datos iniciales:', e);
+            }
             
-            // Cargar datos iniciales
+            // Luego refrescar desde la API
             loadStats();
             loadLogs();
         });
