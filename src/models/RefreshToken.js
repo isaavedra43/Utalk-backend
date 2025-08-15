@@ -81,7 +81,7 @@ class RefreshToken {
     console.log('🔍 [REFRESH_TOKEN] logger.info existe:', !!(logger && typeof logger.info === 'function'));
 
     if (logger && typeof logger.info === 'function') {
-      console.log('🔍 [REFRESH_TOKEN] Llamando logger.info...');
+      console.log('🔍 [REFRESH_TOKEN] Logger.info ejecutado');
       logger.info('🔄 Refresh token creado', {
         tokenId: refreshToken.id,
         userEmail: refreshToken.userEmail,

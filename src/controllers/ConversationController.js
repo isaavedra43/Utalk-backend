@@ -127,11 +127,17 @@ class ConversationController {
         // 🔧 CACHE: Guardar en cache por 2 minutos
         cacheService.set(cacheKey, result, 120);
         
+        // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a base de datos
+        console.log(`📊 DB_CALL: conversations - ${userEmail} - page:${pageNum} - limit:${limitNum} - search:${search ? 'yes' : 'no'}`);
+        
         logger.info('Conversaciones obtenidas de base de datos', {
           category: 'CACHE_MISS',
           cacheKey: cacheKey.substring(0, 50) + '...'
         });
       } else {
+        // 🔧 LOG PARA RAILWAY: Cache hit en conversaciones
+        console.log(`✅ CACHE_HIT: conversations - ${userEmail} - page:${pageNum} - limit:${limitNum}`);
+        
         logger.info('Conversaciones obtenidas de cache', {
           category: 'CACHE_HIT',
           cacheKey: cacheKey.substring(0, 50) + '...'

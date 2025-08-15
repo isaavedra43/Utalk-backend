@@ -336,6 +336,9 @@ class EnterpriseSocketManager {
 
     // Manejo de errores del engine
     this.io.engine.on("connection_error", (err) => {
+      // 🔧 LOG CRÍTICO PARA RAILWAY: Error de conexión WebSocket
+      console.log(`🚨 WEBSOCKET_ERROR: ${err.message} - Code: ${err.code} - Context: ${err.context || 'unknown'}`);
+      
       logger.warn('Socket.IO engine connection error', {
         category: 'SOCKET_ENGINE_ERROR',
         error: err.message,
@@ -1005,6 +1008,8 @@ class EnterpriseSocketManager {
     const minInterval = RATE_LIMITS[eventName] || 1000;
 
     if (now - lastTime < minInterval) {
+      // 🔧 LOG CRÍTICO PARA RAILWAY: Rate limit de Socket.IO alcanzado
+      console.log(`🚨 SOCKET_RATE_LIMIT: ${userEmail} - ${eventName} - Interval: ${minInterval}ms - Last: ${now - lastTime}ms ago`);
       return false; // Rate limited
     }
 

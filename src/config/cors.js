@@ -59,13 +59,8 @@ function isOriginAllowed(origin) {
   try {
     const u = new URL(origin);
     
-    // ✅ SUPER ROBUSTO: Log para debugging CORS
-    console.log('🔍 CORS Check:', {
-      origin,
-      hostname: u.hostname,
-      staticWhitelist: STATIC_WHITELIST,
-      isInStaticList: STATIC_WHITELIST.includes(u.origin)
-    });
+    // ✅ SUPER ROBUSTO: Log para debugging CORS (OPTIMIZADO)
+    console.log(`🔍 CORS Check: origin=${origin}, hostname=${u.hostname}, allowed=${STATIC_WHITELIST.includes(u.origin)}`);
     
     // ✅ SUPER ROBUSTO: Verificar lista estática
     if (STATIC_WHITELIST.includes(u.origin)) {

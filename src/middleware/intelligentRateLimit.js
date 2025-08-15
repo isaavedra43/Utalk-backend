@@ -196,6 +196,9 @@ function intelligentRateLimit(req, res, next) {
     const rateLimitResult = rateLimiter.checkRateLimit(userId, path);
     
     if (!rateLimitResult.allowed) {
+      // 🔧 LOG CRÍTICO PARA RAILWAY: Rate limit alcanzado
+      console.log(`🚨 RATE_LIMIT_EXCEEDED: ${req.user?.email || 'anonymous'} - ${path} - ${rateLimitResult.reason} - Limit: ${rateLimitResult.limit}`);
+      
       logger.warn('Rate limit exceeded', {
         category: 'RATE_LIMIT_EXCEEDED',
         userId: req.user?.email || 'anonymous',
@@ -221,6 +224,11 @@ function intelligentRateLimit(req, res, next) {
       'X-RateLimit-Remaining': rateLimitResult.remaining || 'unknown',
       'X-RateLimit-Reset': new Date(rateLimitResult.resetTime).toISOString()
     });
+    
+    // 🔧 LOG PARA RAILWAY: Rate limit status
+    if (rateLimitResult.remaining < 5) {
+      console.log(`⚠️ RATE_LIMIT_WARNING: ${req.user?.email || 'anonymous'} - ${path} - Remaining: ${rateLimitResult.remaining}/${rateLimitResult.limit}`);
+    }
     
     next();
   } catch (error) {
@@ -253,6 +261,9 @@ function cacheMiddleware(ttlSeconds = 300) {
     const cachedResponse = cacheService.get(cacheKey);
     
     if (cachedResponse) {
+      // 🔧 LOG PARA RAILWAY: Cache hit
+      console.log(`✅ CACHE_HIT: ${req.path} - ${req.user?.email || 'anonymous'}`);
+      
       logger.debug('API response from cache', {
         category: 'API_CACHE_HIT',
         path: req.path,
@@ -268,6 +279,9 @@ function cacheMiddleware(ttlSeconds = 300) {
       // Cachear respuesta exitosa
       if (res.statusCode === 200) {
         cacheService.set(cacheKey, data, ttlSeconds);
+        
+        // 🔧 LOG PARA RAILWAY: Cache miss y set
+        console.log(`🔄 CACHE_MISS: ${req.path} - ${req.user?.email || 'anonymous'} - TTL: ${ttlSeconds}s`);
         
         logger.debug('API response cached', {
           category: 'API_CACHE_SET',

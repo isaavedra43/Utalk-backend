@@ -88,6 +88,11 @@ const conversationValidators = {
 router.get('/',
   authMiddleware,
   requireReadAccess,
+  (req, res, next) => {
+    // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a conversaciones
+    console.log(`📞 CONVERSATIONS_REQUEST: ${req.user?.email || 'anonymous'} - ${req.method} ${req.path} - Query: ${JSON.stringify(req.query)}`);
+    next();
+  },
   intelligentRateLimit,
   cacheMiddleware(120), // Cache por 2 minutos
   conversationValidators.validateList,

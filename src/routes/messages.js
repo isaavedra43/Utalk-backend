@@ -104,6 +104,11 @@ const messageValidators = {
 router.get('/',
   authMiddleware,
   requireReadAccess,
+  (req, res, next) => {
+    // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a mensajes
+    console.log(`💬 MESSAGES_REQUEST: ${req.user?.email || 'anonymous'} - ${req.method} ${req.path} - Query: ${JSON.stringify(req.query)}`);
+    next();
+  },
   normalizeConversationIdQuery, // 🔧 CORRECCIÓN: Normalizar conversationId en query
   messageValidators.validateList,
   MessageController.getMessages
