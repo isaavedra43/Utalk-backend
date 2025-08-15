@@ -25,8 +25,7 @@
  */
 
 const logger = require('../utils/logger');
-const ResponseHandler = require('../utils/responseHandler');
-const CommonErrors = require('../utils/commonErrors');
+const { ResponseHandler, CommonErrors } = require('../utils/responseHandler');
 const ConversationService = require('../services/ConversationService');
 const Message = require('../models/Message');
 const User = require('../models/User');
