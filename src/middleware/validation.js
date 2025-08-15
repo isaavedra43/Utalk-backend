@@ -481,6 +481,61 @@ function validateMessagesArrayResponse(messages) {
   return messages.filter(msg => msg && typeof msg === 'object' && msg.id);
 }
 
+/**
+ * 🔧 MIDDLEWARE PARA VALIDAR DOCUMENTOS DE FIREBASE
+ * Previene errores de toJSON() y otros métodos de Firestore
+ */
+const validateFirestoreDocument = (doc, res, documentType = 'documento') => {
+  if (!doc) {
+    return {
+      isValid: false,
+      error: {
+        success: false,
+        error: "DOCUMENT_NOT_FOUND",
+        message: `El ${documentType} no fue encontrado`,
+        suggestion: "Verifica que el ID sea correcto y que el documento exista"
+      }
+    };
+  }
+
+  // Si es un documento de Firestore con método exists
+  if (typeof doc.exists === 'boolean' && !doc.exists) {
+    return {
+      isValid: false,
+      error: {
+        success: false,
+        error: "DOCUMENT_NOT_FOUND",
+        message: `El ${documentType} no existe en la base de datos`,
+        suggestion: "Verifica que el ID sea correcto"
+      }
+    };
+  }
+
+  return {
+    isValid: true,
+    data: doc
+  };
+};
+
+/**
+ * 🔧 FUNCIÓN PARA CONVERTIR DOCUMENTOS DE FIREBASE DE FORMA SEGURA
+ */
+const safeFirestoreToJSON = (doc) => {
+  if (!doc) return null;
+  
+  // Si es un documento de Firestore con toJSON
+  if (typeof doc.toJSON === 'function') {
+    return doc.toJSON();
+  }
+  
+  // Si es un objeto plano, devolver directamente
+  if (typeof doc === 'object') {
+    return doc;
+  }
+  
+  return null;
+};
+
 module.exports = {
   validateRequest,
   validateFile,
@@ -489,5 +544,7 @@ module.exports = {
   validatePagination,
   validateSearch,
   formatFileSize,
-  validateMessagesArrayResponse
+  validateMessagesArrayResponse,
+  validateFirestoreDocument,
+  safeFirestoreToJSON
 }; 

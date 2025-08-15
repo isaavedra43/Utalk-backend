@@ -67,19 +67,52 @@ class ConversationService {
    */
   static async getConversationById(id) {
     try {
+      // 🔍 LOGGING MEJORADO PARA DEBUG
+      logger.debug('ConversationService.getConversationById - Iniciando consulta', {
+        conversationId: id,
+        timestamp: new Date().toISOString()
+      });
+
       const doc = await firestore.collection('conversations').doc(id).get();
       
-      if (!doc.exists) {
+      // 🔧 SOLUCIÓN SEGURA: Verificación completa del documento
+      if (!doc || !doc.exists) {
+        logger.warn('Conversación no encontrada en Firestore', { 
+          conversationId: id,
+          docExists: doc?.exists,
+          docType: typeof doc
+        });
         return null;
       }
 
-      return {
+      // 🔍 DEBUGGING: Logging del documento obtenido
+      logger.debug('Documento de Firestore obtenido', {
+        conversationId: id,
+        docId: doc.id,
+        docExists: doc.exists,
+        hasData: !!doc.data(),
+        dataKeys: Object.keys(doc.data() || {})
+      });
+
+      const conversationData = {
         id: doc.id,
         ...doc.data()
       };
 
+      logger.info('Conversación obtenida exitosamente', {
+        conversationId: id,
+        hasData: !!conversationData,
+        dataKeys: Object.keys(conversationData)
+      });
+
+      return conversationData;
+
     } catch (error) {
-      logger.error('Error obteniendo conversación:', error);
+      logger.error('Error obteniendo conversación de Firestore', {
+        conversationId: id,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }

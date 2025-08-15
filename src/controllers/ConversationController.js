@@ -24,13 +24,17 @@
  * @author Backend Team
  */
 
+const logger = require('../utils/logger');
+const ResponseHandler = require('../utils/responseHandler');
+const CommonErrors = require('../utils/commonErrors');
 const ConversationService = require('../services/ConversationService');
+const Message = require('../models/Message');
+const User = require('../models/User');
+const { safeFirestoreToJSON, analyzeFirestoreDocument } = require('../utils/firestore');
 const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const { firestore } = require('../config/firebase');
-const logger = require('../utils/logger');
-const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
-const { safeDateToISOString } = require('../utils/dateHelpers');
 const { redactPII } = require('../utils/redact');
+const { safeDateToISOString } = require('../utils/dateHelpers');
 
 class ConversationController {
   /**
@@ -225,7 +229,7 @@ class ConversationController {
           for (const doc of fallbackSnapshot.docs) {
             try {
               const conversation = new Conversation(doc.id, doc.data());
-              fallbackConversations.push(conversation.toJSON());
+              fallbackConversations.push(safeFirestoreToJSON(conversation));
             } catch (docError) {
               continue;
             }
@@ -294,7 +298,7 @@ class ConversationController {
 
       return ResponseHandler.successPaginated(
         res,
-        result.conversations.map(conv => conv.toJSON()),
+        result.map(conv => safeFirestoreToJSON(conv)),
         result.pagination,
         `${result.conversations.length} conversaciones sin asignar`
       );
@@ -369,7 +373,7 @@ class ConversationController {
 
       return ResponseHandler.success(
         res,
-        result.map(conv => conv.toJSON()),
+        result.map(conv => safeFirestoreToJSON(conv)),
         `${result.length} conversaciones encontradas para: "${searchTerm}"`
       );
 
@@ -403,9 +407,24 @@ class ConversationController {
       });
 
       const conversation = await ConversationService.getConversationById(conversationId);
+      
+      // 🔧 SOLUCIÓN SEGURA: Verificación completa del objeto conversation
       if (!conversation) {
+        logger.warn('Conversación no encontrada', { conversationId });
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
+
+      // 🔍 DEBUGGING TEMPORAL: Logging para diagnóstico
+      logger.debug('Conversation object analysis', {
+        conversationId,
+        conversationType: typeof conversation,
+        hasToJSON: typeof conversation.toJSON === 'function',
+        conversationKeys: Object.keys(conversation || {}),
+        conversationExists: !!conversation
+      });
+
+      // 🔧 SOLUCIÓN SEGURA: Análisis detallado del documento
+      analyzeFirestoreDocument(conversation, 'getConversation');
 
       // 🔒 VALIDAR PERMISOS DE ACCESO
       if (req.user.role === 'viewer' && conversation.assignedTo !== req.user.email) {
@@ -418,7 +437,18 @@ class ConversationController {
         assignedTo: conversation.assignedTo
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), 'Conversación obtenida exitosamente');
+      // 🔧 SOLUCIÓN SEGURA: Usar utilidad de conversión segura
+      const conversationData = safeFirestoreToJSON(conversation);
+      
+      if (!conversationData) {
+        logger.error('Error al convertir conversación a JSON', {
+          conversationId,
+          conversationType: typeof conversation
+        });
+        throw CommonErrors.INTERNAL_SERVER_ERROR('Error al procesar la conversación');
+      }
+
+      return ResponseHandler.success(res, conversationData, 'Conversación obtenida exitosamente');
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -481,7 +511,7 @@ class ConversationController {
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
         socketManager.io.emit('conversation-created', {
-          conversation: conversation.toJSON(),
+          conversation: safeFirestoreToJSON(conversation),
           createdBy: req.user.email,
           timestamp: new Date().toISOString()
         });
@@ -506,7 +536,7 @@ class ConversationController {
         hasInitialMessage: !!initialMessage
       });
 
-      return ResponseHandler.created(res, conversation.toJSON(), 'Conversación creada exitosamente');
+      return ResponseHandler.created(res, safeFirestoreToJSON(conversation), 'Conversación creada exitosamente');
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -559,7 +589,7 @@ class ConversationController {
         updatedBy: req.user.email
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), 'Conversación actualizada exitosamente');
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), 'Conversación actualizada exitosamente');
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -632,7 +662,7 @@ class ConversationController {
         previousAssignedTo: conversation.assignedTo
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), `Conversación asignada a ${agent.name}`);
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), `Conversación asignada a ${agent.name}`);
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -682,7 +712,7 @@ class ConversationController {
         unassignedBy: req.user.email
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), 'Conversación desasignada exitosamente');
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), 'Conversación desasignada exitosamente');
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -769,7 +799,7 @@ class ConversationController {
         transferredBy: req.user.email
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), `Conversación transferida a ${targetAgent.name}`);
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), `Conversación transferida a ${targetAgent.name}`);
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -842,7 +872,7 @@ class ConversationController {
         changedBy: req.user.email
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), `Estado cambiado a ${status}`);
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), `Estado cambiado a ${status}`);
 
     } catch (error) {
       return ResponseHandler.error(res, error);
@@ -886,7 +916,7 @@ class ConversationController {
         changedBy: req.user.email
       });
 
-      return ResponseHandler.success(res, conversation.toJSON(), `Prioridad cambiada a ${priority}`);
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), `Prioridad cambiada a ${priority}`);
 
     } catch (error) {
       return ResponseHandler.error(res, error);
