@@ -107,7 +107,7 @@ router.get('/:id',
     }
     next();
   },
-  validateConversationId('id'), // 🔧 CORRECCIÓN: Usar validación específica para conversationId
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   ConversationController.getConversation
 );
 
@@ -126,7 +126,7 @@ router.put('/:id',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   conversationValidators.validateUpdate,
   ConversationController.updateConversation
 );
@@ -146,7 +146,7 @@ router.put('/:id/assign',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   conversationValidators.validateAssign,
   ConversationController.assignConversation
 );
@@ -166,7 +166,7 @@ router.put('/:id/unassign',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   ConversationController.unassignConversation
 );
 
@@ -185,7 +185,7 @@ router.post('/:id/transfer',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   conversationValidators.validateTransfer,
   ConversationController.transferConversation
 );
@@ -205,7 +205,7 @@ router.put('/:id/status',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   conversationValidators.validateChangeStatus,
   ConversationController.changeConversationStatus
 );
@@ -225,7 +225,7 @@ router.put('/:id/priority',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   conversationValidators.validateChangePriority,
   ConversationController.changeConversationPriority
 );
@@ -245,7 +245,7 @@ router.put('/:id/read-all',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   ConversationController.markConversationAsRead
 );
 
@@ -264,7 +264,7 @@ router.post('/:id/messages',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   autoGenerateMessageId,
   fallbackSenderIdentifier,
   validateMessagePayload,
@@ -286,7 +286,7 @@ router.post('/:id/typing',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   ConversationController.indicateTyping
 );
 
@@ -317,7 +317,7 @@ router.delete('/:id',
     }
     next();
   },
-  validateConversationId('id'),
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   ConversationController.deleteConversation
 );
 

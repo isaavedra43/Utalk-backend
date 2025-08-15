@@ -125,7 +125,7 @@ router.get('/conversations/:conversationId/messages',
     }
     next();
   },
-  validateConversationId('conversationId'), // 🔧 CORRECCIÓN: Usar validación específica
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   MessageController.getMessages
 );
 
@@ -145,7 +145,7 @@ router.post('/conversations/:conversationId/messages',
     }
     next();
   },
-  validateConversationId('conversationId'), // 🔧 CORRECCIÓN: Usar validación específica
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   messageValidators.validateCreateInConversation,
   MessageController.createMessageInConversation
 );
@@ -166,7 +166,7 @@ router.put('/conversations/:conversationId/messages/:messageId/read',
     }
     next();
   },
-  validateConversationId('conversationId'), // 🔧 CORRECCIÓN: Usar validación específica
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   validateId('messageId'),
   messageValidators.validateMarkRead,
   MessageController.markMessageAsRead
@@ -188,7 +188,7 @@ router.delete('/conversations/:conversationId/messages/:messageId',
     }
     next();
   },
-  validateConversationId('conversationId'), // 🔧 CORRECCIÓN: Usar validación específica
+  // 🔧 CORRECCIÓN CRÍTICA: Remover validación redundante ya que normalizeConversationId ya valida
   validateId('messageId'),
   MessageController.deleteMessage
 );
