@@ -1547,10 +1547,14 @@ class EnterpriseSocketManager {
         throw new Error('conversationId and messageIds array are required');
       }
 
-      // Update read status in database
-      await this.Message?.markAsRead(messageIds, userEmail);
+      // Normalizar timestamp de lectura
+      const readTimestamp = new Date();
 
-      // Notify other users in conversation
+      // Actualizar en BD en lote usando el modelo Message
+      const Message = require('../models/Message');
+      await Message.markManyAsRead(conversationId, messageIds, userEmail, readTimestamp);
+
+      // Notificar a otros usuarios en la conversación
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
         workspaceId: socket.decodedToken?.workspaceId || 'default',
@@ -1561,7 +1565,7 @@ class EnterpriseSocketManager {
         conversationId,
         messageIds,
         readBy: userEmail,
-        timestamp: new Date().toISOString()
+        timestamp: readTimestamp.toISOString()
       });
 
       logger.debug('Messages marked as read', {
@@ -1573,10 +1577,10 @@ class EnterpriseSocketManager {
 
     } catch (error) {
       logger.error('Error marking messages as read', {
-        category: 'SOCKET_READ_ERROR',
+        category: 'SOCKET_MESSAGE_READ_ERROR',
         error: error.message,
-        email: userEmail?.substring(0, 20) + '...',
-        conversationId: data?.conversationId?.substring(0, 20) + '...'
+        conversationId,
+        messageCount: Array.isArray(messageIds) ? messageIds.length : 0
       });
 
       socket.emit(SOCKET_EVENTS.ERROR, {

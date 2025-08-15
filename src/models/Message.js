@@ -627,6 +627,44 @@ class Message {
   }
 
   /**
+   * Marcar múltiples mensajes como leídos (operación en lote)
+   */
+  static async markManyAsRead(conversationId, messageIds, userEmail, readTimestamp = new Date()) {
+    if (!conversationId || !Array.isArray(messageIds) || messageIds.length === 0) {
+      return { updated: 0 };
+    }
+
+    const batch = firestore.batch();
+    const readAtTs = Timestamp.fromDate(readTimestamp);
+
+    messageIds.forEach(messageId => {
+      const ref = firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(messageId);
+
+      batch.update(ref, {
+        status: 'read',
+        readBy: FieldValue.arrayUnion(userEmail),
+        readAt: readAtTs,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+    });
+
+    await batch.commit();
+
+    logger.info('Mensajes marcados como leídos (batch)', {
+      category: 'MESSAGES_MARK_READ_BATCH',
+      conversationId: conversationId.substring(0, 30) + '...',
+      userEmail: (userEmail || '').substring(0, 30) + '...',
+      count: messageIds.length
+    });
+
+    return { updated: messageIds.length };
+  }
+
+  /**
    * 🗑️ Eliminación soft del mensaje
    */
   async softDelete(deletedBy) {
