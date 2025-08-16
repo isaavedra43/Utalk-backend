@@ -201,7 +201,7 @@ class MessageService {
       };
 
       // Crear mensaje en base de datos
-      const message = await this.createMessage(messageData);
+      const message = await MessageService.createMessage(messageData);
 
       // Enviar por Twilio
       try {
@@ -260,10 +260,7 @@ class MessageService {
     }
   }
 
-  /**
-   * Procesar mensaje entrante desde webhook Twilio
-   */
-  static async processIncomingMessage (webhookData) {
+
     const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
