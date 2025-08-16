@@ -580,6 +580,15 @@ class Message {
       try {
         const baseUrl = process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app';
         
+        // 🔍 LOG PARA DEBUGGEAR TRANSFORMACIÓN DE URL
+        console.log('🔍 MESSAGE TOJSON - TRANSFORMANDO URL:', {
+          messageId: this.id,
+          originalMediaUrl: this.mediaUrl,
+          baseUrl: baseUrl,
+          isFirebase: this.mediaUrl.includes('firebase'),
+          isTwilio: this.mediaUrl.includes('api.twilio.com')
+        });
+        
         if (this.mediaUrl.includes('firebase')) {
           // Si es una URL de Firebase Storage, generar URL pública
           const urlParts = this.mediaUrl.split('/');
@@ -589,7 +598,8 @@ class Message {
           // Generar URL pública del proxy
           processedMediaUrl = `${baseUrl}/media/proxy-file-public/${fileId}`;
           
-          logger.info('🔄 URL de Firebase convertida a URL pública', {
+          console.log('🔍 MESSAGE TOJSON - FIREBASE URL TRANSFORMADA:', {
+            messageId: this.id,
             originalUrl: this.mediaUrl,
             publicUrl: processedMediaUrl,
             fileId
@@ -603,19 +613,31 @@ class Message {
           // Generar URL pública del proxy de Twilio
           processedMediaUrl = `${baseUrl}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
           
-          logger.info('🔄 URL de Twilio convertida a URL pública', {
+          console.log('🔍 MESSAGE TOJSON - TWILIO URL TRANSFORMADA:', {
+            messageId: this.id,
             originalUrl: this.mediaUrl,
             publicUrl: processedMediaUrl,
             messageSid,
-            mediaSid
+            mediaSid,
+            urlParts: urlParts
           });
+        } else {
+          console.log('🔍 MESSAGE TOJSON - URL NO RECONOCIDA:', {
+            messageId: this.id,
+            originalUrl: this.mediaUrl,
+            processedMediaUrl: this.mediaUrl // Mantener original
+          });
+          processedMediaUrl = this.mediaUrl; // Mantener URL original
         }
       } catch (error) {
-        logger.warn('⚠️ Error generando URL pública, usando URL original', {
-          mediaUrl: this.mediaUrl,
-          error: error.message
+        console.log('🔍 MESSAGE TOJSON - ERROR EN TRANSFORMACIÓN:', {
+          messageId: this.id,
+          originalUrl: this.mediaUrl,
+          error: error.message,
+          stack: error.stack
         });
         // Mantener URL original si hay error
+        processedMediaUrl = this.mediaUrl;
       }
     }
 
