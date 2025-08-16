@@ -89,31 +89,76 @@ const corsOptions = {
 };
 
 /**
- * 🔧 OPCIONES DE CORS PARA SOCKET.IO — permite Origin undefined (clientes WS)
+ * 🔧 OPCIONES DE CORS PARA SOCKET.IO — CORREGIDO PARA ORIGIN UNDEFINED
  */
 const socketCorsOptions = {
   origin(origin, cb) {
     console.log('🔌 Socket CORS Origin Check:', origin);
-    if (!origin) {
-      // Aceptar handshakes sin Origin (clientes WS/herramientas)
-      console.log('✅ Socket CORS Origin Allowed (no origin)');
+    
+    // 🔧 CORRECCIÓN: Manejar origin undefined de manera más robusta
+    if (!origin || origin === 'undefined' || origin === 'null') {
+      console.log('✅ Socket CORS Origin Allowed (undefined/null)');
+      logger.info('Socket CORS: Origin undefined permitido', {
+        category: 'SOCKET_CORS_ALLOWED',
+        origin: origin || 'undefined',
+        reason: 'websocket_handshake'
+      });
       return cb(null, true);
     }
+    
+    // Validar origen si está presente
     if (isOriginAllowed(origin)) {
       console.log('✅ Socket CORS Origin Allowed:', origin);
+      logger.info('Socket CORS: Origin permitido', {
+        category: 'SOCKET_CORS_ALLOWED',
+        origin,
+        type: 'validated'
+      });
       return cb(null, true);
     }
+    
     console.log('❌ Socket CORS Origin Blocked:', origin);
+    logger.warn('Socket CORS: Origin bloqueado', {
+      category: 'SOCKET_CORS_BLOCKED',
+      origin,
+      allowedOrigins: STATIC_WHITELIST
+    });
     return cb(null, false);
   },
-  credentials: false, // no cookies en WS
+  credentials: true, // 🔧 CORRECCIÓN: Habilitar credenciales para WebSocket
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: [
     'Authorization',
     'Content-Type',
-    'X-Request-Id'
+    'X-Request-Id',
+    'Origin',
+    'Referer'
   ],
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  allowEIO3: true, // 🔧 CORRECCIÓN: Permitir Engine.IO v3
+  allowRequest: (req, callback) => {
+    // 🔧 CORRECCIÓN: Validación adicional para requests WebSocket
+    const origin = req.headers.origin || req.headers.referer;
+    
+    if (!origin) {
+      logger.debug('Socket CORS: Request sin origin permitido', {
+        category: 'SOCKET_CORS_REQUEST',
+        headers: Object.keys(req.headers)
+      });
+      return callback(null, true);
+    }
+    
+    if (isOriginAllowed(origin)) {
+      return callback(null, true);
+    }
+    
+    logger.warn('Socket CORS: Request bloqueado', {
+      category: 'SOCKET_CORS_REQUEST_BLOCKED',
+      origin,
+      headers: req.headers
+    });
+    return callback(null, false);
+  }
 };
 
 module.exports = { 

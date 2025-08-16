@@ -42,6 +42,31 @@ function emitConversationUpdated(args) {
   return _manager?.emitConversationUpdated?.(args) ?? false;
 }
 
+// 🔧 FUNCIÓN DE PRUEBA: Verificar que el workspaceId se extrae correctamente
+function testWorkspaceIdExtraction(socket) {
+  if (!socket) {
+    console.log('❌ Socket no proporcionado para prueba de workspaceId');
+    return false;
+  }
+
+  const workspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default';
+  const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'na';
+  const userId = socket.userEmail || socket.decodedToken?.email || 'unknown';
+
+  console.log('🔍 PRUEBA WORKSPACEID:', {
+    socketId: socket.id,
+    userId: userId,
+    workspaceId: workspaceId,
+    tenantId: tenantId,
+    hasWorkspaceId: !!workspaceId,
+    hasTenantId: !!tenantId,
+    workspaceIdSource: socket.workspaceId ? 'socket.workspaceId' : 
+                      socket.decodedToken?.workspaceId ? 'socket.decodedToken.workspaceId' : 'default'
+  });
+
+  return workspaceId && workspaceId !== 'default';
+}
+
 module.exports = {
   setSocketManager,
   getSocketManager,
@@ -51,5 +76,7 @@ module.exports = {
   // Delegadores seguros
   broadcastToConversation,
   emitNewMessage,
-  emitConversationUpdated
+  emitConversationUpdated,
+  // 🔧 Función de prueba
+  testWorkspaceIdExtraction
 };

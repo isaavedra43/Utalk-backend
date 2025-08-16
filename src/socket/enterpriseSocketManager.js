@@ -303,7 +303,7 @@ class EnterpriseSocketManager {
     const { socketCorsOptions } = require('../config/cors');
 
     this.io = new Server(this.server, {
-      // CORS configuration unificada
+      // CORS configuration unificada - CORREGIDO
       cors: socketCorsOptions,
 
       // Transport configuration
@@ -326,9 +326,36 @@ class EnterpriseSocketManager {
       connectionStateRecovery: true,
       
       // Additional settings
-      allowEIO3: false,
+      allowEIO3: true,  // 🔧 CORRECCIÓN: Habilitar Engine.IO v3
       cookie: false,
-      serveClient: false
+      serveClient: false,
+      
+      // 🔧 CORRECCIÓN: Configuración adicional para CORS WebSocket
+      allowRequest: (req, callback) => {
+        const origin = req.headers.origin || req.headers.referer;
+        
+        // Permitir requests sin origin (común en WebSocket)
+        if (!origin) {
+          logger.debug('Socket.IO: Request sin origin permitido', {
+            category: 'SOCKET_CORS_HANDSHAKE',
+            headers: Object.keys(req.headers)
+          });
+          return callback(null, true);
+        }
+        
+        // Validar origin si está presente
+        const { isOriginAllowed } = require('../config/cors');
+        if (isOriginAllowed(origin)) {
+          return callback(null, true);
+        }
+        
+        logger.warn('Socket.IO: Request bloqueado por CORS', {
+          category: 'SOCKET_CORS_BLOCKED',
+          origin,
+          headers: req.headers
+        });
+        return callback(null, false);
+      }
     });
 
     // Manejo de errores del engine
@@ -422,6 +449,20 @@ class EnterpriseSocketManager {
           return next(new Error('AUTHENTICATION_FAILED: Valid email required'));
         }
 
+        // 🔧 CORRECCIÓN CRÍTICA: Extraer workspaceId y tenantId del JWT
+        const workspaceId = decodedToken.workspaceId || 'default';
+        const tenantId = decodedToken.tenantId || 'na';
+        const userId = decodedToken.userId || email;
+
+        logger.info('Socket.IO: JWT claims extracted successfully', {
+          category: 'SOCKET_AUTH_CLAIMS_EXTRACTED',
+          socketId: socket.id,
+          email: email.substring(0, 20) + '...',
+          workspaceId: workspaceId,
+          tenantId: tenantId,
+          userId: userId
+        });
+
         // Get user role (simplificado)
         let userRole = this.userRoleCache.get(email);
         if (!userRole) {
@@ -499,26 +540,42 @@ class EnterpriseSocketManager {
           }
         }
 
-        // Attach authenticated user data to socket
+        // 🔧 CORRECCIÓN CRÍTICA: Attach authenticated user data to socket with workspaceId
         socket.userEmail = email;
         socket.userRole = userRole;
         socket.decodedToken = decodedToken;
         socket.connectedAt = Date.now();
         socket.lastActivity = Date.now();
 
-        // Socket data
+        // 🔧 CORRECCIÓN CRÍTICA: Socket data with workspaceId and tenantId
         socket.data = {
-          userId: decodedToken.userId || email,
+          userId: userId,
           emailMasked: email.substring(0, 20) + '...',
-          workspaceId: decodedToken.workspaceId || 'default',
-          tenantId: decodedToken.tenantId || 'na'
+          workspaceId: workspaceId,  // 🔧 CORRECCIÓN: Extraído del JWT
+          tenantId: tenantId         // 🔧 CORRECCIÓN: Extraído del JWT
         };
 
-        logger.info('Socket.IO: Authentication successful', {
+        // 🔧 CORRECCIÓN CRÍTICA: Agregar workspaceId y tenantId directamente al socket
+        socket.workspaceId = workspaceId;
+        socket.tenantId = tenantId;
+
+        logger.info('Socket.IO: Authentication successful with workspaceId', {
           category: 'SOCKET_AUTH_SUCCESS',
           email: email.substring(0, 20) + '...',
           role: userRole,
-          socketId: socket.id
+          socketId: socket.id,
+          workspaceId: workspaceId,
+          tenantId: tenantId
+        });
+
+        // 🔧 PRUEBA: Verificar que el workspaceId se extrajo correctamente
+        const { testWorkspaceIdExtraction } = require('./index');
+        const workspaceIdTest = testWorkspaceIdExtraction(socket);
+        logger.info('Socket.IO: WorkspaceId extraction test', {
+          category: 'SOCKET_AUTH_WORKSPACE_TEST',
+          socketId: socket.id,
+          testPassed: workspaceIdTest,
+          workspaceId: workspaceId
         });
 
         next(); // Authentication successful
@@ -786,15 +843,17 @@ class EnterpriseSocketManager {
       this.eventListeners.set(socketId, listenersMap);
     }
 
-    // Helper to register event with cleanup
+    // Helper to register event with cleanup - CORREGIDO
     const registerEvent = (eventName, handler, options = {}) => {
       const wrappedHandler = this.wrapEventHandler(eventName, handler, socket, options);
       
-      // Usar el sistema de cleanup centralizado
+      // 🔧 CORRECCIÓN: Usar configuración específica para WebSocket
       const eventCleanup = require('../utils/eventCleanup');
       eventCleanup.addListener(socket, eventName, wrappedHandler, {
         maxCalls: options.maxCalls || Infinity,
         timeout: options.timeout || null,
+        autoCleanup: false,  // 🔧 CORRECCIÓN: No cleanup automático para WebSocket
+        reRegisterOnMissing: true,  // 🔧 CORRECCIÓN: Re-registrar si falta
         metadata: { 
           socketId, 
           userEmail: userEmail?.substring(0, 20) + '...',
@@ -1500,8 +1559,8 @@ class EnterpriseSocketManager {
       // Emit to all users in conversation (including sender for confirmation)
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'na',
         conversationId 
       });
       this.io.to(roomId).emit(SOCKET_EVENTS.MESSAGE_SENT, {
@@ -1581,8 +1640,8 @@ class EnterpriseSocketManager {
 
       // Emitir actualización de conversación con unreadCount recalculado
       try {
-        const workspaceId = socket.decodedToken?.workspaceId || 'default';
-        const tenantId = socket.decodedToken?.tenantId || 'na';
+        const workspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default';
+        const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'na';
         const unreadCount = await Message.getUnreadCount(conversationId, userEmail);
         this.emitConversationUpdated({
           workspaceId,
@@ -1652,8 +1711,8 @@ class EnterpriseSocketManager {
       // Notify other users in conversation (exclude sender)
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'na',
         conversationId 
       });
       socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING, {
@@ -1716,8 +1775,8 @@ class EnterpriseSocketManager {
       // Notify other users in conversation (exclude sender)
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'na',
         conversationId 
       });
       socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
@@ -2856,7 +2915,7 @@ class EnterpriseSocketManager {
   }
 
   /**
-   * 📊 SETUP MONITORING
+   * 📊 SETUP MONITORING - CORREGIDO
    */
   setupMonitoring() {
     // Reset metrics every minute
@@ -2904,13 +2963,19 @@ class EnterpriseSocketManager {
       this.cleanupOldRateLimitEntries();
     }, 30 * 1000); // Every 30 seconds
 
+    // 🔧 CORRECCIÓN: VERIFICACIÓN PERIÓDICA DE LISTENERS
+    setInterval(() => {
+      this.verifyAndReRegisterListeners();
+    }, 10 * 1000); // Every 10 seconds
+
     logger.info('✅ Socket.IO monitoring configured', {
       category: 'SOCKET_MONITORING_SUCCESS',
       intervals: {
         metrics: '60s',
         memoryCleanup: '2min',
         memoryLeakDetection: '5min',
-        rateLimitCleanup: '30s'
+        rateLimitCleanup: '30s',
+        listenerVerification: '10s'  // 🔧 CORRECCIÓN: Nueva verificación
       }
     });
   }
@@ -3342,7 +3407,7 @@ class EnterpriseSocketManager {
    * 📡 BROADCAST TO CONVERSATION (MÉTODO PÚBLICO PARA REPOSITORIO)
    * Emite eventos a una conversación específica con autorización
    */
-  broadcastToConversation({ workspaceId, tenantId, conversationId, event, payload }) {
+  broadcastToConversation({ workspaceId, tenantId, conversationId, event, payload, socket = null }) {
     try {
       // Validar parámetros requeridos
       if (!conversationId || !event) {
@@ -3356,11 +3421,28 @@ class EnterpriseSocketManager {
         return false;
       }
 
+      // 🔧 CORRECCIÓN CRÍTICA: Obtener workspaceId del socket si no se proporciona
+      let finalWorkspaceId = workspaceId;
+      let finalTenantId = tenantId;
+
+      if (!finalWorkspaceId && socket) {
+        finalWorkspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default';
+        finalTenantId = socket.tenantId || socket.decodedToken?.tenantId || 'na';
+        
+        logger.info('broadcastToConversation: Obteniendo workspaceId del socket', {
+          category: 'SOCKET_BROADCAST_WORKSPACE_FROM_SOCKET',
+          conversationId: conversationId.substring(0, 20) + '...',
+          event,
+          workspaceIdFromSocket: finalWorkspaceId,
+          tenantIdFromSocket: finalTenantId
+        });
+      }
+
       // Construir roomId con la convención establecida
-      const roomId = `ws:${workspaceId || 'default'}:ten:${tenantId || 'na'}:conv:${conversationId}`;
+      const roomId = `ws:${finalWorkspaceId || 'default'}:ten:${finalTenantId || 'na'}:conv:${conversationId}`;
 
       // Verificar autorización previa (si el repo pasa workspaceId/tenantId, confiamos)
-      if (!workspaceId) {
+      if (!finalWorkspaceId) {
         logger.warn('broadcastToConversation: Sin workspaceId, omitiendo broadcast', {
           category: 'SOCKET_BROADCAST_AUTH_WARNING',
           conversationId: conversationId.substring(0, 20) + '...',
@@ -3531,6 +3613,72 @@ class EnterpriseSocketManager {
         where: 'emitConversationUpdated', 
         err: error.message,
         conversationId: conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🔧 VERIFY AND RE-REGISTER LISTENERS
+   * Verifica que todos los listeners estén activos y los re-registra si es necesario
+   */
+  verifyAndReRegisterListeners() {
+    try {
+      const eventCleanup = require('../utils/eventCleanup');
+      let totalVerified = 0;
+      let totalReRegistered = 0;
+
+      // Verificar todos los sockets conectados
+      for (const [socketId, socket] of this.io.sockets.sockets) {
+        if (socket.connected && socket.userEmail) {
+          totalVerified++;
+          
+          // Definir los handlers que deberían estar registrados
+          const requiredHandlers = {
+            [SOCKET_EVENTS.SYNC_STATE]: this.handleSyncState.bind(this),
+            [SOCKET_EVENTS.JOIN_CONVERSATION]: this.handleJoinConversation.bind(this),
+            [SOCKET_EVENTS.LEAVE_CONVERSATION]: this.handleLeaveConversation.bind(this),
+            [SOCKET_EVENTS.NEW_MESSAGE]: this.handleNewMessage.bind(this),
+            [SOCKET_EVENTS.MESSAGE_READ]: this.handleMessageRead.bind(this),
+            [SOCKET_EVENTS.MESSAGE_TYPING]: this.handleTyping.bind(this),
+            [SOCKET_EVENTS.MESSAGE_TYPING_STOP]: this.handleTypingStop.bind(this),
+            [SOCKET_EVENTS.USER_STATUS_CHANGE]: this.handleStatusChange.bind(this),
+            [SOCKET_EVENTS.DISCONNECT]: this.handleDisconnect.bind(this),
+            [SOCKET_EVENTS.ERROR]: (sock, payload) => {
+              logger.warn('WS business error reported by client', {
+                category: 'SOCKET_CLIENT_ERROR',
+                payload: typeof payload === 'string' ? payload : (payload?.error || 'unknown'),
+                socketId: sock.id
+              });
+            }
+          };
+
+          // Re-registrar listeners faltantes
+          const reRegisteredCount = eventCleanup.reRegisterMissingListeners(socket, requiredHandlers);
+          if (reRegisteredCount > 0) {
+            totalReRegistered += reRegisteredCount;
+            logger.info('Listeners re-registrados para socket', {
+              category: 'SOCKET_LISTENERS_RE_REGISTERED',
+              socketId: socket.id.substring(0, 8) + '...',
+              userEmail: socket.userEmail?.substring(0, 20) + '...',
+              reRegisteredCount
+            });
+          }
+        }
+      }
+
+      if (totalReRegistered > 0) {
+        logger.info('Verificación de listeners completada', {
+          category: 'SOCKET_LISTENERS_VERIFICATION',
+          totalVerified,
+          totalReRegistered
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error en verificación de listeners', {
+        category: 'SOCKET_LISTENERS_VERIFICATION_ERROR',
+        error: error.message,
+        stack: error.stack
       });
     }
   }

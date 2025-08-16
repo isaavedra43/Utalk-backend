@@ -1,9 +1,12 @@
 /**
- * 🧹 EVENT CLEANUP SYSTEM
+ * 🧹 EVENT CLEANUP SYSTEM - CORREGIDO
  * Sistema centralizado para limpiar event listeners y prevenir memory leaks
  * 
+ * 🔧 CORRECCIÓN: Evita remover listeners prematuramente
+ * 🔧 CORRECCIÓN: Sistema de re-registro automático
+ * 
  * @author Backend Performance Team
- * @version 1.0.0
+ * @version 2.0.0 - Corregido para WebSocket
  */
 
 const logger = require('./logger');
@@ -15,22 +18,55 @@ class EventCleanup {
     this.stats = {
       totalListeners: 0,
       cleanedListeners: 0,
-      activeListeners: 0
+      activeListeners: 0,
+      reRegisteredListeners: 0
+    };
+    
+    // 🔧 CORRECCIÓN: Configuración para WebSocket
+    this.socketConfig = {
+      maxCalls: Infinity,        // Sin límite de llamadas para WebSocket
+      timeout: null,             // Sin timeout para WebSocket
+      autoCleanup: false,        // 🔧 CORRECCIÓN: No cleanup automático para WebSocket
+      reRegisterOnMissing: true  // 🔧 CORRECCIÓN: Re-registrar si falta
     };
   }
 
   /**
-   * 📝 ADD LISTENER WITH CLEANUP
+   * 📝 ADD LISTENER WITH CLEANUP - CORREGIDO
    * Agrega un listener con cleanup automático
    */
   addListener(emitter, event, handler, options = {}) {
     try {
+      // 🔧 CORRECCIÓN: Configuración específica para WebSocket
+      const isSocketEmitter = emitter && emitter.constructor && 
+                             (emitter.constructor.name === 'Socket' || 
+                              emitter.constructor.name.includes('Socket'));
+      
+      const defaultOptions = isSocketEmitter ? this.socketConfig : {
+        maxCalls: Infinity, 
+        timeout: null, 
+        autoCleanup: true,
+        reRegisterOnMissing: false
+      };
+
       const { 
-        maxCalls = Infinity, 
-        timeout = null, 
-        autoCleanup = true,
+        maxCalls = defaultOptions.maxCalls, 
+        timeout = defaultOptions.timeout, 
+        autoCleanup = defaultOptions.autoCleanup,
+        reRegisterOnMissing = defaultOptions.reRegisterOnMissing,
         metadata = {} 
       } = options;
+
+      // 🔧 CORRECCIÓN: Verificar si ya existe el listener
+      const existingListener = this.getListener(emitter, event);
+      if (existingListener) {
+        logger.debug('Listener ya existe, no duplicando', {
+          event,
+          emitter: emitter.constructor?.name || 'unknown',
+          metadata
+        });
+        return existingListener.handler;
+      }
 
       // Crear wrapper con límites
       let callCount = 0;
@@ -38,10 +74,16 @@ class EventCleanup {
         try {
           callCount++;
           
-          // Verificar límite de llamadas
-          if (callCount >= maxCalls) {
+          // 🔧 CORRECCIÓN: Solo verificar límite si autoCleanup está habilitado
+          if (autoCleanup && callCount >= maxCalls) {
+            logger.debug('Límite de llamadas alcanzado, removiendo listener', {
+              event,
+              callCount,
+              maxCalls,
+              metadata
+            });
             this.removeListener(emitter, event, wrappedHandler);
-            // Log removido para reducir ruido en producción
+            return;
           }
 
           // Ejecutar handler original
@@ -57,11 +99,15 @@ class EventCleanup {
         }
       };
 
-      // Agregar timeout si se especifica
-      if (timeout) {
+      // 🔧 CORRECCIÓN: Solo agregar timeout si autoCleanup está habilitado
+      if (autoCleanup && timeout) {
         const timeoutId = setTimeout(() => {
+          logger.debug('Timeout alcanzado, removiendo listener', {
+            event,
+            timeout,
+            metadata
+          });
           this.removeListener(emitter, event, wrappedHandler);
-          // Log removido para reducir ruido en producción
         }, timeout);
 
         // Guardar referencia del timeout
@@ -84,13 +130,22 @@ class EventCleanup {
         addedAt: new Date(),
         metadata,
         maxCalls,
-        timeout
+        timeout,
+        autoCleanup,
+        reRegisterOnMissing,
+        isSocketEmitter
       });
 
       this.stats.totalListeners++;
       this.stats.activeListeners++;
 
-      // Log removido para reducir ruido en producción
+      logger.debug('Listener agregado exitosamente', {
+        event,
+        emitter: emitter.constructor?.name || 'unknown',
+        autoCleanup,
+        isSocketEmitter,
+        metadata
+      });
 
       return wrappedHandler;
 
@@ -105,7 +160,72 @@ class EventCleanup {
   }
 
   /**
-   * 🗑️ REMOVE LISTENER
+   * 🔍 GET LISTENER
+   * Obtiene información de un listener específico
+   */
+  getListener(emitter, event) {
+    try {
+      const emitterListeners = this.listeners.get(emitter);
+      if (!emitterListeners) {
+        return null;
+      }
+
+      return emitterListeners.get(event) || null;
+    } catch (error) {
+      logger.error('Error obteniendo listener', {
+        event,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  /**
+   * 🔧 RE-REGISTER MISSING LISTENERS
+   * Re-registra listeners que se perdieron
+   */
+  reRegisterMissingListeners(emitter, eventHandlers) {
+    try {
+      let reRegisteredCount = 0;
+
+      for (const [event, handler] of Object.entries(eventHandlers)) {
+        const existingListener = this.getListener(emitter, event);
+        
+        if (!existingListener) {
+          logger.info('Re-registrando listener faltante', {
+            event,
+            emitter: emitter.constructor?.name || 'unknown'
+          });
+          
+          this.addListener(emitter, event, handler, {
+            autoCleanup: false,  // 🔧 CORRECCIÓN: No cleanup automático
+            reRegisterOnMissing: true
+          });
+          
+          reRegisteredCount++;
+          this.stats.reRegisteredListeners++;
+        }
+      }
+
+      if (reRegisteredCount > 0) {
+        logger.info('Listeners re-registrados exitosamente', {
+          count: reRegisteredCount,
+          emitter: emitter.constructor?.name || 'unknown'
+        });
+      }
+
+      return reRegisteredCount;
+    } catch (error) {
+      logger.error('Error re-registrando listeners', {
+        error: error.message,
+        emitter: emitter.constructor?.name || 'unknown'
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * 🗑️ REMOVE LISTENER - CORREGIDO
    * Remueve un listener específico
    */
   removeListener(emitter, event, handler) {
@@ -114,7 +234,7 @@ class EventCleanup {
       if (!emitterListeners) {
         logger.warn('No se encontraron listeners para el emitter', {
           event,
-          emitter: emitter.constructor.name
+          emitter: emitter.constructor?.name || 'unknown'
         });
         return false;
       }
@@ -123,9 +243,31 @@ class EventCleanup {
       if (!listenerInfo) {
         logger.warn('No se encontró listener para el evento', {
           event,
-          emitter: emitter.constructor.name
+          emitter: emitter.constructor?.name || 'unknown'
         });
         return false;
+      }
+
+      // 🔧 CORRECCIÓN: Verificar si es un listener de WebSocket
+      if (listenerInfo.isSocketEmitter && listenerInfo.reRegisterOnMissing) {
+        logger.debug('Listener de WebSocket detectado, verificando si debe removerse', {
+          event,
+          emitter: emitter.constructor?.name || 'unknown'
+        });
+        
+        // Solo remover si el socket está desconectado
+        if (emitter.connected === false) {
+          logger.debug('Socket desconectado, removiendo listener', {
+            event,
+            emitter: emitter.constructor?.name || 'unknown'
+          });
+        } else {
+          logger.debug('Socket conectado, manteniendo listener', {
+            event,
+            emitter: emitter.constructor?.name || 'unknown'
+          });
+          return true; // No remover si está conectado
+        }
       }
 
       // Limpiar timeout si existe
@@ -145,7 +287,10 @@ class EventCleanup {
       this.stats.cleanedListeners++;
       this.stats.activeListeners--;
 
-      // Log removido para reducir ruido en producción
+      logger.debug('Listener removido exitosamente', {
+        event,
+        emitter: emitter.constructor?.name || 'unknown'
+      });
 
       return true;
 
