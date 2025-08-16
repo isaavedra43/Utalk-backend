@@ -192,23 +192,33 @@ class FileService {
       );
 
       // 🆕 Guardar archivo en base de datos con metadata completa
-      const fileRecord = await this.saveFileToDatabase({
-        fileId,
-        conversationId,
-        userId,
-        uploadedBy,
-        originalName,
-        mimetype,
-        size,
-        url: processedFile.storageUrl,
-        thumbnailUrl: processedFile.metadata?.thumbnailUrl,
-        previewUrl: processedFile.metadata?.previewUrl,
-        metadata: processedFile.metadata || {},
-        category,
-        storagePath: processedFile.storagePath,
-        publicUrl: processedFile.publicUrl,
-        tags
-      });
+      try {
+        const fileRecord = await this.saveFileToDatabase({
+          fileId,
+          conversationId,
+          userId,
+          uploadedBy,
+          originalName,
+          mimetype,
+          size,
+          url: processedFile.storageUrl,
+          thumbnailUrl: processedFile.metadata?.thumbnailUrl,
+          previewUrl: processedFile.metadata?.previewUrl,
+          metadata: processedFile.metadata || {},
+          category,
+          storagePath: processedFile.storagePath,
+          publicUrl: processedFile.publicUrl,
+          tags
+        });
+      } catch (dbError) {
+        logger.error('❌ Error guardando archivo en base de datos', {
+          fileId,
+          conversationId,
+          error: dbError.message,
+          stack: dbError.stack
+        });
+        throw dbError;
+      }
 
       const processTime = Date.now() - startTime;
 
@@ -3602,15 +3612,30 @@ class FileService {
       };
 
       // Guardar en Firestore usando el modelo File
-      const savedFile = await File.create(fileRecord);
+      try {
+        const savedFile = await File.create(fileRecord);
 
-      logger.info('✅ Archivo guardado exitosamente en base de datos', {
-        fileId,
-        conversationId,
-        category
-      });
+        logger.info('✅ Archivo guardado exitosamente en base de datos', {
+          fileId,
+          conversationId,
+          category
+        });
 
-      return savedFile;
+        return savedFile;
+      } catch (createError) {
+        logger.error('❌ Error en File.create()', {
+          fileId,
+          conversationId,
+          error: createError.message,
+          stack: createError.stack,
+          fileRecord: {
+            id: fileRecord.id,
+            conversationId: fileRecord.conversationId,
+            category: fileRecord.category
+          }
+        });
+        throw createError;
+      }
     } catch (error) {
       logger.error('❌ Error guardando archivo en base de datos', {
         error: error.message,

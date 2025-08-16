@@ -65,20 +65,22 @@ class File {
   static async createIndexes(file) {
     const batch = firestore.batch();
 
-    // Índice por conversación
-    const conversationIndexRef = firestore
-      .collection('files_by_conversation')
-      .doc(file.conversationId)
-      .collection('files')
-      .doc(file.id);
+    // Índice por conversación (solo si conversationId existe)
+    if (file.conversationId) {
+      const conversationIndexRef = firestore
+        .collection('files_by_conversation')
+        .doc(file.conversationId)
+        .collection('files')
+        .doc(file.id);
 
-    batch.set(conversationIndexRef, {
-      fileId: file.id,
-      category: file.category,
-      uploadedAt: file.uploadedAt,
-      size: file.sizeBytes,
-      isActive: file.isActive
-    });
+      batch.set(conversationIndexRef, {
+        fileId: file.id,
+        category: file.category,
+        uploadedAt: file.uploadedAt,
+        size: file.sizeBytes,
+        isActive: file.isActive
+      });
+    }
 
     // Índice por usuario
     if (file.uploadedBy) {
@@ -98,21 +100,23 @@ class File {
       });
     }
 
-    // Índice por categoría
-    const categoryIndexRef = firestore
-      .collection('files_by_category')
-      .doc(file.category)
-      .collection('files')
-      .doc(file.id);
+    // Índice por categoría (solo si category existe)
+    if (file.category) {
+      const categoryIndexRef = firestore
+        .collection('files_by_category')
+        .doc(file.category)
+        .collection('files')
+        .doc(file.id);
 
-    batch.set(categoryIndexRef, {
-      fileId: file.id,
-      conversationId: file.conversationId,
-      uploadedBy: file.uploadedBy,
-      uploadedAt: file.uploadedAt,
-      size: file.sizeBytes,
-      isActive: file.isActive
-    });
+      batch.set(categoryIndexRef, {
+        fileId: file.id,
+        conversationId: file.conversationId,
+        uploadedBy: file.uploadedBy,
+        uploadedAt: file.uploadedAt,
+        size: file.sizeBytes,
+        isActive: file.isActive
+      });
+    }
 
     // Índice por fecha (para consultas por período)
     let dateKey;
@@ -142,7 +146,16 @@ class File {
     });
 
     // Ejecutar batch
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (batchError) {
+      logger.error('❌ Error ejecutando batch de índices', {
+        fileId: file.id,
+        error: batchError.message,
+        stack: batchError.stack
+      });
+      throw batchError;
+    }
   }
 
   /**
