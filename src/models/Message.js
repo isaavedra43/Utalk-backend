@@ -565,11 +565,41 @@ class Message {
       const normalizedCreatedAt = safeDateToISOString(this.createdAt);
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
+    // 🔧 CORRECCIÓN CRÍTICA: Generar URL permanente para mediaUrl si existe
+    let processedMediaUrl = this.mediaUrl;
+    
+    if (this.mediaUrl && this.mediaUrl.includes('firebase')) {
+      // Si es una URL de Firebase Storage, generar URL permanente
+      try {
+        const baseUrl = process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app';
+        
+        // Extraer fileId de la URL de Firebase Storage
+        const urlParts = this.mediaUrl.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        const fileId = fileName.split('.')[0]; // Remover extensión
+        
+        // Generar URL permanente del proxy
+        processedMediaUrl = `${baseUrl}/api/media/proxy-file/${fileId}`;
+        
+        logger.info('🔄 URL de Firebase convertida a URL permanente', {
+          originalUrl: this.mediaUrl,
+          permanentUrl: processedMediaUrl,
+          fileId
+        });
+      } catch (error) {
+        logger.warn('⚠️ Error generando URL permanente, usando URL original', {
+          mediaUrl: this.mediaUrl,
+          error: error.message
+        });
+        // Mantener URL original si hay error
+      }
+    }
+
     return {
       id: this.id,
       conversationId: this.conversationId,
       content: this.content,
-      mediaUrl: this.mediaUrl,
+      mediaUrl: processedMediaUrl,
       
       // NUEVO: Campos planos para Socket.IO
       senderIdentifier: this.senderIdentifier,
