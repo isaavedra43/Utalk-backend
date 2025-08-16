@@ -590,7 +590,7 @@ class MessageService {
   /**
    * Procesar media individual de webhook usando FileService
    */
-  static async processIndividualWebhookMedia (mediaUrl, messageSid, index, conversationId, userId) {
+  static async processIndividualWebhookMedia (mediaUrl, messageSid, index) {
     try {
       logger.info('Procesando media individual de webhook', {
         mediaUrl,
@@ -619,8 +619,8 @@ class MessageService {
         originalName: `webhook-media-${messageSid}-${index}`,
         mimetype: contentType,
         size: buffer.byteLength,
-        conversationId: conversationId || null,
-        userId: userId || null,
+        conversationId: null, // Se asignará después
+        userId: null,
         uploadedBy: 'webhook',
         tags: ['webhook', 'twilio']
       };
