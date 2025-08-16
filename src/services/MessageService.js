@@ -429,6 +429,22 @@ class MessageService {
         }
       }
       
+      // 🔍 LOG DETALLADO DEL WEBHOOK COMPLETO
+      console.log('🔍 WEBHOOK COMPLETO RECIBIDO:', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        messageSid: MessageSid,
+        from: From,
+        to: To,
+        body: Body,
+        messageType,
+        numMedia: parseInt(NumMedia || '0'),
+        referralNumMedia: webhookData.referralNumMedia,
+        allKeys: Object.keys(webhookData),
+        mediaKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
+        webhookData: JSON.stringify(webhookData, null, 2)
+      });
+      
       // Procesar media si es un mensaje multimedia
       if (messageType === 'media' && parseInt(NumMedia || '0') > 0) {
         console.log('🔄 INICIANDO PROCESAMIENTO DE MEDIA:', {
@@ -635,6 +651,16 @@ class MessageService {
 
     const numMedia = parseInt(webhookData.NumMedia || '0');
 
+    // 🔍 LOG DETALLADO DEL PROCESAMIENTO DE MEDIA
+    console.log('🔍 PROCESAMIENTO DE MEDIA - DATOS COMPLETOS:', {
+      messageSid: webhookData.MessageSid,
+      numMedia,
+      referralNumMedia: webhookData.referralNumMedia,
+      allWebhookKeys: Object.keys(webhookData),
+      mediaKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
+      webhookDataComplete: JSON.stringify(webhookData, null, 2)
+    });
+
     console.log('🔍 Procesando media del webhook:', {
       numMedia,
       webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
@@ -687,6 +713,17 @@ class MessageService {
     };
 
     console.log('📊 Resultado del procesamiento de media:', result);
+    
+    // 🔍 LOG FINAL DEL PROCESAMIENTO
+    console.log('🔍 PROCESAMIENTO DE MEDIA COMPLETADO:', {
+      messageSid: webhookData.MessageSid,
+      numMedia,
+      urlsFound: mediaUrls.length,
+      urls: mediaUrls,
+      primaryType,
+      processedMediaCount: processedMedia.length,
+      result: JSON.stringify(result, null, 2)
+    });
 
     return result;
   }
