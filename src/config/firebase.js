@@ -17,7 +17,16 @@ try {
 
   // Validar configuración
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
+    } else {
+      logger.warn('🔥 FIREBASE - Configuración opcional en desarrollo', {
+        category: 'FIREBASE_DEV_MODE',
+        message: 'Firebase no configurado, usando modo desarrollo sin Firebase',
+        severity: 'MEDIUM'
+      });
+      return; // Salir sin inicializar Firebase en desarrollo
+    }
   }
 
   let serviceAccount;

@@ -260,6 +260,24 @@ class MessageService {
     }
   }
 
+  /**
+   * Procesar webhook de mensaje entrante de Twilio
+   */
+  static async processWebhook(webhookData, requestId) {
+    try {
+      const {
+        From,
+        To,
+        MessageSid,
+        Body,
+        Latitude,
+        Longitude,
+        StickerId,
+        StickerPackId,
+        NumMedia,
+        ProfileName
+      } = webhookData;
+
       // Validar webhook data
       if (!From || !To || !MessageSid) {
         throw new Error('From, To y MessageSid son requeridos');
