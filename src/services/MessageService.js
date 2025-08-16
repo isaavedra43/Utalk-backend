@@ -1816,19 +1816,31 @@ class MessageService {
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
+              };
 
-      logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
-        requestId,
-        messageId: messageData.id,
-        conversationId: messageData.conversationId,
-        sender: messageData.senderIdentifier,
-        recipient: messageData.recipientIdentifier,
-        type: messageData.type,
-        hasMedia: !!messageData.mediaUrl,
-        hasContactInfo: !!(messageData.metadata.contact),
-        step: 'message_data_prepared'
-      });
+        // 🔍 LOGGING DETALLADO DE MEDIA
+        console.log('🔍 MESSAGESERVICE - DIAGNÓSTICO DE MEDIA:', {
+          requestId,
+          mediaData: mediaData,
+          mediaDataUrls: mediaData?.urls,
+          mediaDataUrl: mediaData?.url,
+          mediaUrlAssigned: messageData.mediaUrl,
+          messageType: messageType,
+          numMedia: parseInt(numMedia) || 0,
+          step: 'media_diagnosis'
+        });
+
+        logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
+          requestId,
+          messageId: messageData.id,
+          conversationId: messageData.conversationId,
+          sender: messageData.senderIdentifier,
+          recipient: messageData.recipientIdentifier,
+          type: messageData.type,
+          hasMedia: !!messageData.mediaUrl,
+          hasContactInfo: !!(messageData.metadata.contact),
+          step: 'message_data_prepared'
+        });
 
       // PASO 7: Buscar o crear conversación
       const conversation = await this.findOrCreateConversation(
