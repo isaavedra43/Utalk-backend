@@ -3663,6 +3663,7 @@ class FileService {
         storagePath,
         publicUrl,
         category,
+        uploadedAt: new Date(), // 🔧 CORRECCIÓN CRÍTICA: Asegurar que uploadedAt siempre tenga un valor
         metadata: {
           ...metadata,
           savedAt: new Date().toISOString(),

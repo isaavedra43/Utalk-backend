@@ -120,14 +120,24 @@ class File {
 
     // Índice por fecha (para consultas por período)
     let dateKey;
-    if (file.uploadedAt && typeof file.uploadedAt.toDate === 'function') {
-      // Es un Timestamp de Firestore
-      dateKey = file.uploadedAt.toDate().toISOString().split('T')[0];
-    } else if (file.uploadedAt instanceof Date) {
-      // Es un Date
-      dateKey = file.uploadedAt.toISOString().split('T')[0];
-    } else {
-      // Usar fecha actual como fallback
+    try {
+      if (file.uploadedAt && typeof file.uploadedAt.toDate === 'function') {
+        // Es un Timestamp de Firestore
+        dateKey = file.uploadedAt.toDate().toISOString().split('T')[0];
+      } else if (file.uploadedAt instanceof Date) {
+        // Es un Date
+        dateKey = file.uploadedAt.toISOString().split('T')[0];
+      } else {
+        // Usar fecha actual como fallback
+        dateKey = new Date().toISOString().split('T')[0];
+      }
+    } catch (dateError) {
+      // 🔧 CORRECCIÓN CRÍTICA: Manejar errores de fecha
+      console.error('⚠️ Error procesando fecha para índice:', {
+        error: dateError.message,
+        uploadedAt: file.uploadedAt,
+        uploadedAtType: typeof file.uploadedAt
+      });
       dateKey = new Date().toISOString().split('T')[0];
     }
     const dateIndexRef = firestore
