@@ -908,15 +908,25 @@ class ConsolidatedServer {
         console.error('❌ Error configurando /api/media:', error.message);
       }
 
-      // 🔧 CORRECCIÓN: Ruta para /media/proxy (sin autenticación)
+      // 🔧 CORRECCIÓN: Rutas para /media/proxy (sin autenticación)
       try {
-        console.log('🖼️ Configurando ruta /media/proxy...');
+        console.log('🖼️ Configurando rutas /media/proxy...');
+        
+        // Ruta para proxy de Twilio
         this.app.get('/media/proxy', (req, res) => {
           console.log('🔄 Redirigiendo /media/proxy a /api/media/proxy-public');
           req.url = '/proxy-public' + req.url.replace('/media/proxy', '');
           this.app._router.handle(req, res);
         });
-        console.log('✅ /media/proxy configurado exitosamente');
+        
+        // Ruta para proxy de archivos almacenados
+        this.app.get('/media/proxy-file-public/:fileId', (req, res) => {
+          console.log('🔄 Redirigiendo /media/proxy-file-public a /api/media/proxy-file-public');
+          req.url = req.url.replace('/media/proxy-file-public', '/api/media/proxy-file-public');
+          this.app._router.handle(req, res);
+        });
+        
+        console.log('✅ Rutas /media/proxy configuradas exitosamente');
       } catch (error) {
         console.error('❌ Error configurando /media/proxy:', error.message);
       }

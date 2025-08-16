@@ -565,29 +565,45 @@ class Message {
       const normalizedCreatedAt = safeDateToISOString(this.createdAt);
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
-    // 🔧 CORRECCIÓN CRÍTICA: Generar URL permanente para mediaUrl si existe
+    // 🔧 CORRECCIÓN CRÍTICA: Generar URL pública para mediaUrl si existe
     let processedMediaUrl = this.mediaUrl;
     
-    if (this.mediaUrl && this.mediaUrl.includes('firebase')) {
-      // Si es una URL de Firebase Storage, generar URL permanente
+    if (this.mediaUrl) {
       try {
         const baseUrl = process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app';
         
-        // Extraer fileId de la URL de Firebase Storage
-        const urlParts = this.mediaUrl.split('/');
-        const fileName = urlParts[urlParts.length - 1];
-        const fileId = fileName.split('.')[0]; // Remover extensión
-        
-        // Generar URL permanente del proxy
-        processedMediaUrl = `${baseUrl}/api/media/proxy-file/${fileId}`;
-        
-        logger.info('🔄 URL de Firebase convertida a URL permanente', {
-          originalUrl: this.mediaUrl,
-          permanentUrl: processedMediaUrl,
-          fileId
-        });
+        if (this.mediaUrl.includes('firebase')) {
+          // Si es una URL de Firebase Storage, generar URL pública
+          const urlParts = this.mediaUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          const fileId = fileName.split('.')[0]; // Remover extensión
+          
+          // Generar URL pública del proxy
+          processedMediaUrl = `${baseUrl}/media/proxy-file-public/${fileId}`;
+          
+          logger.info('🔄 URL de Firebase convertida a URL pública', {
+            originalUrl: this.mediaUrl,
+            publicUrl: processedMediaUrl,
+            fileId
+          });
+        } else if (this.mediaUrl.includes('api.twilio.com')) {
+          // Si es una URL de Twilio, generar URL pública del proxy
+          const urlParts = this.mediaUrl.split('/');
+          const messageSid = urlParts[urlParts.length - 3]; // MM...
+          const mediaSid = urlParts[urlParts.length - 1]; // ME...
+          
+          // Generar URL pública del proxy de Twilio
+          processedMediaUrl = `${baseUrl}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
+          
+          logger.info('🔄 URL de Twilio convertida a URL pública', {
+            originalUrl: this.mediaUrl,
+            publicUrl: processedMediaUrl,
+            messageSid,
+            mediaSid
+          });
+        }
       } catch (error) {
-        logger.warn('⚠️ Error generando URL permanente, usando URL original', {
+        logger.warn('⚠️ Error generando URL pública, usando URL original', {
           mediaUrl: this.mediaUrl,
           error: error.message
         });
