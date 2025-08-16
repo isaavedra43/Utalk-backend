@@ -908,6 +908,19 @@ class ConsolidatedServer {
         console.error('❌ Error configurando /api/media:', error.message);
       }
 
+      // 🔧 CORRECCIÓN: Ruta para /media/proxy (sin autenticación)
+      try {
+        console.log('🖼️ Configurando ruta /media/proxy...');
+        this.app.get('/media/proxy', (req, res) => {
+          console.log('🔄 Redirigiendo /media/proxy a /api/media/proxy-public');
+          req.url = '/proxy-public' + req.url.replace('/media/proxy', '');
+          this.app._router.handle(req, res);
+        });
+        console.log('✅ /media/proxy configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /media/proxy:', error.message);
+      }
+
       try {
         console.log('📊 Intentando configurar /api/dashboard...');
         this.app.use('/api/dashboard', dashboardRoutes);

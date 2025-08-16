@@ -1342,18 +1342,15 @@ class EnterpriseSocketManager {
     
     const { conversationId, roomId } = data;
 
-    // 🔧 CORRECCIÓN CRÍTICA: Logging detallado para diagnosticar el problema
-    logger.info('🎯 EVENTO JOIN-CONVERSATION RECIBIDO EN BACKEND', {
-      category: 'SOCKET_JOIN_CONVERSATION_RECEIVED',
-      userEmail: userEmail?.substring(0, 20) + '...',
-      conversationId: conversationId?.substring(0, 30) + '...',
-      roomId: roomId?.substring(0, 30) + '...',
-      socketId: socket.id,
-      timestamp: new Date().toISOString(),
-      dataKeys: Object.keys(data || {}),
-      hasUserEmail: !!userEmail,
-      hasUserRole: !!userRole
-    });
+    // 🔧 CORRECCIÓN: Logging reducido para evitar rate limits
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('🎯 EVENTO JOIN-CONVERSATION RECIBIDO EN BACKEND', {
+        category: 'SOCKET_JOIN_CONVERSATION_RECEIVED',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId: conversationId?.substring(0, 30) + '...',
+        socketId: socket.id
+      });
+    }
 
     try {
       // 🔧 CORRECCIÓN CRÍTICA: Validación adicional para conversationId
@@ -1381,12 +1378,14 @@ class EnterpriseSocketManager {
         // El frontend envía conversationId codificado (ej: conv_%2B5214773790184_%2B5214793176502)
         // Necesitamos decodificarlo para que coincida con el formato de la base de datos
         decodedConversationId = decodeURIComponent(conversationId);
-        logger.info('ConversationId decodificado', {
-          category: 'SOCKET_JOIN_CONVERSATION_DECODE',
-          original: conversationId,
-          decoded: decodedConversationId,
-          userEmail: userEmail?.substring(0, 20) + '...'
-        });
+        if (process.env.NODE_ENV === 'development') {
+          logger.info('ConversationId decodificado', {
+            category: 'SOCKET_JOIN_CONVERSATION_DECODE',
+            original: conversationId,
+            decoded: decodedConversationId,
+            userEmail: userEmail?.substring(0, 20) + '...'
+          });
+        }
       } catch (decodeError) {
         logger.warn('Error decodificando conversationId, usando original', {
           category: 'SOCKET_JOIN_CONVERSATION_DECODE_ERROR',
