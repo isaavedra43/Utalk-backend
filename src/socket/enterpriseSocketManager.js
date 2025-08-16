@@ -36,6 +36,33 @@ function safeGetSet(map, key) {
   return map.get(key);
 }
 
+// Helper defensivo para emitir eventos de forma segura
+function safeEmit(socket, eventName, data) {
+  if (socket && typeof socket.emit === 'function') {
+    try {
+      socket.emit(eventName, data);
+      return true;
+    } catch (error) {
+      logger.error('Error emitiendo evento al socket', {
+        category: 'SOCKET_SAFE_EMIT_ERROR',
+        eventName,
+        socketId: socket?.id,
+        error: error.message
+      });
+      return false;
+    }
+  } else {
+    logger.error('Socket no válido para emitir evento', {
+      category: 'SOCKET_INVALID_FOR_EMIT',
+      eventName,
+      socketExists: !!socket,
+      hasEmitMethod: socket && typeof socket.emit === 'function',
+      socketId: socket?.id
+    });
+    return false;
+  }
+}
+
 // Event definitions con metadata
 const SOCKET_EVENTS = {
   // Connection lifecycle
@@ -1243,7 +1270,7 @@ class EnterpriseSocketManager {
       const onlineUsers = this.getOnlineUsersInConversations(conversations);
 
       // Send state to client
-      socket.emit(SOCKET_EVENTS.STATE_SYNCED, {
+      safeEmit(socket, SOCKET_EVENTS.STATE_SYNCED, {
         conversations,
         unreadCounts,
         onlineUsers,
@@ -1264,10 +1291,28 @@ class EnterpriseSocketManager {
         email: userEmail?.substring(0, 20) + '...'
       });
       
-      socket.emit(SOCKET_EVENTS.ERROR, {
-        error: 'SYNC_FAILED',
-        message: 'Failed to sync state'
-      });
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que socket existe y tiene el método emit
+      if (socket && typeof socket.emit === 'function') {
+        try {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            error: 'SYNC_FAILED',
+            message: 'Failed to sync state'
+          });
+        } catch (emitError) {
+          logger.error('Error emitiendo evento de error al socket', {
+            category: 'SOCKET_EMIT_ERROR',
+            socketId: socket?.id,
+            error: emitError.message
+          });
+        }
+      } else {
+        logger.error('Socket no válido para emitir error', {
+          category: 'SOCKET_INVALID_FOR_EMIT',
+          socketExists: !!socket,
+          hasEmitMethod: socket && typeof socket.emit === 'function',
+          socketId: socket?.id
+        });
+      }
     }
   }
 
@@ -1341,7 +1386,7 @@ class EnterpriseSocketManager {
           originalConversationId: conversationId
         });
         
-        socket.emit(SOCKET_EVENTS.ERROR, {
+        safeEmit(socket, SOCKET_EVENTS.ERROR, {
           error: 'PERMISSION_DENIED',
           message: 'No permission to join this conversation',
           conversationId: decodedConversationId
@@ -1363,7 +1408,7 @@ class EnterpriseSocketManager {
       // 🔧 CORRECCIÓN: Verificar límite de rooms por socket
       const socketRooms = this.socketConversations.get(socket.id);
       if (socketRooms && socketRooms.size >= SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET) {
-        socket.emit(SOCKET_EVENTS.ERROR, {
+        safeEmit(socket, SOCKET_EVENTS.ERROR, {
           error: 'ROOM_LIMIT_EXCEEDED',
           message: `Maximum rooms per socket exceeded (${SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET})`,
           conversationId: decodedConversationId
@@ -1422,7 +1467,7 @@ class EnterpriseSocketManager {
         timestamp: new Date().toISOString()
       });
 
-      socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, confirmationData);
+      safeEmit(socket, SOCKET_EVENTS.CONVERSATION_JOINED, confirmationData);
 
       // 🔧 CORRECCIÓN: Emitir evento adicional para sincronización
       const syncData = {
@@ -1442,7 +1487,7 @@ class EnterpriseSocketManager {
         timestamp: new Date().toISOString()
       });
 
-      socket.emit('websocket:state-synced', syncData);
+      safeEmit(socket, 'websocket:state-synced', syncData);
 
       logger.info('✅ USUARIO UNIDO EXITOSAMENTE A CONVERSACIÓN', {
         category: 'SOCKET_JOIN_CONVERSATION_SUCCESS',
@@ -1463,7 +1508,7 @@ class EnterpriseSocketManager {
         stack: error.stack
       });
       
-      socket.emit(SOCKET_EVENTS.ERROR, {
+      safeEmit(socket, SOCKET_EVENTS.ERROR, {
         error: 'JOIN_FAILED',
         message: 'Failed to join conversation',
         conversationId

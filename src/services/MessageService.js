@@ -564,7 +564,13 @@ class MessageService {
           processedMedia.push(processedInfo); // Info procesada
           types.add(processedInfo.category);
         } catch (mediaError) {
-          logger.warn(`Error procesando media ${i}:`, mediaError);
+          logger.warn(`Error procesando media ${i}:`, {
+            error: mediaError.message,
+            stack: mediaError.stack?.split('\n').slice(0, 3),
+            mediaUrl,
+            messageSid: webhookData.MessageSid,
+            index: i
+          });
           // Continuar con el siguiente archivo
         }
       }
@@ -651,6 +657,11 @@ class MessageService {
       // Validar que processedFile existe y tiene las propiedades necesarias
       if (!processedFile) {
         throw new Error('FileService.uploadFile no retornó datos válidos');
+      }
+
+      // Validar que processedFile tiene las propiedades mínimas necesarias
+      if (!processedFile.id && !processedFile.fileId) {
+        throw new Error('FileService.uploadFile no retornó un ID válido');
       }
 
       return {
@@ -2833,8 +2844,9 @@ class MessageService {
       // Obtener URL del media
       const mediaInfo = await this.getMediaUrl(mediaSid);
       
-      if (!mediaInfo.success) {
-        throw new Error(`No se pudo obtener URL del media: ${mediaInfo.error}`);
+      if (!mediaInfo || !mediaInfo.success) {
+        const errorMessage = mediaInfo && mediaInfo.error ? mediaInfo.error : 'Error desconocido obteniendo URL del media';
+        throw new Error(`No se pudo obtener URL del media: ${errorMessage}`);
       }
 
       // Descargar el archivo

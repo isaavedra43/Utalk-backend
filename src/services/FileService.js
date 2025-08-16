@@ -79,17 +79,14 @@ class FileService {
       if (!admin.apps.length) {
         throw new Error('Firebase Admin SDK no inicializado');
       }
-      return admin.storage().bucket();
+      const bucket = admin.storage().bucket();
+      if (!bucket) {
+        throw new Error('Bucket de Firebase Storage no disponible');
+      }
+      return bucket;
     } catch (error) {
       logger.error('Error obteniendo bucket de Firebase Storage:', error);
-      return {
-        file: () => ({
-          save: () => Promise.reject(new Error('Storage no disponible')),
-          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
-          delete: () => Promise.reject(new Error('Storage no disponible')),
-          exists: () => Promise.resolve([false])
-        })
-      };
+      throw new Error('Firebase Storage no disponible: ' + error.message);
     }
   }
 
@@ -160,8 +157,9 @@ class FileService {
 
       // Validar archivo
       const validation = this.validateFile({ buffer, mimetype, size });
-      if (!validation.valid) {
-        throw new Error(`Archivo inválido: ${validation.error}`);
+      if (!validation || !validation.valid) {
+        const errorMessage = validation && validation.error ? validation.error : 'Error de validación desconocido';
+        throw new Error(`Archivo inválido: ${errorMessage}`);
       }
 
       const category = validation.category;
@@ -190,6 +188,11 @@ class FileService {
       const processedFile = await this.processFileByCategory(
         buffer, fileId, conversationId, category, mimetype, originalName
       );
+
+      // Validar que processedFile existe y tiene las propiedades necesarias
+      if (!processedFile) {
+        throw new Error('Error: No se pudo procesar el archivo. Resultado indefinido.');
+      }
 
       // 🆕 Guardar archivo en base de datos con metadata completa
       let fileRecord;
@@ -801,15 +804,36 @@ class FileService {
    * Procesar archivo según su categoría
    */
   async processFileByCategory(buffer, fileId, conversationId, category, mimetype, originalName) {
-    switch (category) {
-      case 'audio':
-        return await this.processAudioFile(buffer, fileId, conversationId, mimetype, originalName);
-      case 'image':
-        return await this.processImageFile(buffer, fileId, conversationId, mimetype, originalName);
-      case 'video':
-      case 'document':
-      default:
-        return await this.processGenericFile(buffer, fileId, conversationId, category, mimetype, originalName);
+    try {
+      let result;
+      
+      switch (category) {
+        case 'audio':
+          result = await this.processAudioFile(buffer, fileId, conversationId, mimetype, originalName);
+          break;
+        case 'image':
+          result = await this.processImageFile(buffer, fileId, conversationId, mimetype, originalName);
+          break;
+        case 'video':
+        case 'document':
+        default:
+          result = await this.processGenericFile(buffer, fileId, conversationId, category, mimetype, originalName);
+          break;
+      }
+
+      // Validar que el resultado existe
+      if (!result) {
+        throw new Error(`Error procesando archivo de categoría ${category}: resultado indefinido`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('❌ Error en processFileByCategory', {
+        category,
+        fileId,
+        error: error.message
+      });
+      throw error;
     }
   }
 
@@ -843,13 +867,20 @@ class FileService {
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
-      return {
+      const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
         publicUrl: signedUrl,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        metadata: processedAudio.metadata
+        metadata: processedAudio.metadata || {}
       };
+
+      // Validar que el resultado tiene las propiedades necesarias
+      if (!result.storagePath || !result.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento de audio incompleto');
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error procesando audio:', error);
       throw error;
@@ -888,7 +919,7 @@ class FileService {
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
-      return {
+      const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
         publicUrl: signedUrl,
@@ -899,6 +930,13 @@ class FileService {
           compression: ((buffer.length - optimizedBuffer.length) / buffer.length * 100).toFixed(1) + '%'
         }
       };
+
+      // Validar que el resultado tiene las propiedades necesarias
+      if (!result.storagePath || !result.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento de imagen incompleto');
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error procesando imagen:', error);
       throw error;
@@ -931,7 +969,7 @@ class FileService {
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
-      return {
+      const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
         publicUrl: signedUrl,
@@ -940,6 +978,13 @@ class FileService {
           originalSize: buffer.length
         }
       };
+
+      // Validar que el resultado tiene las propiedades necesarias
+      if (!result.storagePath || !result.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento de archivo genérico incompleto');
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error procesando archivo genérico:', error);
       throw error;
@@ -3368,7 +3413,7 @@ class FileService {
         `, { eval: true });
 
         worker.on('message', (result) => {
-          if (result.success) {
+          if (result && result.success) {
             resolve({
               buffer: result.buffer,
               fileId,
@@ -3377,7 +3422,8 @@ class FileService {
               processingTime: Date.now() - startTime
             });
           } else {
-            reject(new Error(result.error));
+            const errorMessage = result && result.error ? result.error : 'Error desconocido en procesamiento de imagen';
+            reject(new Error(errorMessage));
           }
           worker.terminate();
         });
