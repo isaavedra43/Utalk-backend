@@ -128,6 +128,63 @@ class ContactController {
   }
 
   /**
+   * 📱 BUSCAR CONTACTO POR TELÉFONO
+   * Método estático para buscar contacto por número de teléfono
+   */
+  static async findByPhone(phone) {
+    try {
+      const contact = await ContactService.findContactByPhone(phone);
+      return contact;
+    } catch (error) {
+      logger.error('Error buscando contacto por teléfono', {
+        error: error.message,
+        phone
+      });
+      return null;
+    }
+  }
+
+  /**
+   * 📊 OBTENER ESTADÍSTICAS DE CONTACTO
+   * Método estático para obtener estadísticas de un contacto específico
+   */
+  static async getContactStats(contactId) {
+    try {
+      const stats = await ContactService.getContactStats({ contactId });
+      return stats;
+    } catch (error) {
+      logger.error('Error obteniendo estadísticas de contacto', {
+        error: error.message,
+        contactId
+      });
+      return {
+        totalMessages: 0,
+        totalConversations: 0,
+        lastMessageDate: null,
+        averageResponseTime: null
+      };
+    }
+  }
+
+  /**
+   * 💬 OBTENER CONVERSACIONES RECIENTES
+   * Método estático para obtener conversaciones recientes de un contacto
+   */
+  static async getRecentConversations(contactId, limit = 5) {
+    try {
+      const conversations = await ContactService.getRecentConversations(contactId, limit);
+      return conversations;
+    } catch (error) {
+      logger.error('Error obteniendo conversaciones recientes', {
+        error: error.message,
+        contactId,
+        limit
+      });
+      return [];
+    }
+  }
+
+  /**
    * Listar contactos con filtros y paginación
    */
   static async list (req, res, next) {

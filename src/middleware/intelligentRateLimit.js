@@ -36,8 +36,8 @@ const RATE_LIMIT_CONFIG = {
 // Endpoints críticos con límites especiales
 const CRITICAL_ENDPOINTS = {
   '/api/conversations': {
-    requestsPerMinute: 60,
-    burstLimit: 10
+    requestsPerMinute: 300,  // Aumentado de 60 a 300 (5x más)
+    burstLimit: 50           // Aumentado de 10 a 50 (5x más)
   },
   '/api/messages': {
     requestsPerMinute: 120,

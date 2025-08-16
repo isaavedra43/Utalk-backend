@@ -191,4 +191,62 @@ router.get('/search',
   ContactController.searchContactByPhone
 );
 
+/**
+ * @route GET /api/contacts/profile/:phone
+ * @desc Obtener perfil completo de cliente por número de teléfono
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/profile/:phone',
+  authMiddleware,
+  requireReadAccess,
+  async (req, res) => {
+    try {
+      const { phone } = req.params;
+      
+      if (!phone || !phone.match(/^\+[1-9]\d{1,14}$/)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Número de teléfono inválido'
+        });
+      }
+      
+      // Buscar contacto por teléfono
+      const contact = await ContactController.findByPhone(phone);
+      
+      if (!contact) {
+        return res.status(404).json({
+          success: false,
+          message: 'Contacto no encontrado'
+        });
+      }
+      
+      // Obtener estadísticas del contacto
+      const stats = await ContactController.getContactStats(contact.id);
+      
+      // Obtener conversaciones recientes
+      const conversations = await ContactController.getRecentConversations(contact.id, 5);
+      
+      const profile = {
+        contact,
+        stats,
+        recentConversations: conversations,
+        lastActivity: contact.updatedAt || contact.createdAt
+      };
+      
+      res.json({
+        success: true,
+        data: profile
+      });
+      
+    } catch (error) {
+      console.error('Error obteniendo perfil de cliente:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  }
+);
+
 module.exports = router;

@@ -457,4 +457,85 @@ router.get('/proxy-file-public/:fileId',
   MediaUploadController.proxyStoredFile
 );
 
+/**
+ * 🔧 RECONSTRUIR URLs DE MEDIA
+ * Endpoint para reconstruir URLs de media usando los SIDs de Twilio
+ */
+router.post('/reconstruct-urls', async (req, res) => {
+  try {
+    const { messageSid, mediaSid } = req.body;
+    
+    if (!messageSid) {
+      return res.status(400).json({
+        success: false,
+        message: 'messageSid es requerido'
+      });
+    }
+    
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
+    
+    if (!accountSid) {
+      return res.status(500).json({
+        success: false,
+        message: 'Credenciales de Twilio no configuradas'
+      });
+    }
+    
+    // Si se proporciona mediaSid específico, reconstruir esa URL
+    if (mediaSid) {
+      const mediaUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages/${messageSid}/Media/${mediaSid}`;
+      const proxyUrl = `${req.protocol}://${req.get('host')}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
+      
+      return res.json({
+        success: true,
+        data: {
+          originalUrl: mediaUrl,
+          proxyUrl: proxyUrl,
+          messageSid,
+          mediaSid
+        }
+      });
+    }
+    
+    // Si no se proporciona mediaSid, intentar obtener todos los media del mensaje
+    try {
+      const twilioClient = require('twilio')(accountSid, process.env.TWILIO_AUTH_TOKEN);
+      const mediaList = await twilioClient.messages(messageSid).media.list();
+      
+      const mediaUrls = mediaList.map(media => ({
+        mediaSid: media.sid,
+        originalUrl: `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages/${messageSid}/Media/${media.sid}`,
+        proxyUrl: `${req.protocol}://${req.get('host')}/media/proxy-public?messageSid=${messageSid}&mediaSid=${media.sid}`,
+        contentType: media.contentType,
+        size: media.size
+      }));
+      
+      return res.json({
+        success: true,
+        data: {
+          messageSid,
+          mediaCount: mediaUrls.length,
+          mediaUrls
+        }
+      });
+      
+    } catch (twilioError) {
+      console.error('Error obteniendo media de Twilio:', twilioError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error obteniendo media de Twilio',
+        error: twilioError.message
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error reconstruyendo URLs de media:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
