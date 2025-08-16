@@ -1720,30 +1720,45 @@ class MessageService {
       // PASO 3: Procesar información de contacto
       const contactInfo = await this.processContactInfo(normalizedFromPhone, profileName, waId);
 
-      // PASO 4: Determinar tipo de mensaje y procesar medios
-      let messageType = 'text';
-      let mediaData = null;
+              // PASO 4: Determinar tipo de mensaje y procesar medios
+        let messageType = 'text';
+        let mediaData = null;
 
-      if (parseInt(numMedia) > 0) {
-        logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
-          requestId,
-          numMedia: parseInt(numMedia),
-          hasMediaUrl: !!mediaUrl,
-          mediaType,
-          step: 'media_processing_start'
-        });
+        if (parseInt(numMedia) > 0) {
+          console.log('🔍 MESSAGESERVICE - INICIANDO PROCESAMIENTO DE MEDIOS:', {
+            requestId,
+            numMedia: parseInt(numMedia),
+            hasMediaUrl: !!mediaUrl,
+            mediaType,
+            webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
+          });
 
-        try {
-          // Procesar todos los medios del webhook
-          const mediaInfo = await MessageService.processWebhookMedia(webhookData);
-          
-          messageType = mediaInfo.primaryType;
-          mediaData = {
-            urls: mediaInfo.urls,
-            processed: mediaInfo.processed,
-            count: mediaInfo.count,
-            primaryType: mediaInfo.primaryType
-          };
+          logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
+            requestId,
+            numMedia: parseInt(numMedia),
+            hasMediaUrl: !!mediaUrl,
+            mediaType,
+            step: 'media_processing_start'
+          });
+
+          try {
+            // Procesar todos los medios del webhook
+            const mediaInfo = await MessageService.processWebhookMedia(webhookData);
+            
+            console.log('🔍 MESSAGESERVICE - RESULTADO DE processWebhookMedia:', {
+              requestId,
+              mediaInfo: mediaInfo,
+              urlsCount: mediaInfo.urls.length,
+              primaryType: mediaInfo.primaryType
+            });
+            
+            messageType = mediaInfo.primaryType;
+            mediaData = {
+              urls: mediaInfo.urls,
+              processed: mediaInfo.processed,
+              count: mediaInfo.count,
+              primaryType: mediaInfo.primaryType
+            };
 
           logger.info('✅ MESSAGESERVICE - MEDIOS PROCESADOS', {
             requestId,
@@ -1812,11 +1827,23 @@ class MessageService {
           },
           contact: contactInfo,
           media: mediaData,
-          webhookReceivedAt: new Date().toISOString(),
+                    webhookReceivedAt: new Date().toISOString(),
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-              };
+      };
+
+      // 🔍 LOGGING CRÍTICO DE MESSAGE DATA
+      console.log('🔍 MESSAGESERVICE - MESSAGE DATA CREADO:', {
+        requestId,
+        messageId: messageData.id,
+        conversationId: messageData.conversationId,
+        type: messageData.type,
+        mediaUrl: messageData.mediaUrl,
+        hasMedia: !!messageData.mediaUrl,
+        mediaData: mediaData,
+        step: 'message_data_created'
+      });
 
         // 🔍 LOGGING DETALLADO DE MEDIA
         console.log('🔍 MESSAGESERVICE - DIAGNÓSTICO DE MEDIA:', {
