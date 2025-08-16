@@ -1125,7 +1125,7 @@ class ConsolidatedServer {
     // Instanciar el manager con dependencias inyectadas
     const mgr = new EnterpriseSocketManager(this.server, { User, Conversation, Message });
 
-    // Registrar para accesos globales (TwilioService, controllers, etc.)
+    // Registrar para accesos globales (MessageService, controllers, etc.)
     socketIndex.setSocketManager(mgr);
     this.app.set('socketManager', mgr);
     this.socketManager = mgr;

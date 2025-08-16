@@ -404,7 +404,7 @@ class TwilioStatusController {
         messageCount: messageSids.length
       });
 
-      // Importar TwilioService dinámicamente
+      // Importar MessageService dinámicamente
       const { getMessageService } = require('../services/MessageService');
               const messageService = getMessageService();
 
@@ -415,7 +415,7 @@ class TwilioStatusController {
       for (const messageSid of messageSids) {
         try {
           // Obtener status desde Twilio API
-          const message = await twilioService.client.messages(messageSid).fetch();
+          const message = await messageService.client.messages(messageSid).fetch();
           
           // Crear webhook data simulado
           const webhookData = {

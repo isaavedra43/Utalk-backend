@@ -205,7 +205,11 @@ class MessageService {
 
       // Enviar por Twilio
       try {
-        const twilioResult = await TwilioService.sendMessage(toPhone, content, {
+        const messageService = getMessageService();
+        const twilioResult = await messageService.sendWhatsAppMessage({
+          from: process.env.TWILIO_WHATSAPP_NUMBER,
+          to: toPhone,
+          body: content,
           mediaUrl,
           conversationId: finalConversationId,
         });
@@ -877,8 +881,9 @@ class MessageService {
         step: 'realtime_emit_start'
       });
 
-      const { emitRealTimeEvent } = require('./TwilioService');
-      await emitRealTimeEvent(conversation.id, message);
+      // emitRealTimeEvent ahora está en MessageService
+      const messageService = getMessageService();
+      await messageService.emitRealTimeEvent(conversation.id, message);
 
       logger.info('✅ UPDATECONVERSATION - EVENTO EMITIDO', {
         requestId,

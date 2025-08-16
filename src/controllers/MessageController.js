@@ -231,20 +231,21 @@ class MessageController {
 
       // Enviar por Twilio
       try {
-        const twilioService = getTwilioService();
+        const messageService = getMessageService();
         
         let sentMessage;
         if (attachmentsData.length > 0) {
           // Enviar con archivos adjuntos
           const mediaUrls = attachmentsData.map(a => a.url);
-          sentMessage = await twilioService.sendWhatsAppMessageWithMedia(
-            conversation.customerPhone,
-            content,
-            mediaUrls
-          );
+          sentMessage = await messageService.sendWhatsAppMessage({
+            from: process.env.TWILIO_WHATSAPP_NUMBER,
+            to: conversation.customerPhone,
+            body: content,
+            mediaUrl: mediaUrls
+          });
         } else {
           // Enviar solo texto
-          sentMessage = await twilioService.sendWhatsAppMessage({
+          sentMessage = await messageService.sendWhatsAppMessage({
             from: process.env.TWILIO_WHATSAPP_NUMBER,
             to: conversation.customerPhone,
             body: content
@@ -803,8 +804,8 @@ class MessageController {
         messageSid
       });
 
-      // 🎯 USAR TWILIOSERVICE CENTRALIZADO (INCLUYE SOCKET.IO)
-      logger.info('🔄 INICIANDO PROCESAMIENTO CON TWILIOSERVICE', {
+      // 🎯 USAR MESSAGESERVICE CENTRALIZADO (INCLUYE SOCKET.IO)
+      logger.info('🔄 INICIANDO PROCESAMIENTO CON MESSAGESERVICE', {
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
@@ -813,8 +814,8 @@ class MessageController {
         step: 'before_twilio_service'
       });
 
-      // === LOG INMEDIATO ANTES DE LLAMAR TWILIOSERVICE ===
-      logger.info('🚨 MESSAGECONTROLLER - ANTES DE LLAMAR TWILIOSERVICE', {
+      // === LOG INMEDIATO ANTES DE LLAMAR MESSAGESERVICE ===
+      logger.info('🚨 MESSAGECONTROLLER - ANTES DE LLAMAR MESSAGESERVICE', {
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
@@ -831,8 +832,8 @@ class MessageController {
         step: 'before_twilio_service_call'
       });
 
-      // === LOG DE EMERGENCIA ANTES DE TWILIOSERVICE ===
-      console.log('🚨 EMERGENCY BEFORE TWILIOSERVICE:', {
+      // === LOG DE EMERGENCIA ANTES DE MESSAGESERVICE ===
+      console.log('🚨 EMERGENCY BEFORE MESSAGESERVICE:', {
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
@@ -846,8 +847,8 @@ class MessageController {
       const messageService = new MessageService();
       const { message, conversation } = await messageService.processIncomingMessage(req.body);
 
-      // === LOG DE EMERGENCIA DESPUÉS DE TWILIOSERVICE ===
-      console.log('🚨 EMERGENCY AFTER TWILIOSERVICE:', {
+      // === LOG DE EMERGENCIA DESPUÉS DE MESSAGESERVICE ===
+      console.log('🚨 EMERGENCY AFTER MESSAGESERVICE:', {
         requestId,
         messageId: message?.id,
         conversationId: conversation?.id || message?.conversationId,
@@ -855,7 +856,7 @@ class MessageController {
         step: 'after_twilio_service'
       });
 
-      logger.info('✅ TWILIOSERVICE PROCESAMIENTO COMPLETADO', {
+      logger.info('✅ MESSAGESERVICE PROCESAMIENTO COMPLETADO', {
         requestId,
         messageId: message.id,
         conversationId: conversation?.id || message.conversationId,
