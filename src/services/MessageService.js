@@ -595,13 +595,32 @@ class MessageService {
       logger.info('Procesando media individual de webhook', {
         mediaUrl,
         messageSid,
-        index
+        index,
+        hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
+        hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN
       });
 
-      // Descargar el archivo desde la URL de Twilio
-      const response = await fetch(mediaUrl);
+      // Obtener credenciales de Twilio
+      const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      
+      if (!accountSid || !authToken) {
+        throw new Error('Credenciales de Twilio no configuradas');
+      }
+
+      // Crear credenciales HTTP Basic
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+      // Descargar el archivo desde la URL de Twilio con autenticación
+      const response = await fetch(mediaUrl, {
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'User-Agent': 'Utalk-Backend/1.0'
+        }
+      });
+      
       if (!response.ok) {
-        throw new Error(`Error descargando media: ${response.status}`);
+        throw new Error(`Error descargando media: ${response.status} - ${response.statusText}`);
       }
 
       const buffer = await response.arrayBuffer();
