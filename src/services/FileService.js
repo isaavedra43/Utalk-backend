@@ -3551,11 +3551,20 @@ class FileService {
         }
       }
 
-      logger.debug('🧹 Cache cleanup completado', {
-        fileCacheSize: this.fileCache.size,
-        previewCacheSize: this.previewCache.size,
-        metadataCacheSize: this.metadataCache.size
-      });
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que logger existe antes de usarlo
+      if (logger && typeof logger.debug === 'function') {
+        try {
+          logger.debug('🧹 Cache cleanup completado', {
+            fileCacheSize: this.fileCache.size,
+            previewCacheSize: this.previewCache.size,
+            metadataCacheSize: this.metadataCache.size
+          });
+        } catch (logError) {
+          console.error('Error en logger.debug durante cache cleanup:', logError.message);
+        }
+      } else {
+        console.log('🧹 Cache cleanup completado - Logger no disponible');
+      }
     }, this.cacheConfig.cleanupInterval);
   }
 
