@@ -89,27 +89,39 @@ class ContactController {
         throw CommonErrors.BAD_REQUEST('Teléfono es requerido', 'contact_search');
       }
 
+      logger.info('🔍 Iniciando búsqueda de contacto por teléfono', {
+        userEmail: req.user.email,
+        phone,
+        query: req.query
+      });
+
       const contact = await ContactService.findContactByPhone(phone);
 
       if (!contact) {
+        logger.info('📭 Contacto no encontrado', {
+          userEmail: req.user.email,
+          phone
+        });
         return ResponseHandler.success(res, null, 'Contacto no encontrado', 404);
       }
 
-      logger.info('Búsqueda de contacto completada', {
+      logger.info('✅ Búsqueda de contacto completada exitosamente', {
         userEmail: req.user.email,
         phone,
         contactId: contact.id,
-        contactName: contact.name
+        contactName: contact.name,
+        isActive: contact.isActive
       });
 
       return ResponseHandler.success(res, contact.toJSON(), 'Contacto encontrado exitosamente');
 
     } catch (error) {
-      logger.error('Error buscando contacto por teléfono', {
+      logger.error('❌ Error crítico buscando contacto por teléfono', {
         error: error.message,
         stack: error.stack,
         userEmail: req.user?.email,
-        query: req.query
+        query: req.query,
+        phone: req.query.phone
       });
       return ResponseHandler.error(res, error);
     }
