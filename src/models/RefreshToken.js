@@ -440,8 +440,8 @@ class RefreshToken {
         type: 'refresh',
         userEmail,
         userId,
-        workspaceId: 'default',  // 🔧 CORRECCIÓN: Agregar workspaceId
-        tenantId: 'na',          // 🔧 CORRECCIÓN: Agregar tenantId
+        workspaceId: process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
+        tenantId: process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
         familyId: uuidv4(),
         deviceId: deviceInfo.deviceId || uuidv4(),
         iat: Math.floor(Date.now() / 1000)

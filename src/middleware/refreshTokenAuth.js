@@ -234,8 +234,8 @@ class RefreshTokenAuth {
           name: user.name,
           type: 'access',
           userId: user.id,           // 🔧 CORRECCIÓN: Agregar userId
-          workspaceId: user.workspaceId || 'default',  // 🔧 CORRECCIÓN: Agregar workspaceId
-          tenantId: user.tenantId || 'na',             // 🔧 CORRECCIÓN: Agregar tenantId
+          workspaceId: user.workspaceId || process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
+          tenantId: user.tenantId || process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
           iat: Math.floor(Date.now() / 1000),
         },
         accessConfig.secret,
