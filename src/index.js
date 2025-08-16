@@ -930,7 +930,7 @@ class ConsolidatedServer {
         });
         
         // Ruta para proxy de Twilio (pública) - ENDPOINT DIRECTO
-        this.app.get('/media/proxy-public', (req, res) => {
+        this.app.get('/media/proxy-public', async (req, res) => {
           console.log('🔍 MEDIA PROXY-PUBLIC ENDPOINT HIT:', {
             messageSid: req.query.messageSid,
             mediaSid: req.query.mediaSid,
@@ -938,16 +938,28 @@ class ConsolidatedServer {
             method: req.method
           });
           
-          // Respuesta de prueba simple
-          res.status(200).json({
-            success: true,
-            message: 'Endpoint /media/proxy-public funcionando',
-            data: {
-              messageSid: req.query.messageSid,
-              mediaSid: req.query.mediaSid,
-              timestamp: new Date().toISOString()
+          try {
+            // Validación básica
+            const messageSid = req.query.messageSid;
+            const mediaSid = req.query.mediaSid;
+            
+            if (!messageSid || !mediaSid) {
+              return res.status(400).json({
+                error: 'messageSid y mediaSid son requeridos'
+              });
             }
-          });
+            
+            // Llamar al controlador de media
+            const MediaUploadController = require('./controllers/MediaUploadController');
+            return await MediaUploadController.proxyTwilioMedia(req, res);
+            
+          } catch (error) {
+            console.error('❌ Error en proxy-public:', error);
+            res.status(500).json({
+              error: 'Error interno del servidor',
+              message: error.message
+            });
+          }
         });
         
         // Ruta para proxy de archivos almacenados
