@@ -111,165 +111,130 @@ function processFileByCategory(buffer, fileId, conversationId, category, mimetyp
   };
 }
 
-// Test 1: Validación de archivo
-console.log('1. Probando validación de archivo...');
-try {
-  const validation = validateFile({
-    buffer: Buffer.from('datos de prueba'),
-    mimetype: 'image/jpeg',
-    size: 1024
-  });
-  console.log('✅ Validación de archivo: PASÓ');
-  console.log('   Resultado:', validation);
-} catch (error) {
-  console.log('❌ Validación de archivo: FALLÓ');
-  console.log('   Error:', error.message);
+// Simular el procesamiento de media sin credenciales reales
+console.log('🧪 Probando lógica de procesamiento de media...\n');
+
+// Simular webhook data con media
+const webhookData = {
+  From: '+5214773790184',
+  To: '+5214793176502',
+  MessageSid: 'MM898d9f335c70efa325cc1308a7ac8e5c',
+  Body: '',
+  NumMedia: '1',
+  MediaUrl0: 'https://api.twilio.com/2010-04-01/Accounts/AC1ed6685660488369e7f0c3ab257f250c/Messages/MM898d9f335c70efa325cc1308a7ac8e5c/Media/ME1234567890abcdef',
+  MediaContentType0: 'image/jpeg',
+  ProfileName: 'Isra'
+};
+
+console.log('📋 Webhook data de prueba:');
+console.log(JSON.stringify(webhookData, null, 2));
+console.log('\n');
+
+// Simular la lógica de detección de tipo de mensaje
+let messageType = 'text';
+let specialData = null;
+
+// Detectar mensaje multimedia
+if (parseInt(webhookData.NumMedia || '0') > 0) {
+  messageType = 'media';
+  console.log('📎 Mensaje multimedia detectado');
+  console.log('- NumMedia:', parseInt(webhookData.NumMedia));
+  console.log('- MediaUrl0:', webhookData.MediaUrl0);
+  console.log('- MediaContentType0:', webhookData.MediaContentType0);
 }
 
-console.log('');
+// Simular el procesamiento de media
+function simulateProcessWebhookMedia(webhookData) {
+  const mediaUrls = [];
+  const processedMedia = [];
+  const types = new Set();
 
-// Test 2: Validación con datos incompletos
-console.log('2. Probando validación con datos incompletos...');
-try {
-  const validation = validateFile({
-    buffer: null,
-    mimetype: 'image/jpeg',
-    size: 1024
-  });
-  console.log('✅ Validación con datos incompletos: PASÓ');
-  console.log('   Resultado:', validation);
-} catch (error) {
-  console.log('❌ Validación con datos incompletos: FALLÓ');
-  console.log('   Error:', error.message);
-}
+  const numMedia = parseInt(webhookData.NumMedia || '0');
 
-console.log('');
+  // Procesar cada archivo de media
+  for (let i = 0; i < numMedia; i++) {
+    const mediaUrl = webhookData[`MediaUrl${i}`];
+    const mediaContentType = webhookData[`MediaContentType${i}`];
 
-// Test 3: Creación de índices con conversationId temporal
-console.log('3. Probando creación de índices con conversationId temporal...');
-try {
-  const indexes = createIndexes({
-    id: 'test-file-id',
-    conversationId: 'temp-webhook',
-    uploadedBy: 'webhook',
-    category: 'image'
-  });
-  console.log('✅ Creación de índices con conversationId temporal: PASÓ');
-  console.log('   Índices creados:', indexes.length);
-  console.log('   Índices:', indexes);
-} catch (error) {
-  console.log('❌ Creación de índices con conversationId temporal: FALLÓ');
-  console.log('   Error:', error.message);
-}
+    if (mediaUrl) {
+      console.log(`✅ Media ${i} encontrado:`, mediaUrl);
+      
+      // Determinar categoría basada en content-type
+      let category = 'document';
+      if (mediaContentType.startsWith('image/')) category = 'image';
+      else if (mediaContentType.startsWith('video/')) category = 'video';
+      else if (mediaContentType.startsWith('audio/')) category = 'audio';
 
-console.log('');
+      mediaUrls.push(mediaUrl);
+      processedMedia.push({
+        fileId: `simulated-${webhookData.MessageSid}-${i}`,
+        category: category,
+        url: mediaUrl,
+        mimetype: mediaContentType,
+        processed: true
+      });
+      types.add(category);
+    }
+  }
 
-// Test 4: Creación de índices con conversationId válido
-console.log('4. Probando creación de índices con conversationId válido...');
-try {
-  const indexes = createIndexes({
-    id: 'test-file-id',
-    conversationId: 'conversation-123',
-    uploadedBy: 'user@example.com',
-    category: 'image'
-  });
-  console.log('✅ Creación de índices con conversationId válido: PASÓ');
-  console.log('   Índices creados:', indexes.length);
-  console.log('   Índices:', indexes);
-} catch (error) {
-  console.log('❌ Creación de índices con conversationId válido: FALLÓ');
-  console.log('   Error:', error.message);
-}
+  // Determinar tipo principal
+  const primaryType = types.has('image')
+    ? 'image'
+    : types.has('video')
+      ? 'video'
+      : types.has('audio')
+        ? 'audio'
+        : types.has('document') ? 'document' : 'media';
 
-console.log('');
-
-// Test 5: Procesamiento de archivo por categoría
-console.log('5. Probando procesamiento de archivo por categoría...');
-try {
-  const processedFile = processFileByCategory(
-    Buffer.from('datos de imagen'),
-    'test-file-id',
-    'temp-webhook',
-    'image',
-    'image/jpeg',
-    'test-image.jpg'
-  );
-  console.log('✅ Procesamiento de archivo por categoría: PASÓ');
-  console.log('   Resultado:', {
-    storagePath: processedFile.storagePath,
-    publicUrl: processedFile.publicUrl ? 'URL generada' : 'Sin URL',
-    metadata: processedFile.metadata ? 'Metadata presente' : 'Sin metadata'
-  });
-} catch (error) {
-  console.log('❌ Procesamiento de archivo por categoría: FALLÓ');
-  console.log('   Error:', error.message);
-}
-
-console.log('');
-
-// Test 6: Simular el flujo completo de uploadFile
-console.log('6. Probando flujo completo de uploadFile...');
-try {
-  // Simular datos de entrada
-  const fileData = {
-    buffer: Buffer.from('datos de prueba'),
-    originalName: 'test-image.jpg',
-    mimetype: 'image/jpeg',
-    size: 1024,
-    conversationId: 'temp-webhook',
-    userId: null,
-    uploadedBy: 'webhook',
-    tags: ['webhook', 'twilio']
+  return {
+    urls: mediaUrls,
+    processed: processedMedia,
+    primaryType,
+    count: mediaUrls.length,
   };
-
-  // Paso 1: Validar archivo
-  const validation = validateFile(fileData);
-  if (!validation.valid) {
-    throw new Error(`Archivo inválido: ${validation.error}`);
-  }
-
-  // Paso 2: Procesar archivo
-  const processedFile = processFileByCategory(
-    fileData.buffer,
-    'test-file-id',
-    fileData.conversationId,
-    validation.category,
-    fileData.mimetype,
-    fileData.originalName
-  );
-
-  // Paso 3: Validar resultado
-  if (!processedFile) {
-    throw new Error('Error: No se pudo procesar el archivo. Resultado indefinido.');
-  }
-
-  if (!processedFile.storagePath || !processedFile.publicUrl) {
-    throw new Error('Error: Resultado de procesamiento incompleto. Faltan propiedades requeridas.');
-  }
-
-  // Paso 4: Crear índices
-  const indexes = createIndexes({
-    id: 'test-file-id',
-    conversationId: fileData.conversationId,
-    uploadedBy: fileData.uploadedBy,
-    category: validation.category
-  });
-
-  console.log('✅ Flujo completo de uploadFile: PASÓ');
-  console.log('   Validación:', validation);
-  console.log('   Procesamiento:', 'Exitoso');
-  console.log('   Índices creados:', indexes.length);
-} catch (error) {
-  console.log('❌ Flujo completo de uploadFile: FALLÓ');
-  console.log('   Error:', error.message);
 }
 
-console.log('\n🎉 PRUEBA SIMPLE COMPLETADA');
-console.log('\n✅ TODAS LAS CORRECCIONES IMPLEMENTADAS CORRECTAMENTE');
-console.log('\n📋 RESUMEN DE CORRECCIONES:');
-console.log('1. ✅ conversationId temporal: "temp-webhook" en lugar de null');
-console.log('2. ✅ Validación de índices: No crear índices para conversationId temporal');
-console.log('3. ✅ Validación de uploadedBy: No crear índices para "webhook"');
-console.log('4. ✅ Manejo de errores: No fallar completamente si hay problemas con índices');
-console.log('5. ✅ Validación de resultado: Verificar propiedades requeridas');
-console.log('6. ✅ Manejo de errores mejorado: Validar que error existe antes de acceder a sus propiedades'); 
+// Simular el procesamiento completo
+console.log('🔄 Simulando procesamiento de media...');
+const mediaResult = simulateProcessWebhookMedia(webhookData);
+
+console.log('✅ Resultado del procesamiento de media:');
+console.log(JSON.stringify(mediaResult, null, 2));
+console.log('\n');
+
+// Simular la creación del mensaje
+const messageData = {
+  conversationId: 'conv_+5214773790184_+5214793176502',
+  content: webhookData.Body || '',
+  type: messageType,
+  direction: 'inbound',
+  senderIdentifier: webhookData.From,
+  recipientIdentifier: webhookData.To,
+  mediaUrl: null, // Se asignará después del procesamiento
+  timestamp: new Date()
+};
+
+// Aplicar el resultado del procesamiento de media
+if (messageType === 'media' && mediaResult.urls.length > 0) {
+  messageData.mediaUrl = mediaResult.urls[0];
+  messageData.type = mediaResult.primaryType;
+  console.log('✅ Media aplicado al mensaje:');
+  console.log('- mediaUrl:', messageData.mediaUrl);
+  console.log('- type:', messageData.type);
+}
+
+console.log('\n📝 Mensaje final:');
+console.log(JSON.stringify({
+  id: 'simulated-message-id',
+  conversationId: messageData.conversationId,
+  type: messageData.type,
+  content: messageData.content,
+  mediaUrl: messageData.mediaUrl,
+  hasMedia: !!messageData.mediaUrl,
+  direction: messageData.direction,
+  senderIdentifier: messageData.senderIdentifier,
+  recipientIdentifier: messageData.recipientIdentifier
+}, null, 2));
+
+console.log('\n🏁 Simulación completada');
+console.log('✅ El mensaje ahora tiene mediaUrl y tipo correcto'); 

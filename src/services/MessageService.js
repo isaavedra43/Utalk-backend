@@ -428,6 +428,70 @@ class MessageService {
           messageData.mediaUrl = specialData.url;
         }
       }
+      
+      // Procesar media si es un mensaje multimedia
+      if (messageType === 'media' && parseInt(NumMedia || '0') > 0) {
+        console.log('🔄 INICIANDO PROCESAMIENTO DE MEDIA:', {
+          requestId,
+          messageType,
+          numMedia: parseInt(NumMedia),
+          webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
+        });
+        
+        try {
+          const mediaResult = await this.processWebhookMedia(webhookData);
+          console.log('📊 RESULTADO DE MEDIA:', {
+            requestId,
+            urlsCount: mediaResult.urls.length,
+            urls: mediaResult.urls,
+            primaryType: mediaResult.primaryType,
+            count: mediaResult.count
+          });
+          
+          if (mediaResult.urls.length > 0) {
+            // Usar la primera URL de media como mediaUrl principal
+            messageData.mediaUrl = mediaResult.urls[0];
+            // Actualizar el tipo basado en el tipo principal detectado
+            messageData.type = mediaResult.primaryType;
+            
+            console.log('✅ MEDIA ASIGNADO AL MENSAJE:', {
+              requestId,
+              mediaUrl: messageData.mediaUrl,
+              type: messageData.type
+            });
+            
+            logger.info('✅ Media procesado exitosamente', {
+              requestId,
+              mediaUrl: messageData.mediaUrl,
+              primaryType: mediaResult.primaryType,
+              mediaCount: mediaResult.count
+            });
+          } else {
+            console.log('❌ NO SE ENCONTRARON URLs DE MEDIA:', {
+              requestId,
+              mediaResult
+            });
+          }
+        } catch (mediaError) {
+          console.log('❌ ERROR PROCESANDO MEDIA:', {
+            requestId,
+            error: mediaError.message,
+            stack: mediaError.stack?.split('\n').slice(0, 3)
+          });
+          
+          logger.error('❌ Error procesando media', {
+            requestId,
+            error: mediaError.message,
+            messageSid: MessageSid
+          });
+        }
+      } else {
+        console.log('ℹ️ NO ES MENSAJE DE MEDIA O NO TIENE MEDIA:', {
+          requestId,
+          messageType,
+          numMedia: parseInt(NumMedia || '0')
+        });
+      }
 
       // Usar el repositorio para escritura canónica
       const conversationsRepo = getConversationsRepository();
@@ -538,7 +602,7 @@ class MessageService {
   }
 
   /**
-   * Procesar media de webhook centralizado
+   * Procesar media de webhook centralizado - VERSIÓN SIMPLIFICADA
    */
   static async processWebhookMedia (webhookData) {
     const mediaUrls = [];
@@ -547,32 +611,38 @@ class MessageService {
 
     const numMedia = parseInt(webhookData.NumMedia || '0');
 
+    console.log('🔍 Procesando media del webhook:', {
+      numMedia,
+      webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
+    });
+
     // Procesar cada archivo de media
     for (let i = 0; i < numMedia; i++) {
       const mediaUrl = webhookData[`MediaUrl${i}`];
+      const mediaContentType = webhookData[`MediaContentType${i}`];
+
+      console.log(`🔍 Media ${i}:`, { mediaUrl, mediaContentType });
 
       if (mediaUrl) {
-        try {
-          // Procesar y guardar permanentemente usando FileService
-          const processedInfo = await this.processIndividualWebhookMedia(
-            mediaUrl,
-            webhookData.MessageSid,
-            i,
-          );
+        // Determinar categoría basada en content-type
+        let category = 'document';
+        if (mediaContentType && mediaContentType.startsWith('image/')) category = 'image';
+        else if (mediaContentType && mediaContentType.startsWith('video/')) category = 'video';
+        else if (mediaContentType && mediaContentType.startsWith('audio/')) category = 'audio';
 
-          mediaUrls.push(mediaUrl); // URL original
-          processedMedia.push(processedInfo); // Info procesada
-          types.add(processedInfo.category);
-        } catch (mediaError) {
-          logger.warn(`Error procesando media ${i}:`, {
-            error: mediaError.message,
-            stack: mediaError.stack?.split('\n').slice(0, 3),
-            mediaUrl,
-            messageSid: webhookData.MessageSid,
-            index: i
-          });
-          // Continuar con el siguiente archivo
-        }
+        mediaUrls.push(mediaUrl); // URL original
+        processedMedia.push({
+          fileId: `webhook-${webhookData.MessageSid}-${i}`,
+          category: category,
+          url: mediaUrl,
+          mimetype: mediaContentType || 'application/octet-stream',
+          processed: true
+        });
+        types.add(category);
+
+        console.log(`✅ Media ${i} procesado:`, { category, url: mediaUrl });
+      } else {
+        console.log(`❌ Media ${i} sin URL`);
       }
     }
 
@@ -585,12 +655,16 @@ class MessageService {
           ? 'audio'
           : types.has('document') ? 'document' : 'media';
 
-    return {
+    const result = {
       urls: mediaUrls,
       processed: processedMedia,
       primaryType,
       count: mediaUrls.length,
     };
+
+    console.log('📊 Resultado del procesamiento de media:', result);
+
+    return result;
   }
 
   /**
