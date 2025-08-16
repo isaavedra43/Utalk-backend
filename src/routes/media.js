@@ -378,4 +378,23 @@ router.delete('/file/:fileId/tags',
   MediaUploadController.removeTagsFromFile
 );
 
+/**
+ * @route GET /api/media/proxy
+ * @desc Proxy para acceder a media de Twilio (SOLUCIÓN PARA RENDERIZADO DE IMÁGENES)
+ * @access Private (Admin, Agent, Viewer)
+ * @query messageSid - ID del mensaje de Twilio
+ * @query mediaSid - ID del media de Twilio
+ */
+router.get('/proxy',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest({
+    query: Joi.object({
+      messageSid: Joi.string().required().pattern(/^MM[a-f0-9]{32}$/),
+      mediaSid: Joi.string().required().pattern(/^ME[a-f0-9]{32}$/)
+    })
+  }),
+  MediaUploadController.proxyTwilioMedia
+);
+
 module.exports = router;

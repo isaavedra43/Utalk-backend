@@ -6,7 +6,17 @@ const sharp = require('sharp');
 const AudioProcessor = require('./AudioProcessor');
 const path = require('path');
 const { FieldValue } = require('firebase-admin');
-const firestore = require('firebase-admin').firestore();
+
+// Inicializar Firebase de forma segura
+let firestore;
+try {
+  if (admin.apps.length > 0) {
+    firestore = admin.firestore();
+  }
+} catch (error) {
+  // Firebase no está configurado, continuar sin él
+  firestore = null;
+}
 
 /**
  * 📁 SERVICIO DE GESTIÓN DE ARCHIVOS OPTIMIZADO
