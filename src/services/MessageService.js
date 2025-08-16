@@ -649,10 +649,10 @@ class MessageService {
       const processedFile = await fileService.uploadFile(fileData);
 
       return {
-        fileId: processedFile.id,
+        fileId: processedFile?.id || fileId,
         category,
-        url: processedFile.url,
-        size: processedFile.size,
+        url: processedFile?.url || processedFile?.publicUrl,
+        size: processedFile?.size || buffer.byteLength,
         mimetype: contentType
       };
 

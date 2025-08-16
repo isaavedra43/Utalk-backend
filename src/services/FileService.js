@@ -192,8 +192,9 @@ class FileService {
       );
 
       // 🆕 Guardar archivo en base de datos con metadata completa
+      let fileRecord;
       try {
-        const fileRecord = await this.saveFileToDatabase({
+        fileRecord = await this.saveFileToDatabase({
           fileId,
           conversationId,
           userId,
@@ -256,7 +257,7 @@ class FileService {
       }
 
       return {
-        ...fileRecord.toJSON(),
+        ...(fileRecord ? fileRecord.toJSON() : {}),
         processTime: `${processTime}ms`
       };
 
