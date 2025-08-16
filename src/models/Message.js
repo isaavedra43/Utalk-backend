@@ -565,6 +565,14 @@ class Message {
       const normalizedCreatedAt = safeDateToISOString(this.createdAt);
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
+    // 🔍 LOG PARA DEBUGGEAR TOJSON
+    console.log('🔍 MESSAGE TOJSON - PROCESANDO MEDIA URL:', {
+      messageId: this.id,
+      originalMediaUrl: this.mediaUrl,
+      type: this.type,
+      hasMediaUrl: !!this.mediaUrl
+    });
+
     // 🔧 CORRECCIÓN CRÍTICA: Generar URL pública para mediaUrl si existe
     let processedMediaUrl = this.mediaUrl;
     
@@ -610,6 +618,14 @@ class Message {
         // Mantener URL original si hay error
       }
     }
+
+    // 🔍 LOG FINAL PARA DEBUGGEAR TOJSON
+    console.log('🔍 MESSAGE TOJSON - RESULTADO FINAL:', {
+      messageId: this.id,
+      originalMediaUrl: this.mediaUrl,
+      processedMediaUrl: processedMediaUrl,
+      hasProcessedMediaUrl: !!processedMediaUrl
+    });
 
     return {
       id: this.id,

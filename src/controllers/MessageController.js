@@ -114,6 +114,21 @@ class MessageController {
       // Transformar mensajes a JSON
       const messages = result.messages.map(msg => msg.toJSON());
 
+      // 🔍 LOG PARA DEBUGGEAR MENSAJES ENVIADOS AL FRONTEND
+      const mediaMessages = messages.filter(msg => msg.type === 'media' || msg.type === 'image');
+      console.log('🔍 MESSAGE CONTROLLER - MENSAJES DE MEDIA ENVIADOS AL FRONTEND:', {
+        conversationId,
+        totalMessages: messages.length,
+        mediaMessagesCount: mediaMessages.length,
+        mediaMessages: mediaMessages.map(msg => ({
+          id: msg.id,
+          type: msg.type,
+          mediaUrl: msg.mediaUrl,
+          hasMedia: !!msg.mediaUrl,
+          content: msg.content
+        }))
+      });
+
       // Log de éxito
       logger.info('Mensajes obtenidos exitosamente', {
         conversationId,
@@ -239,6 +254,15 @@ class MessageController {
         }
       };
 
+      // 🔍 LOG PARA DEBUGGEAR MEDIA URL
+      console.log('🔍 MESSAGE CONTROLLER - DATOS DEL MENSAJE:', {
+        conversationId,
+        hasAttachments: attachmentsData.length > 0,
+        mediaUrl: messageData.mediaUrl,
+        attachmentsData: attachmentsData.map(a => ({ url: a.url, type: a.type })),
+        messageType: messageData.type
+      });
+
       // Usar el repositorio para escritura canónica
       const conversationsRepo = getConversationsRepository();
       const result = await conversationsRepo.appendOutbound({
@@ -346,6 +370,16 @@ class MessageController {
         hasMedia: !!mediaUrl,
         mediaCategory: fileMetadata?.category || null,
         successful: true
+      });
+
+      // 🔍 LOG PARA DEBUGGEAR RESPUESTA AL FRONTEND
+      console.log('🔍 MESSAGE CONTROLLER - RESPUESTA AL FRONTEND:', {
+        messageId: result.message.id,
+        conversationId,
+        mediaUrl: result.message.mediaUrl,
+        type: result.message.type,
+        hasMedia: !!result.message.mediaUrl,
+        messageData: JSON.stringify(result.message, null, 2)
       });
 
       // 📤 RESPUESTA EXITOSA
