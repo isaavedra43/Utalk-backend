@@ -12,15 +12,24 @@ Los mensajes de media que llegaban a través de webhooks de Twilio no se estaban
 ## 🔍 Análisis del Problema
 
 ### Ubicación del Error
-El problema estaba en el método `processWebhook` de `MessageService.js` (líneas 266-538).
+El problema estaba en **dos lugares**:
+
+1. **MessageService.js** - No se procesaba el media en webhooks
+2. **ConversationsRepository.js** - No se guardaba el campo `mediaUrl` en la base de datos
 
 ### Causa Raíz
-Cuando se detectaba un mensaje multimedia (`NumMedia > 0`), el código:
-1. ✅ Detectaba correctamente el tipo como `'media'`
-2. ❌ **NO procesaba el media** ni asignaba la `mediaUrl`
-3. ❌ **NO actualizaba el tipo** específico (image, video, audio)
+1. **En MessageService.js**: Cuando se detectaba un mensaje multimedia (`NumMedia > 0`), el código:
+   - ✅ Detectaba correctamente el tipo como `'media'`
+   - ❌ **NO procesaba el media** ni asignaba la `mediaUrl`
+   - ❌ **NO actualizaba el tipo** específico (image, video, audio)
+
+2. **En ConversationsRepository.js**: En el método `upsertFromInbound`, cuando se preparaban los datos para Firestore:
+   - ❌ **NO se incluía el campo `mediaUrl`** en `messageFirestoreData`
+   - ❌ Esto causaba que el campo se perdiera al guardar en la base de datos
 
 ### Código Problemático Original
+
+**1. MessageService.js:**
 ```javascript
 // Detectar mensaje multimedia
 else if (parseInt(NumMedia || '0') > 0) {
@@ -33,9 +42,29 @@ else if (parseInt(NumMedia || '0') > 0) {
 }
 ```
 
+**2. ConversationsRepository.js:**
+```javascript
+// Preparar datos del mensaje para Firestore
+const messageFirestoreData = {
+  id: msg.messageId,
+  conversationId: msg.conversationId,
+  content: msg.content || '',
+  type: msg.type || 'text',
+  direction: 'inbound',
+  status: 'received',
+  senderIdentifier: msg.senderIdentifier,
+  recipientIdentifier: msg.recipientIdentifier,
+  // ❌ FALTABA: mediaUrl: msg.mediaUrl || null,
+  timestamp: msg.timestamp || new Date(),
+  metadata: msg.metadata || {},
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
+```
+
 ## ✅ Solución Implementada
 
-### 1. Procesamiento de Media en Webhook
+### 1. Procesamiento de Media en Webhook (MessageService.js)
 Se agregó el procesamiento de media después de crear el objeto `messageData`:
 
 ```javascript
@@ -98,7 +127,7 @@ if (messageType === 'media' && parseInt(NumMedia || '0') > 0) {
 }
 ```
 
-### 2. Método `processWebhookMedia` Simplificado
+### 2. Método `processWebhookMedia` Simplificado (MessageService.js)
 Se simplificó el método para evitar errores de descarga de archivos:
 
 ```javascript
@@ -166,11 +195,34 @@ static async processWebhookMedia (webhookData) {
 }
 ```
 
+### 3. Guardado de MediaUrl en Base de Datos (ConversationsRepository.js)
+Se agregó el campo `mediaUrl` al objeto `messageFirestoreData`:
+
+```javascript
+// Preparar datos del mensaje para Firestore
+const messageFirestoreData = {
+  id: msg.messageId,
+  conversationId: msg.conversationId,
+  content: msg.content || '',
+  type: msg.type || 'text',
+  direction: 'inbound',
+  status: 'received',
+  senderIdentifier: msg.senderIdentifier,
+  recipientIdentifier: msg.recipientIdentifier,
+  mediaUrl: msg.mediaUrl || null, // 🔧 AGREGADO: Campo mediaUrl
+  timestamp: msg.timestamp || new Date(),
+  metadata: msg.metadata || {},
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
+```
+
 ### 2. Flujo de Procesamiento
 1. **Detección**: Se detecta `NumMedia > 0`
 2. **Procesamiento**: Se llama a `processWebhookMedia()`
 3. **Asignación**: Se asigna `mediaUrl` y se actualiza el `type`
-4. **Logging**: Se registra el éxito o error del procesamiento
+4. **Guardado**: Se guarda el campo `mediaUrl` en la base de datos
+5. **Logging**: Se registra el éxito o error del procesamiento
 
 ### 3. Método `processWebhookMedia`
 Este método ya existía y funciona correctamente:
@@ -201,6 +253,11 @@ node scripts/test-webhook-media-real.js
 4. **Prueba con curl:**
 ```bash
 node scripts/test-webhook-curl.js
+```
+
+5. **Guardado en base de datos:**
+```bash
+node scripts/test-media-save-to-database.js
 ```
 
 ### Resultado Esperado
@@ -252,10 +309,12 @@ node scripts/test-webhook-curl.js
 ## 📝 Archivos Modificados
 
 - `src/services/MessageService.js` - Agregado procesamiento de media en `processWebhook`
+- `src/repositories/ConversationsRepository.js` - Agregado campo `mediaUrl` en guardado
 - `scripts/test-media-processing-simple.js` - Script de verificación básica
 - `scripts/test-media-url-extraction.js` - Script de extracción de URLs
 - `scripts/test-webhook-media-real.js` - Servidor de prueba webhook
 - `scripts/test-webhook-curl.js` - Script de prueba con curl
+- `scripts/test-media-save-to-database.js` - Script de verificación de guardado
 
 ## 🔍 Logging Mejorado
 

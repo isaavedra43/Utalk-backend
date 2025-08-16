@@ -423,6 +423,7 @@ class ConversationsRepository {
           status: 'received',
           senderIdentifier: msg.senderIdentifier,
           recipientIdentifier: msg.recipientIdentifier,
+          mediaUrl: msg.mediaUrl || null, // 🔧 AGREGADO: Campo mediaUrl
           timestamp: msg.timestamp || new Date(),
           metadata: msg.metadata || {},
           createdAt: new Date(),
