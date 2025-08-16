@@ -915,7 +915,14 @@ class ConsolidatedServer {
         // Ruta para proxy de Twilio
         this.app.get('/media/proxy', (req, res) => {
           console.log('🔄 Redirigiendo /media/proxy a /api/media/proxy-public');
-          req.url = '/proxy-public' + req.url.replace('/media/proxy', '');
+          req.url = '/api/media/proxy-public' + req.url.replace('/media/proxy', '');
+          this.app._router.handle(req, res);
+        });
+        
+        // Ruta para proxy de Twilio (pública)
+        this.app.get('/media/proxy-public', (req, res) => {
+          console.log('🔄 Redirigiendo /media/proxy-public a /api/media/proxy-public');
+          req.url = '/api/media/proxy-public' + req.url.replace('/media/proxy-public', '');
           this.app._router.handle(req, res);
         });
         
