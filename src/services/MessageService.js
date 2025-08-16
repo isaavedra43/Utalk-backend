@@ -260,12 +260,6 @@ class MessageService {
     }
   }
 
-
-    const requestId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const { From, To, Body, MessageSid, NumMedia, ProfileName, Latitude, Longitude, StickerId, StickerPackId } = webhookData;
-
       // Validar webhook data
       if (!From || !To || !MessageSid) {
         throw new Error('From, To y MessageSid son requeridos');
@@ -2292,6 +2286,182 @@ class MessageService {
         error: error.message,
         originalErrorData: errorData,
       });
+    }
+  }
+
+  /**
+   * VALIDAR FIRMA DE TWILIO PARA WEBHOOKS
+   * Verifica que el webhook realmente venga de Twilio
+   */
+  static validateTwilioSignature(requestUrl, requestBody, signature, authToken) {
+    try {
+      // Importar crypto para validación de firma
+      const crypto = require('crypto');
+      
+      // Obtener auth token de Twilio
+      const twilioAuthToken = authToken || 
+        process.env.TWILIO_AUTH_TOKEN || 
+        process.env.TWILIO_TOKEN || 
+        process.env.TWILIO_SECRET;
+
+      if (!twilioAuthToken) {
+        logger.warn('⚠️ No se puede validar firma de Twilio - AUTH_TOKEN no configurado');
+        return false;
+      }
+
+      // Crear la cadena a firmar (URL + body ordenado alfabéticamente)
+      const sortedParams = new URLSearchParams(requestBody);
+      const sortedBody = sortedParams.toString();
+      
+      const dataToSign = requestUrl + sortedBody;
+
+      // Calcular firma esperada
+      const expectedSignature = crypto
+        .createHmac('sha1', twilioAuthToken)
+        .update(Buffer.from(dataToSign, 'utf-8'))
+        .digest('base64');
+
+      // Comparar firmas
+      const isValid = crypto.timingSafeEqual(
+        Buffer.from(signature, 'base64'),
+        Buffer.from(expectedSignature, 'base64')
+      );
+
+      logger.info('🔐 Validación de firma de Twilio', {
+        isValid,
+        requestUrl,
+        bodyLength: sortedBody.length,
+        signatureProvided: !!signature,
+        signatureExpected: !!expectedSignature
+      });
+
+      return isValid;
+
+    } catch (error) {
+      logger.error('❌ Error validando firma de Twilio', {
+        error: error.message,
+        requestUrl,
+        signatureProvided: !!signature
+      });
+      return false;
+    }
+  }
+
+  /**
+   * OBTENER URL DE MEDIA DE TWILIO
+   * Descarga y procesa media desde URLs de Twilio
+   */
+  async getMediaUrl(mediaSid) {
+    try {
+      if (!mediaSid) {
+        throw new Error('MediaSid es requerido');
+      }
+
+      logger.info('📎 Obteniendo URL de media de Twilio', {
+        mediaSid
+      });
+
+      // Obtener información del media desde Twilio API
+      const media = await this.client.messages(mediaSid).media().fetch();
+
+      if (!media) {
+        throw new Error('Media no encontrado en Twilio');
+      }
+
+      // Construir URL de descarga
+      const mediaUrl = `https://api.twilio.com/2010-04-01/Accounts/${this.client.username}/Messages/${mediaSid}/Media/${media.sid}`;
+
+      logger.info('✅ URL de media obtenida exitosamente', {
+        mediaSid,
+        mediaUrl,
+        contentType: media.contentType,
+        size: media.size
+      });
+
+      return {
+        success: true,
+        url: mediaUrl,
+        contentType: media.contentType,
+        size: media.size,
+        sid: media.sid
+      };
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo URL de media de Twilio', {
+        mediaSid,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * DESCARGAR MEDIA DE TWILIO
+   * Descarga el archivo de media desde Twilio
+   */
+  async downloadMedia(mediaSid, options = {}) {
+    try {
+      const { saveToFile = false, filePath = null } = options;
+
+      // Obtener URL del media
+      const mediaInfo = await this.getMediaUrl(mediaSid);
+      
+      if (!mediaInfo.success) {
+        throw new Error(`No se pudo obtener URL del media: ${mediaInfo.error}`);
+      }
+
+      // Descargar el archivo
+      const response = await fetch(mediaInfo.url, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${this.client.username}:${this.client.password}`).toString('base64')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error descargando media: ${response.status} ${response.statusText}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+
+      logger.info('✅ Media descargado exitosamente', {
+        mediaSid,
+        size: buffer.byteLength,
+        contentType: mediaInfo.contentType
+      });
+
+      // Guardar a archivo si se solicita
+      if (saveToFile && filePath) {
+        const fs = require('fs').promises;
+        await fs.writeFile(filePath, Buffer.from(buffer));
+        
+        logger.info('💾 Media guardado a archivo', {
+          mediaSid,
+          filePath
+        });
+      }
+
+      return {
+        success: true,
+        buffer: Buffer.from(buffer),
+        contentType: mediaInfo.contentType,
+        size: buffer.byteLength,
+        sid: mediaInfo.sid
+      };
+
+    } catch (error) {
+      logger.error('❌ Error descargando media de Twilio', {
+        mediaSid,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
