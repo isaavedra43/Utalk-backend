@@ -52,6 +52,21 @@ const messageValidators = {
     })
   }),
 
+  validateSendWithAttachments: validateRequest({
+    body: Joi.object({
+      conversationId: Joi.string().uuid().required(),
+      content: Joi.string().max(4096).optional(),
+      attachments: Joi.array().items(Joi.object({
+        buffer: Joi.binary().optional(),
+        originalname: Joi.string().optional(),
+        mimetype: Joi.string().required(),
+        size: Joi.number().integer().min(1).max(100 * 1024 * 1024).optional(), // 100MB max
+        fieldname: Joi.string().optional()
+      })).min(1).max(10).required(), // Mínimo 1, máximo 10 archivos
+      metadata: Joi.object().optional()
+    })
+  }),
+
   validateMarkRead: validateRequest({
     body: Joi.object({
       readAt: Joi.date().iso().default(() => new Date().toISOString())
@@ -82,6 +97,27 @@ const messageValidators = {
       StickerId: Joi.string().optional(),
       StickerPackId: Joi.string().optional(),
       StickerEmoji: Joi.string().optional()
+    })
+  }),
+
+  validateWhatsAppFile: validateRequest({
+    body: Joi.object({
+      MediaUrl0: Joi.string().uri().required(),
+      From: Joi.string().required(),
+      Body: Joi.string().optional(),
+      MessageSid: Joi.string().required(),
+      NumMedia: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      MediaContentType0: Joi.string().optional(),
+      ProfileName: Joi.string().optional(),
+      WaId: Joi.string().optional()
+    })
+  }),
+
+  validateSendFileToWhatsApp: validateRequest({
+    body: Joi.object({
+      phoneNumber: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
+      fileUrl: Joi.string().uri().required(),
+      caption: Joi.string().max(1000).optional()
     })
   }),
 
@@ -252,6 +288,40 @@ router.post('/send-sticker',
   requireWriteAccess,
   messageValidators.validateSendSticker,
   MessageController.sendStickerMessage
+);
+
+/**
+ * 📨 @route POST /api/messages/send-with-attachments
+ * @desc Enviar mensaje con archivos adjuntos (FASE 2)
+ * @access Private (Agent, Admin)
+ */
+router.post('/send-with-attachments',
+  authMiddleware,
+  requireWriteAccess,
+  messageValidators.validateSendWithAttachments,
+  MessageController.sendMessageWithAttachments
+);
+
+/**
+ * 📱 @route POST /api/messages/whatsapp-file
+ * @desc Manejar archivo recibido de WhatsApp (FASE 6)
+ * @access Public (Twilio Webhook)
+ */
+router.post('/whatsapp-file',
+  messageValidators.validateWhatsAppFile,
+  MessageController.handleWhatsAppFile
+);
+
+/**
+ * 📎 @route POST /api/messages/send-file-to-whatsapp
+ * @desc Enviar archivo específico a WhatsApp (FASE 6)
+ * @access Private (Agent, Admin)
+ */
+router.post('/send-file-to-whatsapp',
+  authMiddleware,
+  requireWriteAccess,
+  messageValidators.validateSendFileToWhatsApp,
+  MessageController.sendFileToWhatsApp
 );
 
 module.exports = router;

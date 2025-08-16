@@ -398,6 +398,651 @@ class AudioProcessor {
       minutes
     };
   }
+
+  /**
+   * 🆕 STREAMING DE AUDIO EN TIEMPO REAL
+   * Método para reproducir audio en streaming optimizado para web
+   */
+  async streamAudio(fileId, conversationId, options = {}) {
+    try {
+      const {
+        chunkSize = 64 * 1024, // 64KB chunks por defecto
+        bitrate = 128000,      // 128kbps por defecto
+        format = 'mp3',        // MP3 por defecto
+        startTime = 0,         // Tiempo de inicio en segundos
+        duration = null        // Duración en segundos (null = completo)
+      } = options;
+
+      logger.info('🎵 Iniciando streaming de audio', {
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        chunkSize,
+        bitrate,
+        format,
+        startTime,
+        duration
+      });
+
+      // Obtener archivo de audio desde storage
+      const bucket = this.getBucket();
+      const audioFile = bucket.file(`audio/${conversationId}/${fileId}.${format}`);
+      
+      // Verificar que el archivo existe
+      const [exists] = await audioFile.exists();
+      if (!exists) {
+        throw new Error(`Archivo de audio no encontrado: ${fileId}`);
+      }
+
+      // Obtener metadatos del archivo
+      const [metadata] = await audioFile.getMetadata();
+      const fileSize = parseInt(metadata.size);
+
+      // Calcular rangos para streaming
+      const startByte = Math.floor(startTime * bitrate / 8);
+      const endByte = duration 
+        ? Math.min(startByte + Math.floor(duration * bitrate / 8), fileSize - 1)
+        : fileSize - 1;
+
+      // Crear stream de lectura con rangos
+      const stream = audioFile.createReadStream({
+        start: startByte,
+        end: endByte,
+        validation: false
+      });
+
+      // Configurar headers para streaming
+      const headers = {
+        'Content-Type': `audio/${format}`,
+        'Content-Length': endByte - startByte + 1,
+        'Accept-Ranges': 'bytes',
+        'Content-Range': `bytes ${startByte}-${endByte}/${fileSize}`,
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      };
+
+      logger.info('✅ Stream de audio configurado', {
+        fileId: fileId.substring(0, 20) + '...',
+        startByte,
+        endByte,
+        totalBytes: endByte - startByte + 1,
+        format
+      });
+
+      return {
+        stream,
+        headers,
+        metadata: {
+          fileId,
+          conversationId,
+          format,
+          bitrate,
+          startTime,
+          duration,
+          totalBytes: endByte - startByte + 1,
+          fileSize
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Error en streaming de audio', {
+        fileId: fileId?.substring(0, 20) + '...',
+        conversationId: conversationId?.substring(0, 20) + '...',
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 🆕 GENERAR CHUNKS DE AUDIO PARA STREAMING
+   * Divide el audio en chunks optimizados para reproducción web
+   */
+  async generateAudioChunks(buffer, options = {}) {
+    try {
+      const {
+        chunkDuration = 2,     // 2 segundos por chunk
+        bitrate = 128000,      // 128kbps
+        format = 'mp3'         // Formato de salida
+      } = options;
+
+      logger.info('🎵 Generando chunks de audio', {
+        bufferSize: buffer.length,
+        chunkDuration,
+        bitrate,
+        format
+      });
+
+      const chunks = [];
+      const bytesPerChunk = Math.floor(chunkDuration * bitrate / 8);
+      const totalChunks = Math.ceil(buffer.length / bytesPerChunk);
+
+      for (let i = 0; i < totalChunks; i++) {
+        const startByte = i * bytesPerChunk;
+        const endByte = Math.min(startByte + bytesPerChunk, buffer.length);
+        const chunkBuffer = buffer.slice(startByte, endByte);
+
+        // Procesar chunk si es necesario
+        let processedChunk = chunkBuffer;
+        if (format !== 'mp3') {
+          processedChunk = await this.convertChunkToFormat(chunkBuffer, format);
+        }
+
+        chunks.push({
+          index: i,
+          buffer: processedChunk,
+          size: processedChunk.length,
+          duration: chunkDuration,
+          timestamp: i * chunkDuration
+        });
+      }
+
+      logger.info('✅ Chunks de audio generados', {
+        totalChunks: chunks.length,
+        totalSize: chunks.reduce((sum, chunk) => sum + chunk.size, 0),
+        averageChunkSize: Math.round(chunks.reduce((sum, chunk) => sum + chunk.size, 0) / chunks.length)
+      });
+
+      return chunks;
+
+    } catch (error) {
+      logger.error('❌ Error generando chunks de audio', {
+        error: error.message,
+        bufferSize: buffer?.length
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 🆕 CONVERTIR CHUNK A FORMATO ESPECÍFICO
+   */
+  async convertChunkToFormat(buffer, targetFormat) {
+    return new Promise((resolve, reject) => {
+      try {
+        const { Readable } = require('stream');
+        const audioStream = new Readable();
+        audioStream.push(buffer);
+        audioStream.push(null);
+
+        const chunks = [];
+        
+        ffmpeg(audioStream)
+          .toFormat(targetFormat)
+          .audioBitrate(128)
+          .audioChannels(2)
+          .on('end', () => {
+            const outputBuffer = Buffer.concat(chunks);
+            resolve(outputBuffer);
+          })
+          .on('error', (err) => {
+            logger.warn('Error convirtiendo chunk, usando original:', err.message);
+            resolve(buffer); // Fallback al original
+          })
+          .pipe(require('stream').Writable({
+            write(chunk, encoding, callback) {
+              chunks.push(chunk);
+              callback();
+            }
+          }));
+      } catch (error) {
+        logger.warn('Error en conversión de chunk:', error.message);
+        resolve(buffer); // Fallback al original
+      }
+    });
+  }
+
+  /**
+   * 🆕 OPTIMIZAR AUDIO PARA REPRODUCCIÓN WEB
+   * Aplica optimizaciones específicas para streaming web
+   */
+  async optimizeForWebStreaming(buffer, options = {}) {
+    try {
+      const {
+        targetBitrate = 128000,    // 128kbps para web
+        targetFormat = 'mp3',      // MP3 para compatibilidad
+        normalize = true,          // Normalizar volumen
+        removeSilence = true       // Remover silencios largos
+      } = options;
+
+      logger.info('🎵 Optimizando audio para streaming web', {
+        originalSize: buffer.length,
+        targetBitrate,
+        targetFormat,
+        normalize,
+        removeSilence
+      });
+
+      const { Readable } = require('stream');
+      const audioStream = new Readable();
+      audioStream.push(buffer);
+      audioStream.push(null);
+
+      let ffmpegCommand = ffmpeg(audioStream);
+
+      // Aplicar optimizaciones
+      if (normalize) {
+        ffmpegCommand = ffmpegCommand.audioFilters('loudnorm');
+      }
+
+      if (removeSilence) {
+        ffmpegCommand = ffmpegCommand.audioFilters('silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-50dB');
+      }
+
+      // Configurar formato y bitrate
+      ffmpegCommand = ffmpegCommand
+        .toFormat(targetFormat)
+        .audioBitrate(targetBitrate)
+        .audioChannels(2)
+        .audioFrequency(44100);
+
+      const optimizedBuffer = await new Promise((resolve, reject) => {
+        const chunks = [];
+        
+        ffmpegCommand
+          .on('end', () => {
+            const outputBuffer = Buffer.concat(chunks);
+            resolve(outputBuffer);
+          })
+          .on('error', (err) => {
+            logger.warn('Error optimizando audio, usando original:', err.message);
+            resolve(buffer); // Fallback al original
+          })
+          .pipe(require('stream').Writable({
+            write(chunk, encoding, callback) {
+              chunks.push(chunk);
+              callback();
+            }
+          }));
+      });
+
+      const compressionRatio = ((buffer.length - optimizedBuffer.length) / buffer.length * 100).toFixed(1);
+
+      logger.info('✅ Audio optimizado para web', {
+        originalSize: buffer.length,
+        optimizedSize: optimizedBuffer.length,
+        compressionRatio: `${compressionRatio}%`,
+        targetFormat,
+        targetBitrate
+      });
+
+      return {
+        buffer: optimizedBuffer,
+        metadata: {
+          originalSize: buffer.length,
+          optimizedSize: optimizedBuffer.length,
+          compressionRatio: `${compressionRatio}%`,
+          format: targetFormat,
+          bitrate: targetBitrate
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Error optimizando audio para web', {
+        error: error.message,
+        bufferSize: buffer?.length
+      });
+      
+      // Fallback: devolver audio original
+      return {
+        buffer,
+        metadata: {
+          originalSize: buffer.length,
+          optimizedSize: buffer.length,
+          compressionRatio: '0%',
+          format: 'original',
+          bitrate: 'unknown'
+        }
+      };
+    }
+  }
+
+  /**
+   * 🆕 GRABACIÓN DE AUDIO EN TIEMPO REAL
+   * Método para grabar audio desde el chat
+   */
+  async recordAudio(socket, conversationId, options = {}) {
+    try {
+      const {
+        duration = 60,           // Duración máxima en segundos
+        sampleRate = 44100,      // Frecuencia de muestreo
+        channels = 2,            // Número de canales
+        bitrate = 128000,        // Bitrate
+        format = 'mp3'           // Formato de salida
+      } = options;
+
+      const recordingId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      logger.info('🎙️ Iniciando grabación de audio', {
+        recordingId,
+        conversationId: conversationId.substring(0, 20) + '...',
+        duration,
+        sampleRate,
+        channels,
+        bitrate,
+        format
+      });
+
+      // Crear buffer para almacenar el audio grabado
+      const audioChunks = [];
+      let isRecording = true;
+      let recordingStartTime = Date.now();
+
+      // Configurar stream de grabación
+      const recordingStream = this.createRecordingStream({
+        sampleRate,
+        channels,
+        bitrate,
+        format
+      });
+
+      // Procesar chunks de audio en tiempo real
+      recordingStream.on('data', (chunk) => {
+        if (isRecording) {
+          audioChunks.push(chunk);
+          
+          // Emitir progreso de grabación
+          const elapsedTime = (Date.now() - recordingStartTime) / 1000;
+          const progress = Math.min((elapsedTime / duration) * 100, 100);
+          
+          socket.emit('audio-recording-progress', {
+            recordingId,
+            conversationId,
+            progress: Math.round(progress),
+            elapsedTime: Math.round(elapsedTime),
+            remainingTime: Math.max(0, duration - elapsedTime)
+          });
+        }
+      });
+
+      // Manejar finalización de grabación
+      recordingStream.on('end', async () => {
+        isRecording = false;
+        
+        // Combinar todos los chunks
+        const audioBuffer = Buffer.concat(audioChunks);
+        
+        // Procesar audio grabado
+        const processedAudio = await this.processRecordedAudio(audioBuffer, {
+          format,
+          bitrate,
+          normalize: true
+        });
+
+        // Guardar audio grabado
+        const savedAudio = await this.saveRecordedAudio(processedAudio, {
+          recordingId,
+          conversationId,
+          format
+        });
+
+        logger.info('✅ Grabación de audio completada', {
+          recordingId,
+          conversationId: conversationId.substring(0, 20) + '...',
+          duration: Math.round((Date.now() - recordingStartTime) / 1000),
+          size: audioBuffer.length
+        });
+
+        // Emitir evento de grabación completada
+        socket.emit('audio-recording-completed', {
+          recordingId,
+          conversationId,
+          audioUrl: savedAudio.url,
+          duration: Math.round((Date.now() - recordingStartTime) / 1000),
+          size: audioBuffer.length,
+          metadata: savedAudio.metadata
+        });
+      });
+
+      // Manejar errores de grabación
+      recordingStream.on('error', (error) => {
+        isRecording = false;
+        
+        logger.error('❌ Error en grabación de audio', {
+          recordingId,
+          conversationId: conversationId.substring(0, 20) + '...',
+          error: error.message
+        });
+
+        socket.emit('audio-recording-error', {
+          recordingId,
+          conversationId,
+          error: error.message
+        });
+      });
+
+      // Configurar timeout para detener grabación
+      setTimeout(() => {
+        if (isRecording) {
+          isRecording = false;
+          recordingStream.end();
+        }
+      }, duration * 1000);
+
+      return {
+        recordingId,
+        stream: recordingStream,
+        stop: () => {
+          isRecording = false;
+          recordingStream.end();
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Error iniciando grabación de audio', {
+        conversationId: conversationId?.substring(0, 20) + '...',
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 🆕 CREAR STREAM DE GRABACIÓN
+   * Configura el stream para capturar audio en tiempo real
+   */
+  createRecordingStream(options = {}) {
+    const {
+      sampleRate = 44100,
+      channels = 2,
+      bitrate = 128000,
+      format = 'mp3'
+    } = options;
+
+    // Crear stream de grabación usando ffmpeg
+    const { Readable } = require('stream');
+    const recordingStream = new Readable({
+      read() {}
+    });
+
+    // Configurar ffmpeg para captura de audio
+    const ffmpegCommand = ffmpeg()
+      .input('default') // Dispositivo de audio por defecto
+      .inputFormat('pulse') // Formato de entrada (Linux)
+      .audioFrequency(sampleRate)
+      .audioChannels(channels)
+      .toFormat(format)
+      .audioBitrate(bitrate)
+      .on('start', () => {
+        logger.info('🎙️ Stream de grabación iniciado', {
+          sampleRate,
+          channels,
+          bitrate,
+          format
+        });
+      })
+      .on('error', (err) => {
+        logger.error('❌ Error en stream de grabación:', err.message);
+        recordingStream.emit('error', err);
+      })
+      .on('end', () => {
+        logger.info('🎙️ Stream de grabación finalizado');
+        recordingStream.push(null);
+      });
+
+    // Pipe ffmpeg output al stream
+    ffmpegCommand.pipe(recordingStream);
+
+    return recordingStream;
+  }
+
+  /**
+   * 🆕 PROCESAR AUDIO GRABADO
+   * Aplica optimizaciones al audio grabado
+   */
+  async processRecordedAudio(audioBuffer, options = {}) {
+    try {
+      const {
+        format = 'mp3',
+        bitrate = 128000,
+        normalize = true,
+        removeNoise = true
+      } = options;
+
+      logger.info('🎵 Procesando audio grabado', {
+        bufferSize: audioBuffer.length,
+        format,
+        bitrate,
+        normalize,
+        removeNoise
+      });
+
+      const { Readable } = require('stream');
+      const audioStream = new Readable();
+      audioStream.push(audioBuffer);
+      audioStream.push(null);
+
+      let ffmpegCommand = ffmpeg(audioStream);
+
+      // Aplicar filtros de audio
+      const filters = [];
+      
+      if (normalize) {
+        filters.push('loudnorm');
+      }
+      
+      if (removeNoise) {
+        filters.push('anlmdn'); // Remover ruido
+      }
+
+      if (filters.length > 0) {
+        ffmpegCommand = ffmpegCommand.audioFilters(filters.join(','));
+      }
+
+      // Configurar formato de salida
+      ffmpegCommand = ffmpegCommand
+        .toFormat(format)
+        .audioBitrate(bitrate)
+        .audioChannels(2)
+        .audioFrequency(44100);
+
+      const processedBuffer = await new Promise((resolve, reject) => {
+        const chunks = [];
+        
+        ffmpegCommand
+          .on('end', () => {
+            const outputBuffer = Buffer.concat(chunks);
+            resolve(outputBuffer);
+          })
+          .on('error', (err) => {
+            logger.warn('Error procesando audio grabado, usando original:', err.message);
+            resolve(audioBuffer); // Fallback al original
+          })
+          .pipe(require('stream').Writable({
+            write(chunk, encoding, callback) {
+              chunks.push(chunk);
+              callback();
+            }
+          }));
+      });
+
+      logger.info('✅ Audio grabado procesado', {
+        originalSize: audioBuffer.length,
+        processedSize: processedBuffer.length,
+        compressionRatio: ((audioBuffer.length - processedBuffer.length) / audioBuffer.length * 100).toFixed(1) + '%'
+      });
+
+      return processedBuffer;
+
+    } catch (error) {
+      logger.error('❌ Error procesando audio grabado', {
+        error: error.message,
+        bufferSize: audioBuffer?.length
+      });
+      
+      // Fallback: devolver audio original
+      return audioBuffer;
+    }
+  }
+
+  /**
+   * 🆕 GUARDAR AUDIO GRABADO
+   * Guarda el audio grabado en storage
+   */
+  async saveRecordedAudio(audioBuffer, options = {}) {
+    try {
+      const {
+        recordingId,
+        conversationId,
+        format = 'mp3'
+      } = options;
+
+      logger.info('💾 Guardando audio grabado', {
+        recordingId,
+        conversationId: conversationId.substring(0, 20) + '...',
+        bufferSize: audioBuffer.length,
+        format
+      });
+
+      // Guardar en Firebase Storage
+      const bucket = this.getBucket();
+      const storagePath = `recordings/${conversationId}/${recordingId}.${format}`;
+      const file = bucket.file(storagePath);
+
+      await file.save(audioBuffer, {
+        metadata: {
+          contentType: `audio/${format}`,
+          metadata: {
+            recordingId,
+            conversationId,
+            recordedAt: new Date().toISOString(),
+            format,
+            size: audioBuffer.length
+          }
+        }
+      });
+
+      // Generar URL firmada
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+      });
+
+      logger.info('✅ Audio grabado guardado', {
+        recordingId,
+        storagePath,
+        url: signedUrl.substring(0, 50) + '...'
+      });
+
+      return {
+        recordingId,
+        url: signedUrl,
+        storagePath,
+        metadata: {
+          format,
+          size: audioBuffer.length,
+          recordedAt: new Date().toISOString()
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Error guardando audio grabado', {
+        recordingId: options.recordingId,
+        conversationId: options.conversationId?.substring(0, 20) + '...',
+        error: error.message
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = AudioProcessor; 

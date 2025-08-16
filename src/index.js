@@ -975,6 +975,16 @@ class ConsolidatedServer {
         console.error('❌ Error configurando dashboard de logs:', error.message);
       }
 
+      // 📊 ANALYTICS Y MÉTRICAS
+      try {
+        console.log('📊 Intentando configurar /api/analytics...');
+        const analyticsRoutes = require('./routes/analytics');
+        this.app.use('/api/analytics', analyticsRoutes);
+        console.log('✅ /api/analytics configurado exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /api/analytics:', error.message);
+      }
+
       // Ruta catch-all para 404
       this.app.use('*', (req, res) => {
         console.log('🚫 Ruta no encontrada:', req.method, req.originalUrl, 'desde IP:', req.ip);

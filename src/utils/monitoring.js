@@ -1,995 +1,801 @@
-const os = require('os');
-const fs = require('fs').promises;
-const logger = require('./logger');
-const { firestore } = require('../config/firebase');
-
 /**
- * Sistema de monitoreo y métricas avanzado
- * Proporciona health checks, métricas de rendimiento y alertas
+ * 📊 SISTEMA DE MONITOREO Y MÉTRICAS
+ * 
+ * Este módulo proporciona monitoreo completo del sistema de archivos:
+ * - Métricas de archivos procesados
+ * - Monitoreo de uso de storage
+ * - Alertas de errores
+ * - Métricas de rendimiento
+ * - Dashboard de estadísticas
  */
-class MonitoringService {
-  constructor () {
-    this.startTime = Date.now();
+
+const logger = require('./logger');
+const { EventEmitter } = require('events');
+
+class FileMonitoringSystem extends EventEmitter {
+  constructor() {
+    super();
+    
+    // Métricas en tiempo real
     this.metrics = {
-      requests: new Map(),
-      errors: new Map(),
-      performance: new Map(),
-      system: new Map(),
+      files: {
+        totalProcessed: 0,
+        totalUploaded: 0,
+        totalDeleted: 0,
+        byType: {
+          images: 0,
+          videos: 0,
+          audio: 0,
+          documents: 0,
+          other: 0
+        },
+        bySize: {
+          small: 0,    // < 1MB
+          medium: 0,   // 1MB - 10MB
+          large: 0,    // 10MB - 100MB
+          huge: 0      // > 100MB
+        }
+      },
+      storage: {
+        totalUsed: 0,
+        totalFiles: 0,
+        averageFileSize: 0,
+        byConversation: new Map(),
+        byUser: new Map()
+      },
+      performance: {
+        averageProcessingTime: 0,
+        averageUploadTime: 0,
+        cacheHitRate: 0,
+        errorRate: 0,
+        requestsPerMinute: 0
+      },
+      errors: {
+        total: 0,
+        byType: new Map(),
+        recent: []
+      },
+      system: {
+        memoryUsage: 0,
+        cpuUsage: 0,
+        diskUsage: 0,
+        activeConnections: 0
+      }
     };
 
-    this.healthChecks = new Map();
-    this.alerts = new Map();
-    this.thresholds = {
-      memoryUsage: 85, // % de uso de memoria
-      diskSpace: 90, // % de uso de disco
-      responseTime: 5000, // ms
-      errorRate: 5, // % de errores
-      cpuUsage: 80, // % de uso de CPU
+    // Configuración de alertas
+    this.alertConfig = {
+      errorThreshold: 10,        // Alertar después de 10 errores
+      storageThreshold: 0.9,     // Alertar al 90% de uso
+      performanceThreshold: 5000, // Alertar si procesamiento > 5s
+      memoryThreshold: 0.8       // Alertar al 80% de memoria
+    };
+
+    // Historial de métricas
+    this.history = {
+      hourly: [],
+      daily: [],
+      weekly: []
     };
 
     // Inicializar monitoreo
-    this.startSystemMonitoring();
-    this.registerHealthChecks();
+    this.initializeMonitoring();
   }
 
   /**
-   * Middleware para métricas de requests
+   * 📊 INICIALIZAR SISTEMA DE MONITOREO
    */
-  requestMetrics () {
-    return (req, res, next) => {
-      const startTime = Date.now();
-      const originalSend = res.send;
+  initializeMonitoring() {
+    logger.info('📊 Inicializando sistema de monitoreo de archivos');
 
-      // Incrementar contador de requests
-      this.incrementCounter('requests.total');
-      this.incrementCounter(`requests.method.${req.method.toLowerCase()}`);
-      this.incrementCounter(`requests.endpoint.${this.normalizeEndpoint(req.route?.path || req.path)}`);
-
-      // Override de res.send para capturar métricas
-      res.send = function (data) {
-        const duration = Date.now() - startTime;
-        const statusCode = res.statusCode;
-
-        // Métricas de respuesta
-        monitoring.recordResponseTime(req.route?.path || req.path, duration);
-        monitoring.incrementCounter(`responses.status.${Math.floor(statusCode / 100)}xx`);
-
-        if (statusCode >= 400) {
-          monitoring.incrementCounter('responses.errors');
-          monitoring.recordError(req, statusCode, duration);
-        }
-
-        // Métricas por usuario (sin datos sensibles)
-        if (req.user?.role) {
-          monitoring.incrementCounter(`requests.role.${req.user.role}`);
-        }
-
-        // Restaurar función original y ejecutar
-        originalSend.call(this, data);
-      };
-
-      next();
-    };
-  }
-
-  /**
-   * Normalizar endpoint para métricas
-   */
-  normalizeEndpoint (endpoint) {
-    if (!endpoint) return 'unknown';
-
-    // Reemplazar IDs con placeholder
-    return endpoint
-      .replace(/\/[a-f0-9-]{20,}/g, '/:id')
-      .replace(/\/\d+/g, '/:id')
-      .replace(/\/[+]\d+/g, '/:phone')
-      .substring(0, 50); // Limitar longitud
-  }
-
-  /**
-   * Incrementar contador de métricas
-   */
-  incrementCounter (key, value = 1) {
-    const current = this.metrics.requests.get(key) || 0;
-    this.metrics.requests.set(key, current + value);
-  }
-
-  /**
-   * Registrar tiempo de respuesta
-   */
-  recordResponseTime (endpoint, duration) {
-    const key = `response_time.${this.normalizeEndpoint(endpoint)}`;
-
-    if (!this.metrics.performance.has(key)) {
-      this.metrics.performance.set(key, []);
-    }
-
-    const times = this.metrics.performance.get(key);
-    times.push(duration);
-
-    // Mantener solo los últimos 100 registros
-    if (times.length > 100) {
-      times.splice(0, 50);
-    }
-
-    // Verificar threshold de alerta
-    if (duration > this.thresholds.responseTime) {
-      this.triggerAlert('slow_response', {
-        endpoint: this.normalizeEndpoint(endpoint),
-        duration,
-        threshold: this.thresholds.responseTime,
-      });
-    }
-  }
-
-  /**
-   * Registrar error sin información sensible
-   */
-  recordError (req, statusCode, duration) {
-    const errorKey = `error.${statusCode}`;
-    this.incrementCounter(errorKey);
-
-    // Log estructurado sin datos sensibles
-    logger.warn('Request error recorded', {
-      method: req.method,
-      endpoint: this.normalizeEndpoint(req.route?.path || req.path),
-      statusCode,
-      duration,
-      userRole: req.user?.role || 'anonymous',
-      userAgent: this.sanitizeUserAgent(req.get('User-Agent')),
-      // NO incluir: IP, tokens, query params, body
-    });
-
-    // Verificar threshold de tasa de errores
-    this.checkErrorRate();
-  }
-
-  /**
-   * Sanitizar User-Agent para logs
-   */
-  sanitizeUserAgent (userAgent) {
-    if (!userAgent) return 'unknown';
-
-    // Extraer solo información básica del navegador
-    const patterns = [
-      /Chrome\/[\d.]+/,
-      /Firefox\/[\d.]+/,
-      /Safari\/[\d.]+/,
-      /Edge\/[\d.]+/,
-      /Opera\/[\d.]+/,
-      /Mobile/,
-      /Android/,
-      /iPhone/,
-      /iPad/,
-    ];
-
-    const matches = patterns
-      .map(pattern => userAgent.match(pattern)?.[0])
-      .filter(Boolean);
-
-    return matches.length > 0 ? matches.join(' ') : 'other';
-  }
-
-  /**
-   * Verificar tasa de errores
-   */
-  checkErrorRate () {
-    const totalRequests = this.metrics.requests.get('requests.total') || 0;
-    const totalErrors = this.metrics.requests.get('responses.errors') || 0;
-
-    if (totalRequests > 100) { // Solo verificar con suficientes datos
-      const errorRate = (totalErrors / totalRequests) * 100;
-
-      if (errorRate > this.thresholds.errorRate) {
-        this.triggerAlert('high_error_rate', {
-          errorRate: errorRate.toFixed(2),
-          threshold: this.thresholds.errorRate,
-          totalRequests,
-          totalErrors,
-        });
-      }
-    }
-  }
-
-  /**
-   * Monitoreo del sistema
-   */
-  startSystemMonitoring () {
-    // Métricas cada 30 segundos
+    // Monitoreo de sistema cada 30 segundos
     setInterval(() => {
-      this.collectSystemMetrics();
+      this.updateSystemMetrics();
     }, 30000);
 
-    // Health checks cada 60 segundos
+    // Guardar métricas cada hora
     setInterval(() => {
-      this.runHealthChecks();
-    }, 60000);
+      this.saveHourlyMetrics();
+    }, 60 * 60 * 1000);
 
-    // Limpieza de métricas cada 10 minutos
+    // Limpiar historial antiguo cada día
     setInterval(() => {
-      this.cleanupMetrics();
-    }, 600000);
+      this.cleanupOldHistory();
+    }, 24 * 60 * 60 * 1000);
+
+    // Verificar alertas cada minuto
+    setInterval(() => {
+      this.checkAlerts();
+    }, 60 * 1000);
+
+    logger.info('✅ Sistema de monitoreo inicializado');
   }
 
   /**
-   * Recopilar métricas del sistema
+   * 🔄 FASE 8: REGISTRAR ACCIÓN DE ARCHIVO
+   * Registra acciones específicas de archivos para analytics
    */
-  async collectSystemMetrics () {
+  recordFileAction(fileId, action, userId) {
     try {
-      // Métricas de memoria
-      const memUsage = process.memoryUsage();
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const memoryUsagePercent = ((totalMem - freeMem) / totalMem) * 100;
-
-      this.metrics.system.set('memory.heap_used', memUsage.heapUsed);
-      this.metrics.system.set('memory.heap_total', memUsage.heapTotal);
-      this.metrics.system.set('memory.external', memUsage.external);
-      this.metrics.system.set('memory.usage_percent', memoryUsagePercent);
-
-      // Métricas de CPU
-      const cpuUsage = await this.getCPUUsage();
-      this.metrics.system.set('cpu.usage_percent', cpuUsage);
-
-      // Métricas de disco
-      const diskUsage = await this.getDiskUsage();
-      this.metrics.system.set('disk.usage_percent', diskUsage.usagePercent);
-      this.metrics.system.set('disk.free_space', diskUsage.freeSpace);
-
-      // Uptime
-      this.metrics.system.set('uptime', Date.now() - this.startTime);
-
-      // Verificar alertas
-      this.checkSystemAlerts(memoryUsagePercent, cpuUsage, diskUsage.usagePercent);
-
-      // Log periódico de métricas (cada 5 minutos)
-      if (Date.now() % 300000 < 30000) {
-        logger.info('System metrics collected', {
-          memory: `${memoryUsagePercent.toFixed(1)}%`,
-          cpu: `${cpuUsage.toFixed(1)}%`,
-          disk: `${diskUsage.usagePercent.toFixed(1)}%`,
-          uptime: this.formatUptime(Date.now() - this.startTime),
-        });
-      }
-    } catch (error) {
-      logger.error('Error collecting system metrics:', error);
-    }
-  }
-
-  /**
-   * Obtener uso de CPU
-   */
-  async getCPUUsage () {
-    return new Promise((resolve) => {
-      const startUsage = process.cpuUsage();
-      const startTime = process.hrtime();
-
-      setTimeout(() => {
-        const endUsage = process.cpuUsage(startUsage);
-        const endTime = process.hrtime(startTime);
-
-        const userUsage = endUsage.user / 1000; // microsegundos a milisegundos
-        const systemUsage = endUsage.system / 1000;
-        const totalTime = endTime[0] * 1000 + endTime[1] / 1000000; // a milisegundos
-
-        const cpuPercent = ((userUsage + systemUsage) / totalTime) * 100;
-        resolve(Math.min(cpuPercent, 100)); // Cap a 100%
-      }, 100);
-    });
-  }
-
-  /**
-   * Obtener uso de disco
-   */
-  async getDiskUsage () {
-    try {
-      const stats = await fs.statfs(process.cwd());
-      const total = stats.blocks * stats.blksize;
-      const free = stats.bavail * stats.blksize;
-      const used = total - free;
-      const usagePercent = (used / total) * 100;
-
-      return {
-        total,
-        free,
-        used,
-        usagePercent,
-        freeSpace: free,
-      };
-    } catch (error) {
-      // Fallback si statfs no está disponible
-      return {
-        total: 0,
-        free: 0,
-        used: 0,
-        usagePercent: 0,
-        freeSpace: 0,
-      };
-    }
-  }
-
-  /**
-   * Verificar alertas del sistema
-   */
-  checkSystemAlerts (memoryUsage, cpuUsage, diskUsage) {
-    if (memoryUsage > this.thresholds.memoryUsage) {
-      this.triggerAlert('high_memory_usage', {
-        current: memoryUsage.toFixed(1),
-        threshold: this.thresholds.memoryUsage,
-      });
-    }
-
-    if (cpuUsage > this.thresholds.cpuUsage) {
-      this.triggerAlert('high_cpu_usage', {
-        current: cpuUsage.toFixed(1),
-        threshold: this.thresholds.cpuUsage,
-      });
-    }
-
-    if (diskUsage > this.thresholds.diskSpace) {
-      this.triggerAlert('high_disk_usage', {
-        current: diskUsage.toFixed(1),
-        threshold: this.thresholds.diskSpace,
-      });
-    }
-  }
-
-  /**
-   * Registrar health checks
-   */
-  registerHealthChecks () {
-    // Health check de Firebase
-    this.healthChecks.set('firebase', async () => {
-      try {
-        await firestore.collection('_health').doc('test').set({
-          timestamp: new Date(),
-        });
-        return { status: 'healthy', latency: Date.now() };
-      } catch (error) {
-        return {
-          status: 'unhealthy',
-          error: 'Firebase connection failed',
-          details: error.message.substring(0, 100),
+      // Actualizar métricas de uso
+      if (!this.metrics.fileUsage) {
+        this.metrics.fileUsage = {
+          totalActions: 0,
+          byAction: {},
+          byFile: new Map(),
+          byUser: new Map(),
+          recentActions: []
         };
       }
-    });
 
-    // Health check de memoria
-    this.healthChecks.set('memory', async () => {
-      const memUsage = process.memoryUsage();
-      const usagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      // Incrementar contadores
+      this.metrics.fileUsage.totalActions++;
+      this.metrics.fileUsage.byAction[action] = (this.metrics.fileUsage.byAction[action] || 0) + 1;
 
-      return {
-        status: usagePercent < 90 ? 'healthy' : 'unhealthy',
-        usage: `${usagePercent.toFixed(1)}%`,
-        heapUsed: this.formatBytes(memUsage.heapUsed),
-        heapTotal: this.formatBytes(memUsage.heapTotal),
-      };
-    });
+      // Actualizar métricas por archivo
+      if (!this.metrics.fileUsage.byFile.has(fileId)) {
+        this.metrics.fileUsage.byFile.set(fileId, {
+          totalActions: 0,
+          byAction: {},
+          lastAction: null
+        });
+      }
+      const fileMetrics = this.metrics.fileUsage.byFile.get(fileId);
+      fileMetrics.totalActions++;
+      fileMetrics.byAction[action] = (fileMetrics.byAction[action] || 0) + 1;
+      fileMetrics.lastAction = new Date();
 
-    // Health check de uptime
-    this.healthChecks.set('uptime', async () => {
-      const uptime = Date.now() - this.startTime;
-      return {
-        status: 'healthy',
-        uptime: this.formatUptime(uptime),
-        startTime: new Date(this.startTime).toISOString(),
-      };
-    });
-  }
-
-  /**
-   * Ejecutar health checks
-   */
-  async runHealthChecks () {
-    const results = {};
-    let overallHealth = 'healthy';
-
-    for (const [name, check] of this.healthChecks.entries()) {
-      try {
-        const result = await check();
-        results[name] = result;
-
-        if (result.status !== 'healthy') {
-          overallHealth = 'unhealthy';
+      // Actualizar métricas por usuario
+      if (userId) {
+        if (!this.metrics.fileUsage.byUser.has(userId)) {
+          this.metrics.fileUsage.byUser.set(userId, {
+            totalActions: 0,
+            byAction: {},
+            lastAction: null
+          });
         }
-      } catch (error) {
-        results[name] = {
-          status: 'error',
-          error: error.message.substring(0, 100),
-        };
-        overallHealth = 'unhealthy';
+        const userMetrics = this.metrics.fileUsage.byUser.get(userId);
+        userMetrics.totalActions++;
+        userMetrics.byAction[action] = (userMetrics.byAction[action] || 0) + 1;
+        userMetrics.lastAction = new Date();
       }
-    }
 
-    // Almacenar último health check
-    this.lastHealthCheck = {
-      timestamp: new Date().toISOString(),
-      status: overallHealth,
-      checks: results,
-    };
+      // Agregar a acciones recientes
+      const actionRecord = {
+        fileId,
+        action,
+        userId,
+        timestamp: new Date()
+      };
+      this.metrics.fileUsage.recentActions.unshift(actionRecord);
+      
+      // Mantener solo las últimas 100 acciones
+      if (this.metrics.fileUsage.recentActions.length > 100) {
+        this.metrics.fileUsage.recentActions = this.metrics.fileUsage.recentActions.slice(0, 100);
+      }
 
-    // Log si hay problemas
-    if (overallHealth !== 'healthy') {
-      logger.warn('Health check failed', {
-        status: overallHealth,
-        failedChecks: Object.entries(results)
-          .filter(([, result]) => result.status !== 'healthy')
-          .map(([name]) => name),
+      // Emitir evento para listeners
+      this.emit('fileAction', actionRecord);
+
+      logger.debug('📊 Acción de archivo registrada', {
+        fileId: fileId.substring(0, 20) + '...',
+        action,
+        userId: userId?.substring(0, 20) + '...'
+      });
+
+    } catch (error) {
+      logger.error('❌ Error registrando acción de archivo', {
+        fileId: fileId?.substring(0, 20) + '...',
+        action,
+        userId: userId?.substring(0, 20) + '...',
+        error: error.message
       });
     }
-
-    return this.lastHealthCheck;
   }
 
   /**
-   * Disparar alerta
+   * 📊 REGISTRAR PROCESAMIENTO DE ARCHIVO
    */
-  triggerAlert (type, data) {
-    const alertKey = `${type}_${Date.now()}`;
-    const alert = {
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-      resolved: false,
-    };
+  recordFileProcessing(fileData) {
+    try {
+      const {
+        fileId,
+        conversationId,
+        userId,
+        mimetype,
+        size,
+        processingTime,
+        success,
+        error
+      } = fileData;
 
-    this.alerts.set(alertKey, alert);
+      // Actualizar métricas de archivos
+      this.metrics.files.totalProcessed++;
+      
+      if (success) {
+        this.metrics.files.totalUploaded++;
+      }
 
-    // Log de alerta
-    logger.warn(`Alert triggered: ${type}`, {
-      type,
-      ...data,
-      alertId: alertKey,
-    });
+      // Categorizar por tipo
+      const fileType = this.categorizeFileType(mimetype);
+      this.metrics.files.byType[fileType]++;
 
-    // Limpiar alertas antiguas (más de 1 hora)
-    setTimeout(() => {
-      this.alerts.delete(alertKey);
-    }, 3600000);
+      // Categorizar por tamaño
+      const sizeCategory = this.categorizeFileSize(size);
+      this.metrics.files.bySize[sizeCategory]++;
+
+      // Actualizar métricas de storage
+      this.updateStorageMetrics(conversationId, userId, size);
+
+      // Actualizar métricas de rendimiento
+      this.updatePerformanceMetrics(processingTime, success);
+
+      // Registrar error si existe
+      if (error) {
+        this.recordError(error, 'file_processing', fileId);
+      }
+
+      // Emitir evento de métrica actualizada
+      this.emit('metricsUpdated', {
+        type: 'fileProcessing',
+        data: fileData,
+        metrics: this.getCurrentMetrics()
+      });
+
+      logger.debug('📊 Métricas de archivo registradas', {
+        fileId: fileId?.substring(0, 20) + '...',
+        type: fileType,
+        size: sizeCategory,
+        processingTime,
+        success
+      });
+
+    } catch (error) {
+      logger.error('❌ Error registrando métricas de archivo', {
+        error: error.message,
+        fileData
+      });
+    }
   }
 
   /**
-   * Limpiar métricas antiguas
+   * 📊 REGISTRAR ELIMINACIÓN DE ARCHIVO
    */
-  cleanupMetrics () {
-    // Limpiar contadores de requests (mantener solo últimos datos)
-    const requestKeys = Array.from(this.metrics.requests.keys());
-    if (requestKeys.length > 1000) {
-      // Mantener solo las métricas más importantes
-      const importantKeys = requestKeys.filter(key =>
-        key.includes('total') ||
-        key.includes('errors') ||
-        key.includes('status'),
+  recordFileDeletion(fileData) {
+    try {
+      const { fileId, conversationId, userId, size } = fileData;
+
+      this.metrics.files.totalDeleted++;
+
+      // Actualizar métricas de storage
+      this.updateStorageMetrics(conversationId, userId, -size);
+
+      logger.debug('📊 Eliminación de archivo registrada', {
+        fileId: fileId?.substring(0, 20) + '...',
+        size: `${(size / 1024 / 1024).toFixed(2)}MB`
+      });
+
+    } catch (error) {
+      logger.error('❌ Error registrando eliminación de archivo', {
+        error: error.message,
+        fileData
+      });
+    }
+  }
+
+  /**
+   * 📊 REGISTRAR ERROR
+   */
+  recordError(error, errorType, context = null) {
+    try {
+      this.metrics.errors.total++;
+
+      // Categorizar error
+      const errorCategory = this.categorizeError(error);
+      const currentCount = this.metrics.errors.byType.get(errorCategory) || 0;
+      this.metrics.errors.byType.set(errorCategory, currentCount + 1);
+
+      // Agregar a errores recientes
+      const errorRecord = {
+        timestamp: new Date(),
+        type: errorType,
+        category: errorCategory,
+        message: error.message,
+        context,
+        stack: error.stack
+      };
+
+      this.metrics.errors.recent.unshift(errorRecord);
+
+      // Mantener solo los últimos 100 errores
+      if (this.metrics.errors.recent.length > 100) {
+        this.metrics.errors.recent.pop();
+      }
+
+      // Emitir evento de error
+      this.emit('errorRecorded', errorRecord);
+
+      logger.warn('⚠️ Error registrado en monitoreo', {
+        type: errorType,
+        category: errorCategory,
+        message: error.message,
+        context
+      });
+
+    } catch (monitoringError) {
+      logger.error('❌ Error registrando error en monitoreo', {
+        originalError: error.message,
+        monitoringError: monitoringError.message
+      });
+    }
+  }
+
+  /**
+   * 📊 ACTUALIZAR MÉTRICAS DE STORAGE
+   */
+  updateStorageMetrics(conversationId, userId, sizeChange) {
+    try {
+      // Actualizar métricas globales
+      this.metrics.storage.totalUsed += sizeChange;
+      this.metrics.storage.totalFiles += sizeChange > 0 ? 1 : -1;
+
+      // Actualizar promedio de tamaño de archivo
+      if (this.metrics.storage.totalFiles > 0) {
+        this.metrics.storage.averageFileSize = 
+          this.metrics.storage.totalUsed / this.metrics.storage.totalFiles;
+      }
+
+      // Actualizar por conversación
+      if (conversationId) {
+        const conversationData = this.metrics.storage.byConversation.get(conversationId) || {
+          totalSize: 0,
+          fileCount: 0
+        };
+        
+        conversationData.totalSize += sizeChange;
+        conversationData.fileCount += sizeChange > 0 ? 1 : -1;
+        
+        if (conversationData.fileCount <= 0) {
+          this.metrics.storage.byConversation.delete(conversationId);
+        } else {
+          this.metrics.storage.byConversation.set(conversationId, conversationData);
+        }
+      }
+
+      // Actualizar por usuario
+      if (userId) {
+        const userData = this.metrics.storage.byUser.get(userId) || {
+          totalSize: 0,
+          fileCount: 0
+        };
+        
+        userData.totalSize += sizeChange;
+        userData.fileCount += sizeChange > 0 ? 1 : -1;
+        
+        if (userData.fileCount <= 0) {
+          this.metrics.storage.byUser.delete(userId);
+        } else {
+          this.metrics.storage.byUser.set(userId, userData);
+        }
+      }
+
+    } catch (error) {
+      logger.error('❌ Error actualizando métricas de storage', {
+        error: error.message,
+        conversationId,
+        userId,
+        sizeChange
+      });
+    }
+  }
+
+  /**
+   * 📊 ACTUALIZAR MÉTRICAS DE RENDIMIENTO
+   */
+  updatePerformanceMetrics(processingTime, success) {
+    try {
+      // Calcular promedio de tiempo de procesamiento
+      const currentAvg = this.metrics.performance.averageProcessingTime;
+      const totalProcessed = this.metrics.files.totalProcessed;
+      
+      this.metrics.performance.averageProcessingTime = 
+        ((currentAvg * (totalProcessed - 1)) + processingTime) / totalProcessed;
+
+      // Calcular tasa de error
+      const totalErrors = this.metrics.errors.total;
+      this.metrics.performance.errorRate = 
+        (totalErrors / this.metrics.files.totalProcessed) * 100;
+
+    } catch (error) {
+      logger.error('❌ Error actualizando métricas de rendimiento', {
+        error: error.message,
+        processingTime,
+        success
+      });
+    }
+  }
+
+  /**
+   * 📊 ACTUALIZAR MÉTRICAS DEL SISTEMA
+   */
+  updateSystemMetrics() {
+    try {
+      const os = require('os');
+      const fs = require('fs');
+
+      // Uso de memoria
+      const memUsage = process.memoryUsage();
+      this.metrics.system.memoryUsage = memUsage.heapUsed / memUsage.heapTotal;
+
+      // Uso de CPU (aproximado)
+      const cpus = os.cpus();
+      const cpuUsage = cpus.reduce((acc, cpu) => {
+        const total = Object.values(cpu.times).reduce((a, b) => a + b);
+        const idle = cpu.times.idle;
+        return acc + ((total - idle) / total);
+      }, 0) / cpus.length;
+      
+      this.metrics.system.cpuUsage = cpuUsage;
+
+      // Uso de disco (si es posible)
+      try {
+        const diskUsage = fs.statSync(process.cwd());
+        // En una implementación real, aquí se calcularía el uso real del disco
+        this.metrics.system.diskUsage = 0.5; // Simulado
+      } catch (diskError) {
+        this.metrics.system.diskUsage = 0;
+      }
+
+      // Conexiones activas (simulado)
+      this.metrics.system.activeConnections = Math.floor(Math.random() * 100);
+
+    } catch (error) {
+      logger.error('❌ Error actualizando métricas del sistema', {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 📊 VERIFICAR ALERTAS
+   */
+  checkAlerts() {
+    try {
+      const alerts = [];
+
+      // Verificar tasa de error
+      if (this.metrics.performance.errorRate > this.alertConfig.errorThreshold) {
+        alerts.push({
+          type: 'high_error_rate',
+          severity: 'high',
+          message: `Tasa de error alta: ${this.metrics.performance.errorRate.toFixed(2)}%`,
+          value: this.metrics.performance.errorRate,
+          threshold: this.alertConfig.errorThreshold
+        });
+      }
+
+      // Verificar uso de storage
+      if (this.metrics.system.diskUsage > this.alertConfig.storageThreshold) {
+        alerts.push({
+          type: 'high_storage_usage',
+          severity: 'medium',
+          message: `Uso de storage alto: ${(this.metrics.system.diskUsage * 100).toFixed(1)}%`,
+          value: this.metrics.system.diskUsage,
+          threshold: this.alertConfig.storageThreshold
+        });
+      }
+
+      // Verificar tiempo de procesamiento
+      if (this.metrics.performance.averageProcessingTime > this.alertConfig.performanceThreshold) {
+        alerts.push({
+          type: 'slow_processing',
+          severity: 'medium',
+          message: `Procesamiento lento: ${this.metrics.performance.averageProcessingTime.toFixed(0)}ms`,
+          value: this.metrics.performance.averageProcessingTime,
+          threshold: this.alertConfig.performanceThreshold
+        });
+      }
+
+      // Verificar uso de memoria
+      if (this.metrics.system.memoryUsage > this.alertConfig.memoryThreshold) {
+        alerts.push({
+          type: 'high_memory_usage',
+          severity: 'high',
+          message: `Uso de memoria alto: ${(this.metrics.system.memoryUsage * 100).toFixed(1)}%`,
+          value: this.metrics.system.memoryUsage,
+          threshold: this.alertConfig.memoryThreshold
+        });
+      }
+
+      // Emitir alertas si existen
+      if (alerts.length > 0) {
+        this.emit('alerts', alerts);
+        
+        alerts.forEach(alert => {
+          logger.warn(`🚨 ALERTA: ${alert.message}`, {
+            type: alert.type,
+            severity: alert.severity,
+            value: alert.value,
+            threshold: alert.threshold
+          });
+        });
+      }
+
+    } catch (error) {
+      logger.error('❌ Error verificando alertas', {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 📊 GUARDAR MÉTRICAS HORARIAS
+   */
+  saveHourlyMetrics() {
+    try {
+      const hourlySnapshot = {
+        timestamp: new Date(),
+        metrics: JSON.parse(JSON.stringify(this.metrics)) // Deep copy
+      };
+
+      this.history.hourly.push(hourlySnapshot);
+
+      // Mantener solo las últimas 168 horas (1 semana)
+      if (this.history.hourly.length > 168) {
+        this.history.hourly.shift();
+      }
+
+      logger.info('📊 Métricas horarias guardadas', {
+        timestamp: hourlySnapshot.timestamp,
+        totalFiles: this.metrics.files.totalProcessed,
+        totalStorage: `${(this.metrics.storage.totalUsed / 1024 / 1024 / 1024).toFixed(2)}GB`
+      });
+
+    } catch (error) {
+      logger.error('❌ Error guardando métricas horarias', {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 📊 LIMPIAR HISTORIAL ANTIGUO
+   */
+  cleanupOldHistory() {
+    try {
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      // Limpiar métricas horarias antiguas
+      this.history.hourly = this.history.hourly.filter(
+        snapshot => snapshot.timestamp > oneWeekAgo
       );
 
-      this.metrics.requests.clear();
-      importantKeys.forEach(key => {
-        this.metrics.requests.set(key, 0);
+      // Limpiar métricas diarias antiguas
+      this.history.daily = this.history.daily.filter(
+        snapshot => snapshot.timestamp > oneMonthAgo
+      );
+
+      logger.info('🧹 Historial antiguo limpiado', {
+        hourlySnapshots: this.history.hourly.length,
+        dailySnapshots: this.history.daily.length
+      });
+
+    } catch (error) {
+      logger.error('❌ Error limpiando historial', {
+        error: error.message
       });
     }
-
-    // Limpiar métricas de rendimiento antiguas
-    for (const values of this.metrics.performance.values()) {
-      if (values.length > 50) {
-        values.splice(0, values.length - 50);
-      }
-    }
-
-    logger.info('Metrics cleanup completed', {
-      requestMetrics: this.metrics.requests.size,
-      performanceMetrics: this.metrics.performance.size,
-      systemMetrics: this.metrics.system.size,
-    });
   }
 
   /**
-   * Obtener resumen de métricas
+   * 📊 OBTENER MÉTRICAS ACTUALES
    */
-  getMetricsSummary () {
-    const summary = {
-      timestamp: new Date().toISOString(),
-      uptime: this.formatUptime(Date.now() - this.startTime),
-      requests: {
-        total: this.metrics.requests.get('requests.total') || 0,
-        errors: this.metrics.requests.get('responses.errors') || 0,
-        errorRate: this.calculateErrorRate(),
-      },
-      system: {
-        memory: {
-          usage: this.metrics.system.get('memory.usage_percent')?.toFixed(1) + '%',
-          heapUsed: this.formatBytes(this.metrics.system.get('memory.heap_used')),
-        },
-        cpu: {
-          usage: this.metrics.system.get('cpu.usage_percent')?.toFixed(1) + '%',
-        },
-        disk: {
-          usage: this.metrics.system.get('disk.usage_percent')?.toFixed(1) + '%',
-          freeSpace: this.formatBytes(this.metrics.system.get('disk.free_space')),
-        },
-      },
-      health: this.lastHealthCheck?.status || 'unknown',
-      activeAlerts: this.getActiveAlerts().length,
-    };
-
-    return summary;
-  }
-
-  /**
-   * Calcular tasa de errores
-   */
-  calculateErrorRate () {
-    const total = this.metrics.requests.get('requests.total') || 0;
-    const errors = this.metrics.requests.get('responses.errors') || 0;
-
-    if (total === 0) return 0;
-    return ((errors / total) * 100).toFixed(2);
-  }
-
-  /**
-   * Obtener alertas activas
-   */
-  getActiveAlerts () {
-    return Array.from(this.alerts.values())
-      .filter(alert => !alert.resolved)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }
-
-  /**
-   * Endpoint de health check para load balancers
-   */
-  healthEndpoint () {
-    return async (req, res) => {
-      try {
-        const health = await this.runHealthChecks();
-        const status = health.status === 'healthy' ? 200 : 503;
-
-        res.status(status).json({
-          status: health.status,
-          timestamp: health.timestamp,
-          uptime: this.formatUptime(Date.now() - this.startTime),
-          version: process.env.npm_package_version || '1.0.0',
-          environment: process.env.NODE_ENV || 'development',
-          checks: health.checks,
-        });
-      } catch (error) {
-        res.status(503).json({
-          status: 'error',
-          error: 'Health check failed',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    };
-  }
-
-  /**
-   * Endpoint de métricas
-   */
-  metricsEndpoint () {
-    return (req, res) => {
-      try {
-        const metrics = this.getMetricsSummary();
-        res.json(metrics);
-      } catch (error) {
-        res.status(500).json({
-          error: 'Failed to collect metrics',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    };
-  }
-
-  /**
-   * Formatear bytes a formato legible
-   */
-  formatBytes (bytes) {
-    if (!bytes) return '0 B';
-
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
-  }
-
-  /**
-   * Formatear uptime a formato legible
-   */
-  formatUptime (ms) {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d ${hours % 24}h`;
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
-  }
-
-  /**
-   * Configurar thresholds de alertas
-   */
-  setThresholds (thresholds) {
-    this.thresholds = { ...this.thresholds, ...thresholds };
-    logger.info('Alert thresholds updated', this.thresholds);
-  }
-
-  /**
-   * Obtener estadísticas de rendimiento por endpoint
-   */
-  getPerformanceStats () {
-    const stats = {};
-
-    for (const [key, times] of this.metrics.performance.entries()) {
-      if (times.length > 0) {
-        const sorted = [...times].sort((a, b) => a - b);
-        const len = sorted.length;
-
-        stats[key] = {
-          count: len,
-          avg: Math.round(times.reduce((a, b) => a + b, 0) / len),
-          min: sorted[0],
-          max: sorted[len - 1],
-          p50: sorted[Math.floor(len * 0.5)],
-          p95: sorted[Math.floor(len * 0.95)],
-          p99: sorted[Math.floor(len * 0.99)],
-        };
-      }
-    }
-
-    return stats;
-  }
-}
-
-/**
- * UTILIDAD DE MONITOREO Y DEBUGGING - UTalk Backend
- *
- * Proporciona logs detallados para debugging y monitoreo de performance
- * Incluye métricas de queries, paginación y errores
- */
-
-/**
- * Clase para monitoreo de queries de Firestore
- */
-class QueryMonitor {
-  constructor (requestId = null) {
-    this.requestId = requestId || `monitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    this.startTime = Date.now();
-    this.queryCount = 0;
-    this.totalDocumentsRead = 0;
-    this.errors = [];
-  }
-
-  /**
-   * Iniciar monitoreo de query
-   * @param {string} collection - Nombre de la colección
-   * @param {Object} filters - Filtros aplicados
-   * @param {Object} options - Opciones adicionales
-   */
-  startQuery (collection, filters = {}, options = {}) {
-    this.queryCount++;
-    const queryStartTime = Date.now();
-
-    logger.info('[QUERY MONITOR] Iniciando query', {
-      requestId: this.requestId,
-      queryId: `${this.requestId}_query_${this.queryCount}`,
-      collection,
-      filters,
-      options,
-      timestamp: new Date().toISOString(),
-    });
-
+  getCurrentMetrics() {
     return {
-      queryId: `${this.requestId}_query_${this.queryCount}`,
-      startTime: queryStartTime,
-      collection,
-      filters,
-      options,
+      ...this.metrics,
+      storage: {
+        ...this.metrics.storage,
+        byConversation: Object.fromEntries(this.metrics.storage.byConversation),
+        byUser: Object.fromEntries(this.metrics.storage.byUser)
+      },
+      errors: {
+        ...this.metrics.errors,
+        byType: Object.fromEntries(this.metrics.errors.byType)
+      }
     };
   }
 
   /**
-   * Finalizar monitoreo de query
-   * @param {Object} queryInfo - Información de la query
-   * @param {Object} results - Resultados obtenidos
-   * @param {Error} error - Error si ocurrió
+   * 📊 OBTENER ESTADÍSTICAS DETALLADAS
    */
-  endQuery (queryInfo, results = null, error = null) {
-    const executionTime = Date.now() - queryInfo.startTime;
-    const documentsRead = results?.length || 0;
+  getDetailedStats() {
+    try {
+      const stats = {
+        overview: {
+          totalFiles: this.metrics.files.totalProcessed,
+          totalStorage: this.metrics.storage.totalUsed,
+          averageFileSize: this.metrics.storage.averageFileSize,
+          errorRate: this.metrics.performance.errorRate
+        },
+        fileTypes: this.metrics.files.byType,
+        fileSizes: this.metrics.files.bySize,
+        topConversations: this.getTopConversations(),
+        topUsers: this.getTopUsers(),
+        recentErrors: this.metrics.errors.recent.slice(0, 10),
+        systemHealth: {
+          memoryUsage: this.metrics.system.memoryUsage,
+          cpuUsage: this.metrics.system.cpuUsage,
+          diskUsage: this.metrics.system.diskUsage,
+          activeConnections: this.metrics.system.activeConnections
+        }
+      };
 
-    this.totalDocumentsRead += documentsRead;
+      return stats;
 
-    if (error) {
-      this.errors.push({
-        queryId: queryInfo.queryId,
-        error: error.message,
-        executionTime,
+    } catch (error) {
+      logger.error('❌ Error obteniendo estadísticas detalladas', {
+        error: error.message
       });
+      return null;
+    }
+  }
 
-      logger.error('[QUERY MONITOR] Query falló', {
-        requestId: this.requestId,
-        queryId: queryInfo.queryId,
-        collection: queryInfo.collection,
-        filters: queryInfo.filters,
-        error: error.message,
-        executionTime,
-        stack: error.stack,
+  /**
+   * 📊 OBTENER TOP CONVERSACIONES
+   */
+  getTopConversations(limit = 10) {
+    try {
+      const conversations = Array.from(this.metrics.storage.byConversation.entries())
+        .map(([id, data]) => ({
+          conversationId: id,
+          totalSize: data.totalSize,
+          fileCount: data.fileCount,
+          averageSize: data.totalSize / data.fileCount
+        }))
+        .sort((a, b) => b.totalSize - a.totalSize)
+        .slice(0, limit);
+
+      return conversations;
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo top conversaciones', {
+        error: error.message
       });
-    } else {
-      logger.info('[QUERY MONITOR] Query completada exitosamente', {
-        requestId: this.requestId,
-        queryId: queryInfo.queryId,
-        collection: queryInfo.collection,
-        filters: queryInfo.filters,
-        results: {
-          count: documentsRead,
-          hasMore: results?.pagination?.hasMore || false,
-          nextCursor: !!results?.pagination?.nextCursor,
+      return [];
+    }
+  }
+
+  /**
+   * 📊 OBTENER TOP USUARIOS
+   */
+  getTopUsers(limit = 10) {
+    try {
+      const users = Array.from(this.metrics.storage.byUser.entries())
+        .map(([id, data]) => ({
+          userId: id,
+          totalSize: data.totalSize,
+          fileCount: data.fileCount,
+          averageSize: data.totalSize / data.fileCount
+        }))
+        .sort((a, b) => b.totalSize - a.totalSize)
+        .slice(0, limit);
+
+      return users;
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo top usuarios', {
+        error: error.message
+      });
+      return [];
+    }
+  }
+
+  /**
+   * 📊 CATEGORIZAR TIPO DE ARCHIVO
+   */
+  categorizeFileType(mimetype) {
+    if (mimetype.startsWith('image/')) return 'images';
+    if (mimetype.startsWith('video/')) return 'videos';
+    if (mimetype.startsWith('audio/')) return 'audio';
+    if (mimetype.includes('document') || mimetype.includes('pdf') || 
+        mimetype.includes('word') || mimetype.includes('excel') || 
+        mimetype.includes('powerpoint') || mimetype.includes('text')) {
+      return 'documents';
+    }
+    return 'other';
+  }
+
+  /**
+   * 📊 CATEGORIZAR TAMAÑO DE ARCHIVO
+   */
+  categorizeFileSize(size) {
+    const sizeMB = size / 1024 / 1024;
+    if (sizeMB < 1) return 'small';
+    if (sizeMB < 10) return 'medium';
+    if (sizeMB < 100) return 'large';
+    return 'huge';
+  }
+
+  /**
+   * 📊 CATEGORIZAR ERROR
+   */
+  categorizeError(error) {
+    const message = error.message.toLowerCase();
+    
+    if (message.includes('storage') || message.includes('bucket')) return 'storage_error';
+    if (message.includes('upload') || message.includes('download')) return 'transfer_error';
+    if (message.includes('format') || message.includes('mimetype')) return 'format_error';
+    if (message.includes('size') || message.includes('limit')) return 'size_error';
+    if (message.includes('permission') || message.includes('access')) return 'permission_error';
+    if (message.includes('timeout') || message.includes('timeout')) return 'timeout_error';
+    if (message.includes('network') || message.includes('connection')) return 'network_error';
+    
+    return 'general_error';
+  }
+
+  /**
+   * 📊 RESETEAR MÉTRICAS
+   */
+  resetMetrics() {
+    try {
+      this.metrics = {
+        files: {
+          totalProcessed: 0,
+          totalUploaded: 0,
+          totalDeleted: 0,
+          byType: {
+            images: 0,
+            videos: 0,
+            audio: 0,
+            documents: 0,
+            other: 0
+          },
+          bySize: {
+            small: 0,
+            medium: 0,
+            large: 0,
+            huge: 0
+          }
+        },
+        storage: {
+          totalUsed: 0,
+          totalFiles: 0,
+          averageFileSize: 0,
+          byConversation: new Map(),
+          byUser: new Map()
         },
         performance: {
-          executionTime,
-          documentsPerSecond: executionTime > 0 ? Math.round(documentsRead / (executionTime / 1000)) : 0,
+          averageProcessingTime: 0,
+          averageUploadTime: 0,
+          cacheHitRate: 0,
+          errorRate: 0,
+          requestsPerMinute: 0
         },
+        errors: {
+          total: 0,
+          byType: new Map(),
+          recent: []
+        },
+        system: {
+          memoryUsage: 0,
+          cpuUsage: 0,
+          diskUsage: 0,
+          activeConnections: 0
+        }
+      };
+
+      logger.info('🔄 Métricas reseteadas');
+
+    } catch (error) {
+      logger.error('❌ Error reseteando métricas', {
+        error: error.message
       });
     }
   }
-
-  /**
-   * Generar reporte final de monitoreo
-   * @returns {Object} Reporte completo
-   */
-  generateReport () {
-    const totalExecutionTime = Date.now() - this.startTime;
-
-    const report = {
-      requestId: this.requestId,
-      summary: {
-        totalQueries: this.queryCount,
-        totalDocumentsRead: this.totalDocumentsRead,
-        totalExecutionTime,
-        averageQueryTime: this.queryCount > 0 ? totalExecutionTime / this.queryCount : 0,
-        errorCount: this.errors.length,
-        successRate: this.queryCount > 0 ? ((this.queryCount - this.errors.length) / this.queryCount) * 100 : 0,
-      },
-      errors: this.errors,
-      performance: {
-        queriesPerSecond: totalExecutionTime > 0 ? Math.round(this.queryCount / (totalExecutionTime / 1000)) : 0,
-        documentsPerSecond: totalExecutionTime > 0 ? Math.round(this.totalDocumentsRead / (totalExecutionTime / 1000)) : 0,
-      },
-    };
-
-    logger.info('[QUERY MONITOR] Reporte final', report);
-    return report;
-  }
 }
 
-/**
- * Decorador para monitorear funciones de query
- * @param {Function} fn - Función a monitorear
- * @param {string} collection - Nombre de la colección
- * @returns {Function} Función decorada
- */
-function monitorQuery (fn, collection) {
-  return async function (...args) {
-    const monitor = new QueryMonitor();
-    const filters = args[0] || {};
+// Instancia global del sistema de monitoreo
+const fileMonitoringSystem = new FileMonitoringSystem();
 
-    const queryInfo = monitor.startQuery(collection, filters);
-
-    try {
-      const results = await fn.apply(this, args);
-      monitor.endQuery(queryInfo, results);
-      return results;
-    } catch (error) {
-      monitor.endQuery(queryInfo, null, error);
-      throw error;
-    } finally {
-      monitor.generateReport();
-    }
-  };
-}
-
-/**
- * Log detallado de paginación
- * @param {Object} params - Parámetros de paginación
- * @param {Object} results - Resultados
- * @param {Object} options - Opciones adicionales
- */
-function logPaginationDetails (params, results, options = {}) {
-  const {
-    requestId = null,
-    endpoint = 'unknown',
-    filters = {},
-    executionTime = 0,
-  } = options;
-
-  logger.info(`[${endpoint.toUpperCase()} PAGINATION] Detalles de paginación`, {
-    requestId,
-    pagination: {
-      limit: params.limit,
-      orderBy: params.orderBy,
-      order: params.order,
-      hasCursor: !!params.cursor,
-      hasStartAfter: !!params.startAfter,
-    },
-    results: {
-      total: results.pagination?.total || 0,
-      hasMore: results.pagination?.hasMore || false,
-      showing: results.pagination?.showing || 0,
-      nextCursor: !!results.pagination?.nextCursor,
-    },
-    filters,
-    performance: {
-      executionTime,
-      itemsPerSecond: executionTime > 0 ? Math.round((results.pagination?.total || 0) / (executionTime / 1000)) : 0,
-    },
-  });
-}
-
-/**
- * Log de conteo de resultados
- * @param {string} operation - Operación realizada
- * @param {number} count - Número de elementos
- * @param {Object} filters - Filtros aplicados
- * @param {Object} options - Opciones adicionales
- */
-function logResultCount (operation, count, filters = {}, options = {}) {
-  const {
-    requestId = null,
-    endpoint = 'unknown',
-    executionTime = 0,
-    reason = null,
-  } = options;
-
-  logger.info(`[${endpoint.toUpperCase()} COUNT] Conteo de resultados`, {
-    requestId,
-    operation,
-    count,
-    filters,
-    reason,
-    performance: {
-      executionTime,
-      itemsPerSecond: executionTime > 0 ? Math.round(count / (executionTime / 1000)) : 0,
-    },
-  });
-}
-
-/**
- * Log de filtros aplicados
- * @param {Object} filters - Filtros aplicados
- * @param {Object} options - Opciones adicionales
- */
-function logAppliedFilters (filters, options = {}) {
-  const {
-    requestId = null,
-    endpoint = 'unknown',
-    reason = null,
-  } = options;
-
-  const activeFilters = Object.entries(filters)
-    .filter(([_key, value]) => value !== null && value !== undefined && value !== '')
-    .reduce((acc, [key, value]) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
-  logger.info(`[${endpoint.toUpperCase()} FILTERS] Filtros aplicados`, {
-    requestId,
-    activeFilters,
-    totalFilters: Object.keys(filters).length,
-    activeFiltersCount: Object.keys(activeFilters).length,
-    reason,
-    timestamp: new Date().toISOString(),
-  });
-}
-
-/**
- * Log de errores de validación
- * @param {Array} errors - Errores de validación
- * @param {Object} options - Opciones adicionales
- */
-function logValidationErrors (errors, options = {}) {
-  const {
-    requestId = null,
-    endpoint = 'unknown',
-    data = null,
-  } = options;
-
-  logger.warn(`[${endpoint.toUpperCase()} VALIDATION] Errores de validación`, {
-    requestId,
-    errors,
-    errorCount: errors.length,
-    data,
-    timestamp: new Date().toISOString(),
-  });
-}
-
-/**
- * Log de performance de endpoint
- * @param {string} endpoint - Nombre del endpoint
- * @param {Object} metrics - Métricas de performance
- * @param {Object} options - Opciones adicionales
- */
-function logEndpointPerformance (endpoint, metrics, options = {}) {
-  const {
-    requestId = null,
-    userId = null,
-    userRole = null,
-  } = options;
-
-  logger.info(`[${endpoint.toUpperCase()} PERFORMANCE] Métricas de endpoint`, {
-    requestId,
-    userId,
-    userRole,
-    metrics: {
-      executionTime: metrics.executionTime,
-      queriesExecuted: metrics.queriesExecuted || 0,
-      documentsRead: metrics.documentsRead || 0,
-      memoryUsage: metrics.memoryUsage || null,
-      cpuUsage: metrics.cpuUsage || null,
-    },
-    performance: {
-      queriesPerSecond: metrics.executionTime > 0 ? Math.round((metrics.queriesExecuted || 0) / (metrics.executionTime / 1000)) : 0,
-      documentsPerSecond: metrics.executionTime > 0 ? Math.round((metrics.documentsRead || 0) / (metrics.executionTime / 1000)) : 0,
-    },
-    timestamp: new Date().toISOString(),
-  });
-}
-
-/**
- * Log de índices utilizados
- * @param {string} collection - Colección consultada
- * @param {Object} filters - Filtros aplicados
- * @param {string} indexUsed - Índice utilizado
- * @param {Object} options - Opciones adicionales
- */
-function logIndexUsage (collection, filters, indexUsed, options = {}) {
-  const {
-    requestId = null,
-    endpoint = 'unknown',
-    executionTime = 0,
-  } = options;
-
-  logger.info(`[${endpoint.toUpperCase()} INDEX] Uso de índice`, {
-    requestId,
-    collection,
-    filters,
-    indexUsed,
-    performance: {
-      executionTime,
-      indexEfficiency: executionTime < 200 ? 'excellent' : executionTime < 500 ? 'good' : 'poor',
-    },
-    timestamp: new Date().toISOString(),
-  });
-}
-
-// Crear instancia única
-const monitoring = new MonitoringService();
-
-module.exports = {
-  MonitoringService,
-  monitoring,
-
-  // Middlewares
-  requestMetrics: monitoring.requestMetrics(),
-
-  // Endpoints
-  healthEndpoint: monitoring.healthEndpoint(),
-  metricsEndpoint: monitoring.metricsEndpoint(),
-
-  // Utilidades
-  getMetrics: () => monitoring.getMetricsSummary(),
-  getHealth: () => monitoring.lastHealthCheck,
-  getAlerts: () => monitoring.getActiveAlerts(),
-  getPerformance: () => monitoring.getPerformanceStats(),
-  setThresholds: (thresholds) => monitoring.setThresholds(thresholds),
-  QueryMonitor,
-  monitorQuery,
-  logPaginationDetails,
-  logResultCount,
-  logAppliedFilters,
-  logValidationErrors,
-  logEndpointPerformance,
-  logIndexUsage,
-};
+module.exports = fileMonitoringSystem;
