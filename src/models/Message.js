@@ -565,11 +565,95 @@ class Message {
       const normalizedCreatedAt = safeDateToISOString(this.createdAt);
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
+    // 🔍 LOG PARA DEBUGGEAR TOJSON
+    console.log('🔍 MESSAGE TOJSON - PROCESANDO MEDIA URL:', {
+      messageId: this.id,
+      originalMediaUrl: this.mediaUrl,
+      type: this.type,
+      hasMediaUrl: !!this.mediaUrl
+    });
+
+    // 🔧 CORRECCIÓN CRÍTICA: Generar URL pública para mediaUrl si existe
+    let processedMediaUrl = this.mediaUrl;
+    
+    if (this.mediaUrl) {
+      try {
+        const baseUrl = process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app';
+        
+        // 🔍 LOG PARA DEBUGGEAR TRANSFORMACIÓN DE URL
+        console.log('🔍 MESSAGE TOJSON - TRANSFORMANDO URL:', {
+          messageId: this.id,
+          originalMediaUrl: this.mediaUrl,
+          baseUrl: baseUrl,
+          isFirebase: this.mediaUrl.includes('firebase'),
+          isTwilio: this.mediaUrl.includes('api.twilio.com')
+        });
+        
+        if (this.mediaUrl.includes('firebase')) {
+          // Si es una URL de Firebase Storage, generar URL pública
+          const urlParts = this.mediaUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          const fileId = fileName.split('.')[0]; // Remover extensión
+          
+          // Generar URL pública del proxy
+          processedMediaUrl = `${baseUrl}/media/proxy-file-public/${fileId}`;
+          
+          console.log('🔍 MESSAGE TOJSON - FIREBASE URL TRANSFORMADA:', {
+            messageId: this.id,
+            originalUrl: this.mediaUrl,
+            publicUrl: processedMediaUrl,
+            fileId
+          });
+        } else if (this.mediaUrl.includes('api.twilio.com')) {
+          // Si es una URL de Twilio, generar URL pública del proxy
+          const urlParts = this.mediaUrl.split('/');
+          const messageSid = urlParts[urlParts.length - 3]; // MM...
+          const mediaSid = urlParts[urlParts.length - 1]; // ME...
+          
+          // Generar URL pública del proxy de Twilio
+          processedMediaUrl = `${baseUrl}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
+          
+          console.log('🔍 MESSAGE TOJSON - TWILIO URL TRANSFORMADA:', {
+            messageId: this.id,
+            originalUrl: this.mediaUrl,
+            publicUrl: processedMediaUrl,
+            messageSid,
+            mediaSid,
+            urlParts: urlParts
+          });
+        } else {
+          console.log('🔍 MESSAGE TOJSON - URL NO RECONOCIDA:', {
+            messageId: this.id,
+            originalUrl: this.mediaUrl,
+            processedMediaUrl: this.mediaUrl // Mantener original
+          });
+          processedMediaUrl = this.mediaUrl; // Mantener URL original
+        }
+      } catch (error) {
+        console.log('🔍 MESSAGE TOJSON - ERROR EN TRANSFORMACIÓN:', {
+          messageId: this.id,
+          originalUrl: this.mediaUrl,
+          error: error.message,
+          stack: error.stack
+        });
+        // Mantener URL original si hay error
+        processedMediaUrl = this.mediaUrl;
+      }
+    }
+
+    // 🔍 LOG FINAL PARA DEBUGGEAR TOJSON
+    console.log('🔍 MESSAGE TOJSON - RESULTADO FINAL:', {
+      messageId: this.id,
+      originalMediaUrl: this.mediaUrl,
+      processedMediaUrl: processedMediaUrl,
+      hasProcessedMediaUrl: !!processedMediaUrl
+    });
+
     return {
       id: this.id,
       conversationId: this.conversationId,
       content: this.content,
-      mediaUrl: this.mediaUrl,
+      mediaUrl: processedMediaUrl,
       
       // NUEVO: Campos planos para Socket.IO
       senderIdentifier: this.senderIdentifier,

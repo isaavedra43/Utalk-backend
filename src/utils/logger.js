@@ -156,8 +156,8 @@ if (logMonitor) {
 
 // Configuración específica para Railway
 if (process.env.RAILWAY_ENVIRONMENT) {
-  // Reducir verbosidad en Railway para evitar límites de velocidad
-  logger.level = 'warn';
+  // 🔧 CORRECCIÓN CRÍTICA: Reducir verbosidad en Railway para evitar rate limits
+  logger.level = 'error'; // Solo errores críticos
   
   // Agregar transporte de emergencia para Railway
   logger.add(new winston.transports.Console({
@@ -166,6 +166,8 @@ if (process.env.RAILWAY_ENVIRONMENT) {
     handleExceptions: true,
     handleRejections: true
   }));
+  
+  console.log('🔧 Logger configurado para Railway: solo errores críticos');
 }
 
 // Método para obtener estadísticas del logger

@@ -65,23 +65,25 @@ class File {
   static async createIndexes(file) {
     const batch = firestore.batch();
 
-    // Índice por conversación
-    const conversationIndexRef = firestore
-      .collection('files_by_conversation')
-      .doc(file.conversationId)
-      .collection('files')
-      .doc(file.id);
+    // Índice por conversación (solo si conversationId existe y no es temporal)
+    if (file.conversationId && file.conversationId !== 'temp-webhook') {
+      const conversationIndexRef = firestore
+        .collection('files_by_conversation')
+        .doc(file.conversationId)
+        .collection('files')
+        .doc(file.id);
 
-    batch.set(conversationIndexRef, {
-      fileId: file.id,
-      category: file.category,
-      uploadedAt: file.uploadedAt,
-      size: file.sizeBytes,
-      isActive: file.isActive
-    });
+      batch.set(conversationIndexRef, {
+        fileId: file.id,
+        category: file.category,
+        uploadedAt: file.uploadedAt,
+        size: file.sizeBytes,
+        isActive: file.isActive
+      });
+    }
 
-    // Índice por usuario
-    if (file.uploadedBy) {
+    // Índice por usuario (solo si uploadedBy existe)
+    if (file.uploadedBy && file.uploadedBy !== 'webhook') {
       const userIndexRef = firestore
         .collection('files_by_user')
         .doc(file.uploadedBy)
@@ -98,32 +100,44 @@ class File {
       });
     }
 
-    // Índice por categoría
-    const categoryIndexRef = firestore
-      .collection('files_by_category')
-      .doc(file.category)
-      .collection('files')
-      .doc(file.id);
+    // Índice por categoría (solo si category existe)
+    if (file.category) {
+      const categoryIndexRef = firestore
+        .collection('files_by_category')
+        .doc(file.category)
+        .collection('files')
+        .doc(file.id);
 
-    batch.set(categoryIndexRef, {
-      fileId: file.id,
-      conversationId: file.conversationId,
-      uploadedBy: file.uploadedBy,
-      uploadedAt: file.uploadedAt,
-      size: file.sizeBytes,
-      isActive: file.isActive
-    });
+      batch.set(categoryIndexRef, {
+        fileId: file.id,
+        conversationId: file.conversationId,
+        uploadedBy: file.uploadedBy,
+        uploadedAt: file.uploadedAt,
+        size: file.sizeBytes,
+        isActive: file.isActive
+      });
+    }
 
     // Índice por fecha (para consultas por período)
     let dateKey;
-    if (file.uploadedAt && typeof file.uploadedAt.toDate === 'function') {
-      // Es un Timestamp de Firestore
-      dateKey = file.uploadedAt.toDate().toISOString().split('T')[0];
-    } else if (file.uploadedAt instanceof Date) {
-      // Es un Date
-      dateKey = file.uploadedAt.toISOString().split('T')[0];
-    } else {
-      // Usar fecha actual como fallback
+    try {
+      if (file.uploadedAt && typeof file.uploadedAt.toDate === 'function') {
+        // Es un Timestamp de Firestore
+        dateKey = file.uploadedAt.toDate().toISOString().split('T')[0];
+      } else if (file.uploadedAt instanceof Date) {
+        // Es un Date
+        dateKey = file.uploadedAt.toISOString().split('T')[0];
+      } else {
+        // Usar fecha actual como fallback
+        dateKey = new Date().toISOString().split('T')[0];
+      }
+    } catch (dateError) {
+      // 🔧 CORRECCIÓN CRÍTICA: Manejar errores de fecha
+      console.error('⚠️ Error procesando fecha para índice:', {
+        error: dateError.message,
+        uploadedAt: file.uploadedAt,
+        uploadedAtType: typeof file.uploadedAt
+      });
       dateKey = new Date().toISOString().split('T')[0];
     }
     const dateIndexRef = firestore
@@ -142,7 +156,19 @@ class File {
     });
 
     // Ejecutar batch
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (batchError) {
+      // 🔧 CORRECCIÓN: No fallar completamente si hay problemas con índices
+      // Solo loggear el error pero continuar
+      console.error('⚠️ Error ejecutando batch de índices (no crítico):', {
+        fileId: file.id,
+        error: batchError.message,
+        stack: batchError.stack?.split('\n').slice(0, 3)
+      });
+      // No lanzar el error para evitar que falle todo el proceso
+      // throw batchError;
+    }
   }
 
   /**

@@ -117,7 +117,7 @@ const authMiddleware = async (req, res, next) => {
         issuer: jwtConfig.issuer,
         audience: jwtConfig.audience,
         algorithms: ['HS256'], // ✅ SUPER ROBUSTO: Especificar algoritmo
-        clockTolerance: 30, // ✅ SUPER ROBUSTO: Tolerancia de 30 segundos
+        clockTolerance: 60, // 🔧 CORRECCIÓN: Aumentado a 60 segundos para consistencia con WebSockets
       });
       
       logger.info('✅ Token JWT verificado exitosamente', {

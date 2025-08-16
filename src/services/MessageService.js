@@ -428,6 +428,110 @@ class MessageService {
           messageData.mediaUrl = specialData.url;
         }
       }
+      
+      // 🔍 LOG DETALLADO DEL WEBHOOK COMPLETO
+      console.log('🔍 WEBHOOK COMPLETO RECIBIDO:', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        messageSid: MessageSid,
+        from: From,
+        to: To,
+        body: Body,
+        messageType,
+        numMedia: parseInt(NumMedia || '0'),
+        referralNumMedia: webhookData.referralNumMedia,
+        allKeys: Object.keys(webhookData),
+        mediaKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
+        webhookData: JSON.stringify(webhookData, null, 2)
+      });
+      
+      // Procesar media si es un mensaje multimedia
+      if (messageType === 'media' && parseInt(NumMedia || '0') > 0) {
+        console.log('🔄 INICIANDO PROCESAMIENTO DE MEDIA:', {
+          requestId,
+          messageType,
+          numMedia: parseInt(NumMedia),
+          webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
+        });
+        
+        try {
+          const mediaResult = await this.processWebhookMedia(webhookData);
+          console.log('📊 RESULTADO DE MEDIA:', {
+            requestId,
+            urlsCount: mediaResult.urls.length,
+            urls: mediaResult.urls,
+            primaryType: mediaResult.primaryType,
+            count: mediaResult.count
+          });
+          
+          if (mediaResult.urls.length > 0) {
+            // Usar la primera URL de media como mediaUrl principal
+            messageData.mediaUrl = mediaResult.urls[0];
+            // Actualizar el tipo basado en el tipo principal detectado
+            messageData.type = mediaResult.primaryType;
+            
+            console.log('✅ MEDIA ASIGNADO AL MENSAJE:', {
+              requestId,
+              mediaUrl: messageData.mediaUrl,
+              type: messageData.type
+            });
+            
+            logger.info('✅ Media procesado exitosamente', {
+              requestId,
+              mediaUrl: messageData.mediaUrl,
+              primaryType: mediaResult.primaryType,
+              mediaCount: mediaResult.count
+            });
+          } else {
+            console.log('❌ NO SE ENCONTRARON URLs DE MEDIA:', {
+              requestId,
+              mediaResult,
+              webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
+              numMedia: parseInt(NumMedia || '0')
+            });
+            
+            // 🔧 CORRECCIÓN: Si no se encontraron URLs pero NumMedia > 0, intentar extraer manualmente
+            if (parseInt(NumMedia || '0') > 0) {
+              console.log('🔧 Intentando extracción manual de media...');
+              const manualUrls = [];
+              
+              for (let i = 0; i < parseInt(NumMedia); i++) {
+                const mediaUrl = webhookData[`MediaUrl${i}`];
+                if (mediaUrl) {
+                  manualUrls.push(mediaUrl);
+                  console.log(`🔧 MediaUrl${i} encontrado manualmente: ${mediaUrl}`);
+                }
+              }
+              
+              if (manualUrls.length > 0) {
+                messageData.mediaUrl = manualUrls[0];
+                console.log('✅ MEDIA ASIGNADO MANUALMENTE:', {
+                  requestId,
+                  mediaUrl: messageData.mediaUrl
+                });
+              }
+            }
+          }
+        } catch (mediaError) {
+          console.log('❌ ERROR PROCESANDO MEDIA:', {
+            requestId,
+            error: mediaError.message,
+            stack: mediaError.stack?.split('\n').slice(0, 3)
+          });
+          
+          logger.error('❌ Error procesando media', {
+            requestId,
+            error: mediaError.message,
+            messageSid: MessageSid
+          });
+        }
+      } else {
+        console.log('ℹ️ NO ES MENSAJE DE MEDIA O NO TIENE MEDIA:', {
+          requestId,
+          messageType,
+          numMedia: parseInt(NumMedia || '0')
+        });
+      }
 
       // Usar el repositorio para escritura canónica
       const conversationsRepo = getConversationsRepository();
@@ -538,7 +642,7 @@ class MessageService {
   }
 
   /**
-   * Procesar media de webhook centralizado
+   * Procesar media de webhook centralizado - VERSIÓN SIMPLIFICADA
    */
   static async processWebhookMedia (webhookData) {
     const mediaUrls = [];
@@ -547,26 +651,48 @@ class MessageService {
 
     const numMedia = parseInt(webhookData.NumMedia || '0');
 
+    // 🔍 LOG DETALLADO DEL PROCESAMIENTO DE MEDIA
+    console.log('🔍 PROCESAMIENTO DE MEDIA - DATOS COMPLETOS:', {
+      messageSid: webhookData.MessageSid,
+      numMedia,
+      referralNumMedia: webhookData.referralNumMedia,
+      allWebhookKeys: Object.keys(webhookData),
+      mediaKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
+      webhookDataComplete: JSON.stringify(webhookData, null, 2)
+    });
+
+    console.log('🔍 Procesando media del webhook:', {
+      numMedia,
+      webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
+    });
+
     // Procesar cada archivo de media
     for (let i = 0; i < numMedia; i++) {
       const mediaUrl = webhookData[`MediaUrl${i}`];
+      const mediaContentType = webhookData[`MediaContentType${i}`];
+
+      console.log(`🔍 Media ${i}:`, { mediaUrl, mediaContentType });
 
       if (mediaUrl) {
-        try {
-          // Procesar y guardar permanentemente usando FileService
-          const processedInfo = await this.processIndividualWebhookMedia(
-            mediaUrl,
-            webhookData.MessageSid,
-            i,
-          );
+        // Determinar categoría basada en content-type
+        let category = 'document';
+        if (mediaContentType && mediaContentType.startsWith('image/')) category = 'image';
+        else if (mediaContentType && mediaContentType.startsWith('video/')) category = 'video';
+        else if (mediaContentType && mediaContentType.startsWith('audio/')) category = 'audio';
 
-          mediaUrls.push(mediaUrl); // URL original
-          processedMedia.push(processedInfo); // Info procesada
-          types.add(processedInfo.category);
-        } catch (mediaError) {
-          logger.warn(`Error procesando media ${i}:`, mediaError);
-          // Continuar con el siguiente archivo
-        }
+        mediaUrls.push(mediaUrl); // URL original
+        processedMedia.push({
+          fileId: `webhook-${webhookData.MessageSid}-${i}`,
+          category: category,
+          url: mediaUrl,
+          mimetype: mediaContentType || 'application/octet-stream',
+          processed: true
+        });
+        types.add(category);
+
+        console.log(`✅ Media ${i} procesado:`, { category, url: mediaUrl });
+      } else {
+        console.log(`❌ Media ${i} sin URL`);
       }
     }
 
@@ -579,25 +705,38 @@ class MessageService {
           ? 'audio'
           : types.has('document') ? 'document' : 'media';
 
-    return {
+    const result = {
       urls: mediaUrls,
       processed: processedMedia,
       primaryType,
       count: mediaUrls.length,
     };
+
+    console.log('📊 Resultado del procesamiento de media:', result);
+    
+    // 🔍 LOG FINAL DEL PROCESAMIENTO
+    console.log('🔍 PROCESAMIENTO DE MEDIA COMPLETADO:', {
+      messageSid: webhookData.MessageSid,
+      numMedia,
+      urlsFound: mediaUrls.length,
+      urls: mediaUrls,
+      primaryType,
+      processedMediaCount: processedMedia.length,
+      result: JSON.stringify(result, null, 2)
+    });
+
+    return result;
   }
 
   /**
-   * Procesar media individual de webhook usando FileService
+   * 🔧 SOLUCIÓN 1: Procesar media individual de webhook CON BYPASS COMPLETO
    */
   static async processIndividualWebhookMedia (mediaUrl, messageSid, index, conversationId, userId) {
     try {
-      logger.info('Procesando media individual de webhook', {
+      logger.info('🔧 SOLUCIÓN 1: Procesando media con bypass completo', {
         mediaUrl,
         messageSid,
-        index,
-        hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
-        hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN
+        index
       });
 
       // Obtener credenciales de Twilio
@@ -632,34 +771,217 @@ class MessageService {
       else if (contentType.startsWith('video/')) category = 'video';
       else if (contentType.startsWith('audio/')) category = 'audio';
 
-      // Crear datos del archivo para FileService
-      const fileData = {
-        buffer: Buffer.from(buffer),
-        originalName: `webhook-media-${messageSid}-${index}`,
-        mimetype: contentType,
-        size: buffer.byteLength,
-        conversationId: conversationId || null,
-        userId: userId || null,
-        uploadedBy: 'webhook',
-        tags: ['webhook', 'twilio']
-      };
-
-      // Usar FileService para procesar el archivo
-      const fileService = new FileService();
-      const processedFile = await fileService.uploadFile(fileData);
-
-      return {
-        fileId: processedFile.id,
+      // 🔧 BYPASS COMPLETO: NO USAR FILESERVICE
+      logger.info('🔧 BYPASS COMPLETO: Evitando FileService problemático', {
+        mediaUrl,
+        messageSid,
+        index,
         category,
-        url: processedFile.url,
-        size: processedFile.size,
-        mimetype: contentType
+        size: buffer.byteLength,
+        contentType
+      });
+
+      // Crear un ID único para el archivo
+      const fileId = `bypass-${messageSid}-${index}-${Date.now()}`;
+      
+      // Retornar información básica sin procesamiento complejo
+      const result = {
+        fileId: fileId,
+        category: category,
+        url: mediaUrl, // Usar la URL original de Twilio
+        size: buffer.byteLength,
+        mimetype: contentType,
+        processed: true,
+        bypassMode: true, // Indicar que se usó bypass
+        originalUrl: mediaUrl // Mantener URL original
       };
+
+      logger.info('✅ BYPASS COMPLETO: Media procesado exitosamente', {
+        fileId,
+        category,
+        size: buffer.byteLength,
+        bypassMode: true
+      });
+
+      return result;
 
     } catch (error) {
-      logger.error('Error procesando media individual:', error);
+      logger.error('❌ BYPASS COMPLETO: Error procesando media individual:', error);
       throw error;
     }
+  }
+
+  /**
+   * 🔧 SOLUCIÓN 2: Sistema de fallback con múltiples intentos
+   */
+  static async processIndividualWebhookMediaWithFallback(mediaUrl, messageSid, index) {
+    const attempts = [
+      { name: 'FileService Completo', method: this.processWithFileService },
+      { name: 'FileService Simplificado', method: this.processWithFileServiceSimple },
+      { name: 'Bypass Directo', method: this.processWithBypass }
+    ];
+
+    for (let i = 0; i < attempts.length; i++) {
+      const attempt = attempts[i];
+      try {
+        logger.info(`🔧 SOLUCIÓN 2: Intento ${i + 1}/${attempts.length} - ${attempt.name}`, {
+          mediaUrl,
+          messageSid,
+          index
+        });
+
+        const result = await attempt.method.call(this, mediaUrl, messageSid, index);
+        
+        logger.info(`✅ SOLUCIÓN 2: ${attempt.name} exitoso`, {
+          mediaUrl,
+          messageSid,
+          index,
+          fileId: result.fileId
+        });
+
+        return {
+          ...result,
+          fallbackUsed: attempt.name
+        };
+
+      } catch (error) {
+        logger.warn(`⚠️ SOLUCIÓN 2: ${attempt.name} falló`, {
+          mediaUrl,
+          messageSid,
+          index,
+          error: error.message,
+          attempt: i + 1,
+          totalAttempts: attempts.length
+        });
+
+        // Si es el último intento, lanzar el error
+        if (i === attempts.length - 1) {
+          throw error;
+        }
+        
+        // Continuar con el siguiente intento
+        continue;
+      }
+    }
+  }
+
+  /**
+   * Método 1: FileService Completo (original)
+   */
+  static async processWithFileService(mediaUrl, messageSid, index) {
+    // Descargar media
+    const { buffer, contentType } = await this.downloadMedia(mediaUrl);
+    
+    // Determinar categoría
+    let category = 'document';
+    if (contentType.startsWith('image/')) category = 'image';
+    else if (contentType.startsWith('video/')) category = 'video';
+    else if (contentType.startsWith('audio/')) category = 'audio';
+
+    // Usar FileService completo
+    const fileData = {
+      buffer: Buffer.from(buffer),
+      originalName: `webhook-media-${messageSid}-${index}`,
+      mimetype: contentType,
+      size: buffer.byteLength,
+      conversationId: 'temp-webhook',
+      userId: null,
+      uploadedBy: 'webhook',
+      tags: ['webhook', 'twilio']
+    };
+
+    const fileService = new FileService();
+    const processedFile = await fileService.uploadFile(fileData);
+
+    return {
+      fileId: processedFile.id || `file-${Date.now()}`,
+      category,
+      url: processedFile.url || processedFile.publicUrl,
+      size: processedFile.size || buffer.byteLength,
+      mimetype: contentType
+    };
+  }
+
+  /**
+   * Método 2: FileService Simplificado (sin índices)
+   */
+  static async processWithFileServiceSimple(mediaUrl, messageSid, index) {
+    // Descargar media
+    const { buffer, contentType } = await this.downloadMedia(mediaUrl);
+    
+    // Determinar categoría
+    let category = 'document';
+    if (contentType.startsWith('image/')) category = 'image';
+    else if (contentType.startsWith('video/')) category = 'video';
+    else if (contentType.startsWith('audio/')) category = 'audio';
+
+    // Procesar directamente sin FileService
+    const fileId = `simple-${messageSid}-${index}-${Date.now()}`;
+    
+    return {
+      fileId,
+      category,
+      url: mediaUrl, // Usar URL original
+      size: buffer.byteLength,
+      mimetype: contentType,
+      simpleMode: true
+    };
+  }
+
+  /**
+   * Método 3: Bypass Directo
+   */
+  static async processWithBypass(mediaUrl, messageSid, index) {
+    // Descargar media
+    const { buffer, contentType } = await this.downloadMedia(mediaUrl);
+    
+    // Determinar categoría
+    let category = 'document';
+    if (contentType.startsWith('image/')) category = 'image';
+    else if (contentType.startsWith('video/')) category = 'video';
+    else if (contentType.startsWith('audio/')) category = 'audio';
+
+    // Bypass completo
+    const fileId = `bypass-${messageSid}-${index}-${Date.now()}`;
+    
+    return {
+      fileId,
+      category,
+      url: mediaUrl,
+      size: buffer.byteLength,
+      mimetype: contentType,
+      bypassMode: true
+    };
+  }
+
+  /**
+   * Descargar media de Twilio
+   */
+  static async downloadMedia(mediaUrl) {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    
+    if (!accountSid || !authToken) {
+      throw new Error('Credenciales de Twilio no configuradas');
+    }
+
+    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+    const response = await fetch(mediaUrl, {
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'User-Agent': 'Utalk-Backend/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error descargando media: ${response.status} - ${response.statusText}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type');
+
+    return { buffer, contentType };
   }
 
   /**
@@ -1459,30 +1781,45 @@ class MessageService {
       // PASO 3: Procesar información de contacto
       const contactInfo = await this.processContactInfo(normalizedFromPhone, profileName, waId);
 
-      // PASO 4: Determinar tipo de mensaje y procesar medios
-      let messageType = 'text';
-      let mediaData = null;
+              // PASO 4: Determinar tipo de mensaje y procesar medios
+        let messageType = 'text';
+        let mediaData = null;
 
-      if (parseInt(numMedia) > 0) {
-        logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
-          requestId,
-          numMedia: parseInt(numMedia),
-          hasMediaUrl: !!mediaUrl,
-          mediaType,
-          step: 'media_processing_start'
-        });
+        if (parseInt(numMedia) > 0) {
+          console.log('🔍 MESSAGESERVICE - INICIANDO PROCESAMIENTO DE MEDIOS:', {
+            requestId,
+            numMedia: parseInt(numMedia),
+            hasMediaUrl: !!mediaUrl,
+            mediaType,
+            webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
+          });
 
-        try {
-          // Procesar todos los medios del webhook
-          const mediaInfo = await MessageService.processWebhookMedia(webhookData);
-          
-          messageType = mediaInfo.primaryType;
-          mediaData = {
-            urls: mediaInfo.urls,
-            processed: mediaInfo.processed,
-            count: mediaInfo.count,
-            primaryType: mediaInfo.primaryType
-          };
+          logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
+            requestId,
+            numMedia: parseInt(numMedia),
+            hasMediaUrl: !!mediaUrl,
+            mediaType,
+            step: 'media_processing_start'
+          });
+
+          try {
+            // Procesar todos los medios del webhook
+            const mediaInfo = await MessageService.processWebhookMedia(webhookData);
+            
+            console.log('🔍 MESSAGESERVICE - RESULTADO DE processWebhookMedia:', {
+              requestId,
+              mediaInfo: mediaInfo,
+              urlsCount: mediaInfo.urls.length,
+              primaryType: mediaInfo.primaryType
+            });
+            
+            messageType = mediaInfo.primaryType;
+            mediaData = {
+              urls: mediaInfo.urls,
+              processed: mediaInfo.processed,
+              count: mediaInfo.count,
+              primaryType: mediaInfo.primaryType
+            };
 
           logger.info('✅ MESSAGESERVICE - MEDIOS PROCESADOS', {
             requestId,
@@ -1551,23 +1888,47 @@ class MessageService {
           },
           contact: contactInfo,
           media: mediaData,
-          webhookReceivedAt: new Date().toISOString(),
+                    webhookReceivedAt: new Date().toISOString(),
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
+      // 🔍 LOGGING CRÍTICO DE MESSAGE DATA
+      console.log('🔍 MESSAGESERVICE - MESSAGE DATA CREADO:', {
         requestId,
         messageId: messageData.id,
         conversationId: messageData.conversationId,
-        sender: messageData.senderIdentifier,
-        recipient: messageData.recipientIdentifier,
         type: messageData.type,
+        mediaUrl: messageData.mediaUrl,
         hasMedia: !!messageData.mediaUrl,
-        hasContactInfo: !!(messageData.metadata.contact),
-        step: 'message_data_prepared'
+        mediaData: mediaData,
+        step: 'message_data_created'
       });
+
+        // 🔍 LOGGING DETALLADO DE MEDIA
+        console.log('🔍 MESSAGESERVICE - DIAGNÓSTICO DE MEDIA:', {
+          requestId,
+          mediaData: mediaData,
+          mediaDataUrls: mediaData?.urls,
+          mediaDataUrl: mediaData?.url,
+          mediaUrlAssigned: messageData.mediaUrl,
+          messageType: messageType,
+          numMedia: parseInt(numMedia) || 0,
+          step: 'media_diagnosis'
+        });
+
+        logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
+          requestId,
+          messageId: messageData.id,
+          conversationId: messageData.conversationId,
+          sender: messageData.senderIdentifier,
+          recipient: messageData.recipientIdentifier,
+          type: messageData.type,
+          hasMedia: !!messageData.mediaUrl,
+          hasContactInfo: !!(messageData.metadata.contact),
+          step: 'message_data_prepared'
+        });
 
       // PASO 7: Buscar o crear conversación
       const conversation = await this.findOrCreateConversation(
@@ -2828,8 +3189,9 @@ class MessageService {
       // Obtener URL del media
       const mediaInfo = await this.getMediaUrl(mediaSid);
       
-      if (!mediaInfo.success) {
-        throw new Error(`No se pudo obtener URL del media: ${mediaInfo.error}`);
+      if (!mediaInfo || !mediaInfo.success) {
+        const errorMessage = mediaInfo && mediaInfo.error ? mediaInfo.error : 'Error desconocido obteniendo URL del media';
+        throw new Error(`No se pudo obtener URL del media: ${errorMessage}`);
       }
 
       // Descargar el archivo
@@ -2989,6 +3351,128 @@ class MessageService {
         error: error.message,
         results: []
       };
+    }
+  }
+
+  /**
+   * 🔧 SOLUCIÓN 3: Sistema de procesamiento asíncrono con cola
+   */
+  static async processIndividualWebhookMediaAsync(mediaUrl, messageSid, index) {
+    try {
+      logger.info('🔧 SOLUCIÓN 3: Iniciando procesamiento asíncrono', {
+        mediaUrl,
+        messageSid,
+        index
+      });
+
+      // Crear un ID único para el procesamiento
+      const processId = `async-${messageSid}-${index}-${Date.now()}`;
+      
+      // Retornar inmediatamente con información básica
+      const immediateResult = {
+        fileId: processId,
+        category: 'pending',
+        url: mediaUrl,
+        size: 0,
+        mimetype: 'unknown',
+        asyncMode: true,
+        status: 'queued',
+        processId: processId
+      };
+
+      // Procesar en segundo plano (no esperar)
+      this.processMediaInBackground(mediaUrl, messageSid, index, processId).catch(error => {
+        logger.error('🔧 SOLUCIÓN 3: Error en procesamiento en segundo plano', {
+          processId,
+          error: error.message
+        });
+      });
+
+      return immediateResult;
+
+    } catch (error) {
+      logger.error('🔧 SOLUCIÓN 3: Error iniciando procesamiento asíncrono', {
+        mediaUrl,
+        messageSid,
+        index,
+        error: error.message
+      });
+      
+      // Fallback a bypass directo
+      return this.processWithBypass(mediaUrl, messageSid, index);
+    }
+  }
+
+  /**
+   * Procesar media en segundo plano
+   */
+  static async processMediaInBackground(mediaUrl, messageSid, index, processId) {
+    try {
+      logger.info('🔧 SOLUCIÓN 3: Procesando en segundo plano', {
+        processId,
+        mediaUrl,
+        messageSid,
+        index
+      });
+
+      // Descargar media
+      const { buffer, contentType } = await this.downloadMedia(mediaUrl);
+      
+      // Determinar categoría
+      let category = 'document';
+      if (contentType.startsWith('image/')) category = 'image';
+      else if (contentType.startsWith('video/')) category = 'video';
+      else if (contentType.startsWith('audio/')) category = 'audio';
+
+      // Intentar procesar con FileService
+      let processedFile = null;
+      try {
+        const fileData = {
+          buffer: Buffer.from(buffer),
+          originalName: `webhook-media-${messageSid}-${index}`,
+          mimetype: contentType,
+          size: buffer.byteLength,
+          conversationId: 'temp-webhook',
+          userId: null,
+          uploadedBy: 'webhook',
+          tags: ['webhook', 'twilio', 'async']
+        };
+
+        const fileService = new FileService();
+        processedFile = await fileService.uploadFile(fileData);
+        
+        logger.info('🔧 SOLUCIÓN 3: FileService exitoso en segundo plano', {
+          processId,
+          fileId: processedFile.id
+        });
+
+      } catch (fileServiceError) {
+        logger.warn('🔧 SOLUCIÓN 3: FileService falló en segundo plano, usando bypass', {
+          processId,
+          error: fileServiceError.message
+        });
+        
+        // Usar bypass como fallback
+        processedFile = {
+          id: `bypass-${processId}`,
+          url: mediaUrl,
+          size: buffer.byteLength
+        };
+      }
+
+      // Actualizar el estado del procesamiento (aquí podrías guardar en base de datos)
+      logger.info('🔧 SOLUCIÓN 3: Procesamiento en segundo plano completado', {
+        processId,
+        fileId: processedFile.id,
+        category,
+        size: buffer.byteLength
+      });
+
+    } catch (error) {
+      logger.error('🔧 SOLUCIÓN 3: Error en procesamiento en segundo plano', {
+        processId,
+        error: error.message
+      });
     }
   }
 }

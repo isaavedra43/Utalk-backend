@@ -36,6 +36,33 @@ function safeGetSet(map, key) {
   return map.get(key);
 }
 
+// Helper defensivo para emitir eventos de forma segura
+function safeEmit(socket, eventName, data) {
+  if (socket && typeof socket.emit === 'function') {
+    try {
+      socket.emit(eventName, data);
+      return true;
+    } catch (error) {
+      logger.error('Error emitiendo evento al socket', {
+        category: 'SOCKET_SAFE_EMIT_ERROR',
+        eventName,
+        socketId: socket?.id,
+        error: error.message
+      });
+      return false;
+    }
+  } else {
+    logger.error('Socket no válido para emitir evento', {
+      category: 'SOCKET_INVALID_FOR_EMIT',
+      eventName,
+      socketExists: !!socket,
+      hasEmitMethod: socket && typeof socket.emit === 'function',
+      socketId: socket?.id
+    });
+    return false;
+  }
+}
+
 // Event definitions con metadata
 const SOCKET_EVENTS = {
   // Connection lifecycle
@@ -1243,7 +1270,7 @@ class EnterpriseSocketManager {
       const onlineUsers = this.getOnlineUsersInConversations(conversations);
 
       // Send state to client
-      socket.emit(SOCKET_EVENTS.STATE_SYNCED, {
+      safeEmit(socket, SOCKET_EVENTS.STATE_SYNCED, {
         conversations,
         unreadCounts,
         onlineUsers,
@@ -1264,10 +1291,28 @@ class EnterpriseSocketManager {
         email: userEmail?.substring(0, 20) + '...'
       });
       
-      socket.emit(SOCKET_EVENTS.ERROR, {
-        error: 'SYNC_FAILED',
-        message: 'Failed to sync state'
-      });
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que socket existe y tiene el método emit
+      if (socket && typeof socket.emit === 'function') {
+        try {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            error: 'SYNC_FAILED',
+            message: 'Failed to sync state'
+          });
+        } catch (emitError) {
+          logger.error('Error emitiendo evento de error al socket', {
+            category: 'SOCKET_EMIT_ERROR',
+            socketId: socket?.id,
+            error: emitError.message
+          });
+        }
+      } else {
+        logger.error('Socket no válido para emitir error', {
+          category: 'SOCKET_INVALID_FOR_EMIT',
+          socketExists: !!socket,
+          hasEmitMethod: socket && typeof socket.emit === 'function',
+          socketId: socket?.id
+        });
+      }
     }
   }
 
@@ -1276,29 +1321,55 @@ class EnterpriseSocketManager {
    */
   async handleJoinConversation(socket, data) {
     const { userEmail, userRole } = socket;
+    
+    // 🔧 CORRECCIÓN CRÍTICA: Validar que data existe antes del destructuring
+    if (!data || typeof data !== 'object') {
+      logger.error('❌ Data inválida en handleJoinConversation', {
+        category: 'SOCKET_JOIN_CONVERSATION_INVALID_DATA',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        socketId: socket.id,
+        data: data,
+        dataType: typeof data
+      });
+      
+      safeEmit(socket, SOCKET_EVENTS.ERROR, {
+        error: 'INVALID_DATA',
+        message: 'Invalid data provided for join conversation',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+    
     const { conversationId, roomId } = data;
 
-    // 🔧 CORRECCIÓN CRÍTICA: Logging detallado para diagnosticar el problema
-    logger.info('🎯 EVENTO JOIN-CONVERSATION RECIBIDO EN BACKEND', {
-      category: 'SOCKET_JOIN_CONVERSATION_RECEIVED',
-      userEmail: userEmail?.substring(0, 20) + '...',
-      conversationId: conversationId?.substring(0, 30) + '...',
-      roomId: roomId?.substring(0, 30) + '...',
-      socketId: socket.id,
-      timestamp: new Date().toISOString(),
-      dataKeys: Object.keys(data || {}),
-      hasUserEmail: !!userEmail,
-      hasUserRole: !!userRole
-    });
+    // 🔧 CORRECCIÓN: Logging reducido para evitar rate limits
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('🎯 EVENTO JOIN-CONVERSATION RECIBIDO EN BACKEND', {
+        category: 'SOCKET_JOIN_CONVERSATION_RECEIVED',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        conversationId: conversationId?.substring(0, 30) + '...',
+        socketId: socket.id
+      });
+    }
 
     try {
-      if (!conversationId) {
-        logger.error('❌ conversationId es requerido pero no se proporcionó', {
+      // 🔧 CORRECCIÓN CRÍTICA: Validación adicional para conversationId
+      if (!conversationId || typeof conversationId !== 'string') {
+        logger.error('❌ conversationId es requerido pero no se proporcionó o es inválido', {
           category: 'SOCKET_JOIN_CONVERSATION_MISSING_ID',
           userEmail: userEmail?.substring(0, 20) + '...',
+          socketId: socket.id,
+          conversationId: conversationId,
+          conversationIdType: typeof conversationId,
           data: data
         });
-        throw new Error('conversationId is required');
+        
+        safeEmit(socket, SOCKET_EVENTS.ERROR, {
+          error: 'MISSING_CONVERSATION_ID',
+          message: 'conversationId is required and must be a string',
+          timestamp: new Date().toISOString()
+        });
+        return;
       }
 
       // 🔧 CORRECCIÓN CRÍTICA: Decodificar conversationId del frontend
@@ -1307,12 +1378,14 @@ class EnterpriseSocketManager {
         // El frontend envía conversationId codificado (ej: conv_%2B5214773790184_%2B5214793176502)
         // Necesitamos decodificarlo para que coincida con el formato de la base de datos
         decodedConversationId = decodeURIComponent(conversationId);
-        logger.info('ConversationId decodificado', {
-          category: 'SOCKET_JOIN_CONVERSATION_DECODE',
-          original: conversationId,
-          decoded: decodedConversationId,
-          userEmail: userEmail?.substring(0, 20) + '...'
-        });
+        if (process.env.NODE_ENV === 'development') {
+          logger.info('ConversationId decodificado', {
+            category: 'SOCKET_JOIN_CONVERSATION_DECODE',
+            original: conversationId,
+            decoded: decodedConversationId,
+            userEmail: userEmail?.substring(0, 20) + '...'
+          });
+        }
       } catch (decodeError) {
         logger.warn('Error decodificando conversationId, usando original', {
           category: 'SOCKET_JOIN_CONVERSATION_DECODE_ERROR',
@@ -1341,7 +1414,7 @@ class EnterpriseSocketManager {
           originalConversationId: conversationId
         });
         
-        socket.emit(SOCKET_EVENTS.ERROR, {
+        safeEmit(socket, SOCKET_EVENTS.ERROR, {
           error: 'PERMISSION_DENIED',
           message: 'No permission to join this conversation',
           conversationId: decodedConversationId
@@ -1363,7 +1436,7 @@ class EnterpriseSocketManager {
       // 🔧 CORRECCIÓN: Verificar límite de rooms por socket
       const socketRooms = this.socketConversations.get(socket.id);
       if (socketRooms && socketRooms.size >= SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET) {
-        socket.emit(SOCKET_EVENTS.ERROR, {
+        safeEmit(socket, SOCKET_EVENTS.ERROR, {
           error: 'ROOM_LIMIT_EXCEEDED',
           message: `Maximum rooms per socket exceeded (${SOCKET_LIMITS.MAX_ROOMS_PER_SOCKET})`,
           conversationId: decodedConversationId
@@ -1422,7 +1495,7 @@ class EnterpriseSocketManager {
         timestamp: new Date().toISOString()
       });
 
-      socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, confirmationData);
+      safeEmit(socket, SOCKET_EVENTS.CONVERSATION_JOINED, confirmationData);
 
       // 🔧 CORRECCIÓN: Emitir evento adicional para sincronización
       const syncData = {
@@ -1442,7 +1515,7 @@ class EnterpriseSocketManager {
         timestamp: new Date().toISOString()
       });
 
-      socket.emit('websocket:state-synced', syncData);
+      safeEmit(socket, 'websocket:state-synced', syncData);
 
       logger.info('✅ USUARIO UNIDO EXITOSAMENTE A CONVERSACIÓN', {
         category: 'SOCKET_JOIN_CONVERSATION_SUCCESS',
@@ -1455,18 +1528,43 @@ class EnterpriseSocketManager {
       });
 
     } catch (error) {
-      logger.error('Error joining conversation', {
+      // 🔧 CORRECCIÓN CRÍTICA: Manejo específico de errores de destructuring
+      if (error.message.includes('Cannot destructure') || error.message.includes('undefined')) {
+        logger.error('❌ Error crítico de destructuring en handleJoinConversation', {
+          category: 'SOCKET_JOIN_CONVERSATION_DESTRUCTURING_ERROR',
+          error: error.message,
+          userEmail: userEmail?.substring(0, 20) + '...',
+          socketId: socket.id,
+          data: data,
+          dataType: typeof data,
+          stack: error.stack,
+          timestamp: new Date().toISOString()
+        });
+        
+        safeEmit(socket, SOCKET_EVENTS.ERROR, {
+          error: 'DESTRUCTURING_ERROR',
+          message: 'Invalid data structure provided',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+      
+      logger.error('❌ Error general en handleJoinConversation', {
         category: 'SOCKET_JOIN_CONVERSATION_ERROR',
         error: error.message,
         userEmail: userEmail?.substring(0, 20) + '...',
-        conversationId,
-        stack: error.stack
+        socketId: socket.id,
+        conversationId: conversationId,
+        data: data,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
       });
       
-      socket.emit(SOCKET_EVENTS.ERROR, {
+      safeEmit(socket, SOCKET_EVENTS.ERROR, {
         error: 'JOIN_FAILED',
         message: 'Failed to join conversation',
-        conversationId
+        conversationId: conversationId,
+        timestamp: new Date().toISOString()
       });
     }
   }

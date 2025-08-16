@@ -6,7 +6,17 @@ const sharp = require('sharp');
 const AudioProcessor = require('./AudioProcessor');
 const path = require('path');
 const { FieldValue } = require('firebase-admin');
-const firestore = require('firebase-admin').firestore();
+
+// Inicializar Firebase de forma segura
+let firestore;
+try {
+  if (admin.apps.length > 0) {
+    firestore = admin.firestore();
+  }
+} catch (error) {
+  // Firebase no está configurado, continuar sin él
+  firestore = null;
+}
 
 /**
  * 📁 SERVICIO DE GESTIÓN DE ARCHIVOS OPTIMIZADO
@@ -79,17 +89,14 @@ class FileService {
       if (!admin.apps.length) {
         throw new Error('Firebase Admin SDK no inicializado');
       }
-      return admin.storage().bucket();
+      const bucket = admin.storage().bucket();
+      if (!bucket) {
+        throw new Error('Bucket de Firebase Storage no disponible');
+      }
+      return bucket;
     } catch (error) {
       logger.error('Error obteniendo bucket de Firebase Storage:', error);
-      return {
-        file: () => ({
-          save: () => Promise.reject(new Error('Storage no disponible')),
-          getSignedUrl: () => Promise.reject(new Error('Storage no disponible')),
-          delete: () => Promise.reject(new Error('Storage no disponible')),
-          exists: () => Promise.resolve([false])
-        })
-      };
+      throw new Error('Firebase Storage no disponible: ' + error.message);
     }
   }
 
@@ -160,8 +167,9 @@ class FileService {
 
       // Validar archivo
       const validation = this.validateFile({ buffer, mimetype, size });
-      if (!validation.valid) {
-        throw new Error(`Archivo inválido: ${validation.error}`);
+      if (!validation || !validation.valid) {
+        const errorMessage = validation && validation.error ? validation.error : 'Error de validación desconocido';
+        throw new Error(`Archivo inválido: ${errorMessage}`);
       }
 
       const category = validation.category;
@@ -191,24 +199,45 @@ class FileService {
         buffer, fileId, conversationId, category, mimetype, originalName
       );
 
+      // Validar que processedFile existe y tiene las propiedades necesarias
+      if (!processedFile) {
+        throw new Error('Error: No se pudo procesar el archivo. Resultado indefinido.');
+      }
+
+      // Validar que processedFile tiene las propiedades mínimas necesarias
+      if (!processedFile.storagePath || !processedFile.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento incompleto. Faltan propiedades requeridas.');
+      }
+
       // 🆕 Guardar archivo en base de datos con metadata completa
-      const fileRecord = await this.saveFileToDatabase({
-        fileId,
-        conversationId,
-        userId,
-        uploadedBy,
-        originalName,
-        mimetype,
-        size,
-        url: processedFile.storageUrl,
-        thumbnailUrl: processedFile.metadata?.thumbnailUrl,
-        previewUrl: processedFile.metadata?.previewUrl,
-        metadata: processedFile.metadata || {},
-        category,
-        storagePath: processedFile.storagePath,
-        publicUrl: processedFile.publicUrl,
-        tags
-      });
+      let fileRecord;
+      try {
+        fileRecord = await this.saveFileToDatabase({
+          fileId,
+          conversationId,
+          userId,
+          uploadedBy,
+          originalName,
+          mimetype,
+          size,
+          url: processedFile.storageUrl,
+          thumbnailUrl: processedFile.metadata?.thumbnailUrl,
+          previewUrl: processedFile.metadata?.previewUrl,
+          metadata: processedFile.metadata || {},
+          category,
+          storagePath: processedFile.storagePath,
+          publicUrl: processedFile.publicUrl,
+          tags
+        });
+      } catch (dbError) {
+        logger.error('❌ Error guardando archivo en base de datos', {
+          fileId,
+          conversationId,
+          error: dbError.message,
+          stack: dbError.stack
+        });
+        throw dbError;
+      }
 
       const processTime = Date.now() - startTime;
 
@@ -246,15 +275,19 @@ class FileService {
       }
 
       return {
-        ...fileRecord.toJSON(),
+        ...(fileRecord ? fileRecord.toJSON() : {}),
         processTime: `${processTime}ms`
       };
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe y tiene las propiedades necesarias
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error subiendo archivo con indexación', {
         originalName: fileData.originalName,
-        error: error.message,
-        stack: error.stack?.split('\n').slice(0, 3)
+        error: errorMessage,
+        stack: errorStack
       });
       throw error;
     }
@@ -790,15 +823,36 @@ class FileService {
    * Procesar archivo según su categoría
    */
   async processFileByCategory(buffer, fileId, conversationId, category, mimetype, originalName) {
-    switch (category) {
-      case 'audio':
-        return await this.processAudioFile(buffer, fileId, conversationId, mimetype, originalName);
-      case 'image':
-        return await this.processImageFile(buffer, fileId, conversationId, mimetype, originalName);
-      case 'video':
-      case 'document':
-      default:
-        return await this.processGenericFile(buffer, fileId, conversationId, category, mimetype, originalName);
+    try {
+      let result;
+      
+      switch (category) {
+        case 'audio':
+          result = await this.processAudioFile(buffer, fileId, conversationId, mimetype, originalName);
+          break;
+        case 'image':
+          result = await this.processImageFile(buffer, fileId, conversationId, mimetype, originalName);
+          break;
+        case 'video':
+        case 'document':
+        default:
+          result = await this.processGenericFile(buffer, fileId, conversationId, category, mimetype, originalName);
+          break;
+      }
+
+      // Validar que el resultado existe
+      if (!result) {
+        throw new Error(`Error procesando archivo de categoría ${category}: resultado indefinido`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('❌ Error en processFileByCategory', {
+        category,
+        fileId,
+        error: error.message
+      });
+      throw error;
     }
   }
 
@@ -832,13 +886,20 @@ class FileService {
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
-      return {
+      const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
         publicUrl: signedUrl,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        metadata: processedAudio.metadata
+        metadata: processedAudio.metadata || {}
       };
+
+      // Validar que el resultado tiene las propiedades necesarias
+      if (!result.storagePath || !result.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento de audio incompleto');
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error procesando audio:', error);
       throw error;
@@ -877,7 +938,7 @@ class FileService {
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
-      return {
+      const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
         publicUrl: signedUrl,
@@ -888,6 +949,13 @@ class FileService {
           compression: ((buffer.length - optimizedBuffer.length) / buffer.length * 100).toFixed(1) + '%'
         }
       };
+
+      // Validar que el resultado tiene las propiedades necesarias
+      if (!result.storagePath || !result.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento de imagen incompleto');
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error procesando imagen:', error);
       throw error;
@@ -920,7 +988,7 @@ class FileService {
         expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
       });
 
-      return {
+      const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
         publicUrl: signedUrl,
@@ -929,6 +997,13 @@ class FileService {
           originalSize: buffer.length
         }
       };
+
+      // Validar que el resultado tiene las propiedades necesarias
+      if (!result.storagePath || !result.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento de archivo genérico incompleto');
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error procesando archivo genérico:', error);
       throw error;
@@ -3357,7 +3432,7 @@ class FileService {
         `, { eval: true });
 
         worker.on('message', (result) => {
-          if (result.success) {
+          if (result && result.success) {
             resolve({
               buffer: result.buffer,
               fileId,
@@ -3366,7 +3441,8 @@ class FileService {
               processingTime: Date.now() - startTime
             });
           } else {
-            reject(new Error(result.error));
+            const errorMessage = result && result.error ? result.error : 'Error desconocido en procesamiento de imagen';
+            reject(new Error(errorMessage));
           }
           worker.terminate();
         });
@@ -3494,11 +3570,20 @@ class FileService {
         }
       }
 
-      logger.debug('🧹 Cache cleanup completado', {
-        fileCacheSize: this.fileCache.size,
-        previewCacheSize: this.previewCache.size,
-        metadataCacheSize: this.metadataCache.size
-      });
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que logger existe antes de usarlo
+      if (logger && typeof logger.debug === 'function') {
+        try {
+          logger.debug('🧹 Cache cleanup completado', {
+            fileCacheSize: this.fileCache.size,
+            previewCacheSize: this.previewCache.size,
+            metadataCacheSize: this.metadataCache.size
+          });
+        } catch (logError) {
+          console.error('Error en logger.debug durante cache cleanup:', logError.message);
+        }
+      } else {
+        console.log('🧹 Cache cleanup completado - Logger no disponible');
+      }
     }, this.cacheConfig.cleanupInterval);
   }
 
@@ -3588,6 +3673,7 @@ class FileService {
         storagePath,
         publicUrl,
         category,
+        uploadedAt: new Date(), // 🔧 CORRECCIÓN CRÍTICA: Asegurar que uploadedAt siempre tenga un valor
         metadata: {
           ...metadata,
           savedAt: new Date().toISOString(),
@@ -3602,15 +3688,30 @@ class FileService {
       };
 
       // Guardar en Firestore usando el modelo File
-      const savedFile = await File.create(fileRecord);
+      try {
+        const savedFile = await File.create(fileRecord);
 
-      logger.info('✅ Archivo guardado exitosamente en base de datos', {
-        fileId,
-        conversationId,
-        category
-      });
+        logger.info('✅ Archivo guardado exitosamente en base de datos', {
+          fileId,
+          conversationId,
+          category
+        });
 
-      return savedFile;
+        return savedFile;
+      } catch (createError) {
+        logger.error('❌ Error en File.create()', {
+          fileId,
+          conversationId,
+          error: createError.message,
+          stack: createError.stack,
+          fileRecord: {
+            id: fileRecord.id,
+            conversationId: fileRecord.conversationId,
+            category: fileRecord.category
+          }
+        });
+        throw createError;
+      }
     } catch (error) {
       logger.error('❌ Error guardando archivo en base de datos', {
         error: error.message,

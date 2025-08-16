@@ -1660,6 +1660,455 @@ class MediaUploadController {
       logger.warn('⚠️ Error emitiendo file-upload-error', { error: error.message });
     }
   }
+
+  /**
+   * PROXY PARA MEDIA DE TWILIO
+   * Endpoint para acceder a imágenes y media de Twilio de forma segura
+   * SOLUCIÓN PARA EL PROBLEMA DE RENDERIZADO DE IMÁGENES
+   */
+  async proxyTwilioMedia(req, res) {
+    const startTime = Date.now();
+    const requestId = `proxy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      const { messageSid, mediaSid } = req.query;
+      const userEmail = req.user?.email || 'anonymous';
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Validar parámetros requeridos
+      if (!messageSid || !mediaSid) {
+        logger.error('❌ Parámetros faltantes en proxyTwilioMedia', {
+          requestId,
+          messageSid,
+          mediaSid,
+          userEmail
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'messageSid y mediaSid son requeridos'
+        });
+      }
+
+      logger.info('🔄 PROXY TWILIO MEDIA - Iniciando', {
+        requestId,
+        messageSid,
+        mediaSid,
+        userEmail,
+        userAgent: req.headers['user-agent']?.substring(0, 100),
+        ip: req.ip,
+        timestamp: new Date().toISOString()
+      });
+
+      // Validar parámetros
+      if (!messageSid || !mediaSid) {
+        logger.warn('❌ PROXY TWILIO MEDIA - Parámetros faltantes', {
+          requestId,
+          messageSid: !!messageSid,
+          mediaSid: !!mediaSid,
+          userEmail
+        });
+        
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_PARAMETERS',
+          'Parámetros requeridos faltantes',
+          'Se requieren messageSid y mediaSid',
+          400
+        ));
+      }
+
+      // Construir URL de Twilio
+      const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      
+      if (!accountSid || !authToken) {
+        logger.error('❌ PROXY TWILIO MEDIA - Credenciales de Twilio faltantes', {
+          requestId,
+          hasAccountSid: !!accountSid,
+          hasAuthToken: !!authToken,
+          userEmail
+        });
+        
+        return ResponseHandler.error(res, new ApiError(
+          'TWILIO_CONFIG_ERROR',
+          'Error de configuración de Twilio',
+          'Las credenciales de Twilio no están configuradas',
+          500
+        ));
+      }
+
+      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages/${messageSid}/Media/${mediaSid}`;
+
+      logger.debug('🔗 PROXY TWILIO MEDIA - URL construida', {
+        requestId,
+        twilioUrl: twilioUrl.replace(accountSid, '***'),
+        userEmail
+      });
+
+      // Hacer petición a Twilio con autenticación básica
+      const axios = require('axios');
+      const response = await axios({
+        method: 'GET',
+        url: twilioUrl,
+        auth: {
+          username: accountSid,
+          password: authToken
+        },
+        responseType: 'stream',
+        timeout: 30000, // 30 segundos
+        headers: {
+          'User-Agent': 'Utalk-Backend/1.0'
+        }
+      });
+
+      logger.info('✅ PROXY TWILIO MEDIA - Respuesta exitosa de Twilio', {
+        requestId,
+        statusCode: response.status,
+        contentType: response.headers['content-type'],
+        contentLength: response.headers['content-length'],
+        userEmail,
+        latencyMs: Date.now() - startTime
+      });
+
+      // Configurar headers de respuesta
+      res.set({
+        'Content-Type': response.headers['content-type'] || 'application/octet-stream',
+        'Content-Length': response.headers['content-length'],
+        'Cache-Control': 'public, max-age=3600', // Cache por 1 hora
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'X-Proxy-By': 'Utalk-Backend',
+        'X-Twilio-Message-Sid': messageSid,
+        'X-Twilio-Media-Sid': mediaSid
+      });
+
+      // Pipe la respuesta de Twilio al cliente
+      response.data.pipe(res);
+
+      // Log de finalización
+      response.data.on('end', () => {
+        logger.info('✅ PROXY TWILIO MEDIA - Transferencia completada', {
+          requestId,
+          userEmail,
+          totalLatencyMs: Date.now() - startTime
+        });
+      });
+
+      // Manejo de errores en el stream
+      response.data.on('error', (error) => {
+        logger.error('❌ PROXY TWILIO MEDIA - Error en stream', {
+          requestId,
+          error: error.message,
+          userEmail,
+          latencyMs: Date.now() - startTime
+        });
+        
+        if (!res.headersSent) {
+          ResponseHandler.error(res, new ApiError(
+            'STREAM_ERROR',
+            'Error en la transferencia de datos',
+            'Ocurrió un error al transferir el archivo',
+            500
+          ));
+        }
+      });
+
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      
+      logger.error('❌ PROXY TWILIO MEDIA - Error crítico', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+        userEmail: req.user?.email,
+        messageSid: req.query.messageSid,
+        mediaSid: req.query.mediaSid,
+        latencyMs
+      });
+
+      // Manejar errores específicos de Twilio
+      if (error.response) {
+        const statusCode = error.response.status;
+        const twilioError = error.response.data;
+        
+        logger.warn('⚠️ PROXY TWILIO MEDIA - Error de Twilio', {
+          requestId,
+          statusCode,
+          twilioError: typeof twilioError === 'string' ? twilioError.substring(0, 200) : JSON.stringify(twilioError),
+          userEmail: req.user?.email
+        });
+
+        if (statusCode === 404) {
+          return ResponseHandler.error(res, new ApiError(
+            'MEDIA_NOT_FOUND',
+            'Media no encontrado',
+            'El archivo multimedia no existe o no está disponible',
+            404
+          ));
+        } else if (statusCode === 401) {
+          return ResponseHandler.error(res, new ApiError(
+            'TWILIO_AUTH_ERROR',
+            'Error de autenticación con Twilio',
+            'Las credenciales de Twilio no son válidas',
+            500
+          ));
+        } else {
+          return ResponseHandler.error(res, new ApiError(
+            'TWILIO_ERROR',
+            'Error de Twilio',
+            `Twilio devolvió un error: ${statusCode}`,
+            statusCode
+          ));
+        }
+      }
+
+      // Error de red o timeout
+      if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+        return ResponseHandler.error(res, new ApiError(
+          'TIMEOUT_ERROR',
+          'Timeout en la conexión',
+          'La conexión con Twilio tardó demasiado',
+          504
+        ));
+      }
+
+      // Error genérico
+      return ResponseHandler.error(res, new ApiError(
+        'PROXY_ERROR',
+        'Error en el proxy',
+        'Ocurrió un error al procesar la solicitud',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🔗 GET /api/media/permanent-url/:fileId
+   * Generar URL permanente para archivo almacenado
+   */
+  async generatePermanentUrl(req, res) {
+    const startTime = Date.now();
+    const requestId = `permanent_url_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      const { fileId } = req.params;
+      const userEmail = req.user?.email || 'anonymous';
+      
+      logger.info('🔗 GENERAR URL PERMANENTE - Iniciando', {
+        requestId,
+        fileId,
+        userEmail
+      });
+      
+      // Validar fileId
+      if (!fileId) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE_ID',
+          'ID de archivo requerido',
+          'Proporciona el ID del archivo',
+          400
+        ));
+      }
+      
+      // Obtener archivo de la base de datos
+      const File = require('../models/File');
+      const file = await File.getById(fileId);
+      
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND',
+          'Archivo no encontrado',
+          'El archivo especificado no existe',
+          404
+        ));
+      }
+      
+      // Generar nueva URL firmada si es necesario
+      let publicUrl = file.publicUrl;
+      
+      if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
+        logger.info('🔄 Regenerando URL firmada expirada', {
+          requestId,
+          fileId,
+          expiresAt: file.expiresAt
+        });
+        
+        const FileService = require('../services/FileService');
+        const fileService = new FileService();
+        
+        try {
+          const bucket = fileService.getBucket();
+          const storageFile = bucket.file(file.storagePath);
+          
+          const [newSignedUrl] = await storageFile.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+          });
+          
+          // Actualizar archivo en base de datos
+          await file.update({
+            publicUrl: newSignedUrl,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          });
+          
+          publicUrl = newSignedUrl;
+          
+          logger.info('✅ URL firmada regenerada exitosamente', {
+            requestId,
+            fileId
+          });
+        } catch (regenerateError) {
+          logger.error('❌ Error regenerando URL firmada', {
+            requestId,
+            fileId,
+            error: regenerateError.message
+          });
+          // Continuar con la URL existente
+        }
+      }
+      
+      // Generar URL permanente del proxy
+      const permanentUrl = `${process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app'}/api/media/proxy-file/${fileId}`;
+      
+      logger.info('✅ URL PERMANENTE GENERADA', {
+        requestId,
+        fileId,
+        permanentUrl,
+        latencyMs: Date.now() - startTime
+      });
+      
+      return ResponseHandler.success(res, {
+        permanentUrl,
+        originalUrl: publicUrl,
+        fileId: file.id,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.mimetype,
+        expiresAt: file.expiresAt
+      }, 'URL permanente generada exitosamente');
+      
+    } catch (error) {
+      logger.error('❌ Error generando URL permanente', {
+        requestId,
+        fileId: req.params?.fileId,
+        error: error.message,
+        stack: error.stack
+      });
+      
+      return ResponseHandler.error(res, new ApiError(
+        'PERMANENT_URL_ERROR',
+        'Error generando URL permanente',
+        'Ocurrió un error al generar la URL permanente',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🔗 GET /api/media/proxy-file/:fileId
+   * Proxy para archivos almacenados en Firebase
+   */
+  async proxyStoredFile(req, res) {
+    const startTime = Date.now();
+    const requestId = `proxy_file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      const { fileId } = req.params;
+      const userEmail = req.user?.email || 'anonymous';
+      
+      logger.info('🔗 PROXY ARCHIVO ALMACENADO - Iniciando', {
+        requestId,
+        fileId,
+        userEmail
+      });
+      
+      // Obtener archivo de la base de datos
+      const File = require('../models/File');
+      const file = await File.getById(fileId);
+      
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND',
+          'Archivo no encontrado',
+          'El archivo especificado no existe',
+          404
+        ));
+      }
+      
+      // Verificar que el archivo existe en Storage
+      const FileService = require('../services/FileService');
+      const fileService = new FileService();
+      const bucket = fileService.getBucket();
+      const storageFile = bucket.file(file.storagePath);
+      
+      const [exists] = await storageFile.exists();
+      if (!exists) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND_IN_STORAGE',
+          'Archivo no encontrado en almacenamiento',
+          'El archivo no existe en el almacenamiento',
+          404
+        ));
+      }
+      
+      // Generar URL firmada si es necesario
+      let publicUrl = file.publicUrl;
+      
+      if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
+        const [newSignedUrl] = await storageFile.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+        });
+        
+        await file.update({
+          publicUrl: newSignedUrl,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        });
+        
+        publicUrl = newSignedUrl;
+      }
+      
+      // Descargar archivo de Firebase Storage
+      const [fileBuffer] = await storageFile.download();
+      
+      // Configurar headers de respuesta
+      res.set({
+        'Content-Type': file.mimetype || 'application/octet-stream',
+        'Content-Length': file.size,
+        'Cache-Control': 'public, max-age=3600', // Cache por 1 hora
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'X-Proxy-By': 'Utalk-Backend',
+        'X-File-Id': fileId,
+        'X-File-Name': file.name
+      });
+      
+      // Enviar archivo
+      res.send(fileBuffer);
+      
+      logger.info('✅ PROXY ARCHIVO ALMACENADO - Transferencia completada', {
+        requestId,
+        fileId,
+        userEmail,
+        latencyMs: Date.now() - startTime
+      });
+      
+    } catch (error) {
+      logger.error('❌ Error en proxy de archivo almacenado', {
+        requestId,
+        fileId: req.params?.fileId,
+        error: error.message,
+        stack: error.stack
+      });
+      
+      return ResponseHandler.error(res, new ApiError(
+        'PROXY_FILE_ERROR',
+        'Error en proxy de archivo',
+        'Ocurrió un error al servir el archivo',
+        500
+      ));
+    }
+  }
 }
 
 module.exports = new MediaUploadController(); 

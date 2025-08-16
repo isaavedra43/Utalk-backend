@@ -19,7 +19,7 @@ const jwtConfig = {
   refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
   
   // Tiempos de expiración
-  expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  expiresIn: process.env.JWT_EXPIRES_IN || '24h', // 🔧 CORRECCIÓN: Aumentado de 15m a 24h para WebSockets
   refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   
   // Configuración de claims

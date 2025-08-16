@@ -908,6 +908,72 @@ class ConsolidatedServer {
         console.error('❌ Error configurando /api/media:', error.message);
       }
 
+      // 🔧 CORRECCIÓN: Rutas para /media/proxy (sin autenticación)
+      try {
+        console.log('🖼️ Configurando rutas /media/proxy...');
+        
+        // Ruta para proxy de Twilio
+        this.app.get('/media/proxy', (req, res) => {
+          console.log('🔄 Redirigiendo /media/proxy a /api/media/proxy-public');
+          req.url = '/api/media/proxy-public' + req.url.replace('/media/proxy', '');
+          this.app._router.handle(req, res);
+        });
+        
+        // Ruta de prueba simple
+        this.app.get('/test-media', (req, res) => {
+          console.log('🔍 TEST-MEDIA ENDPOINT HIT');
+          res.status(200).json({
+            success: true,
+            message: 'Test endpoint funcionando',
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        // Ruta para proxy de Twilio (pública) - ENDPOINT DIRECTO
+        this.app.get('/media/proxy-public', async (req, res) => {
+          console.log('🔍 MEDIA PROXY-PUBLIC ENDPOINT HIT:', {
+            messageSid: req.query.messageSid,
+            mediaSid: req.query.mediaSid,
+            url: req.url,
+            method: req.method
+          });
+          
+          try {
+            // Validación básica
+            const messageSid = req.query.messageSid;
+            const mediaSid = req.query.mediaSid;
+            
+            if (!messageSid || !mediaSid) {
+              return res.status(400).json({
+                error: 'messageSid y mediaSid son requeridos'
+              });
+            }
+            
+            // Llamar al controlador de media
+            const MediaUploadController = require('./controllers/MediaUploadController');
+            return await MediaUploadController.proxyTwilioMedia(req, res);
+            
+          } catch (error) {
+            console.error('❌ Error en proxy-public:', error);
+            res.status(500).json({
+              error: 'Error interno del servidor',
+              message: error.message
+            });
+          }
+        });
+        
+        // Ruta para proxy de archivos almacenados
+        this.app.get('/media/proxy-file-public/:fileId', (req, res) => {
+          console.log('🔄 Redirigiendo /media/proxy-file-public a /api/media/proxy-file-public');
+          req.url = req.url.replace('/media/proxy-file-public', '/api/media/proxy-file-public');
+          this.app._router.handle(req, res);
+        });
+        
+        console.log('✅ Rutas /media/proxy configuradas exitosamente');
+      } catch (error) {
+        console.error('❌ Error configurando /media/proxy:', error.message);
+      }
+
       try {
         console.log('📊 Intentando configurar /api/dashboard...');
         this.app.use('/api/dashboard', dashboardRoutes);
@@ -984,6 +1050,25 @@ class ConsolidatedServer {
       } catch (error) {
         console.error('❌ Error configurando /api/analytics:', error.message);
       }
+
+      // 🔧 CORRECCIÓN: Redirecciones de compatibilidad para rutas sin /api
+      this.app.use('/conversations', (req, res) => {
+        console.log('🔄 Redirigiendo /conversations a /api/conversations');
+        req.url = req.url.replace('/conversations', '/api/conversations');
+        this.app._router.handle(req, res);
+      });
+
+      this.app.use('/contacts', (req, res) => {
+        console.log('🔄 Redirigiendo /contacts a /api/contacts');
+        req.url = req.url.replace('/contacts', '/api/contacts');
+        this.app._router.handle(req, res);
+      });
+
+      this.app.use('/messages', (req, res) => {
+        console.log('🔄 Redirigiendo /messages a /api/messages');
+        req.url = req.url.replace('/messages', '/api/messages');
+        this.app._router.handle(req, res);
+      });
 
       // Ruta catch-all para 404
       this.app.use('*', (req, res) => {
