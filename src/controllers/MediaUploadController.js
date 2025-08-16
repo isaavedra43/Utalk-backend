@@ -1672,7 +1672,7 @@ class MediaUploadController {
     
     try {
       const { messageSid, mediaSid } = req.query;
-      const userEmail = req.user?.email || 'anonymous';
+      const userEmail = req.user.email;
 
       logger.info('🔄 PROXY TWILIO MEDIA - Iniciando', {
         requestId,

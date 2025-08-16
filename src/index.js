@@ -908,41 +908,6 @@ class ConsolidatedServer {
         console.error('❌ Error configurando /api/media:', error.message);
       }
 
-      // 🔧 CORRECCIÓN: Ruta temporal para /api/media/proxy (sin autenticación)
-      try {
-        console.log('🖼️ Configurando ruta temporal /api/media/proxy sin autenticación...');
-        this.app.get('/api/media/proxy', (req, res) => {
-          console.log('🔄 Procesando /api/media/proxy sin autenticación');
-          // Procesar directamente sin autenticación
-          const MediaUploadController = require('./controllers/MediaUploadController');
-          const Joi = require('joi');
-          
-          // Validar parámetros
-          const { error, value } = Joi.object({
-            messageSid: Joi.string().required().pattern(/^MM[a-f0-9]{32}$/),
-            mediaSid: Joi.string().required().pattern(/^ME[a-f0-9]{32}$/)
-          }).validate(req.query);
-          
-          if (error) {
-            return res.status(400).json({
-              success: false,
-              error: {
-                type: 'VALIDATION_ERROR',
-                code: 'INVALID_PARAMETERS',
-                message: 'Parámetros inválidos',
-                details: error.details
-              }
-            });
-          }
-          
-          // Llamar directamente al controlador
-          MediaUploadController.proxyTwilioMedia(req, res);
-        });
-        console.log('✅ /api/media/proxy sin autenticación configurado exitosamente');
-      } catch (error) {
-        console.error('❌ Error configurando /api/media/proxy sin autenticación:', error.message);
-      }
-
       try {
         console.log('📊 Intentando configurar /api/dashboard...');
         this.app.use('/api/dashboard', dashboardRoutes);

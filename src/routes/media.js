@@ -384,34 +384,10 @@ router.delete('/file/:fileId/tags',
  * @access Private (Admin, Agent, Viewer)
  * @query messageSid - ID del mensaje de Twilio
  * @query mediaSid - ID del media de Twilio
- * 
- * TEMPORALMENTE DESHABILITADO PARA PERMITIR ACCESO SIN AUTENTICACIÓN
  */
-/*
 router.get('/proxy',
   authMiddleware,
   requireReadAccess,
-  validateRequest({
-    query: Joi.object({
-      messageSid: Joi.string().required().pattern(/^MM[a-f0-9]{32}$/),
-      mediaSid: Joi.string().required().pattern(/^ME[a-f0-9]{32}$/)
-    })
-  }),
-  MediaUploadController.proxyTwilioMedia
-);
-*/
-
-/**
- * @route GET /media/proxy
- * @desc Proxy para acceder a media de Twilio (SIN AUTENTICACIÓN - SOLO DESARROLLO)
- * @access Public (Solo para desarrollo)
- * @query messageSid - ID del mensaje de Twilio
- * @query mediaSid - ID del media de Twilio
- * 
- * NOTA: Este endpoint es temporal para solucionar el problema del frontend
- * que está llamando a /media/proxy en lugar de /api/media/proxy
- */
-router.get('/proxy-public',
   validateRequest({
     query: Joi.object({
       messageSid: Joi.string().required().pattern(/^MM[a-f0-9]{32}$/),
