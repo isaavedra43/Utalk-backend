@@ -919,6 +919,16 @@ class ConsolidatedServer {
           this.app._router.handle(req, res);
         });
         
+        // Ruta de prueba simple
+        this.app.get('/test-media', (req, res) => {
+          console.log('🔍 TEST-MEDIA ENDPOINT HIT');
+          res.status(200).json({
+            success: true,
+            message: 'Test endpoint funcionando',
+            timestamp: new Date().toISOString()
+          });
+        });
+        
         // Ruta para proxy de Twilio (pública) - ENDPOINT DIRECTO
         this.app.get('/media/proxy-public', (req, res) => {
           console.log('🔍 MEDIA PROXY-PUBLIC ENDPOINT HIT:', {
