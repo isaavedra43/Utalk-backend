@@ -985,6 +985,19 @@ class ConsolidatedServer {
         console.error('❌ Error configurando /api/analytics:', error.message);
       }
 
+      // 🔧 CORRECCIÓN: Redirecciones de compatibilidad para rutas sin /api
+      this.app.use('/conversations', (req, res) => {
+        console.log('🔄 Redirigiendo /conversations a /api/conversations');
+        req.url = req.url.replace('/conversations', '/api/conversations');
+        this.app._router.handle(req, res);
+      });
+
+      this.app.use('/contacts', (req, res) => {
+        console.log('🔄 Redirigiendo /contacts a /api/contacts');
+        req.url = req.url.replace('/contacts', '/api/contacts');
+        this.app._router.handle(req, res);
+      });
+
       // Ruta catch-all para 404
       this.app.use('*', (req, res) => {
         console.log('🚫 Ruta no encontrada:', req.method, req.originalUrl, 'desde IP:', req.ip);
