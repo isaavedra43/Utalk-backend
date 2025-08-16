@@ -22,7 +22,7 @@ function getSocketManager() {
 
 // Helper para rooms unificadas
 function getConversationRoom({ workspaceId, tenantId, conversationId }) {
-  return `ws:${workspaceId || 'default'}:ten:${tenantId || 'na'}:conv:${conversationId}`;
+  return `ws:${workspaceId || 'default_workspace'}:ten:${tenantId || 'default_tenant'}:conv:${conversationId}`;
 }
 
 // Constantes de eventos para compatibilidad
@@ -49,8 +49,8 @@ function testWorkspaceIdExtraction(socket) {
     return false;
   }
 
-  const workspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default';
-  const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'na';
+  const workspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace';
+  const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant';
   const userId = socket.userEmail || socket.decodedToken?.email || 'unknown';
 
   console.log('🔍 PRUEBA WORKSPACEID:', {
@@ -61,10 +61,10 @@ function testWorkspaceIdExtraction(socket) {
     hasWorkspaceId: !!workspaceId,
     hasTenantId: !!tenantId,
     workspaceIdSource: socket.workspaceId ? 'socket.workspaceId' : 
-                      socket.decodedToken?.workspaceId ? 'socket.decodedToken.workspaceId' : 'default'
+                      socket.decodedToken?.workspaceId ? 'socket.decodedToken.workspaceId' : 'default_workspace'
   });
 
-  return workspaceId && workspaceId !== 'default';
+  return workspaceId && workspaceId !== 'default_workspace';
 }
 
 module.exports = {

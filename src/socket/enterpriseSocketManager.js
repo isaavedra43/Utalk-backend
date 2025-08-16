@@ -450,8 +450,8 @@ class EnterpriseSocketManager {
         }
 
         // 🔧 CORRECCIÓN CRÍTICA: Extraer workspaceId y tenantId del JWT
-        const workspaceId = decodedToken.workspaceId || 'default';
-        const tenantId = decodedToken.tenantId || 'na';
+            const workspaceId = decodedToken.workspaceId || 'default_workspace';
+    const tenantId = decodedToken.tenantId || 'default_tenant';
         const userId = decodedToken.userId || email;
 
         logger.info('Socket.IO: JWT claims extracted successfully', {
@@ -1237,8 +1237,8 @@ class EnterpriseSocketManager {
       // 🔒 Room generado únicamente por el servidor (unificación)
       const { getConversationRoom } = require('./index');
       const targetRoomId = getConversationRoom({
-        workspaceId: socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.decodedToken?.tenantId || 'default_tenant',
         conversationId: decodedConversationId
       });
 
@@ -1395,8 +1395,8 @@ class EnterpriseSocketManager {
       }
 
       // 🔧 SOCKET ROBUSTO: Obtener workspaceId y tenantId del socket
-      const workspaceId = socket.decodedToken?.workspaceId || 'default';
-      const tenantId = socket.decodedToken?.tenantId || 'na';
+      const workspaceId = socket.decodedToken?.workspaceId || 'default_workspace';
+      const tenantId = socket.decodedToken?.tenantId || 'default_tenant';
 
       // 🔧 SOCKET ROBUSTO: Construir roomId con convención establecida
       const roomId = `ws:${workspaceId}:ten:${tenantId}:conv:${conversationId}`;
@@ -1559,8 +1559,8 @@ class EnterpriseSocketManager {
       // Emit to all users in conversation (including sender for confirmation)
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
         conversationId 
       });
       this.io.to(roomId).emit(SOCKET_EVENTS.MESSAGE_SENT, {
@@ -1616,8 +1616,8 @@ class EnterpriseSocketManager {
       // Determinar room unificado
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.decodedToken?.tenantId || 'default_tenant',
         conversationId
       });
 
@@ -1640,8 +1640,8 @@ class EnterpriseSocketManager {
 
       // Emitir actualización de conversación con unreadCount recalculado
       try {
-        const workspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default';
-        const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'na';
+        const workspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace';
+        const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant';
         const unreadCount = await Message.getUnreadCount(conversationId, userEmail);
         this.emitConversationUpdated({
           workspaceId,
@@ -1711,8 +1711,8 @@ class EnterpriseSocketManager {
       // Notify other users in conversation (exclude sender)
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
         conversationId 
       });
       socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING, {
@@ -1775,8 +1775,8 @@ class EnterpriseSocketManager {
       // Notify other users in conversation (exclude sender)
       const { getConversationRoom } = require('./index');
       const roomId = getConversationRoom({ 
-        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default',
-        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'na',
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
         conversationId 
       });
       socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
@@ -2535,11 +2535,11 @@ class EnterpriseSocketManager {
       }
 
       // 🔧 CORRECCIÓN: Verificar si el usuario está en el workspace/tenant correcto
-      const workspaceId = conversation.workspaceId || 'default';
-      const tenantId = conversation.tenantId || 'na';
+      const workspaceId = conversation.workspaceId || 'default_workspace';
+      const tenantId = conversation.tenantId || 'default_tenant';
       
       // Si la conversación es del workspace/tenant por defecto, permitir acceso
-      if (workspaceId === 'default' && tenantId === 'na') {
+      if (workspaceId === 'default_workspace' && tenantId === 'default_tenant') {
         logger.info('Conversación del workspace por defecto, permitiendo acceso', {
           category: 'SOCKET_PERMISSION_DEFAULT_WORKSPACE',
           userEmail: userEmail?.substring(0, 20) + '...',
@@ -2841,8 +2841,8 @@ class EnterpriseSocketManager {
           if (socket) {
             const { getConversationRoom } = require('./index');
             const roomId = getConversationRoom({ 
-              workspaceId: socket.decodedToken?.workspaceId || 'default',
-              tenantId: socket.decodedToken?.tenantId || 'na',
+              workspaceId: socket.decodedToken?.workspaceId || 'default_workspace',
+              tenantId: socket.decodedToken?.tenantId || 'default_tenant',
               conversationId 
             });
             socket.leave(roomId);
@@ -2873,8 +2873,8 @@ class EnterpriseSocketManager {
       for (const email of typingSet) {
         const { getConversationRoom } = require('./index');
         const roomId = getConversationRoom({ 
-          workspaceId: 'default', // No tenemos contexto de workspace aquí
-          tenantId: 'na',
+          workspaceId: 'default_workspace', // No tenemos contexto de workspace aquí
+          tenantId: 'default_tenant',
           conversationId 
         });
         this.io.to(roomId).emit(SOCKET_EVENTS.MESSAGE_TYPING_STOP, {
@@ -3426,8 +3426,8 @@ class EnterpriseSocketManager {
       let finalTenantId = tenantId;
 
       if (!finalWorkspaceId && socket) {
-        finalWorkspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default';
-        finalTenantId = socket.tenantId || socket.decodedToken?.tenantId || 'na';
+        finalWorkspaceId = socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace';
+        finalTenantId = socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant';
         
         logger.info('broadcastToConversation: Obteniendo workspaceId del socket', {
           category: 'SOCKET_BROADCAST_WORKSPACE_FROM_SOCKET',
@@ -3439,7 +3439,7 @@ class EnterpriseSocketManager {
       }
 
       // Construir roomId con la convención establecida
-      const roomId = `ws:${finalWorkspaceId || 'default'}:ten:${finalTenantId || 'na'}:conv:${conversationId}`;
+      const roomId = `ws:${finalWorkspaceId || 'default_workspace'}:ten:${finalTenantId || 'default_tenant'}:conv:${conversationId}`;
 
       // Verificar autorización previa (si el repo pasa workspaceId/tenantId, confiamos)
       if (!finalWorkspaceId) {

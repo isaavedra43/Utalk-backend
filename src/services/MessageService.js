@@ -471,12 +471,18 @@ class MessageService {
             // Emitir evento de socket para la sugerencia
             const socketManager = require('../socket').getSocketManager();
             if (socketManager) {
-              socketManager.emitToConversation(result.message.conversationId, 'suggestion:new', {
+              socketManager.broadcastToConversation({
+                workspaceId: 'default_workspace',
+                tenantId: 'default_tenant',
                 conversationId: result.message.conversationId,
-                suggestionId: aiResult.suggestion.id,
-                messageIdOrigen: result.message.id,
-                preview: aiResult.suggestion.texto?.substring(0, 200) || '',
-                createdAt: aiResult.suggestion.createdAt
+                event: 'suggestion:new',
+                payload: {
+                  conversationId: result.message.conversationId,
+                  suggestionId: aiResult.suggestion.id,
+                  messageIdOrigen: result.message.id,
+                  preview: aiResult.suggestion.texto?.substring(0, 200) || '',
+                  createdAt: aiResult.suggestion.createdAt
+                }
               });
             }
           } else {
@@ -1995,8 +2001,8 @@ class MessageService {
       });
 
       // Obtener Socket.IO manager
-      const { getEnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-      const rt = getEnterpriseSocketManager();
+      const { getSocketManager } = require('../socket');
+      const rt = getSocketManager();
 
       if (!rt) {
         logger.warn('⚠️ EMITREALTIMEEVENT - SOCKET MANAGER NO DISPONIBLE', {
@@ -2022,7 +2028,13 @@ class MessageService {
       }
 
       // Emitir evento de nuevo mensaje
-      await rt.emitNewMessage(conversationId, savedMessage);
+      await rt.emitNewMessage({
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId,
+        message: savedMessage,
+        correlationId: requestId
+      });
 
       logger.info('✅ EMITREALTIMEEVENT - PROCESO COMPLETADO', {
         requestId,

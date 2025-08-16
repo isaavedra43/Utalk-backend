@@ -22,12 +22,12 @@ const consoleRateLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     // Usar workspaceId + userId para rate limiting
-    const workspaceId = req.params.workspaceId || req.body.workspaceId || 'default';
+    const workspaceId = req.params.workspaceId || req.body.workspaceId || 'default_workspace';
     const userId = req.user?.email || req.ip;
     return `ai_console:${workspaceId}:${userId}`;
   },
   handler: (req, res) => {
-    const workspaceId = req.params.workspaceId || req.body.workspaceId || 'default';
+    const workspaceId = req.params.workspaceId || req.body.workspaceId || 'default_workspace';
     const userId = req.user?.email || req.ip;
     const now = Date.now();
     const retryAfter = 60;
@@ -66,12 +66,12 @@ const qaRateLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     // Usar workspaceId + userId para rate limiting
-    const workspaceId = req.body.workspaceId || 'default';
+    const workspaceId = req.body.workspaceId || 'default_workspace';
     const userId = req.user?.email || req.ip;
     return `ai_qa:${workspaceId}:${userId}`;
   },
   handler: (req, res) => {
-    const workspaceId = req.body.workspaceId || 'default';
+    const workspaceId = req.body.workspaceId || 'default_workspace';
     const now = Date.now();
     const retryAfter = 60;
     const resetEpoch = Math.ceil((now + 60000) / 1000);

@@ -291,18 +291,30 @@ class MessageController {
       // Emitir eventos websocket
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.emitToConversation(conversationId, 'new-message', {
-          message: result.message,
-          conversation: result.conversation
+        socketManager.broadcastToConversation({
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          conversationId,
+          event: 'new-message',
+          payload: {
+            message: result.message,
+            conversation: result.conversation
+          }
         });
 
-        socketManager.emitToConversation(conversationId, 'conversation-updated', {
-          id: conversationId,
-          lastMessage: result.conversation.lastMessage,
-          lastMessageAt: result.conversation.lastMessageAt,
-          unreadCount: result.conversation.unreadCount,
-          messageCount: result.conversation.messageCount,
-          status: result.conversation.status
+        socketManager.broadcastToConversation({
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          conversationId,
+          event: 'conversation-updated',
+          payload: {
+            id: conversationId,
+            lastMessage: result.conversation.lastMessage,
+            lastMessageAt: result.conversation.lastMessageAt,
+            unreadCount: result.conversation.unreadCount,
+            messageCount: result.conversation.messageCount,
+            status: result.conversation.status
+          }
         });
       }
 
@@ -481,18 +493,30 @@ class MessageController {
       // 📡 EMITIR EVENTOS WEBSOCKET
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.emitToConversation(conversation.id, 'new-message', {
-          message: result.message,
-          conversation: result.conversation
+        socketManager.broadcastToConversation({
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          conversationId: conversation.id,
+          event: 'new-message',
+          payload: {
+            message: result.message,
+            conversation: result.conversation
+          }
         });
 
-        socketManager.emitToConversation(conversation.id, 'conversation-updated', {
-          id: conversation.id,
-          lastMessage: result.conversation.lastMessage,
-          lastMessageAt: result.conversation.lastMessageAt,
-          unreadCount: result.conversation.unreadCount,
-          messageCount: result.conversation.messageCount,
-          status: result.conversation.status
+        socketManager.broadcastToConversation({
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          conversationId: conversation.id,
+          event: 'conversation-updated',
+          payload: {
+            id: conversation.id,
+            lastMessage: result.conversation.lastMessage,
+            lastMessageAt: result.conversation.lastMessageAt,
+            unreadCount: result.conversation.unreadCount,
+            messageCount: result.conversation.messageCount,
+            status: result.conversation.status
+          }
         });
       }
 
