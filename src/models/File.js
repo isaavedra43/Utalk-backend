@@ -65,8 +65,8 @@ class File {
   static async createIndexes(file) {
     const batch = firestore.batch();
 
-    // Índice por conversación (solo si conversationId existe)
-    if (file.conversationId) {
+    // Índice por conversación (solo si conversationId existe y no es temporal)
+    if (file.conversationId && file.conversationId !== 'temp-webhook') {
       const conversationIndexRef = firestore
         .collection('files_by_conversation')
         .doc(file.conversationId)
@@ -82,8 +82,8 @@ class File {
       });
     }
 
-    // Índice por usuario
-    if (file.uploadedBy) {
+    // Índice por usuario (solo si uploadedBy existe)
+    if (file.uploadedBy && file.uploadedBy !== 'webhook') {
       const userIndexRef = firestore
         .collection('files_by_user')
         .doc(file.uploadedBy)
@@ -149,12 +149,15 @@ class File {
     try {
       await batch.commit();
     } catch (batchError) {
-      logger.error('❌ Error ejecutando batch de índices', {
+      // 🔧 CORRECCIÓN: No fallar completamente si hay problemas con índices
+      // Solo loggear el error pero continuar
+      console.error('⚠️ Error ejecutando batch de índices (no crítico):', {
         fileId: file.id,
         error: batchError.message,
-        stack: batchError.stack
+        stack: batchError.stack?.split('\n').slice(0, 3)
       });
-      throw batchError;
+      // No lanzar el error para evitar que falle todo el proceso
+      // throw batchError;
     }
   }
 

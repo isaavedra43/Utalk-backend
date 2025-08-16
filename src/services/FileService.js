@@ -194,6 +194,11 @@ class FileService {
         throw new Error('Error: No se pudo procesar el archivo. Resultado indefinido.');
       }
 
+      // Validar que processedFile tiene las propiedades mínimas necesarias
+      if (!processedFile.storagePath || !processedFile.publicUrl) {
+        throw new Error('Error: Resultado de procesamiento incompleto. Faltan propiedades requeridas.');
+      }
+
       // 🆕 Guardar archivo en base de datos con metadata completa
       let fileRecord;
       try {

@@ -644,7 +644,7 @@ class MessageService {
         originalName: `webhook-media-${messageSid}-${index}`,
         mimetype: contentType,
         size: buffer.byteLength,
-        conversationId: null, // Se asignará después
+        conversationId: 'temp-webhook', // Usar un ID temporal para evitar problemas con null
         userId: null,
         uploadedBy: 'webhook',
         tags: ['webhook', 'twilio']
