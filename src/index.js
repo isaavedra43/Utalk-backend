@@ -998,6 +998,12 @@ class ConsolidatedServer {
         this.app._router.handle(req, res);
       });
 
+      this.app.use('/messages', (req, res) => {
+        console.log('🔄 Redirigiendo /messages a /api/messages');
+        req.url = req.url.replace('/messages', '/api/messages');
+        this.app._router.handle(req, res);
+      });
+
       // Ruta catch-all para 404
       this.app.use('*', (req, res) => {
         console.log('🚫 Ruta no encontrada:', req.method, req.originalUrl, 'desde IP:', req.ip);
