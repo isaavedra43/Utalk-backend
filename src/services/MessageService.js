@@ -469,8 +469,32 @@ class MessageService {
           } else {
             console.log('❌ NO SE ENCONTRARON URLs DE MEDIA:', {
               requestId,
-              mediaResult
+              mediaResult,
+              webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
+              numMedia: parseInt(NumMedia || '0')
             });
+            
+            // 🔧 CORRECCIÓN: Si no se encontraron URLs pero NumMedia > 0, intentar extraer manualmente
+            if (parseInt(NumMedia || '0') > 0) {
+              console.log('🔧 Intentando extracción manual de media...');
+              const manualUrls = [];
+              
+              for (let i = 0; i < parseInt(NumMedia); i++) {
+                const mediaUrl = webhookData[`MediaUrl${i}`];
+                if (mediaUrl) {
+                  manualUrls.push(mediaUrl);
+                  console.log(`🔧 MediaUrl${i} encontrado manualmente: ${mediaUrl}`);
+                }
+              }
+              
+              if (manualUrls.length > 0) {
+                messageData.mediaUrl = manualUrls[0];
+                console.log('✅ MEDIA ASIGNADO MANUALMENTE:', {
+                  requestId,
+                  mediaUrl: messageData.mediaUrl
+                });
+              }
+            }
           }
         } catch (mediaError) {
           console.log('❌ ERROR PROCESANDO MEDIA:', {
