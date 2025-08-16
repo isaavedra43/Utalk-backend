@@ -799,6 +799,9 @@ class MessageController {
         contentLength: content?.length || 0,
         contentPreview: content?.substring(0, 100) || null,
         numMedia: parseInt(numMedia) || 0,
+        hasMediaUrl: !!req.body.MediaUrl0,
+        mediaUrl: req.body.MediaUrl0,
+        mediaType: req.body.MediaContentType0,
         step: 'data_extracted'
       });
 

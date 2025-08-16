@@ -77,11 +77,29 @@ const messageValidators = {
     body: Joi.object({
       From: Joi.string().required(),
       To: Joi.string().required(),
-      Body: Joi.string().optional(),
+      Body: Joi.string().optional().allow('', null),
       MessageSid: Joi.string().required(),
       NumMedia: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
       MediaUrl0: Joi.string().uri().optional(),
+      MediaUrl1: Joi.string().uri().optional(),
+      MediaUrl2: Joi.string().uri().optional(),
+      MediaUrl3: Joi.string().uri().optional(),
+      MediaUrl4: Joi.string().uri().optional(),
+      MediaUrl5: Joi.string().uri().optional(),
+      MediaUrl6: Joi.string().uri().optional(),
+      MediaUrl7: Joi.string().uri().optional(),
+      MediaUrl8: Joi.string().uri().optional(),
+      MediaUrl9: Joi.string().uri().optional(),
       MediaContentType0: Joi.string().optional(),
+      MediaContentType1: Joi.string().optional(),
+      MediaContentType2: Joi.string().optional(),
+      MediaContentType3: Joi.string().optional(),
+      MediaContentType4: Joi.string().optional(),
+      MediaContentType5: Joi.string().optional(),
+      MediaContentType6: Joi.string().optional(),
+      MediaContentType7: Joi.string().optional(),
+      MediaContentType8: Joi.string().optional(),
+      MediaContentType9: Joi.string().optional(),
       ProfileName: Joi.string().optional(),
       WaId: Joi.string().optional(),
       AccountSid: Joi.string().optional(),
@@ -96,8 +114,22 @@ const messageValidators = {
       // 🆕 CAMPOS PARA STICKERS
       StickerId: Joi.string().optional(),
       StickerPackId: Joi.string().optional(),
-      StickerEmoji: Joi.string().optional()
-    })
+      StickerEmoji: Joi.string().optional(),
+      // 🆕 CAMPOS ADICIONALES DE TWILIO
+      SmsStatus: Joi.string().optional(),
+      SmsSid: Joi.string().optional(),
+      SmsMessageSid: Joi.string().optional(),
+      NumSegments: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      ReferralNumMedia: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      ReferralNumSegments: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      ReferralIntegrationError: Joi.string().optional(),
+      ReferralTo: Joi.string().optional(),
+      ReferralFrom: Joi.string().optional(),
+      ReferralMediaUrl: Joi.string().uri().optional(),
+      ReferralMediaContentType: Joi.string().optional(),
+      ReferralMediaSize: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+      ReferralMediaSid: Joi.string().optional()
+    }).unknown(true) // Permitir campos adicionales de Twilio
   }),
 
   validateWhatsAppFile: validateRequest({

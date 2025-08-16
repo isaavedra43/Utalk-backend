@@ -1440,17 +1440,57 @@ class MessageService {
       // PASO 3: Procesar información de contacto
       const contactInfo = await this.processContactInfo(normalizedFromPhone, profileName, waId);
 
-      // PASO 4: Determinar tipo de mensaje
+      // PASO 4: Determinar tipo de mensaje y procesar medios
       let messageType = 'text';
       let mediaData = null;
 
-      if (parseInt(numMedia) > 0 && mediaUrl) {
-        messageType = this.determineMediaType(mediaType);
-        mediaData = {
-          url: mediaUrl,
-          type: mediaType,
-          size: null, // Se puede obtener del webhook si está disponible
-        };
+      if (parseInt(numMedia) > 0) {
+        logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
+          requestId,
+          numMedia: parseInt(numMedia),
+          hasMediaUrl: !!mediaUrl,
+          mediaType,
+          step: 'media_processing_start'
+        });
+
+        try {
+          // Procesar todos los medios del webhook
+          const mediaInfo = await MessageService.processWebhookMedia(webhookData);
+          
+          messageType = mediaInfo.primaryType;
+          mediaData = {
+            urls: mediaInfo.urls,
+            processed: mediaInfo.processed,
+            count: mediaInfo.count,
+            primaryType: mediaInfo.primaryType
+          };
+
+          logger.info('✅ MESSAGESERVICE - MEDIOS PROCESADOS', {
+            requestId,
+            mediaCount: mediaInfo.count,
+            primaryType: mediaInfo.primaryType,
+            hasUrls: mediaInfo.urls.length > 0,
+            step: 'media_processing_complete'
+          });
+
+        } catch (mediaError) {
+          logger.error('❌ MESSAGESERVICE - ERROR PROCESANDO MEDIOS', {
+            requestId,
+            error: mediaError.message,
+            step: 'media_processing_error'
+          });
+
+          // Fallback: usar solo la URL directa si hay error
+          if (mediaUrl) {
+            messageType = this.determineMediaType(mediaType);
+            mediaData = {
+              url: mediaUrl,
+              type: mediaType,
+              size: null,
+              error: mediaError.message
+            };
+          }
+        }
       }
 
       // PASO 5: Generar ID de conversación
@@ -1468,7 +1508,7 @@ class MessageService {
         status: 'received',
         sender: 'customer',
         timestamp: new Date().toISOString(),
-        mediaUrl: mediaData?.url || null,
+        mediaUrl: mediaData?.urls?.[0] || mediaData?.url || null,
         metadata: {
           twilio: {
             sid: twilioSid,
