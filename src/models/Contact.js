@@ -50,19 +50,39 @@ class Contact {
    * Obtener contacto por teléfono
    */
   static async getByPhone (phone) {
-    const snapshot = await firestore
-      .collection('contacts')
-      .where('phone', '==', phone)
-      .where('isActive', '==', true)
-      .limit(1)
-      .get();
+    try {
+      // Primero intentar buscar contactos activos
+      let snapshot = await firestore
+        .collection('contacts')
+        .where('phone', '==', phone)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
 
-    if (snapshot.empty) {
-      return null;
+      // Si no encuentra contactos activos, buscar cualquier contacto con ese teléfono
+      if (snapshot.empty) {
+        snapshot = await firestore
+          .collection('contacts')
+          .where('phone', '==', phone)
+          .limit(1)
+          .get();
+      }
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const doc = snapshot.docs[0];
+      return new Contact({ id: doc.id, ...doc.data() });
+    } catch (error) {
+      const logger = require('../utils/logger');
+      logger.error('Error buscando contacto por teléfono', {
+        phone,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
     }
-
-    const doc = snapshot.docs[0];
-    return new Contact({ id: doc.id, ...doc.data() });
   }
 
   /**

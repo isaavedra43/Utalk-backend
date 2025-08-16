@@ -397,4 +397,64 @@ router.get('/proxy',
   MediaUploadController.proxyTwilioMedia
 );
 
+/**
+ * @route GET /media/proxy
+ * @desc Proxy para acceder a media de Twilio (SIN AUTENTICACIÓN - SOLO DESARROLLO)
+ * @access Public (Solo para desarrollo)
+ * @query messageSid - ID del mensaje de Twilio
+ * @query mediaSid - ID del media de Twilio
+ * 
+ * NOTA: Este endpoint está configurado en src/index.js para evitar conflictos
+ * y asegurar que funcione correctamente sin autenticación
+ */
+
+/**
+ * @route GET /api/media/permanent-url/:fileId
+ * @desc Generar URL permanente para archivo almacenado
+ * @access Private (Admin, Agent, Viewer)
+ * @param fileId - ID del archivo'¿0
+ */
+router.get('/permanent-url/:fileId',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest({
+    params: Joi.object({
+      fileId: Joi.string().uuid().required()
+    })
+  }),
+  MediaUploadController.generatePermanentUrl
+);
+
+/**
+ * @route GET /api/media/proxy-file/:fileId
+ * @desc Proxy para archivos almacenados en Firebase
+ * @access Private (Admin, Agent, Viewer)
+ * @param fileId - ID del archivo
+ */
+router.get('/proxy-file/:fileId',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest({
+    params: Joi.object({
+      fileId: Joi.string().uuid().required()
+    })
+  }),
+  MediaUploadController.proxyStoredFile
+);
+
+/**
+ * @route GET /media/proxy-file/:fileId
+ * @desc Proxy para archivos almacenados (SIN AUTENTICACIÓN - SOLO DESARROLLO)
+ * @access Public (Solo para desarrollo)
+ * @param fileId - ID del archivo
+ */
+router.get('/proxy-file-public/:fileId',
+  validateRequest({
+    params: Joi.object({
+      fileId: Joi.string().uuid().required()
+    })
+  }),
+  MediaUploadController.proxyStoredFile
+);
+
 module.exports = router;

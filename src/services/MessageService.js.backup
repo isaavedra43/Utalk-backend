@@ -28,14 +28,7 @@ class MessageService {
     this._diagLogBoot(accountSid, authToken, this.whatsappNumber);
 
     if (!accountSid || !authToken) {
-      // En desarrollo local o cuando NODE_ENV no está definido, permitir que la app funcione sin credenciales de Twilio
-      if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-        console.warn('⚠️ WARNING: Missing Twilio credentials in development mode. Some features may not work.');
-        this.client = null;
-        return;
-      }
-      
-      // En producción, lanzar error
+      // No rompas la app con throw sin control; deja que el caller lo capture y mapee a 424
       const e = new Error('Missing Twilio credentials: TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
       e.code = 20003; // equivalente a auth fail para mapeo uniforme
       throw e;
@@ -435,110 +428,6 @@ class MessageService {
           messageData.mediaUrl = specialData.url;
         }
       }
-      
-      // 🔍 LOG DETALLADO DEL WEBHOOK COMPLETO
-      console.log('🔍 WEBHOOK COMPLETO RECIBIDO:', {
-        requestId,
-        timestamp: new Date().toISOString(),
-        messageSid: MessageSid,
-        from: From,
-        to: To,
-        body: Body,
-        messageType,
-        numMedia: parseInt(NumMedia || '0'),
-        referralNumMedia: webhookData.referralNumMedia,
-        allKeys: Object.keys(webhookData),
-        mediaKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
-        webhookData: JSON.stringify(webhookData, null, 2)
-      });
-      
-      // Procesar media si es un mensaje multimedia
-      if (messageType === 'media' && parseInt(NumMedia || '0') > 0) {
-        console.log('🔄 INICIANDO PROCESAMIENTO DE MEDIA:', {
-          requestId,
-          messageType,
-          numMedia: parseInt(NumMedia),
-          webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
-        });
-        
-        try {
-          const mediaResult = await this.processWebhookMedia(webhookData);
-          console.log('📊 RESULTADO DE MEDIA:', {
-            requestId,
-            urlsCount: mediaResult.urls.length,
-            urls: mediaResult.urls,
-            primaryType: mediaResult.primaryType,
-            count: mediaResult.count
-          });
-          
-          if (mediaResult.urls.length > 0) {
-            // Usar la primera URL de media como mediaUrl principal
-            messageData.mediaUrl = mediaResult.urls[0];
-            // Actualizar el tipo basado en el tipo principal detectado
-            messageData.type = mediaResult.primaryType;
-            
-            console.log('✅ MEDIA ASIGNADO AL MENSAJE:', {
-              requestId,
-              mediaUrl: messageData.mediaUrl,
-              type: messageData.type
-            });
-            
-            logger.info('✅ Media procesado exitosamente', {
-              requestId,
-              mediaUrl: messageData.mediaUrl,
-              primaryType: mediaResult.primaryType,
-              mediaCount: mediaResult.count
-            });
-          } else {
-            console.log('❌ NO SE ENCONTRARON URLs DE MEDIA:', {
-              requestId,
-              mediaResult,
-              webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
-              numMedia: parseInt(NumMedia || '0')
-            });
-            
-            // 🔧 CORRECCIÓN: Si no se encontraron URLs pero NumMedia > 0, intentar extraer manualmente
-            if (parseInt(NumMedia || '0') > 0) {
-              console.log('🔧 Intentando extracción manual de media...');
-              const manualUrls = [];
-              
-              for (let i = 0; i < parseInt(NumMedia); i++) {
-                const mediaUrl = webhookData[`MediaUrl${i}`];
-                if (mediaUrl) {
-                  manualUrls.push(mediaUrl);
-                  console.log(`🔧 MediaUrl${i} encontrado manualmente: ${mediaUrl}`);
-                }
-              }
-              
-              if (manualUrls.length > 0) {
-                messageData.mediaUrl = manualUrls[0];
-                console.log('✅ MEDIA ASIGNADO MANUALMENTE:', {
-                  requestId,
-                  mediaUrl: messageData.mediaUrl
-                });
-              }
-            }
-          }
-        } catch (mediaError) {
-          console.log('❌ ERROR PROCESANDO MEDIA:', {
-            requestId,
-            error: mediaError.message,
-            stack: mediaError.stack?.split('\n').slice(0, 3)
-          });
-          
-          logger.error('❌ Error procesando media', {
-            requestId,
-            error: mediaError.message,
-            messageSid: MessageSid
-          });
-        }
-      } else {
-        console.log('ℹ️ NO ES MENSAJE DE MEDIA O NO TIENE MEDIA:', {
-          requestId,
-          messageType,
-          numMedia: parseInt(NumMedia || '0')
-        });
-      }
 
       // Usar el repositorio para escritura canónica
       const conversationsRepo = getConversationsRepository();
@@ -649,7 +538,7 @@ class MessageService {
   }
 
   /**
-   * Procesar media de webhook centralizado - VERSIÓN SIMPLIFICADA
+   * Procesar media de webhook centralizado
    */
   static async processWebhookMedia (webhookData) {
     const mediaUrls = [];
@@ -658,48 +547,26 @@ class MessageService {
 
     const numMedia = parseInt(webhookData.NumMedia || '0');
 
-    // 🔍 LOG DETALLADO DEL PROCESAMIENTO DE MEDIA
-    console.log('🔍 PROCESAMIENTO DE MEDIA - DATOS COMPLETOS:', {
-      messageSid: webhookData.MessageSid,
-      numMedia,
-      referralNumMedia: webhookData.referralNumMedia,
-      allWebhookKeys: Object.keys(webhookData),
-      mediaKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
-      webhookDataComplete: JSON.stringify(webhookData, null, 2)
-    });
-
-    console.log('🔍 Procesando media del webhook:', {
-      numMedia,
-      webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
-    });
-
     // Procesar cada archivo de media
     for (let i = 0; i < numMedia; i++) {
       const mediaUrl = webhookData[`MediaUrl${i}`];
-      const mediaContentType = webhookData[`MediaContentType${i}`];
-
-      console.log(`🔍 Media ${i}:`, { mediaUrl, mediaContentType });
 
       if (mediaUrl) {
-        // Determinar categoría basada en content-type
-        let category = 'document';
-        if (mediaContentType && mediaContentType.startsWith('image/')) category = 'image';
-        else if (mediaContentType && mediaContentType.startsWith('video/')) category = 'video';
-        else if (mediaContentType && mediaContentType.startsWith('audio/')) category = 'audio';
+        try {
+          // Procesar y guardar permanentemente usando FileService
+          const processedInfo = await this.processIndividualWebhookMedia(
+            mediaUrl,
+            webhookData.MessageSid,
+            i,
+          );
 
-        mediaUrls.push(mediaUrl); // URL original
-        processedMedia.push({
-          fileId: `webhook-${webhookData.MessageSid}-${i}`,
-          category: category,
-          url: mediaUrl,
-          mimetype: mediaContentType || 'application/octet-stream',
-          processed: true
-        });
-        types.add(category);
-
-        console.log(`✅ Media ${i} procesado:`, { category, url: mediaUrl });
-      } else {
-        console.log(`❌ Media ${i} sin URL`);
+          mediaUrls.push(mediaUrl); // URL original
+          processedMedia.push(processedInfo); // Info procesada
+          types.add(processedInfo.category);
+        } catch (mediaError) {
+          logger.warn(`Error procesando media ${i}:`, mediaError);
+          // Continuar con el siguiente archivo
+        }
       }
     }
 
@@ -712,61 +579,29 @@ class MessageService {
           ? 'audio'
           : types.has('document') ? 'document' : 'media';
 
-    const result = {
+    return {
       urls: mediaUrls,
       processed: processedMedia,
       primaryType,
       count: mediaUrls.length,
     };
-
-    console.log('📊 Resultado del procesamiento de media:', result);
-    
-    // 🔍 LOG FINAL DEL PROCESAMIENTO
-    console.log('🔍 PROCESAMIENTO DE MEDIA COMPLETADO:', {
-      messageSid: webhookData.MessageSid,
-      numMedia,
-      urlsFound: mediaUrls.length,
-      urls: mediaUrls,
-      primaryType,
-      processedMediaCount: processedMedia.length,
-      result: JSON.stringify(result, null, 2)
-    });
-
-    return result;
   }
 
   /**
-   * 🔧 SOLUCIÓN 1: Procesar media individual de webhook CON BYPASS COMPLETO
+   * Procesar media individual de webhook usando FileService
    */
-  static async processIndividualWebhookMedia (mediaUrl, messageSid, index, conversationId, userId) {
+  static async processIndividualWebhookMedia (mediaUrl, messageSid, index) {
     try {
-      logger.info('🔧 SOLUCIÓN 1: Procesando media con bypass completo', {
+      logger.info('Procesando media individual de webhook', {
         mediaUrl,
         messageSid,
         index
       });
 
-      // Obtener credenciales de Twilio
-      const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
-      const authToken = process.env.TWILIO_AUTH_TOKEN;
-      
-      if (!accountSid || !authToken) {
-        throw new Error('Credenciales de Twilio no configuradas');
-      }
-
-      // Crear credenciales HTTP Basic
-      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-
-      // Descargar el archivo desde la URL de Twilio con autenticación
-      const response = await fetch(mediaUrl, {
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'User-Agent': 'Utalk-Backend/1.0'
-        }
-      });
-      
+      // Descargar el archivo desde la URL de Twilio
+      const response = await fetch(mediaUrl);
       if (!response.ok) {
-        throw new Error(`Error descargando media: ${response.status} - ${response.statusText}`);
+        throw new Error(`Error descargando media: ${response.status}`);
       }
 
       const buffer = await response.arrayBuffer();
@@ -778,217 +613,34 @@ class MessageService {
       else if (contentType.startsWith('video/')) category = 'video';
       else if (contentType.startsWith('audio/')) category = 'audio';
 
-      // 🔧 BYPASS COMPLETO: NO USAR FILESERVICE
-      logger.info('🔧 BYPASS COMPLETO: Evitando FileService problemático', {
-        mediaUrl,
-        messageSid,
-        index,
-        category,
-        size: buffer.byteLength,
-        contentType
-      });
-
-      // Crear un ID único para el archivo
-      const fileId = `bypass-${messageSid}-${index}-${Date.now()}`;
-      
-      // Retornar información básica sin procesamiento complejo
-      const result = {
-        fileId: fileId,
-        category: category,
-        url: mediaUrl, // Usar la URL original de Twilio
-        size: buffer.byteLength,
+      // Crear datos del archivo para FileService
+      const fileData = {
+        buffer: Buffer.from(buffer),
+        originalName: `webhook-media-${messageSid}-${index}`,
         mimetype: contentType,
-        processed: true,
-        bypassMode: true, // Indicar que se usó bypass
-        originalUrl: mediaUrl // Mantener URL original
+        size: buffer.byteLength,
+        conversationId: null, // Se asignará después
+        userId: null,
+        uploadedBy: 'webhook',
+        tags: ['webhook', 'twilio']
       };
 
-      logger.info('✅ BYPASS COMPLETO: Media procesado exitosamente', {
-        fileId,
-        category,
-        size: buffer.byteLength,
-        bypassMode: true
-      });
+      // Usar FileService para procesar el archivo
+      const fileService = new FileService();
+      const processedFile = await fileService.uploadFile(fileData);
 
-      return result;
+      return {
+        fileId: processedFile.id,
+        category,
+        url: processedFile.url,
+        size: processedFile.size,
+        mimetype: contentType
+      };
 
     } catch (error) {
-      logger.error('❌ BYPASS COMPLETO: Error procesando media individual:', error);
+      logger.error('Error procesando media individual:', error);
       throw error;
     }
-  }
-
-  /**
-   * 🔧 SOLUCIÓN 2: Sistema de fallback con múltiples intentos
-   */
-  static async processIndividualWebhookMediaWithFallback(mediaUrl, messageSid, index) {
-    const attempts = [
-      { name: 'FileService Completo', method: this.processWithFileService },
-      { name: 'FileService Simplificado', method: this.processWithFileServiceSimple },
-      { name: 'Bypass Directo', method: this.processWithBypass }
-    ];
-
-    for (let i = 0; i < attempts.length; i++) {
-      const attempt = attempts[i];
-      try {
-        logger.info(`🔧 SOLUCIÓN 2: Intento ${i + 1}/${attempts.length} - ${attempt.name}`, {
-          mediaUrl,
-          messageSid,
-          index
-        });
-
-        const result = await attempt.method.call(this, mediaUrl, messageSid, index);
-        
-        logger.info(`✅ SOLUCIÓN 2: ${attempt.name} exitoso`, {
-          mediaUrl,
-          messageSid,
-          index,
-          fileId: result.fileId
-        });
-
-        return {
-          ...result,
-          fallbackUsed: attempt.name
-        };
-
-      } catch (error) {
-        logger.warn(`⚠️ SOLUCIÓN 2: ${attempt.name} falló`, {
-          mediaUrl,
-          messageSid,
-          index,
-          error: error.message,
-          attempt: i + 1,
-          totalAttempts: attempts.length
-        });
-
-        // Si es el último intento, lanzar el error
-        if (i === attempts.length - 1) {
-          throw error;
-        }
-        
-        // Continuar con el siguiente intento
-        continue;
-      }
-    }
-  }
-
-  /**
-   * Método 1: FileService Completo (original)
-   */
-  static async processWithFileService(mediaUrl, messageSid, index) {
-    // Descargar media
-    const { buffer, contentType } = await this.downloadMedia(mediaUrl);
-    
-    // Determinar categoría
-    let category = 'document';
-    if (contentType.startsWith('image/')) category = 'image';
-    else if (contentType.startsWith('video/')) category = 'video';
-    else if (contentType.startsWith('audio/')) category = 'audio';
-
-    // Usar FileService completo
-    const fileData = {
-      buffer: Buffer.from(buffer),
-      originalName: `webhook-media-${messageSid}-${index}`,
-      mimetype: contentType,
-      size: buffer.byteLength,
-      conversationId: 'temp-webhook',
-      userId: null,
-      uploadedBy: 'webhook',
-      tags: ['webhook', 'twilio']
-    };
-
-    const fileService = new FileService();
-    const processedFile = await fileService.uploadFile(fileData);
-
-    return {
-      fileId: processedFile.id || `file-${Date.now()}`,
-      category,
-      url: processedFile.url || processedFile.publicUrl,
-      size: processedFile.size || buffer.byteLength,
-      mimetype: contentType
-    };
-  }
-
-  /**
-   * Método 2: FileService Simplificado (sin índices)
-   */
-  static async processWithFileServiceSimple(mediaUrl, messageSid, index) {
-    // Descargar media
-    const { buffer, contentType } = await this.downloadMedia(mediaUrl);
-    
-    // Determinar categoría
-    let category = 'document';
-    if (contentType.startsWith('image/')) category = 'image';
-    else if (contentType.startsWith('video/')) category = 'video';
-    else if (contentType.startsWith('audio/')) category = 'audio';
-
-    // Procesar directamente sin FileService
-    const fileId = `simple-${messageSid}-${index}-${Date.now()}`;
-    
-    return {
-      fileId,
-      category,
-      url: mediaUrl, // Usar URL original
-      size: buffer.byteLength,
-      mimetype: contentType,
-      simpleMode: true
-    };
-  }
-
-  /**
-   * Método 3: Bypass Directo
-   */
-  static async processWithBypass(mediaUrl, messageSid, index) {
-    // Descargar media
-    const { buffer, contentType } = await this.downloadMedia(mediaUrl);
-    
-    // Determinar categoría
-    let category = 'document';
-    if (contentType.startsWith('image/')) category = 'image';
-    else if (contentType.startsWith('video/')) category = 'video';
-    else if (contentType.startsWith('audio/')) category = 'audio';
-
-    // Bypass completo
-    const fileId = `bypass-${messageSid}-${index}-${Date.now()}`;
-    
-    return {
-      fileId,
-      category,
-      url: mediaUrl,
-      size: buffer.byteLength,
-      mimetype: contentType,
-      bypassMode: true
-    };
-  }
-
-  /**
-   * Descargar media de Twilio
-   */
-  static async downloadMedia(mediaUrl) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    
-    if (!accountSid || !authToken) {
-      throw new Error('Credenciales de Twilio no configuradas');
-    }
-
-    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-
-    const response = await fetch(mediaUrl, {
-      headers: {
-        'Authorization': `Basic ${credentials}`,
-        'User-Agent': 'Utalk-Backend/1.0'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error descargando media: ${response.status} - ${response.statusText}`);
-    }
-
-    const buffer = await response.arrayBuffer();
-    const contentType = response.headers.get('content-type');
-
-    return { buffer, contentType };
   }
 
   /**
@@ -1788,72 +1440,17 @@ class MessageService {
       // PASO 3: Procesar información de contacto
       const contactInfo = await this.processContactInfo(normalizedFromPhone, profileName, waId);
 
-              // PASO 4: Determinar tipo de mensaje y procesar medios
-        let messageType = 'text';
-        let mediaData = null;
+      // PASO 4: Determinar tipo de mensaje
+      let messageType = 'text';
+      let mediaData = null;
 
-        if (parseInt(numMedia) > 0) {
-          console.log('🔍 MESSAGESERVICE - INICIANDO PROCESAMIENTO DE MEDIOS:', {
-            requestId,
-            numMedia: parseInt(numMedia),
-            hasMediaUrl: !!mediaUrl,
-            mediaType,
-            webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
-          });
-
-          logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
-            requestId,
-            numMedia: parseInt(numMedia),
-            hasMediaUrl: !!mediaUrl,
-            mediaType,
-            step: 'media_processing_start'
-          });
-
-          try {
-            // Procesar todos los medios del webhook
-            const mediaInfo = await MessageService.processWebhookMedia(webhookData);
-            
-            console.log('🔍 MESSAGESERVICE - RESULTADO DE processWebhookMedia:', {
-              requestId,
-              mediaInfo: mediaInfo,
-              urlsCount: mediaInfo.urls.length,
-              primaryType: mediaInfo.primaryType
-            });
-            
-            messageType = mediaInfo.primaryType;
-            mediaData = {
-              urls: mediaInfo.urls,
-              processed: mediaInfo.processed,
-              count: mediaInfo.count,
-              primaryType: mediaInfo.primaryType
-            };
-
-          logger.info('✅ MESSAGESERVICE - MEDIOS PROCESADOS', {
-            requestId,
-            mediaCount: mediaInfo.count,
-            primaryType: mediaInfo.primaryType,
-            hasUrls: mediaInfo.urls.length > 0,
-            step: 'media_processing_complete'
-          });
-
-        } catch (mediaError) {
-          logger.error('❌ MESSAGESERVICE - ERROR PROCESANDO MEDIOS', {
-            requestId,
-            error: mediaError.message,
-            step: 'media_processing_error'
-          });
-
-          // Fallback: usar solo la URL directa si hay error
-          if (mediaUrl) {
-            messageType = this.determineMediaType(mediaType);
-            mediaData = {
-              url: mediaUrl,
-              type: mediaType,
-              size: null,
-              error: mediaError.message
-            };
-          }
-        }
+      if (parseInt(numMedia) > 0 && mediaUrl) {
+        messageType = this.determineMediaType(mediaType);
+        mediaData = {
+          url: mediaUrl,
+          type: mediaType,
+          size: null, // Se puede obtener del webhook si está disponible
+        };
       }
 
       // PASO 5: Generar ID de conversación
@@ -1871,7 +1468,7 @@ class MessageService {
         status: 'received',
         sender: 'customer',
         timestamp: new Date().toISOString(),
-        mediaUrl: mediaData?.urls?.[0] || mediaData?.url || null,
+        mediaUrl: mediaData?.url || null,
         metadata: {
           twilio: {
             sid: twilioSid,
@@ -1895,47 +1492,23 @@ class MessageService {
           },
           contact: contactInfo,
           media: mediaData,
-                    webhookReceivedAt: new Date().toISOString(),
+          webhookReceivedAt: new Date().toISOString(),
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // 🔍 LOGGING CRÍTICO DE MESSAGE DATA
-      console.log('🔍 MESSAGESERVICE - MESSAGE DATA CREADO:', {
+      logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
         requestId,
         messageId: messageData.id,
         conversationId: messageData.conversationId,
+        sender: messageData.senderIdentifier,
+        recipient: messageData.recipientIdentifier,
         type: messageData.type,
-        mediaUrl: messageData.mediaUrl,
         hasMedia: !!messageData.mediaUrl,
-        mediaData: mediaData,
-        step: 'message_data_created'
+        hasContactInfo: !!(messageData.metadata.contact),
+        step: 'message_data_prepared'
       });
-
-        // 🔍 LOGGING DETALLADO DE MEDIA
-        console.log('🔍 MESSAGESERVICE - DIAGNÓSTICO DE MEDIA:', {
-          requestId,
-          mediaData: mediaData,
-          mediaDataUrls: mediaData?.urls,
-          mediaDataUrl: mediaData?.url,
-          mediaUrlAssigned: messageData.mediaUrl,
-          messageType: messageType,
-          numMedia: parseInt(numMedia) || 0,
-          step: 'media_diagnosis'
-        });
-
-        logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
-          requestId,
-          messageId: messageData.id,
-          conversationId: messageData.conversationId,
-          sender: messageData.senderIdentifier,
-          recipient: messageData.recipientIdentifier,
-          type: messageData.type,
-          hasMedia: !!messageData.mediaUrl,
-          hasContactInfo: !!(messageData.metadata.contact),
-          step: 'message_data_prepared'
-        });
 
       // PASO 7: Buscar o crear conversación
       const conversation = await this.findOrCreateConversation(
@@ -2526,335 +2099,6 @@ class MessageService {
   }
 
   /**
-   * 📎 ENVIAR ARCHIVO A WHATSAPP VIA TWILIO
-   * FASE 6: Integración específica para archivos
-   */
-  async sendFileToWhatsApp(phoneNumber, fileUrl, caption = '') {
-    try {
-      logger.info('📎 Enviando archivo a WhatsApp', {
-        phoneNumber,
-        fileUrl,
-        captionLength: caption?.length || 0
-      });
-
-      const message = await this.client.messages.create({
-        body: caption || 'Archivo compartido',
-        mediaUrl: [fileUrl],
-        from: `whatsapp:${this.whatsappNumber}`,
-        to: `whatsapp:${phoneNumber}`
-      });
-
-      logger.info('✅ Archivo enviado exitosamente a WhatsApp', {
-        messageSid: message.sid,
-        status: message.status,
-        phoneNumber
-      });
-
-      return {
-        success: true,
-        messageSid: message.sid,
-        status: message.status,
-        errorCode: message.errorCode,
-        errorMessage: message.errorMessage,
-        timestamp: new Date().toISOString()
-      };
-
-    } catch (error) {
-      logger.error('❌ Error enviando archivo a WhatsApp', {
-        phoneNumber,
-        fileUrl,
-        error: error.message,
-        code: error.code
-      });
-
-      return {
-        success: false,
-        error: error.message,
-        code: error.code,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  /**
-   * 📱 MANEJAR ARCHIVO RECIBIDO DE WHATSAPP
-   * FASE 6: Procesamiento completo de archivos entrantes
-   */
-  async handleWhatsAppFileReceived(req, res) {
-    const requestId = `whatsapp_file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const { MediaUrl0, From, Body, MessageSid, NumMedia } = req.body;
-
-      logger.info('📱 Procesando archivo recibido de WhatsApp', {
-        requestId,
-        from: From,
-        messageSid: MessageSid,
-        hasMedia: !!MediaUrl0,
-        numMedia: NumMedia,
-        bodyLength: Body?.length || 0
-      });
-
-      // 1. Validar datos requeridos
-      if (!MediaUrl0) {
-        logger.warn('⚠️ No se encontró MediaUrl0 en webhook', { requestId });
-        return res.status(400).json({ error: 'MediaUrl0 es requerido' });
-      }
-
-      if (!From) {
-        logger.warn('⚠️ No se encontró From en webhook', { requestId });
-        return res.status(400).json({ error: 'From es requerido' });
-      }
-
-      // 2. Descargar archivo de WhatsApp
-      logger.info('📥 Descargando archivo de WhatsApp', { requestId, mediaUrl: MediaUrl0 });
-      
-      const fileBuffer = await this.downloadFileFromUrl(MediaUrl0);
-      
-      if (!fileBuffer) {
-        logger.error('❌ Error descargando archivo de WhatsApp', { requestId, mediaUrl: MediaUrl0 });
-        return res.status(500).json({ error: 'Error descargando archivo' });
-      }
-
-      // 3. Encontrar conversación por número de teléfono
-      logger.info('🔍 Buscando conversación por número de teléfono', { requestId, from: From });
-      
-      const conversation = await this.findConversationByPhone(From);
-      
-      if (!conversation) {
-        logger.warn('⚠️ No se encontró conversación para el número', { requestId, from: From });
-        return res.status(404).json({ error: 'Conversación no encontrada' });
-      }
-
-      // 4. Procesar y guardar archivo
-      logger.info('💾 Procesando y guardando archivo', { requestId, conversationId: conversation.id });
-      
-      const processedFile = await this.processSingleAttachment({
-        buffer: fileBuffer,
-        mimetype: 'application/octet-stream', // WhatsApp no envía mimetype específico
-        originalName: `archivo_whatsapp_${Date.now()}`,
-        size: fileBuffer.length,
-        conversationId: conversation.id,
-        uploadedBy: From
-      });
-
-      if (!processedFile) {
-        logger.error('❌ Error procesando archivo', { requestId });
-        return res.status(500).json({ error: 'Error procesando archivo' });
-      }
-
-      // 5. Crear mensaje con archivo
-      logger.info('💬 Creando mensaje con archivo', { requestId, fileId: processedFile.id });
-      
-      const messageData = {
-        conversationId: conversation.id,
-        messageId: MessageSid,
-        content: Body || 'Archivo compartido',
-        type: 'media',
-        direction: 'inbound',
-        senderIdentifier: From,
-        recipientIdentifier: this.whatsappNumber,
-        timestamp: new Date(),
-        status: 'received',
-        mediaUrl: processedFile.url,
-        metadata: {
-          twilioSid: MessageSid,
-          fileId: processedFile.id,
-          fileName: processedFile.name,
-          fileSize: processedFile.size,
-          fileType: processedFile.mimetype,
-          source: 'whatsapp_webhook',
-          requestId
-        }
-      };
-
-      const savedMessage = await Message.create(messageData);
-
-      // 6. Actualizar conversación
-      await conversation.updateLastMessage(savedMessage);
-
-      logger.info('✅ Archivo de WhatsApp procesado exitosamente', {
-        requestId,
-        messageId: savedMessage.id,
-        fileId: processedFile.id,
-        conversationId: conversation.id
-      });
-
-      // 7. Emitir eventos WebSocket
-      const socketManager = req.app.get('socketManager');
-      if (socketManager) {
-        socketManager.emitToConversation(conversation.id, 'new-message', {
-          message: savedMessage,
-          file: processedFile
-        });
-
-        socketManager.emitToConversation(conversation.id, 'file-received', {
-          file: processedFile,
-          message: savedMessage
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        messageId: savedMessage.id,
-        fileId: processedFile.id,
-        conversationId: conversation.id
-      });
-
-    } catch (error) {
-      logger.error('❌ Error procesando archivo de WhatsApp', {
-        requestId,
-        error: error.message,
-        stack: error.stack?.split('\n').slice(0, 3)
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: 'Error interno procesando archivo',
-        requestId
-      });
-    }
-  }
-
-  /**
-   * 📥 DESCARGAR ARCHIVO DESDE URL
-   * Función auxiliar para descargar archivos de WhatsApp
-   */
-  async downloadFileFromUrl(url) {
-    try {
-      logger.info('📥 Descargando archivo desde URL', { url });
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
-      }
-
-      const buffer = await response.arrayBuffer();
-      
-      logger.info('✅ Archivo descargado exitosamente', {
-        url,
-        size: buffer.byteLength
-      });
-
-      return Buffer.from(buffer);
-
-    } catch (error) {
-      logger.error('❌ Error descargando archivo', {
-        url,
-        error: error.message
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * 🔍 ENCONTRAR CONVERSACIÓN POR NÚMERO DE TELÉFONO
-   * Función auxiliar para buscar conversaciones
-   */
-  async findConversationByPhone(phoneNumber) {
-    try {
-      logger.info('🔍 Buscando conversación por número', { phoneNumber });
-
-      // Normalizar número de teléfono
-      const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
-
-      // Buscar conversación existente
-      const conversation = await Conversation.findByCustomerPhone(normalizedPhone);
-
-      if (conversation) {
-        logger.info('✅ Conversación encontrada', {
-          phoneNumber,
-          conversationId: conversation.id
-        });
-        return conversation;
-      }
-
-      // Si no existe, crear nueva conversación
-      logger.info('🆕 Creando nueva conversación', { phoneNumber });
-
-      const newConversation = await Conversation.create({
-        customerPhone: normalizedPhone,
-        status: 'active',
-        participants: [normalizedPhone, this.whatsappNumber],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-
-      logger.info('✅ Nueva conversación creada', {
-        phoneNumber,
-        conversationId: newConversation.id
-      });
-
-      return newConversation;
-
-    } catch (error) {
-      logger.error('❌ Error buscando/creando conversación', {
-        phoneNumber,
-        error: error.message
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * 📎 PROCESAR ARCHIVO ADJUNTO ÚNICO
-   * Función auxiliar para procesar archivos usando FileService
-   */
-  async processSingleAttachment(fileData) {
-    try {
-      logger.info('📎 Procesando archivo adjunto', {
-        originalName: fileData.originalName,
-        size: fileData.size,
-        mimetype: fileData.mimetype
-      });
-
-      const fileService = new FileService();
-      
-      const processedFile = await fileService.uploadFile({
-        buffer: fileData.buffer,
-        originalName: fileData.originalName,
-        mimetype: fileData.mimetype,
-        size: fileData.size,
-        conversationId: fileData.conversationId,
-        userId: fileData.userId,
-        uploadedBy: fileData.uploadedBy,
-        tags: ['whatsapp', 'webhook', 'incoming']
-      });
-
-      logger.info('✅ Archivo procesado exitosamente', {
-        fileId: processedFile.id,
-        url: processedFile.url
-      });
-
-      return processedFile;
-
-    } catch (error) {
-      logger.error('❌ Error procesando archivo adjunto', {
-        originalName: fileData.originalName,
-        error: error.message
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * 📱 NORMALIZAR NÚMERO DE TELÉFONO
-   * Función auxiliar para normalizar números de WhatsApp
-   */
-  normalizePhoneNumber(phoneNumber) {
-    // Remover prefijo whatsapp: si existe
-    let normalized = phoneNumber.replace(/^whatsapp:/, '');
-    
-    // Asegurar formato E.164
-    if (!normalized.startsWith('+')) {
-      normalized = '+' + normalized;
-    }
-    
-    return normalized;
-  }
-
-  /**
    * 🆕 ENVIAR UBICACIÓN VIA WHATSAPP
    */
   async sendWhatsAppLocation(toPhone, latitude, longitude, name = '', address = '') {
@@ -3196,9 +2440,8 @@ class MessageService {
       // Obtener URL del media
       const mediaInfo = await this.getMediaUrl(mediaSid);
       
-      if (!mediaInfo || !mediaInfo.success) {
-        const errorMessage = mediaInfo && mediaInfo.error ? mediaInfo.error : 'Error desconocido obteniendo URL del media';
-        throw new Error(`No se pudo obtener URL del media: ${errorMessage}`);
+      if (!mediaInfo.success) {
+        throw new Error(`No se pudo obtener URL del media: ${mediaInfo.error}`);
       }
 
       // Descargar el archivo
@@ -3358,128 +2601,6 @@ class MessageService {
         error: error.message,
         results: []
       };
-    }
-  }
-
-  /**
-   * 🔧 SOLUCIÓN 3: Sistema de procesamiento asíncrono con cola
-   */
-  static async processIndividualWebhookMediaAsync(mediaUrl, messageSid, index) {
-    try {
-      logger.info('🔧 SOLUCIÓN 3: Iniciando procesamiento asíncrono', {
-        mediaUrl,
-        messageSid,
-        index
-      });
-
-      // Crear un ID único para el procesamiento
-      const processId = `async-${messageSid}-${index}-${Date.now()}`;
-      
-      // Retornar inmediatamente con información básica
-      const immediateResult = {
-        fileId: processId,
-        category: 'pending',
-        url: mediaUrl,
-        size: 0,
-        mimetype: 'unknown',
-        asyncMode: true,
-        status: 'queued',
-        processId: processId
-      };
-
-      // Procesar en segundo plano (no esperar)
-      this.processMediaInBackground(mediaUrl, messageSid, index, processId).catch(error => {
-        logger.error('🔧 SOLUCIÓN 3: Error en procesamiento en segundo plano', {
-          processId,
-          error: error.message
-        });
-      });
-
-      return immediateResult;
-
-    } catch (error) {
-      logger.error('🔧 SOLUCIÓN 3: Error iniciando procesamiento asíncrono', {
-        mediaUrl,
-        messageSid,
-        index,
-        error: error.message
-      });
-      
-      // Fallback a bypass directo
-      return this.processWithBypass(mediaUrl, messageSid, index);
-    }
-  }
-
-  /**
-   * Procesar media en segundo plano
-   */
-  static async processMediaInBackground(mediaUrl, messageSid, index, processId) {
-    try {
-      logger.info('🔧 SOLUCIÓN 3: Procesando en segundo plano', {
-        processId,
-        mediaUrl,
-        messageSid,
-        index
-      });
-
-      // Descargar media
-      const { buffer, contentType } = await this.downloadMedia(mediaUrl);
-      
-      // Determinar categoría
-      let category = 'document';
-      if (contentType.startsWith('image/')) category = 'image';
-      else if (contentType.startsWith('video/')) category = 'video';
-      else if (contentType.startsWith('audio/')) category = 'audio';
-
-      // Intentar procesar con FileService
-      let processedFile = null;
-      try {
-        const fileData = {
-          buffer: Buffer.from(buffer),
-          originalName: `webhook-media-${messageSid}-${index}`,
-          mimetype: contentType,
-          size: buffer.byteLength,
-          conversationId: 'temp-webhook',
-          userId: null,
-          uploadedBy: 'webhook',
-          tags: ['webhook', 'twilio', 'async']
-        };
-
-        const fileService = new FileService();
-        processedFile = await fileService.uploadFile(fileData);
-        
-        logger.info('🔧 SOLUCIÓN 3: FileService exitoso en segundo plano', {
-          processId,
-          fileId: processedFile.id
-        });
-
-      } catch (fileServiceError) {
-        logger.warn('🔧 SOLUCIÓN 3: FileService falló en segundo plano, usando bypass', {
-          processId,
-          error: fileServiceError.message
-        });
-        
-        // Usar bypass como fallback
-        processedFile = {
-          id: `bypass-${processId}`,
-          url: mediaUrl,
-          size: buffer.byteLength
-        };
-      }
-
-      // Actualizar el estado del procesamiento (aquí podrías guardar en base de datos)
-      logger.info('🔧 SOLUCIÓN 3: Procesamiento en segundo plano completado', {
-        processId,
-        fileId: processedFile.id,
-        category,
-        size: buffer.byteLength
-      });
-
-    } catch (error) {
-      logger.error('🔧 SOLUCIÓN 3: Error en procesamiento en segundo plano', {
-        processId,
-        error: error.message
-      });
     }
   }
 }
