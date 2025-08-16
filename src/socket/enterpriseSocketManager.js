@@ -62,6 +62,26 @@ const SOCKET_EVENTS = {
   MESSAGE_TYPING: 'typing',
   MESSAGE_TYPING_STOP: 'typing-stop',
   
+  // 🆕 File events
+  FILE_UPLOADED: 'file-uploaded',
+  FILE_PROCESSING: 'file-processing',
+  FILE_READY: 'file-ready',
+  FILE_ERROR: 'file-error',
+  FILE_PROGRESS: 'file-progress',
+  CONVERSATION_FILES_UPDATED: 'conversation-files-updated',
+  FILE_RECEIVED: 'file-received',
+  FILE_DELETED: 'file-deleted',
+  
+  // 🆕 Audio events
+  AUDIO_PLAYING: 'audio-playing',
+  AUDIO_STOPPED: 'audio-stopped',
+  AUDIO_PAUSED: 'audio-paused',
+  AUDIO_RECORDING: 'audio-recording',
+  AUDIO_RECORDING_STOPPED: 'audio-recording-stopped',
+  AUDIO_RECORDING_PROGRESS: 'audio-recording-progress',
+  AUDIO_RECORDING_COMPLETED: 'audio-recording-completed',
+  AUDIO_RECORDING_ERROR: 'audio-recording-error',
+  
   // Presence events
   USER_ONLINE: 'user-online',
   USER_OFFLINE: 'user-offline',
@@ -87,7 +107,24 @@ const RATE_LIMITS = {
   [SOCKET_EVENTS.NEW_MESSAGE]: 200,           // 🔧 CORRECCIÓN: 0.2 seconds (más permisivo)
   [SOCKET_EVENTS.MESSAGE_READ]: 200,          // 🔧 CORRECCIÓN: 0.2 seconds (más permisivo)
   [SOCKET_EVENTS.USER_STATUS_CHANGE]: 2000,   // 🔧 CORRECCIÓN: 2 seconds (más permisivo)
-  [SOCKET_EVENTS.SYNC_STATE]: 5000            // 🔧 CORRECCIÓN: 5 seconds (más permisivo)
+  [SOCKET_EVENTS.SYNC_STATE]: 5000,           // 🔧 CORRECCIÓN: 5 seconds (más permisivo)
+  
+  // 🆕 File event rate limits
+  [SOCKET_EVENTS.FILE_UPLOADED]: 1000,        // 1 second
+  [SOCKET_EVENTS.FILE_PROCESSING]: 500,       // 0.5 seconds
+  [SOCKET_EVENTS.FILE_READY]: 1000,           // 1 second
+  [SOCKET_EVENTS.FILE_ERROR]: 2000,           // 2 seconds
+  [SOCKET_EVENTS.FILE_PROGRESS]: 200,         // 0.2 seconds
+  
+  // 🆕 Audio event rate limits
+  [SOCKET_EVENTS.AUDIO_PLAYING]: 500,         // 0.5 seconds
+  [SOCKET_EVENTS.AUDIO_STOPPED]: 500,         // 0.5 seconds
+  [SOCKET_EVENTS.AUDIO_PAUSED]: 500,          // 0.5 seconds
+  [SOCKET_EVENTS.AUDIO_RECORDING]: 1000,      // 1 second
+  [SOCKET_EVENTS.AUDIO_RECORDING_STOPPED]: 1000, // 1 second
+  [SOCKET_EVENTS.AUDIO_RECORDING_PROGRESS]: 200, // 0.2 seconds
+  [SOCKET_EVENTS.AUDIO_RECORDING_COMPLETED]: 1000, // 1 second
+  [SOCKET_EVENTS.AUDIO_RECORDING_ERROR]: 2000 // 2 seconds
 };
 
 // 🔧 SOCKET ROBUSTO: Límites de configuración - OPTIMIZADOS PARA ESTABILIDAD
@@ -937,6 +974,58 @@ class EnterpriseSocketManager {
         // No desconectar; sólo loggear
       }, 
       { maxCalls: 50, timeout: 5000 }
+    );
+
+    // 🆕 File events
+    registerEvent(SOCKET_EVENTS.FILE_UPLOADED, 
+      this.handleFileUploaded.bind(this), 
+      { rateLimited: true, maxCalls: 100, timeout: 30000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.FILE_PROCESSING, 
+      this.handleFileProcessing.bind(this), 
+      { rateLimited: true, maxCalls: 200, timeout: 15000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.FILE_READY, 
+      this.handleFileReady.bind(this), 
+      { rateLimited: true, maxCalls: 100, timeout: 15000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.FILE_ERROR, 
+      this.handleFileError.bind(this), 
+      { rateLimited: true, maxCalls: 50, timeout: 10000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.FILE_PROGRESS, 
+      this.handleFileProgress.bind(this), 
+      { rateLimited: true, maxCalls: 300, timeout: 10000 }
+    );
+
+    // 🆕 Audio events
+    registerEvent(SOCKET_EVENTS.AUDIO_PLAYING, 
+      this.handleAudioPlaying.bind(this), 
+      { rateLimited: true, maxCalls: 200, timeout: 10000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.AUDIO_STOPPED, 
+      this.handleAudioStopped.bind(this), 
+      { rateLimited: true, maxCalls: 200, timeout: 10000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.AUDIO_PAUSED, 
+      this.handleAudioPaused.bind(this), 
+      { rateLimited: true, maxCalls: 200, timeout: 10000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.AUDIO_RECORDING, 
+      this.handleAudioRecording.bind(this), 
+      { rateLimited: true, maxCalls: 100, timeout: 30000 }
+    );
+
+    registerEvent(SOCKET_EVENTS.AUDIO_RECORDING_STOPPED, 
+      this.handleAudioRecordingStopped.bind(this), 
+      { rateLimited: true, maxCalls: 100, timeout: 10000 }
     );
 
     logger.info('Socket event listeners configurados con cleanup automático', {
@@ -1960,6 +2049,323 @@ class EnterpriseSocketManager {
     });
 
     this.metrics.errorsPerSecond++;
+  }
+
+  /**
+   * 🆕 📁 HANDLE FILE UPLOADED
+   * Maneja el evento cuando se sube un archivo
+   */
+  async handleFileUploaded(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, fileName, fileType, fileSize } = fileData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos para la conversación
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast a todos los usuarios en la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_UPLOADED, {
+        fileId,
+        conversationId,
+        fileName,
+        fileType,
+        fileSize,
+        uploadedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      // 🔄 FASE 7: Actualizar lista de archivos en tiempo real
+      await this.emitConversationFilesUpdated(
+        conversationId,
+        socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant'
+      );
+
+      logger.info('File uploaded notification sent', {
+        category: 'SOCKET_FILE_UPLOADED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        uploadedBy: userEmail.substring(0, 20) + '...',
+        fileType,
+        fileSize
+      });
+
+    } catch (error) {
+      logger.error('Error handling file uploaded', {
+        category: 'SOCKET_FILE_UPLOADED_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+
+      socket.emit(SOCKET_EVENTS.ERROR, {
+        error: 'FILE_UPLOADED_FAILED',
+        message: 'Failed to process file uploaded notification'
+      });
+    }
+  }
+
+  /**
+   * 🆕 ⚙️ HANDLE FILE PROCESSING
+   * Maneja el evento cuando un archivo está siendo procesado
+   */
+  async handleFileProcessing(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, progress = 0, stage = 'processing' } = fileData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast progreso a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_PROCESSING, {
+        fileId,
+        conversationId,
+        progress,
+        stage,
+        processedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('File processing progress sent', {
+        category: 'SOCKET_FILE_PROCESSING',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        progress,
+        stage
+      });
+
+    } catch (error) {
+      logger.error('Error handling file processing', {
+        category: 'SOCKET_FILE_PROCESSING_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🆕 ✅ HANDLE FILE READY
+   * Maneja el evento cuando un archivo está listo para usar
+   */
+  async handleFileReady(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, fileUrl, metadata = {} } = fileData;
+
+    try {
+      if (!fileId || !conversationId || !fileUrl) {
+        throw new Error('fileId, conversationId, and fileUrl are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast archivo listo a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_READY, {
+        fileId,
+        conversationId,
+        fileUrl,
+        metadata,
+        readyBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('File ready notification sent', {
+        category: 'SOCKET_FILE_READY',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        readyBy: userEmail.substring(0, 20) + '...'
+      });
+
+    } catch (error) {
+      logger.error('Error handling file ready', {
+        category: 'SOCKET_FILE_READY_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+
+      socket.emit(SOCKET_EVENTS.ERROR, {
+        error: 'FILE_READY_FAILED',
+        message: 'Failed to process file ready notification'
+      });
+    }
+  }
+
+  /**
+   * 🆕 ❌ HANDLE FILE ERROR
+   * Maneja el evento cuando hay un error con un archivo
+   */
+  async handleFileError(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, error, errorCode } = fileData;
+
+    try {
+      if (!fileId || !conversationId || !error) {
+        throw new Error('fileId, conversationId, and error are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast error a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_ERROR, {
+        fileId,
+        conversationId,
+        error,
+        errorCode,
+        errorBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.error('File error notification sent', {
+        category: 'SOCKET_FILE_ERROR',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        error,
+        errorCode,
+        errorBy: userEmail.substring(0, 20) + '...'
+      });
+
+    } catch (error) {
+      logger.error('Error handling file error', {
+        category: 'SOCKET_FILE_ERROR_HANDLER_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🆕 📊 HANDLE FILE PROGRESS
+   * Maneja el evento de progreso detallado de archivos
+   */
+  async handleFileProgress(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, progress, stage, details = {} } = fileData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast progreso detallado a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_PROGRESS, {
+        fileId,
+        conversationId,
+        progress,
+        stage,
+        details,
+        progressBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('File progress sent', {
+        category: 'SOCKET_FILE_PROGRESS',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        progress,
+        stage
+      });
+
+    } catch (error) {
+      logger.error('Error handling file progress', {
+        category: 'SOCKET_FILE_PROGRESS_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+      });
+    }
   }
 
   // UTILITY METHODS
@@ -3649,7 +4055,21 @@ class EnterpriseSocketManager {
                 payload: typeof payload === 'string' ? payload : (payload?.error || 'unknown'),
                 socketId: sock.id
               });
-            }
+            },
+                  // 🆕 File handlers
+      [SOCKET_EVENTS.FILE_UPLOADED]: this.handleFileUploaded.bind(this),
+      [SOCKET_EVENTS.FILE_PROCESSING]: this.handleFileProcessing.bind(this),
+      [SOCKET_EVENTS.FILE_READY]: this.handleFileReady.bind(this),
+      [SOCKET_EVENTS.FILE_ERROR]: this.handleFileError.bind(this),
+      [SOCKET_EVENTS.FILE_PROGRESS]: this.handleFileProgress.bind(this),
+      [SOCKET_EVENTS.FILE_RECEIVED]: this.handleFileReceived.bind(this),
+      [SOCKET_EVENTS.FILE_DELETED]: this.handleFileDeleted.bind(this),
+            // 🆕 Audio handlers
+            [SOCKET_EVENTS.AUDIO_PLAYING]: this.handleAudioPlaying.bind(this),
+            [SOCKET_EVENTS.AUDIO_STOPPED]: this.handleAudioStopped.bind(this),
+            [SOCKET_EVENTS.AUDIO_PAUSED]: this.handleAudioPaused.bind(this),
+            [SOCKET_EVENTS.AUDIO_RECORDING]: this.handleAudioRecording.bind(this),
+            [SOCKET_EVENTS.AUDIO_RECORDING_STOPPED]: this.handleAudioRecordingStopped.bind(this)
           };
 
           // Re-registrar listeners faltantes
@@ -3765,6 +4185,962 @@ class EnterpriseSocketManager {
         eventName,
         roomId,
         error: error.message
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 📡 EMITIR EVENTO DE ARCHIVO SUBIDO
+   * Método para ser llamado desde controladores HTTP
+   */
+  async emitFileUploaded(fileData) {
+    try {
+      const { fileId, conversationId, fileName, fileType, fileSize, uploadedBy } = fileData;
+
+      if (!fileId || !conversationId) {
+        logger.warn('Emitir archivo subido: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_UPLOADED_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_UPLOADED, {
+        fileId,
+        conversationId,
+        fileName,
+        fileType,
+        fileSize,
+        uploadedBy,
+        timestamp: new Date().toISOString()
+      });
+
+      // 🔄 FASE 7: Actualizar lista de archivos en tiempo real
+      await this.emitConversationFilesUpdated(conversationId, 'default_workspace', 'default_tenant');
+
+      logger.info('Evento de archivo subido emitido', {
+        category: 'SOCKET_EMIT_FILE_UPLOADED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        uploadedBy: uploadedBy?.substring(0, 20) + '...',
+        roomId
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de archivo subido', {
+        category: 'SOCKET_EMIT_FILE_UPLOADED_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🔄 FASE 7: OBTENER CONTEO DE ARCHIVOS DE CONVERSACIÓN
+   * Función auxiliar para obtener el número de archivos en una conversación
+   */
+  async getFileCount(conversationId) {
+    try {
+      // Importar File model dinámicamente para evitar ciclos
+      const File = require('../models/File');
+      
+      const count = await File.getCountByConversation(conversationId);
+      
+      logger.debug('Conteo de archivos obtenido', {
+        category: 'SOCKET_FILE_COUNT',
+        conversationId: conversationId.substring(0, 20) + '...',
+        count
+      });
+      
+      return count;
+    } catch (error) {
+      logger.error('Error obteniendo conteo de archivos', {
+        category: 'SOCKET_FILE_COUNT_ERROR',
+        conversationId: conversationId?.substring(0, 20) + '...',
+        error: error.message
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * 🔄 FASE 7: ACTUALIZAR LISTA DE ARCHIVOS EN TIEMPO REAL
+   * Emite evento para actualizar la lista de archivos de una conversación
+   */
+  async emitConversationFilesUpdated(conversationId, workspaceId = 'default_workspace', tenantId = 'default_tenant') {
+    try {
+      if (!conversationId) {
+        logger.warn('Actualizar archivos de conversación: conversationId faltante', {
+          category: 'SOCKET_CONVERSATION_FILES_UPDATED_WARNING'
+        });
+        return false;
+      }
+
+      // Obtener conteo de archivos
+      const fileCount = await this.getFileCount(conversationId);
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ workspaceId, tenantId, conversationId });
+
+      // Emitir evento de actualización
+      this.io.to(roomId).emit(SOCKET_EVENTS.CONVERSATION_FILES_UPDATED, {
+        conversationId,
+        fileCount,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('Lista de archivos de conversación actualizada', {
+        category: 'SOCKET_CONVERSATION_FILES_UPDATED',
+        conversationId: conversationId.substring(0, 20) + '...',
+        fileCount,
+        roomId
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error actualizando lista de archivos de conversación', {
+        category: 'SOCKET_CONVERSATION_FILES_UPDATED_ERROR',
+        conversationId: conversationId?.substring(0, 20) + '...',
+        error: error.message
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🔄 FASE 7: MANEJAR ARCHIVO RECIBIDO DE WHATSAPP
+   * Maneja el evento cuando se recibe un archivo de WhatsApp
+   */
+  async handleFileReceived(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, fileName, fileType, fileSize, source = 'whatsapp' } = fileData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos para la conversación
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast a todos los usuarios en la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_RECEIVED, {
+        fileId,
+        conversationId,
+        fileName,
+        fileType,
+        fileSize,
+        source,
+        receivedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      // Actualizar lista de archivos en tiempo real
+      await this.emitConversationFilesUpdated(
+        conversationId,
+        socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant'
+      );
+
+      logger.info('Archivo recibido notificado', {
+        category: 'SOCKET_FILE_RECEIVED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        source,
+        receivedBy: userEmail.substring(0, 20) + '...'
+      });
+
+    } catch (error) {
+      logger.error('Error manejando archivo recibido', {
+        category: 'SOCKET_FILE_RECEIVED_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+
+      socket.emit(SOCKET_EVENTS.ERROR, {
+        error: 'FILE_RECEIVED_FAILED',
+        message: 'Failed to process file received notification'
+      });
+    }
+  }
+
+  /**
+   * 🔄 FASE 7: MANEJAR ARCHIVO ELIMINADO
+   * Maneja el evento cuando se elimina un archivo
+   */
+  async handleFileDeleted(socket, fileData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, fileName } = fileData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos para la conversación
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'write');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to delete files in this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast a todos los usuarios en la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_DELETED, {
+        fileId,
+        conversationId,
+        fileName,
+        deletedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      // Actualizar lista de archivos en tiempo real
+      await this.emitConversationFilesUpdated(
+        conversationId,
+        socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant'
+      );
+
+      logger.info('Archivo eliminado notificado', {
+        category: 'SOCKET_FILE_DELETED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        deletedBy: userEmail.substring(0, 20) + '...'
+      });
+
+    } catch (error) {
+      logger.error('Error manejando archivo eliminado', {
+        category: 'SOCKET_FILE_DELETED_ERROR',
+        error: error.message,
+        fileId: fileData?.fileId?.substring(0, 20) + '...',
+        conversationId: fileData?.conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+
+      socket.emit(SOCKET_EVENTS.ERROR, {
+        error: 'FILE_DELETED_FAILED',
+        message: 'Failed to process file deleted notification'
+      });
+    }
+  }
+
+  /**
+   * 🆕 ⚙️ EMITIR EVENTO DE ARCHIVO PROCESANDO
+   * Método para ser llamado desde controladores HTTP
+   */
+  emitFileProcessing(fileData) {
+    try {
+      const { fileId, conversationId, progress = 0, stage = 'processing', processedBy } = fileData;
+
+      if (!fileId || !conversationId) {
+        logger.warn('Emitir archivo procesando: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_PROCESSING_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_PROCESSING, {
+        fileId,
+        conversationId,
+        progress,
+        stage,
+        processedBy,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('Evento de archivo procesando emitido', {
+        category: 'SOCKET_EMIT_FILE_PROCESSING',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        progress,
+        stage
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de archivo procesando', {
+        category: 'SOCKET_EMIT_FILE_PROCESSING_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 ✅ EMITIR EVENTO DE ARCHIVO LISTO
+   * Método para ser llamado desde controladores HTTP
+   */
+  emitFileReady(fileData) {
+    try {
+      const { fileId, conversationId, fileUrl, metadata = {}, readyBy } = fileData;
+
+      if (!fileId || !conversationId || !fileUrl) {
+        logger.warn('Emitir archivo listo: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_READY_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId,
+          hasFileUrl: !!fileUrl
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_READY, {
+        fileId,
+        conversationId,
+        fileUrl,
+        metadata,
+        readyBy,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('Evento de archivo listo emitido', {
+        category: 'SOCKET_EMIT_FILE_READY',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        readyBy: readyBy?.substring(0, 20) + '...',
+        roomId
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de archivo listo', {
+        category: 'SOCKET_EMIT_FILE_READY_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 ❌ EMITIR EVENTO DE ERROR DE ARCHIVO
+   * Método para ser llamado desde controladores HTTP
+   */
+  emitFileError(fileData) {
+    try {
+      const { fileId, conversationId, error, errorCode, errorBy } = fileData;
+
+      if (!fileId || !conversationId || !error) {
+        logger.warn('Emitir error de archivo: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_ERROR_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId,
+          hasError: !!error
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_ERROR, {
+        fileId,
+        conversationId,
+        error,
+        errorCode,
+        errorBy,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.error('Evento de error de archivo emitido', {
+        category: 'SOCKET_EMIT_FILE_ERROR',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        error,
+        errorCode,
+        errorBy: errorBy?.substring(0, 20) + '...'
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de error de archivo', {
+        category: 'SOCKET_EMIT_FILE_ERROR_HANDLER_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 📊 EMITIR EVENTO DE PROGRESO DE ARCHIVO
+   * Método para ser llamado desde controladores HTTP
+   */
+  emitFileProgress(fileData) {
+    try {
+      const { fileId, conversationId, progress, stage, details = {}, progressBy } = fileData;
+
+      if (!fileId || !conversationId) {
+        logger.warn('Emitir progreso de archivo: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_PROGRESS_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_PROGRESS, {
+        fileId,
+        conversationId,
+        progress,
+        stage,
+        details,
+        progressBy,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('Evento de progreso de archivo emitido', {
+        category: 'SOCKET_EMIT_FILE_PROGRESS',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        progress,
+        stage
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de progreso de archivo', {
+        category: 'SOCKET_EMIT_FILE_PROGRESS_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 🎵 HANDLE AUDIO PLAYING
+   * Maneja el evento cuando se reproduce audio
+   */
+  async handleAudioPlaying(socket, audioData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, currentTime = 0, duration = 0 } = audioData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.AUDIO_PLAYING, {
+        fileId,
+        conversationId,
+        currentTime,
+        duration,
+        playedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('Audio playing event sent', {
+        category: 'SOCKET_AUDIO_PLAYING',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        playedBy: userEmail.substring(0, 20) + '...',
+        currentTime,
+        duration
+      });
+
+    } catch (error) {
+      logger.error('Error handling audio playing', {
+        category: 'SOCKET_AUDIO_PLAYING_ERROR',
+        error: error.message,
+        fileId: audioData?.fileId?.substring(0, 20) + '...',
+        conversationId: audioData?.conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🆕 ⏹️ HANDLE AUDIO STOPPED
+   * Maneja el evento cuando se detiene el audio
+   */
+  async handleAudioStopped(socket, audioData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, stoppedAt = 0 } = audioData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.AUDIO_STOPPED, {
+        fileId,
+        conversationId,
+        stoppedAt,
+        stoppedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('Audio stopped event sent', {
+        category: 'SOCKET_AUDIO_STOPPED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        stoppedBy: userEmail.substring(0, 20) + '...',
+        stoppedAt
+      });
+
+    } catch (error) {
+      logger.error('Error handling audio stopped', {
+        category: 'SOCKET_AUDIO_STOPPED_ERROR',
+        error: error.message,
+        fileId: audioData?.fileId?.substring(0, 20) + '...',
+        conversationId: audioData?.conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🆕 ⏸️ HANDLE AUDIO PAUSED
+   * Maneja el evento cuando se pausa el audio
+   */
+  async handleAudioPaused(socket, audioData) {
+    const { userEmail } = socket;
+    const { fileId, conversationId, pausedAt = 0 } = audioData;
+
+    try {
+      if (!fileId || !conversationId) {
+        throw new Error('fileId and conversationId are required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'read');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to access this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Broadcast a la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.AUDIO_PAUSED, {
+        fileId,
+        conversationId,
+        pausedAt,
+        pausedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('Audio paused event sent', {
+        category: 'SOCKET_AUDIO_PAUSED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        pausedBy: userEmail.substring(0, 20) + '...',
+        pausedAt
+      });
+
+    } catch (error) {
+      logger.error('Error handling audio paused', {
+        category: 'SOCKET_AUDIO_PAUSED_ERROR',
+        error: error.message,
+        fileId: audioData?.fileId?.substring(0, 20) + '...',
+        conversationId: audioData?.conversationId?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🆕 🎙️ HANDLE AUDIO RECORDING
+   * Maneja el evento cuando se inicia grabación de audio
+   */
+  async handleAudioRecording(socket, audioData) {
+    const { userEmail } = socket;
+    const { conversationId, duration = 60, format = 'mp3' } = audioData;
+
+    try {
+      if (!conversationId) {
+        throw new Error('conversationId is required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'write');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to record audio in this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Iniciar grabación usando AudioProcessor
+      const AudioProcessor = require('../services/AudioProcessor');
+      const audioProcessor = new AudioProcessor();
+      
+      const recording = await audioProcessor.recordAudio(socket, conversationId, {
+        duration,
+        format
+      });
+
+      // Broadcast inicio de grabación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.AUDIO_RECORDING, {
+        recordingId: recording.recordingId,
+        conversationId,
+        duration,
+        format,
+        recordedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('Audio recording started', {
+        category: 'SOCKET_AUDIO_RECORDING',
+        recordingId: recording.recordingId,
+        conversationId: conversationId.substring(0, 20) + '...',
+        recordedBy: userEmail.substring(0, 20) + '...',
+        duration,
+        format
+      });
+
+      // Guardar referencia de grabación activa
+      socket.activeRecording = recording;
+
+    } catch (error) {
+      logger.error('Error handling audio recording', {
+        category: 'SOCKET_AUDIO_RECORDING_ERROR',
+        error: error.message,
+        conversationId: audioData?.conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+
+      socket.emit(SOCKET_EVENTS.AUDIO_RECORDING_ERROR, {
+        conversationId,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 🆕 ⏹️ HANDLE AUDIO RECORDING STOPPED
+   * Maneja el evento cuando se detiene la grabación de audio
+   */
+  async handleAudioRecordingStopped(socket, audioData) {
+    const { userEmail } = socket;
+    const { conversationId } = audioData;
+
+    try {
+      if (!conversationId) {
+        throw new Error('conversationId is required');
+      }
+
+      // Verificar permisos
+      const hasPermission = await this.verifyConversationPermission(userEmail, conversationId, 'write');
+      if (!hasPermission) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          error: 'PERMISSION_DENIED',
+          message: 'No permission to stop recording in this conversation',
+          conversationId
+        });
+        return;
+      }
+
+      // Detener grabación activa
+      if (socket.activeRecording && socket.activeRecording.stop) {
+        socket.activeRecording.stop();
+        
+        logger.info('Audio recording stopped', {
+          category: 'SOCKET_AUDIO_RECORDING_STOPPED',
+          recordingId: socket.activeRecording.recordingId,
+          conversationId: conversationId.substring(0, 20) + '...',
+          stoppedBy: userEmail.substring(0, 20) + '...'
+        });
+
+        // Limpiar referencia
+        socket.activeRecording = null;
+      }
+
+      // Broadcast detención de grabación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: socket.workspaceId || socket.decodedToken?.workspaceId || 'default_workspace',
+        tenantId: socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant',
+        conversationId 
+      });
+
+      this.io.to(roomId).emit(SOCKET_EVENTS.AUDIO_RECORDING_STOPPED, {
+        conversationId,
+        stoppedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error handling audio recording stopped', {
+        category: 'SOCKET_AUDIO_RECORDING_STOPPED_ERROR',
+        error: error.message,
+        conversationId: audioData?.conversationId?.substring(0, 20) + '...',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+    }
+  }
+
+  /**
+   * 🔄 FASE 7: EMITIR EVENTO DE ARCHIVO RECIBIDO
+   * Método para ser llamado desde controladores HTTP
+   */
+  async emitFileReceived(fileData) {
+    try {
+      const { fileId, conversationId, fileName, fileType, fileSize, source = 'whatsapp', receivedBy } = fileData;
+
+      if (!fileId || !conversationId) {
+        logger.warn('Emitir archivo recibido: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_RECEIVED_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_RECEIVED, {
+        fileId,
+        conversationId,
+        fileName,
+        fileType,
+        fileSize,
+        source,
+        receivedBy,
+        timestamp: new Date().toISOString()
+      });
+
+      // Actualizar lista de archivos en tiempo real
+      await this.emitConversationFilesUpdated(conversationId, 'default_workspace', 'default_tenant');
+
+      logger.info('Evento de archivo recibido emitido', {
+        category: 'SOCKET_EMIT_FILE_RECEIVED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        source,
+        receivedBy: receivedBy?.substring(0, 20) + '...',
+        roomId
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de archivo recibido', {
+        category: 'SOCKET_EMIT_FILE_RECEIVED_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 🔄 FASE 7: EMITIR EVENTO DE ARCHIVO ELIMINADO
+   * Método para ser llamado desde controladores HTTP
+   */
+  async emitFileDeleted(fileData) {
+    try {
+      const { fileId, conversationId, fileName, deletedBy } = fileData;
+
+      if (!fileId || !conversationId) {
+        logger.warn('Emitir archivo eliminado: datos incompletos', {
+          category: 'SOCKET_EMIT_FILE_DELETED_WARNING',
+          hasFileId: !!fileId,
+          hasConversationId: !!conversationId
+        });
+        return false;
+      }
+
+      // Obtener room de la conversación
+      const { getConversationRoom } = require('./index');
+      const roomId = getConversationRoom({ 
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant',
+        conversationId 
+      });
+
+      // Emitir evento a la room
+      this.io.to(roomId).emit(SOCKET_EVENTS.FILE_DELETED, {
+        fileId,
+        conversationId,
+        fileName,
+        deletedBy,
+        timestamp: new Date().toISOString()
+      });
+
+      // Actualizar lista de archivos en tiempo real
+      await this.emitConversationFilesUpdated(conversationId, 'default_workspace', 'default_tenant');
+
+      logger.info('Evento de archivo eliminado emitido', {
+        category: 'SOCKET_EMIT_FILE_DELETED',
+        fileId: fileId.substring(0, 20) + '...',
+        conversationId: conversationId.substring(0, 20) + '...',
+        deletedBy: deletedBy?.substring(0, 20) + '...',
+        roomId
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Error emitiendo evento de archivo eliminado', {
+        category: 'SOCKET_EMIT_FILE_DELETED_ERROR',
+        error: error.message,
+        fileData: {
+          fileId: fileData?.fileId?.substring(0, 20) + '...',
+          conversationId: fileData?.conversationId?.substring(0, 20) + '...'
+        }
       });
       return false;
     }

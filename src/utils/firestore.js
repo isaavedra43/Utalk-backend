@@ -113,9 +113,65 @@ const analyzeFirestoreDocument = (doc, context = 'unknown') => {
   });
 };
 
+/**
+ * Prepara datos para guardar en Firestore
+ * @param {Object} data - Datos a preparar
+ * @returns {Object} - Datos limpios para Firestore
+ */
+const prepareForFirestore = (data) => {
+  if (!data || typeof data !== 'object') {
+    logger.warn('prepareForFirestore: Datos inválidos', { data });
+    return {};
+  }
+
+  const cleanData = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    // Ignorar propiedades undefined
+    if (value === undefined) {
+      continue;
+    }
+
+    // Manejar null
+    if (value === null) {
+      cleanData[key] = null;
+      continue;
+    }
+
+    // Manejar fechas
+    if (value instanceof Date) {
+      cleanData[key] = value.toISOString();
+      continue;
+    }
+
+    // Manejar objetos anidados
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      cleanData[key] = prepareForFirestore(value);
+      continue;
+    }
+
+    // Manejar arrays
+    if (Array.isArray(value)) {
+      cleanData[key] = value.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          return prepareForFirestore(item);
+        }
+        return item;
+      });
+      continue;
+    }
+
+    // Valores primitivos
+    cleanData[key] = value;
+  }
+
+  return cleanData;
+};
+
 module.exports = {
   safeFirestoreToJSON,
   validateFirestoreDocument,
   safeGetFirestoreData,
-  analyzeFirestoreDocument
+  analyzeFirestoreDocument,
+  prepareForFirestore
 };

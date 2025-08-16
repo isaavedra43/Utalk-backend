@@ -73,7 +73,7 @@ class MediaUploadController {
 
   /**
    * ENDPOINT PRINCIPAL: POST /api/media/upload
-   * Subida optimizada con indexación automática
+   * Subida optimizada con indexación automática (FASE 4 - MEJORADO)
    */
   async uploadMedia(req, res) {
     try {
@@ -88,13 +88,27 @@ class MediaUploadController {
 
       const file = req.file;
       const userEmail = req.user.email;
+      const { conversationId, tags = [], metadata = {} } = req.body;
 
-      logger.info('🔄 Iniciando subida de archivo', {
+      logger.info('🔄 Iniciando subida de archivo (FASE 4)', {
         originalName: file.originalname,
         size: file.size,
         mimetype: file.mimetype,
-        uploadedBy: userEmail
+        uploadedBy: userEmail,
+        conversationId: conversationId || 'none',
+        hasTags: tags.length > 0
       });
+
+      // Validar compatibilidad con WhatsApp
+      const isWhatsAppCompatible = this.isWhatsAppCompatible(file.mimetype, file.size);
+      
+      if (!isWhatsAppCompatible) {
+        logger.warn('⚠️ Archivo no compatible con WhatsApp', {
+          mimetype: file.mimetype,
+          size: file.size,
+          uploadedBy: userEmail
+        });
+      }
 
       // Subir archivo y obtener metadatos
       const result = await this.fileService.uploadFile({
@@ -103,29 +117,137 @@ class MediaUploadController {
         mimetype: file.mimetype,
         size: file.size,
         userId: req.user.id,
-        uploadedBy: userEmail
+        uploadedBy: userEmail,
+        conversationId: conversationId,
+        tags: tags,
+        metadata: {
+          ...metadata,
+          whatsappCompatible: isWhatsAppCompatible,
+          uploadedVia: 'api',
+          userAgent: req.headers['user-agent']?.substring(0, 200)
+        }
       });
 
-      // Formato canónico de respuesta
+      // Generar preview automático si es compatible
+      let previewUrl = null;
+      if (this.isPreviewable(file.mimetype)) {
+        try {
+          const previewResult = await this.fileService.generatePreview(result.id, {
+            width: 300,
+            height: 300,
+            quality: 80,
+            format: 'webp'
+          });
+          previewUrl = previewResult.previewUrl;
+          
+          logger.info('✅ Preview automático generado', {
+            fileId: result.id,
+            previewUrl: previewResult.previewUrl
+          });
+        } catch (previewError) {
+          logger.warn('⚠️ Error generando preview automático', {
+            fileId: result.id,
+            error: previewError.message
+          });
+        }
+      }
+
+      // Formato canónico de respuesta mejorado
       const attachment = {
         id: result.id,
         url: result.url,
         mime: result.mimetype,
         name: result.originalName,
         size: result.size,
-        type: this.getFileType(result.mimetype)
+        type: this.getFileType(result.mimetype),
+        previewUrl: previewUrl,
+        whatsappCompatible: isWhatsAppCompatible,
+        tags: tags,
+        metadata: {
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: userEmail,
+          conversationId: conversationId || null,
+          ...metadata
+        }
       };
 
-      logger.info('✅ Archivo subido exitosamente', {
+      logger.info('✅ Archivo subido exitosamente (FASE 4)', {
         fileId: result.id,
         size: result.size,
-        uploadedBy: userEmail
+        uploadedBy: userEmail,
+        hasPreview: !!previewUrl,
+        whatsappCompatible: isWhatsAppCompatible
       });
 
-      return ResponseHandler.success(res, { attachments: [attachment] }, 'Archivo subido exitosamente');
+      // 🔄 FASE 7: EMITIR EVENTO WEBSOCKET DE ARCHIVO SUBIDO
+      try {
+        const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+        const socketManager = new EnterpriseSocketManager();
+        
+        await socketManager.emitFileUploaded({
+          fileId: result.id,
+          conversationId: conversationId || 'general',
+          fileName: result.originalName,
+          fileType: result.mimetype,
+          fileSize: result.size,
+          uploadedBy: userEmail,
+          previewUrl: previewUrl,
+          whatsappCompatible: isWhatsAppCompatible
+        });
+
+        logger.info('✅ Evento WebSocket de archivo subido emitido', {
+          fileId: result.id,
+          conversationId: conversationId || 'general'
+        });
+      } catch (socketError) {
+        logger.warn('⚠️ Error emitiendo evento WebSocket de archivo subido', {
+          error: socketError.message,
+          fileId: result.id
+        });
+        // No fallar la respuesta por error de WebSocket
+      }
+
+      // 🔄 FASE 8: TRACKING DE USO DE ARCHIVO
+      try {
+        await this.fileService.trackFileUsage(
+          result.id,
+          'upload',
+          userEmail,
+          {
+            userAgent: req.headers['user-agent'],
+            ip: req.ip,
+            sessionId: req.session?.id,
+            workspaceId: req.user?.workspaceId || 'default',
+            tenantId: req.user?.tenantId || 'default',
+            conversationId: conversationId || 'general'
+          }
+        );
+
+        logger.info('✅ Tracking de uso de archivo registrado', {
+          fileId: result.id,
+          action: 'upload',
+          userEmail
+        });
+      } catch (trackingError) {
+        logger.warn('⚠️ Error en tracking de uso de archivo', {
+          error: trackingError.message,
+          fileId: result.id
+        });
+        // No fallar la respuesta por error de tracking
+      }
+
+      return ResponseHandler.success(res, { 
+        attachments: [attachment],
+        metadata: {
+          totalFiles: 1,
+          totalSize: result.size,
+          whatsappCompatible: isWhatsAppCompatible,
+          hasPreview: !!previewUrl
+        }
+      }, 'Archivo subido exitosamente');
 
     } catch (error) {
-      logger.error('❌ Error subiendo archivo:', {
+      logger.error('❌ Error subiendo archivo (FASE 4):', {
         error: error.message,
         userEmail: req.user?.email,
         fileSize: req.file?.size,
@@ -174,6 +296,35 @@ class MediaUploadController {
 
       logger.info('✅ Información de archivo obtenida exitosamente', { fileId });
 
+      // 🔄 FASE 8: TRACKING DE USO DE ARCHIVO
+      try {
+        await this.fileService.trackFileUsage(
+          fileId,
+          'view',
+          req.user?.email,
+          {
+            userAgent: req.headers['user-agent'],
+            ip: req.ip,
+            sessionId: req.session?.id,
+            workspaceId: req.user?.workspaceId || 'default',
+            tenantId: req.user?.tenantId || 'default',
+            conversationId: fileInfo.conversationId
+          }
+        );
+
+        logger.debug('✅ Tracking de vista de archivo registrado', {
+          fileId,
+          action: 'view',
+          userEmail: req.user?.email
+        });
+      } catch (trackingError) {
+        logger.warn('⚠️ Error en tracking de vista de archivo', {
+          error: trackingError.message,
+          fileId
+        });
+        // No fallar la respuesta por error de tracking
+      }
+
       return ResponseHandler.success(res, fileInfo, 'Información de archivo obtenida');
 
     } catch (error) {
@@ -219,6 +370,35 @@ class MediaUploadController {
         fileId,
         deletedBy: req.user.email
       });
+
+      // 🔄 FASE 8: TRACKING DE USO DE ARCHIVO
+      try {
+        await this.fileService.trackFileUsage(
+          fileId,
+          'delete',
+          req.user.email,
+          {
+            userAgent: req.headers['user-agent'],
+            ip: req.ip,
+            sessionId: req.session?.id,
+            workspaceId: req.user?.workspaceId || 'default',
+            tenantId: req.user?.tenantId || 'default',
+            conversationId: result.conversationId
+          }
+        );
+
+        logger.info('✅ Tracking de eliminación de archivo registrado', {
+          fileId,
+          action: 'delete',
+          userEmail: req.user.email
+        });
+      } catch (trackingError) {
+        logger.warn('⚠️ Error en tracking de eliminación de archivo', {
+          error: trackingError.message,
+          fileId
+        });
+        // No fallar la respuesta por error de tracking
+      }
 
       return ResponseHandler.success(res, result, 'Archivo eliminado exitosamente');
 
@@ -653,6 +833,103 @@ class MediaUploadController {
   }
 
   /**
+   * ENDPOINT: GET /api/media/preview/:fileId
+   * Obtener preview de archivo (FASE 4 - NUEVO)
+   */
+  async getFilePreview(req, res) {
+    try {
+      const { fileId } = req.params;
+      const { width, height, quality = 80 } = req.query;
+
+      logger.info('🖼️ Generando preview de archivo', {
+        fileId,
+        width: width ? parseInt(width) : 'auto',
+        height: height ? parseInt(height) : 'auto',
+        quality: parseInt(quality),
+        userEmail: req.user.email
+      });
+
+      // Obtener información del archivo
+      const fileInfo = await this.fileService.getFileById(fileId);
+      
+      if (!fileInfo) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND',
+          'Archivo no encontrado',
+          'El archivo especificado no existe o fue eliminado',
+          404
+        ));
+      }
+
+      // Verificar si el archivo es compatible con preview
+      const isPreviewable = this.isPreviewable(fileInfo.mimetype);
+      
+      if (!isPreviewable) {
+        return ResponseHandler.error(res, new ApiError(
+          'PREVIEW_NOT_SUPPORTED',
+          'Preview no soportado para este tipo de archivo',
+          'Solo se pueden generar previews de imágenes, videos y documentos PDF',
+          400
+        ));
+      }
+
+      // Generar preview usando FileService
+      const previewOptions = {
+        width: width ? parseInt(width) : undefined,
+        height: height ? parseInt(height) : undefined,
+        quality: parseInt(quality),
+        format: 'webp' // Formato optimizado para web
+      };
+
+      const previewResult = await this.fileService.generatePreview(fileId, previewOptions);
+
+      logger.info('✅ Preview generado exitosamente', {
+        fileId,
+        previewUrl: previewResult.previewUrl,
+        originalSize: fileInfo.size,
+        previewSize: previewResult.size
+      });
+
+      return ResponseHandler.success(res, {
+        fileId,
+        originalFile: {
+          id: fileInfo.id,
+          name: fileInfo.originalName,
+          mimetype: fileInfo.mimetype,
+          size: fileInfo.size,
+          url: fileInfo.url
+        },
+        preview: {
+          url: previewResult.previewUrl,
+          width: previewResult.width,
+          height: previewResult.height,
+          size: previewResult.size,
+          format: previewResult.format
+        },
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          generatedBy: req.user.email,
+          options: previewOptions
+        }
+      }, 'Preview generado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error generando preview:', {
+        fileId: req.params.fileId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'PREVIEW_ERROR',
+        'Error generando preview',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
    * Obtener tipo de archivo basado en MIME type
    */
   getFileType(mimetype) {
@@ -676,6 +953,712 @@ class MediaUploadController {
     };
 
     return whatsappLimits.hasOwnProperty(mimetype) && size <= whatsappLimits[mimetype];
+  }
+
+  /**
+   * Verificar si un archivo es compatible con preview
+   */
+  isPreviewable(mimetype) {
+    const previewableTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/avi',
+      'video/mov',
+      'video/wmv',
+      'application/pdf'
+    ];
+
+    return previewableTypes.includes(mimetype);
+  }
+
+  /**
+   * 🔗 POST /api/media/file/:fileId/share
+   * Compartir archivo con enlace temporal
+   */
+  async shareFile(req, res) {
+    try {
+      const { fileId } = req.params;
+      const { shareWith, permissions = 'view', expiresIn, password, maxDownloads } = req.body;
+
+      logger.info('🔗 Compartiendo archivo', {
+        fileId,
+        shareWith,
+        permissions,
+        userEmail: req.user.email
+      });
+
+      const result = await this.fileService.shareFile(
+        fileId,
+        shareWith,
+        permissions,
+        req.user.email,
+        { expiresIn, password, maxDownloads }
+      );
+
+      logger.info('✅ Archivo compartido exitosamente', {
+        fileId,
+        shareToken: result.shareToken
+      });
+
+      return ResponseHandler.success(res, result, 'Archivo compartido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error compartiendo archivo:', {
+        fileId: req.params.fileId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'SHARE_ERROR',
+        'Error compartiendo archivo',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🗜️ POST /api/media/file/:fileId/compress
+   * Comprimir archivo inteligentemente
+   */
+  async compressFile(req, res) {
+    try {
+      const { fileId } = req.params;
+      const { quality = 80, format } = req.body;
+
+      logger.info('🗜️ Comprimiendo archivo', {
+        fileId,
+        quality,
+        format,
+        userEmail: req.user.email
+      });
+
+      const result = await this.fileService.compressFile(fileId, quality, format);
+
+      logger.info('✅ Archivo comprimido exitosamente', {
+        fileId,
+        compressionRatio: result.compressionRatio
+      });
+
+      return ResponseHandler.success(res, result, 'Archivo comprimido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error comprimiendo archivo:', {
+        fileId: req.params.fileId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'COMPRESS_ERROR',
+        'Error comprimiendo archivo',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🔄 POST /api/media/file/:fileId/convert
+   * Convertir formato de archivo
+   */
+  async convertFile(req, res) {
+    try {
+      const { fileId } = req.params;
+      const { targetFormat, quality = 80, maintainMetadata = true } = req.body;
+
+      logger.info('🔄 Convirtiendo archivo', {
+        fileId,
+        targetFormat,
+        quality,
+        userEmail: req.user.email
+      });
+
+      const result = await this.fileService.convertFile(fileId, targetFormat, {
+        quality,
+        maintainMetadata
+      });
+
+      logger.info('✅ Archivo convertido exitosamente', {
+        fileId,
+        targetFormat,
+        convertedFileId: result.convertedFileId
+      });
+
+      return ResponseHandler.success(res, result, 'Archivo convertido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error convirtiendo archivo:', {
+        fileId: req.params.fileId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'CONVERT_ERROR',
+        'Error convirtiendo archivo',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🔍 POST /api/media/file/:fileId/validate
+   * Validar contenido de archivo
+   */
+  async validateFile(req, res) {
+    try {
+      const { fileId } = req.params;
+
+      logger.info('🔍 Validando archivo', {
+        fileId,
+        userEmail: req.user.email
+      });
+
+      // Obtener archivo desde storage
+      const fileInfo = await this.fileService.getFileById(fileId);
+      if (!fileInfo) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_NOT_FOUND',
+          'Archivo no encontrado',
+          'El archivo especificado no existe',
+          404
+        ));
+      }
+
+      const bucket = this.fileService.getBucket();
+      const storageFile = bucket.file(fileInfo.storagePath);
+      const [fileBuffer] = await storageFile.download();
+
+      const result = await this.fileService.validateFileContent(fileBuffer, fileInfo.mimetype);
+
+      logger.info('✅ Archivo validado exitosamente', {
+        fileId,
+        isValid: result.isValid,
+        warnings: result.warnings.length
+      });
+
+      return ResponseHandler.success(res, result, 'Archivo validado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error validando archivo:', {
+        fileId: req.params.fileId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'VALIDATE_ERROR',
+        'Error validando archivo',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 💾 POST /api/media/file/:fileId/backup
+   * Crear backup de archivo
+   */
+  async backupFile(req, res) {
+    try {
+      const { fileId } = req.params;
+
+      logger.info('💾 Creando backup de archivo', {
+        fileId,
+        userEmail: req.user.email
+      });
+
+      const result = await this.fileService.backupFile(fileId);
+
+      logger.info('✅ Backup creado exitosamente', {
+        fileId,
+        backupPath: result.backupPath
+      });
+
+      return ResponseHandler.success(res, result, 'Backup creado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error creando backup:', {
+        fileId: req.params.fileId,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'BACKUP_ERROR',
+        'Error creando backup',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🧹 POST /api/media/cleanup
+   * Limpiar archivos huérfanos (FASE 9 - NUEVO)
+   * @access Private (Admin only)
+   */
+  async cleanupOrphanedFiles(req, res) {
+    try {
+      logger.info('🧹 Iniciando limpieza de archivos huérfanos', {
+        userEmail: req.user.email
+      });
+
+      const result = await this.fileService.cleanupOrphanedFiles();
+
+      logger.info('✅ Limpieza completada exitosamente', {
+        orphanedCount: result.orphanedCount,
+        cleanedSize: result.cleanedSize
+      });
+
+      return ResponseHandler.success(res, result, 'Limpieza completada exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error en limpieza:', {
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      return ResponseHandler.error(res, new ApiError(
+        'CLEANUP_ERROR',
+        'Error en limpieza',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🖼️ POST /api/upload/image
+   * Subir imagen específicamente (ALINEACIÓN CON FRONTEND)
+   * @access Private (Agent, Admin)
+   */
+  async uploadImage(req, res) {
+    try {
+      const { conversationId, tags, metadata } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE',
+          'Archivo de imagen requerido',
+          'Selecciona una imagen para subir',
+          400
+        ));
+      }
+
+      logger.info('🖼️ Subiendo imagen específica', {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimetype: file.mimetype,
+        conversationId,
+        userEmail: req.user.email
+      });
+
+      // Emitir evento de inicio de subida
+      this.emitUploadStart(file, req.user.email, conversationId);
+
+      const result = await this.fileService.uploadFile({
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        conversationId: conversationId || 'general',
+        userId: req.user.id,
+        uploadedBy: req.user.email,
+        tags: [...(tags || []), 'image', 'uploaded'],
+        metadata: {
+          ...metadata,
+          uploadMethod: 'image-specific',
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      // Emitir evento de completado
+      this.emitUploadComplete(result, req.user.email, conversationId);
+
+      return ResponseHandler.success(res, {
+        id: result.id,
+        url: result.url,
+        filename: result.originalName,
+        size: result.size,
+        type: 'image',
+        thumbnail: result.thumbnailUrl,
+        metadata: result.metadata
+      }, 'Imagen subida exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error subiendo imagen:', {
+        fileName: req.file?.originalname,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      // Emitir evento de error
+      this.emitUploadError(req.file, error.message, req.user.email);
+
+      return ResponseHandler.error(res, new ApiError(
+        'UPLOAD_ERROR',
+        'Error subiendo imagen',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🎵 POST /api/upload/audio
+   * Subir audio específicamente (ALINEACIÓN CON FRONTEND)
+   * @access Private (Agent, Admin)
+   */
+  async uploadAudio(req, res) {
+    try {
+      const { conversationId, tags, metadata } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE',
+          'Archivo de audio requerido',
+          'Selecciona un archivo de audio para subir',
+          400
+        ));
+      }
+
+      logger.info('🎵 Subiendo audio específico', {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimetype: file.mimetype,
+        conversationId,
+        userEmail: req.user.email
+      });
+
+      // Emitir evento de inicio de subida
+      this.emitUploadStart(file, req.user.email, conversationId);
+
+      const result = await this.fileService.uploadFile({
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        conversationId: conversationId || 'general',
+        userId: req.user.id,
+        uploadedBy: req.user.email,
+        tags: [...(tags || []), 'audio', 'uploaded'],
+        metadata: {
+          ...metadata,
+          uploadMethod: 'audio-specific',
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      // Emitir evento de completado
+      this.emitUploadComplete(result, req.user.email, conversationId);
+
+      return ResponseHandler.success(res, {
+        id: result.id,
+        url: result.url,
+        filename: result.originalName,
+        size: result.size,
+        type: 'audio',
+        duration: result.metadata?.duration,
+        waveform: result.metadata?.waveform,
+        metadata: result.metadata
+      }, 'Audio subido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error subiendo audio:', {
+        fileName: req.file?.originalname,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      // Emitir evento de error
+      this.emitUploadError(req.file, error.message, req.user.email);
+
+      return ResponseHandler.error(res, new ApiError(
+        'UPLOAD_ERROR',
+        'Error subiendo audio',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🎬 POST /api/upload/video
+   * Subir video específicamente (ALINEACIÓN CON FRONTEND)
+   * @access Private (Agent, Admin)
+   */
+  async uploadVideo(req, res) {
+    try {
+      const { conversationId, tags, metadata } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE',
+          'Archivo de video requerido',
+          'Selecciona un video para subir',
+          400
+        ));
+      }
+
+      logger.info('🎬 Subiendo video específico', {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimetype: file.mimetype,
+        conversationId,
+        userEmail: req.user.email
+      });
+
+      // Emitir evento de inicio de subida
+      this.emitUploadStart(file, req.user.email, conversationId);
+
+      const result = await this.fileService.uploadFile({
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        conversationId: conversationId || 'general',
+        userId: req.user.id,
+        uploadedBy: req.user.email,
+        tags: [...(tags || []), 'video', 'uploaded'],
+        metadata: {
+          ...metadata,
+          uploadMethod: 'video-specific',
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      // Emitir evento de completado
+      this.emitUploadComplete(result, req.user.email, conversationId);
+
+      return ResponseHandler.success(res, {
+        id: result.id,
+        url: result.url,
+        filename: result.originalName,
+        size: result.size,
+        type: 'video',
+        duration: result.metadata?.duration,
+        thumbnail: result.thumbnailUrl,
+        resolution: result.metadata?.resolution,
+        metadata: result.metadata
+      }, 'Video subido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error subiendo video:', {
+        fileName: req.file?.originalname,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      // Emitir evento de error
+      this.emitUploadError(req.file, error.message, req.user.email);
+
+      return ResponseHandler.error(res, new ApiError(
+        'UPLOAD_ERROR',
+        'Error subiendo video',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 📄 POST /api/upload/document
+   * Subir documento específicamente (ALINEACIÓN CON FRONTEND)
+   * @access Private (Agent, Admin)
+   */
+  async uploadDocument(req, res) {
+    try {
+      const { conversationId, tags, metadata } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return ResponseHandler.error(res, new ApiError(
+          'MISSING_FILE',
+          'Documento requerido',
+          'Selecciona un documento para subir',
+          400
+        ));
+      }
+
+      logger.info('📄 Subiendo documento específico', {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimetype: file.mimetype,
+        conversationId,
+        userEmail: req.user.email
+      });
+
+      // Emitir evento de inicio de subida
+      this.emitUploadStart(file, req.user.email, conversationId);
+
+      const result = await this.fileService.uploadFile({
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        conversationId: conversationId || 'general',
+        userId: req.user.id,
+        uploadedBy: req.user.email,
+        tags: [...(tags || []), 'document', 'uploaded'],
+        metadata: {
+          ...metadata,
+          uploadMethod: 'document-specific',
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      // Emitir evento de completado
+      this.emitUploadComplete(result, req.user.email, conversationId);
+
+      return ResponseHandler.success(res, {
+        id: result.id,
+        url: result.url,
+        filename: result.originalName,
+        size: result.size,
+        type: 'document',
+        pages: result.metadata?.pages,
+        preview: result.previewUrl,
+        metadata: result.metadata
+      }, 'Documento subido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error subiendo documento:', {
+        fileName: req.file?.originalname,
+        userEmail: req.user?.email,
+        error: error.message
+      });
+
+      // Emitir evento de error
+      this.emitUploadError(req.file, error.message, req.user.email);
+
+      return ResponseHandler.error(res, new ApiError(
+        'UPLOAD_ERROR',
+        'Error subiendo documento',
+        'Intenta nuevamente o contacta soporte',
+        500
+      ));
+    }
+  }
+
+  /**
+   * 🔄 FUNCIONES AUXILIARES PARA WEBSOCKET
+   */
+
+  /**
+   * Emitir evento de inicio de subida
+   */
+  emitUploadStart(file, userEmail, conversationId) {
+    try {
+      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+      const socketManager = new EnterpriseSocketManager();
+      
+      socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-start', {
+        fileId: `temp_${Date.now()}`,
+        fileName: file.originalname,
+        fileSize: file.size,
+        uploadedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('📡 Evento file-upload-start emitido', {
+        fileName: file.originalname,
+        userEmail
+      });
+    } catch (error) {
+      logger.warn('⚠️ Error emitiendo file-upload-start', { error: error.message });
+    }
+  }
+
+  /**
+   * Emitir evento de progreso de subida
+   */
+  emitUploadProgress(fileId, progress, bytesUploaded, userEmail, conversationId) {
+    try {
+      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+      const socketManager = new EnterpriseSocketManager();
+      
+      socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-progress', {
+        fileId,
+        progress,
+        bytesUploaded,
+        uploadedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('📡 Evento file-upload-progress emitido', {
+        fileId,
+        progress: `${progress}%`,
+        userEmail
+      });
+    } catch (error) {
+      logger.warn('⚠️ Error emitiendo file-upload-progress', { error: error.message });
+    }
+  }
+
+  /**
+   * Emitir evento de subida completada
+   */
+  emitUploadComplete(result, userEmail, conversationId) {
+    try {
+      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+      const socketManager = new EnterpriseSocketManager();
+      
+      socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-complete', {
+        fileId: result.id,
+        url: result.url,
+        fileName: result.originalName,
+        fileSize: result.size,
+        type: this.getFileType(result.mimetype),
+        thumbnail: result.thumbnailUrl,
+        metadata: result.metadata,
+        uploadedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('📡 Evento file-upload-complete emitido', {
+        fileId: result.id,
+        fileName: result.originalName,
+        userEmail
+      });
+    } catch (error) {
+      logger.warn('⚠️ Error emitiendo file-upload-complete', { error: error.message });
+    }
+  }
+
+  /**
+   * Emitir evento de error en subida
+   */
+  emitUploadError(file, errorMessage, userEmail) {
+    try {
+      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+      const socketManager = new EnterpriseSocketManager();
+      
+      socketManager.io.emit('file-upload-error', {
+        fileId: `temp_${Date.now()}`,
+        fileName: file?.originalname,
+        error: errorMessage,
+        uploadedBy: userEmail,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug('📡 Evento file-upload-error emitido', {
+        fileName: file?.originalname,
+        error: errorMessage,
+        userEmail
+      });
+    } catch (error) {
+      logger.warn('⚠️ Error emitiendo file-upload-error', { error: error.message });
+    }
   }
 }
 

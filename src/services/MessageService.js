@@ -595,13 +595,32 @@ class MessageService {
       logger.info('Procesando media individual de webhook', {
         mediaUrl,
         messageSid,
-        index
+        index,
+        hasAccountSid: !!process.env.TWILIO_ACCOUNT_SID,
+        hasAuthToken: !!process.env.TWILIO_AUTH_TOKEN
       });
 
-      // Descargar el archivo desde la URL de Twilio
-      const response = await fetch(mediaUrl);
+      // Obtener credenciales de Twilio
+      const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      
+      if (!accountSid || !authToken) {
+        throw new Error('Credenciales de Twilio no configuradas');
+      }
+
+      // Crear credenciales HTTP Basic
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+      // Descargar el archivo desde la URL de Twilio con autenticación
+      const response = await fetch(mediaUrl, {
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'User-Agent': 'Utalk-Backend/1.0'
+        }
+      });
+      
       if (!response.ok) {
-        throw new Error(`Error descargando media: ${response.status}`);
+        throw new Error(`Error descargando media: ${response.status} - ${response.statusText}`);
       }
 
       const buffer = await response.arrayBuffer();
@@ -1440,17 +1459,57 @@ class MessageService {
       // PASO 3: Procesar información de contacto
       const contactInfo = await this.processContactInfo(normalizedFromPhone, profileName, waId);
 
-      // PASO 4: Determinar tipo de mensaje
+      // PASO 4: Determinar tipo de mensaje y procesar medios
       let messageType = 'text';
       let mediaData = null;
 
-      if (parseInt(numMedia) > 0 && mediaUrl) {
-        messageType = this.determineMediaType(mediaType);
-        mediaData = {
-          url: mediaUrl,
-          type: mediaType,
-          size: null, // Se puede obtener del webhook si está disponible
-        };
+      if (parseInt(numMedia) > 0) {
+        logger.info('📎 MESSAGESERVICE - PROCESANDO MEDIOS', {
+          requestId,
+          numMedia: parseInt(numMedia),
+          hasMediaUrl: !!mediaUrl,
+          mediaType,
+          step: 'media_processing_start'
+        });
+
+        try {
+          // Procesar todos los medios del webhook
+          const mediaInfo = await MessageService.processWebhookMedia(webhookData);
+          
+          messageType = mediaInfo.primaryType;
+          mediaData = {
+            urls: mediaInfo.urls,
+            processed: mediaInfo.processed,
+            count: mediaInfo.count,
+            primaryType: mediaInfo.primaryType
+          };
+
+          logger.info('✅ MESSAGESERVICE - MEDIOS PROCESADOS', {
+            requestId,
+            mediaCount: mediaInfo.count,
+            primaryType: mediaInfo.primaryType,
+            hasUrls: mediaInfo.urls.length > 0,
+            step: 'media_processing_complete'
+          });
+
+        } catch (mediaError) {
+          logger.error('❌ MESSAGESERVICE - ERROR PROCESANDO MEDIOS', {
+            requestId,
+            error: mediaError.message,
+            step: 'media_processing_error'
+          });
+
+          // Fallback: usar solo la URL directa si hay error
+          if (mediaUrl) {
+            messageType = this.determineMediaType(mediaType);
+            mediaData = {
+              url: mediaUrl,
+              type: mediaType,
+              size: null,
+              error: mediaError.message
+            };
+          }
+        }
       }
 
       // PASO 5: Generar ID de conversación
@@ -1468,7 +1527,7 @@ class MessageService {
         status: 'received',
         sender: 'customer',
         timestamp: new Date().toISOString(),
-        mediaUrl: mediaData?.url || null,
+        mediaUrl: mediaData?.urls?.[0] || mediaData?.url || null,
         metadata: {
           twilio: {
             sid: twilioSid,
@@ -2096,6 +2155,335 @@ class MessageService {
       logger?.error?.('TWILIO:RESPONSE_ERR', { error: error.message, from, to });
       throw error;
     }
+  }
+
+  /**
+   * 📎 ENVIAR ARCHIVO A WHATSAPP VIA TWILIO
+   * FASE 6: Integración específica para archivos
+   */
+  async sendFileToWhatsApp(phoneNumber, fileUrl, caption = '') {
+    try {
+      logger.info('📎 Enviando archivo a WhatsApp', {
+        phoneNumber,
+        fileUrl,
+        captionLength: caption?.length || 0
+      });
+
+      const message = await this.client.messages.create({
+        body: caption || 'Archivo compartido',
+        mediaUrl: [fileUrl],
+        from: `whatsapp:${this.whatsappNumber}`,
+        to: `whatsapp:${phoneNumber}`
+      });
+
+      logger.info('✅ Archivo enviado exitosamente a WhatsApp', {
+        messageSid: message.sid,
+        status: message.status,
+        phoneNumber
+      });
+
+      return {
+        success: true,
+        messageSid: message.sid,
+        status: message.status,
+        errorCode: message.errorCode,
+        errorMessage: message.errorMessage,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('❌ Error enviando archivo a WhatsApp', {
+        phoneNumber,
+        fileUrl,
+        error: error.message,
+        code: error.code
+      });
+
+      return {
+        success: false,
+        error: error.message,
+        code: error.code,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * 📱 MANEJAR ARCHIVO RECIBIDO DE WHATSAPP
+   * FASE 6: Procesamiento completo de archivos entrantes
+   */
+  async handleWhatsAppFileReceived(req, res) {
+    const requestId = `whatsapp_file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      const { MediaUrl0, From, Body, MessageSid, NumMedia } = req.body;
+
+      logger.info('📱 Procesando archivo recibido de WhatsApp', {
+        requestId,
+        from: From,
+        messageSid: MessageSid,
+        hasMedia: !!MediaUrl0,
+        numMedia: NumMedia,
+        bodyLength: Body?.length || 0
+      });
+
+      // 1. Validar datos requeridos
+      if (!MediaUrl0) {
+        logger.warn('⚠️ No se encontró MediaUrl0 en webhook', { requestId });
+        return res.status(400).json({ error: 'MediaUrl0 es requerido' });
+      }
+
+      if (!From) {
+        logger.warn('⚠️ No se encontró From en webhook', { requestId });
+        return res.status(400).json({ error: 'From es requerido' });
+      }
+
+      // 2. Descargar archivo de WhatsApp
+      logger.info('📥 Descargando archivo de WhatsApp', { requestId, mediaUrl: MediaUrl0 });
+      
+      const fileBuffer = await this.downloadFileFromUrl(MediaUrl0);
+      
+      if (!fileBuffer) {
+        logger.error('❌ Error descargando archivo de WhatsApp', { requestId, mediaUrl: MediaUrl0 });
+        return res.status(500).json({ error: 'Error descargando archivo' });
+      }
+
+      // 3. Encontrar conversación por número de teléfono
+      logger.info('🔍 Buscando conversación por número de teléfono', { requestId, from: From });
+      
+      const conversation = await this.findConversationByPhone(From);
+      
+      if (!conversation) {
+        logger.warn('⚠️ No se encontró conversación para el número', { requestId, from: From });
+        return res.status(404).json({ error: 'Conversación no encontrada' });
+      }
+
+      // 4. Procesar y guardar archivo
+      logger.info('💾 Procesando y guardando archivo', { requestId, conversationId: conversation.id });
+      
+      const processedFile = await this.processSingleAttachment({
+        buffer: fileBuffer,
+        mimetype: 'application/octet-stream', // WhatsApp no envía mimetype específico
+        originalName: `archivo_whatsapp_${Date.now()}`,
+        size: fileBuffer.length,
+        conversationId: conversation.id,
+        uploadedBy: From
+      });
+
+      if (!processedFile) {
+        logger.error('❌ Error procesando archivo', { requestId });
+        return res.status(500).json({ error: 'Error procesando archivo' });
+      }
+
+      // 5. Crear mensaje con archivo
+      logger.info('💬 Creando mensaje con archivo', { requestId, fileId: processedFile.id });
+      
+      const messageData = {
+        conversationId: conversation.id,
+        messageId: MessageSid,
+        content: Body || 'Archivo compartido',
+        type: 'media',
+        direction: 'inbound',
+        senderIdentifier: From,
+        recipientIdentifier: this.whatsappNumber,
+        timestamp: new Date(),
+        status: 'received',
+        mediaUrl: processedFile.url,
+        metadata: {
+          twilioSid: MessageSid,
+          fileId: processedFile.id,
+          fileName: processedFile.name,
+          fileSize: processedFile.size,
+          fileType: processedFile.mimetype,
+          source: 'whatsapp_webhook',
+          requestId
+        }
+      };
+
+      const savedMessage = await Message.create(messageData);
+
+      // 6. Actualizar conversación
+      await conversation.updateLastMessage(savedMessage);
+
+      logger.info('✅ Archivo de WhatsApp procesado exitosamente', {
+        requestId,
+        messageId: savedMessage.id,
+        fileId: processedFile.id,
+        conversationId: conversation.id
+      });
+
+      // 7. Emitir eventos WebSocket
+      const socketManager = req.app.get('socketManager');
+      if (socketManager) {
+        socketManager.emitToConversation(conversation.id, 'new-message', {
+          message: savedMessage,
+          file: processedFile
+        });
+
+        socketManager.emitToConversation(conversation.id, 'file-received', {
+          file: processedFile,
+          message: savedMessage
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        messageId: savedMessage.id,
+        fileId: processedFile.id,
+        conversationId: conversation.id
+      });
+
+    } catch (error) {
+      logger.error('❌ Error procesando archivo de WhatsApp', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Error interno procesando archivo',
+        requestId
+      });
+    }
+  }
+
+  /**
+   * 📥 DESCARGAR ARCHIVO DESDE URL
+   * Función auxiliar para descargar archivos de WhatsApp
+   */
+  async downloadFileFromUrl(url) {
+    try {
+      logger.info('📥 Descargando archivo desde URL', { url });
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      
+      logger.info('✅ Archivo descargado exitosamente', {
+        url,
+        size: buffer.byteLength
+      });
+
+      return Buffer.from(buffer);
+
+    } catch (error) {
+      logger.error('❌ Error descargando archivo', {
+        url,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 🔍 ENCONTRAR CONVERSACIÓN POR NÚMERO DE TELÉFONO
+   * Función auxiliar para buscar conversaciones
+   */
+  async findConversationByPhone(phoneNumber) {
+    try {
+      logger.info('🔍 Buscando conversación por número', { phoneNumber });
+
+      // Normalizar número de teléfono
+      const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
+
+      // Buscar conversación existente
+      const conversation = await Conversation.findByCustomerPhone(normalizedPhone);
+
+      if (conversation) {
+        logger.info('✅ Conversación encontrada', {
+          phoneNumber,
+          conversationId: conversation.id
+        });
+        return conversation;
+      }
+
+      // Si no existe, crear nueva conversación
+      logger.info('🆕 Creando nueva conversación', { phoneNumber });
+
+      const newConversation = await Conversation.create({
+        customerPhone: normalizedPhone,
+        status: 'active',
+        participants: [normalizedPhone, this.whatsappNumber],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      logger.info('✅ Nueva conversación creada', {
+        phoneNumber,
+        conversationId: newConversation.id
+      });
+
+      return newConversation;
+
+    } catch (error) {
+      logger.error('❌ Error buscando/creando conversación', {
+        phoneNumber,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 📎 PROCESAR ARCHIVO ADJUNTO ÚNICO
+   * Función auxiliar para procesar archivos usando FileService
+   */
+  async processSingleAttachment(fileData) {
+    try {
+      logger.info('📎 Procesando archivo adjunto', {
+        originalName: fileData.originalName,
+        size: fileData.size,
+        mimetype: fileData.mimetype
+      });
+
+      const fileService = new FileService();
+      
+      const processedFile = await fileService.uploadFile({
+        buffer: fileData.buffer,
+        originalName: fileData.originalName,
+        mimetype: fileData.mimetype,
+        size: fileData.size,
+        conversationId: fileData.conversationId,
+        userId: fileData.userId,
+        uploadedBy: fileData.uploadedBy,
+        tags: ['whatsapp', 'webhook', 'incoming']
+      });
+
+      logger.info('✅ Archivo procesado exitosamente', {
+        fileId: processedFile.id,
+        url: processedFile.url
+      });
+
+      return processedFile;
+
+    } catch (error) {
+      logger.error('❌ Error procesando archivo adjunto', {
+        originalName: fileData.originalName,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 📱 NORMALIZAR NÚMERO DE TELÉFONO
+   * Función auxiliar para normalizar números de WhatsApp
+   */
+  normalizePhoneNumber(phoneNumber) {
+    // Remover prefijo whatsapp: si existe
+    let normalized = phoneNumber.replace(/^whatsapp:/, '');
+    
+    // Asegurar formato E.164
+    if (!normalized.startsWith('+')) {
+      normalized = '+' + normalized;
+    }
+    
+    return normalized;
   }
 
   /**

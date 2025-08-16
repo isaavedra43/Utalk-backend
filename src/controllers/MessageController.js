@@ -185,15 +185,34 @@ class MessageController {
         throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes', conversationId);
       }
 
-      // Procesar archivos adjuntos por ID
+      // Procesar archivos adjuntos por ID o archivos directos
       let attachmentsData = [];
 
       if (attachments.length > 0) {
         try {
           const fileService = new FileService();
-          attachmentsData = await fileService.getAttachmentsByIds(attachments.map(a => a.id));
+          
+          // Verificar si son IDs de archivos existentes o archivos nuevos
+          const hasFileData = attachments.some(a => a.buffer || a.file);
+          
+          if (hasFileData) {
+            // Procesar archivos nuevos
+            const result = await fileService.processMessageAttachments(attachments, req.user.email, conversationId);
+            if (result.success) {
+              attachmentsData = result.attachments;
+            }
+          } else {
+            // Obtener archivos existentes por ID
+            attachmentsData = await fileService.getAttachmentsByIds(attachments.map(a => a.id));
+          }
+          
+          logger.info('✅ Archivos adjuntos procesados en conversación', {
+            conversationId,
+            processedCount: attachmentsData.length,
+            userEmail: req.user.email
+          });
         } catch (fileError) {
-          logger.error('Error obteniendo archivos adjuntos', {
+          logger.error('❌ Error procesando archivos adjuntos en conversación', {
             conversationId,
             error: fileError.message,
             userEmail: req.user.email
@@ -392,14 +411,56 @@ class MessageController {
       // Procesar archivos adjuntos si existen
       let mediaUrl = null;
       let fileMetadata = null;
+      let processedAttachments = [];
 
       if (attachments.length > 0) {
         try {
           const fileService = new FileService();
-          fileMetadata = await fileService.processMessageAttachments(attachments, req.user.email);
-          mediaUrl = fileMetadata.url;
+          const result = await fileService.processMessageAttachments(attachments, req.user.email, conversation.id);
+          
+          if (result.success && result.attachments.length > 0) {
+            processedAttachments = result.attachments;
+            // Usar la primera URL para Twilio (si es necesario)
+            mediaUrl = result.attachments[0].url;
+            fileMetadata = result.attachments;
+            
+                      logger.info('✅ Archivos adjuntos procesados exitosamente', {
+            conversationId: conversation.id,
+            processedCount: result.count,
+            userEmail: req.user.email
+          });
+
+          // 🆕 EMITIR EVENTOS WEBSOCKET PARA CADA ARCHIVO PROCESADO
+          try {
+            const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+            const socketManager = new EnterpriseSocketManager();
+            
+            for (const attachment of processedAttachments) {
+              // Emitir evento de archivo listo
+              socketManager.emitFileReady({
+                fileId: attachment.id,
+                conversationId: conversation.id,
+                fileUrl: attachment.url,
+                metadata: attachment.metadata || {},
+                readyBy: req.user.email
+              });
+
+              logger.debug('✅ Evento WebSocket de archivo listo emitido', {
+                fileId: attachment.id,
+                conversationId: conversation.id,
+                type: attachment.type
+              });
+            }
+          } catch (socketError) {
+            logger.warn('⚠️ Error emitiendo eventos WebSocket de archivos', {
+              error: socketError.message,
+              conversationId: conversation.id
+            });
+            // No fallar la respuesta por error de WebSocket
+          }
+          }
         } catch (fileError) {
-          logger.error('Error procesando archivos adjuntos', {
+          logger.error('❌ Error procesando archivos adjuntos', {
             conversationId: conversation.id,
             error: fileError.message,
             userEmail: req.user.email
@@ -424,7 +485,8 @@ class MessageController {
           ...metadata,
           sentBy: req.user.email,
           sentAt: new Date().toISOString(),
-          attachments: fileMetadata ? [fileMetadata] : []
+          attachments: processedAttachments,
+          attachmentCount: processedAttachments.length
         }
       };
 
@@ -737,6 +799,9 @@ class MessageController {
         contentLength: content?.length || 0,
         contentPreview: content?.substring(0, 100) || null,
         numMedia: parseInt(numMedia) || 0,
+        hasMediaUrl: !!req.body.MediaUrl0,
+        mediaUrl: req.body.MediaUrl0,
+        mediaType: req.body.MediaContentType0,
         step: 'data_extracted'
       });
 
@@ -1211,6 +1276,494 @@ class MessageController {
         userEmail: req.user?.email,
         body: req.body
       });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 📨 POST /api/messages/send-with-attachments
+   * Envía mensaje con archivos adjuntos (FASE 2 - INTEGRACIÓN COMPLETA)
+   * 
+   * BODY:
+   * - conversationId: ID de conversación (requerido)
+   * - content: texto del mensaje (opcional si hay archivos)
+   * - attachments: array de archivos (requerido)
+   * - metadata: objeto con datos adicionales (opcional)
+   * 
+   * FLUJO:
+   * 1. Procesar archivos usando FileService
+   * 2. Crear mensaje con referencias a archivos
+   * 3. Guardar mensaje en base de datos
+   * 4. Emitir evento WebSocket
+   */
+  static async sendMessageWithAttachments(req, res, next) {
+    try {
+      const { conversationId, content = '', attachments = [], metadata = {} } = req.body;
+
+      logger.info('🔄 Iniciando envío de mensaje con archivos adjuntos', {
+        conversationId,
+        contentLength: content?.length || 0,
+        attachmentCount: attachments.length,
+        userEmail: req.user.email
+      });
+
+      // 🔍 VALIDACIONES BÁSICAS
+      if (!conversationId) {
+        throw new ApiError(
+          'MISSING_CONVERSATION_ID',
+          'conversationId es requerido',
+          'Proporciona el ID de la conversación',
+          400
+        );
+      }
+
+      if (attachments.length === 0) {
+        throw new ApiError(
+          'MISSING_ATTACHMENTS',
+          'Al menos un archivo adjunto es requerido',
+          'Proporciona al menos un archivo para enviar',
+          400
+        );
+      }
+
+      if (!content && attachments.length === 0) {
+        throw new ApiError(
+          'MISSING_CONTENT_OR_ATTACHMENTS',
+          'Se requiere contenido o archivos adjuntos',
+          'Proporciona texto del mensaje o archivos adjuntos',
+          400
+        );
+      }
+
+      // 🔍 VERIFICAR CONVERSACIÓN
+      const conversation = await Conversation.getById(conversationId);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
+      }
+
+      // 🔒 VALIDAR PERMISOS
+      if (req.user.role === 'viewer') {
+        throw CommonErrors.USER_NOT_AUTHORIZED('enviar mensajes con archivos', conversationId);
+      }
+
+      // 📁 1. PROCESAR ARCHIVOS USANDO FILESERVICE
+      logger.info('📁 Procesando archivos adjuntos', {
+        conversationId,
+        attachmentCount: attachments.length,
+        userEmail: req.user.email
+      });
+
+      const fileService = new FileService();
+      let processedFiles;
+
+      try {
+        processedFiles = await fileService.processMessageAttachments(
+          attachments, 
+          req.user.email, 
+          conversationId
+        );
+
+        logger.info('✅ Archivos procesados exitosamente', {
+          conversationId,
+          processedCount: processedFiles.attachments.length,
+          success: processedFiles.success,
+          userEmail: req.user.email
+        });
+
+      } catch (fileError) {
+        logger.error('❌ Error procesando archivos adjuntos', {
+          conversationId,
+          error: fileError.message,
+          userEmail: req.user.email
+        });
+        throw new ApiError(
+          'FILE_PROCESSING_ERROR',
+          'Error procesando archivos adjuntos',
+          fileError.message,
+          500
+        );
+      }
+
+      // 📝 2. CREAR MENSAJE CON REFERENCIAS A ARCHIVOS
+      const messageData = {
+        conversationId,
+        messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        content: content.trim(),
+        type: 'message_with_files',
+        direction: 'outbound',
+        senderIdentifier: req.user.email,
+        recipientIdentifier: conversation.customerPhone,
+        timestamp: new Date(),
+        workspaceId: req.user.workspaceId,
+        tenantId: req.user.tenantId,
+        status: 'pending',
+        metadata: {
+          ...metadata,
+          sentBy: req.user.email,
+          sentAt: new Date().toISOString(),
+          attachments: processedFiles.attachments,
+          attachmentCount: processedFiles.attachments.length,
+          fileTypes: processedFiles.attachments.map(a => a.type),
+          totalSize: processedFiles.attachments.reduce((sum, a) => sum + (a.size || 0), 0)
+        }
+      };
+
+      // 💾 3. GUARDAR MENSAJE EN BASE DE DATOS
+      logger.info('💾 Guardando mensaje en base de datos', {
+        conversationId,
+        messageId: messageData.messageId,
+        attachmentCount: processedFiles.attachments.length,
+        userEmail: req.user.email
+      });
+
+      const conversationsRepo = getConversationsRepository();
+      const result = await conversationsRepo.appendOutbound(messageData);
+
+      // 📤 4. ENVIAR POR TWILIO CON ARCHIVOS
+      try {
+        const messageService = getMessageService();
+        
+        // Preparar URLs de medios para Twilio
+        const mediaUrls = processedFiles.attachments.map(attachment => attachment.url);
+        
+        const sentMessage = await messageService.sendWhatsAppMessage({
+          from: process.env.TWILIO_WHATSAPP_NUMBER,
+          to: conversation.customerPhone,
+          body: content || 'Archivos adjuntos',
+          mediaUrl: mediaUrls
+        });
+
+        // Actualizar mensaje con datos de Twilio
+        await Message.getById(conversationId, result.message.id).then(msg => {
+          if (msg) {
+            msg.update({
+              status: 'sent',
+              metadata: {
+                ...msg.metadata,
+                twilioSid: sentMessage.sid,
+                sentAt: new Date().toISOString(),
+                mediaUrls: mediaUrls
+              }
+            });
+          }
+        });
+
+        logger.info('✅ Mensaje enviado por Twilio exitosamente', {
+          conversationId,
+          messageId: result.message.id,
+          twilioSid: sentMessage.sid,
+          mediaCount: mediaUrls.length,
+          userEmail: req.user.email
+        });
+
+      } catch (twilioError) {
+        logger.error('❌ Error enviando mensaje por Twilio', {
+          conversationId,
+          error: twilioError.message,
+          userEmail: req.user.email
+        });
+
+        // Actualizar mensaje como fallido
+        await Message.getById(conversationId, result.message.id).then(msg => {
+          if (msg) {
+            msg.update({
+              status: 'failed',
+              metadata: {
+                ...msg.metadata,
+                failureReason: twilioError.message,
+                failedAt: new Date().toISOString()
+              }
+            });
+          }
+        });
+      }
+
+      // 📡 5. EMITIR EVENTOS WEBSOCKET
+      try {
+        const socketManager = req.app.get('socketManager');
+        if (socketManager) {
+          // Evento de nuevo mensaje
+          socketManager.broadcastToConversation({
+            workspaceId: req.user.workspaceId || 'default_workspace',
+            tenantId: req.user.tenantId || 'default_tenant',
+            conversationId,
+            event: 'new-message',
+            payload: {
+              message: result.message,
+              conversation: result.conversation,
+              attachments: processedFiles.attachments
+            }
+          });
+
+          // Evento de conversación actualizada
+          socketManager.broadcastToConversation({
+            workspaceId: req.user.workspaceId || 'default_workspace',
+            tenantId: req.user.tenantId || 'default_tenant',
+            conversationId,
+            event: 'conversation-updated',
+            payload: {
+              id: conversationId,
+              lastMessage: result.conversation.lastMessage,
+              lastMessageAt: result.conversation.lastMessageAt,
+              unreadCount: result.conversation.unreadCount,
+              messageCount: result.conversation.messageCount,
+              status: result.conversation.status
+            }
+          });
+
+          // Eventos específicos para cada archivo
+          for (const attachment of processedFiles.attachments) {
+            socketManager.broadcastToConversation({
+              workspaceId: req.user.workspaceId || 'default_workspace',
+              tenantId: req.user.tenantId || 'default_tenant',
+              conversationId,
+              event: 'file-attached',
+              payload: {
+                messageId: result.message.id,
+                fileId: attachment.id,
+                fileName: attachment.name,
+                fileType: attachment.type,
+                fileUrl: attachment.url,
+                fileSize: attachment.size
+              }
+            });
+          }
+
+          logger.info('✅ Eventos WebSocket emitidos exitosamente', {
+            conversationId,
+            messageId: result.message.id,
+            eventCount: 2 + processedFiles.attachments.length,
+            userEmail: req.user.email
+          });
+        }
+      } catch (socketError) {
+        logger.warn('⚠️ Error emitiendo eventos WebSocket', {
+          conversationId,
+          error: socketError.message,
+          userEmail: req.user.email
+        });
+        // No fallar la respuesta por error de WebSocket
+      }
+
+      // 📊 LOGGING FINAL
+      logger.info('🎉 Mensaje con archivos adjuntos enviado exitosamente', {
+        conversationId,
+        messageId: result.message.id,
+        contentLength: content?.length || 0,
+        attachmentCount: processedFiles.attachments.length,
+        fileTypes: processedFiles.attachments.map(a => a.type),
+        totalSize: processedFiles.attachments.reduce((sum, a) => sum + (a.size || 0), 0),
+        userEmail: req.user.email,
+        status: 'completed'
+      });
+
+      // 📤 RESPUESTA EXITOSA
+      return ResponseHandler.success(res, {
+        message: result.message,
+        conversation: result.conversation,
+        attachments: processedFiles.attachments,
+        metadata: {
+          attachmentCount: processedFiles.attachments.length,
+          totalSize: processedFiles.attachments.reduce((sum, a) => sum + (a.size || 0), 0),
+          fileTypes: processedFiles.attachments.map(a => a.type)
+        }
+      }, 'Mensaje con archivos adjuntos enviado exitosamente', 201);
+
+    } catch (error) {
+      logger.error('❌ Error enviando mensaje con archivos adjuntos', {
+        conversationId: req.body?.conversationId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        userEmail: req.user?.email,
+        attachmentCount: req.body?.attachments?.length || 0
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 📱 POST /api/messages/whatsapp-file
+   * Manejar archivo recibido de WhatsApp
+   * FASE 6: Integración específica para archivos de WhatsApp
+   * 
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   * @param {function} next - Express next middleware function
+   */
+  static async handleWhatsAppFile(req, res, next) {
+    try {
+      logger.info('📱 Iniciando procesamiento de archivo de WhatsApp', {
+        requestId: req.requestId,
+        body: req.body,
+        headers: req.headers
+      });
+
+      // Validar que sea un webhook de WhatsApp con archivo
+      const { MediaUrl0, From, Body, MessageSid, NumMedia } = req.body;
+
+      if (!MediaUrl0) {
+        logger.warn('⚠️ Webhook sin MediaUrl0', { requestId: req.requestId });
+        return res.status(400).json({
+          success: false,
+          error: 'MediaUrl0 es requerido para archivos de WhatsApp'
+        });
+      }
+
+      if (!From) {
+        logger.warn('⚠️ Webhook sin From', { requestId: req.requestId });
+        return res.status(400).json({
+          success: false,
+          error: 'From es requerido para archivos de WhatsApp'
+        });
+      }
+
+      // Usar MessageService para procesar el archivo
+      const messageService = getMessageService();
+      const result = await messageService.handleWhatsAppFileReceived(req, res);
+
+      // 🔄 FASE 7: Emitir eventos WebSocket en tiempo real
+      if (result.success) {
+        try {
+          const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+          const socketManager = new EnterpriseSocketManager();
+          
+          // Emitir evento de archivo recibido
+          await socketManager.emitFileReceived({
+            fileId: result.fileId,
+            conversationId: result.conversationId,
+            fileName: 'archivo_whatsapp',
+            fileType: 'application/octet-stream',
+            fileSize: 0, // Se actualizará con el tamaño real
+            source: 'whatsapp',
+            receivedBy: From
+          });
+
+          logger.info('✅ Eventos WebSocket de archivo recibido emitidos', {
+            fileId: result.fileId,
+            conversationId: result.conversationId
+          });
+        } catch (socketError) {
+          logger.warn('⚠️ Error emitiendo eventos WebSocket de archivo recibido', {
+            error: socketError.message,
+            fileId: result.fileId
+          });
+          // No fallar la respuesta por error de WebSocket
+        }
+      }
+
+      logger.info('✅ Archivo de WhatsApp procesado exitosamente', {
+        requestId: req.requestId,
+        from: From,
+        messageSid: MessageSid,
+        hasMedia: !!MediaUrl0
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('❌ Error procesando archivo de WhatsApp', {
+        requestId: req.requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Error interno procesando archivo de WhatsApp',
+        requestId: req.requestId
+      });
+    }
+  }
+
+  /**
+   * 📎 POST /api/messages/send-file-to-whatsapp
+   * Enviar archivo específico a WhatsApp
+   * FASE 6: Integración específica para envío de archivos
+   * 
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   * @param {function} next - Express next middleware function
+   */
+  static async sendFileToWhatsApp(req, res, next) {
+    try {
+      const { phoneNumber, fileUrl, caption } = req.body;
+
+      logger.info('📎 Iniciando envío de archivo a WhatsApp', {
+        requestId: req.requestId,
+        phoneNumber,
+        fileUrl,
+        captionLength: caption?.length || 0,
+        userEmail: req.user?.email
+      });
+
+      // Validar parámetros requeridos
+      if (!phoneNumber) {
+        throw new ApiError(
+          'MISSING_PHONE_NUMBER',
+          'phoneNumber es requerido',
+          'Proporciona el número de teléfono de destino',
+          400
+        );
+      }
+
+      if (!fileUrl) {
+        throw new ApiError(
+          'MISSING_FILE_URL',
+          'fileUrl es requerido',
+          'Proporciona la URL del archivo a enviar',
+          400
+        );
+      }
+
+      // Validar formato de número de teléfono
+      if (!validatePhoneNumber(phoneNumber)) {
+        throw new ApiError(
+          'INVALID_PHONE_NUMBER',
+          'Formato de número de teléfono inválido',
+          'Usa formato E.164 (ej: +1234567890)',
+          400
+        );
+      }
+
+      // Usar MessageService para enviar el archivo
+      const messageService = getMessageService();
+      const result = await messageService.sendFileToWhatsApp(phoneNumber, fileUrl, caption);
+
+      if (!result.success) {
+        throw new ApiError(
+          'WHATSAPP_SEND_ERROR',
+          'Error enviando archivo a WhatsApp',
+          result.error || 'Error desconocido',
+          500
+        );
+      }
+
+      logger.info('✅ Archivo enviado exitosamente a WhatsApp', {
+        requestId: req.requestId,
+        phoneNumber,
+        messageSid: result.messageSid,
+        status: result.status,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, {
+        messageSid: result.messageSid,
+        status: result.status,
+        phoneNumber,
+        fileUrl,
+        caption,
+        timestamp: result.timestamp
+      }, 'Archivo enviado exitosamente a WhatsApp', 200);
+
+    } catch (error) {
+      logger.error('❌ Error enviando archivo a WhatsApp', {
+        requestId: req.requestId,
+        phoneNumber: req.body?.phoneNumber,
+        fileUrl: req.body?.fileUrl,
+        error: error.message,
+        userEmail: req.user?.email
+      });
+
       return ResponseHandler.error(res, error);
     }
   }
