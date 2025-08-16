@@ -62,13 +62,18 @@ function isOriginAllowed(origin) {
  */
 const corsOptions = {
   origin(origin, cb) {
-    console.log('🌐 CORS Origin Check:', origin);
-    if (isOriginAllowed(origin)) {
-      console.log('✅ CORS Origin Allowed:', origin);
-      return cb(null, true);
+    // Solo log si hay un origen real (no undefined)
+    if (origin) {
+      console.log('🌐 CORS Origin Check:', origin);
+      if (isOriginAllowed(origin)) {
+        console.log('✅ CORS Origin Allowed:', origin);
+        return cb(null, true);
+      }
+      console.log('❌ CORS Origin Blocked:', origin);
+      return cb(null, false);
     }
-    console.log('❌ CORS Origin Blocked:', origin);
-    return cb(null, false);
+    // Para origins undefined (health checks, etc.) - permitir silenciosamente
+    return cb(null, true);
   },
   credentials: false, // no cookies
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

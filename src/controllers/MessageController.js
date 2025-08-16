@@ -802,18 +802,18 @@ class MessageController {
         messageSid
       });
 
-      // 🎯 USAR MESSAGESERVICE CENTRALIZADO
-      logger.info('🔄 INICIANDO PROCESAMIENTO CON MESSAGESERVICE', {
+      // 🎯 USAR TWILIOSERVICE CENTRALIZADO (INCLUYE SOCKET.IO)
+      logger.info('🔄 INICIANDO PROCESAMIENTO CON TWILIOSERVICE', {
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
         hasContent: !!content,
         hasMedia: parseInt(numMedia) > 0,
-        step: 'before_message_service'
+        step: 'before_twilio_service'
       });
 
-      // === LOG INMEDIATO ANTES DE LLAMAR MESSAGESERVICE ===
-      logger.info('🚨 MESSAGECONTROLLER - ANTES DE LLAMAR MESSAGESERVICE', {
+      // === LOG INMEDIATO ANTES DE LLAMAR TWILIOSERVICE ===
+      logger.info('🚨 MESSAGECONTROLLER - ANTES DE LLAMAR TWILIOSERVICE', {
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
@@ -827,38 +827,40 @@ class MessageController {
           MessageSid: req.body.MessageSid,
           NumMedia: req.body.NumMedia
         },
-        step: 'before_message_service_call'
+        step: 'before_twilio_service_call'
       });
 
-      // === LOG DE EMERGENCIA ANTES DE MESSAGESERVICE ===
-      console.log('🚨 EMERGENCY BEFORE MESSAGESERVICE:', {
+      // === LOG DE EMERGENCIA ANTES DE TWILIOSERVICE ===
+      console.log('🚨 EMERGENCY BEFORE TWILIOSERVICE:', {
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
         hasContent: !!content,
         hasMedia: parseInt(numMedia) > 0,
-        step: 'before_message_service_call'
+        step: 'before_twilio_service_call'
       });
 
-      // Procesar mensaje usando MessageService (que incluye ContactService)
-      const { message, conversation } = await MessageService.processIncomingMessage(req.body);
+      // Procesar mensaje usando TwilioService (que incluye Socket.IO events)
+      const TwilioService = require('../services/TwilioService');
+      const twilioService = new TwilioService();
+      const { message, conversation } = await twilioService.processIncomingMessage(req.body);
 
-      // === LOG DE EMERGENCIA DESPUÉS DE MESSAGESERVICE ===
-      console.log('🚨 EMERGENCY AFTER MESSAGESERVICE:', {
+      // === LOG DE EMERGENCIA DESPUÉS DE TWILIOSERVICE ===
+      console.log('🚨 EMERGENCY AFTER TWILIOSERVICE:', {
         requestId,
         messageId: message?.id,
         conversationId: conversation?.id || message?.conversationId,
         success: !!message,
-        step: 'after_message_service'
+        step: 'after_twilio_service'
       });
 
-      logger.info('✅ MESSAGESERVICE PROCESAMIENTO COMPLETADO', {
+      logger.info('✅ TWILIOSERVICE PROCESAMIENTO COMPLETADO', {
         requestId,
         messageId: message.id,
         conversationId: conversation?.id || message.conversationId,
         contactUpdated: true,
         processTime: Date.now() - startTime,
-        step: 'message_service_completed'
+        step: 'twilio_service_completed'
       });
 
       // 📤 RESPUESTA EXITOSA A TWILIO
