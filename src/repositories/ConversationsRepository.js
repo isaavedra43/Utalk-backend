@@ -756,7 +756,7 @@ class ConversationsRepository {
 
       // 🚨 FIX: ENVIAR MENSAJE A TWILIO CON FLUJO CORRECTO
       try {
-        const twilioService = require('../services/TwilioService');
+        const { getMessageService } = require('../services/MessageService');
         
         // IDEMPOTENCIA: Verificar si ya se envió a Twilio
         if (result.message?.twilioSid) {
@@ -772,9 +772,10 @@ class ConversationsRepository {
         }
         
         // Construcción de from/to y llamada Twilio
-        const rawFrom = twilioService.whatsappNumber;
-        const from = twilioService.ensureFrom(rawFrom);
-        const to = twilioService.ensureWhatsApp(msg.recipientIdentifier);
+        const messageService = getMessageService();
+        const rawFrom = messageService.whatsappNumber;
+        const from = messageService.ensureFrom(rawFrom);
+        const to = messageService.ensureWhatsApp(msg.recipientIdentifier);
         
         logger.info('TWILIO:REQUEST', { 
           correlationId: requestId, 
@@ -787,7 +788,7 @@ class ConversationsRepository {
           bodyLen: msg.content?.length 
         });
 
-        const resp = await twilioService.sendWhatsAppMessage({
+        const resp = await messageService.sendWhatsAppMessage({
           from, to, body: msg.content, mediaUrl: msg.media?.mediaUrl
         });
 

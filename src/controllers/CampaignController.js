@@ -1,6 +1,6 @@
 const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
-const TwilioService = require('../services/TwilioService');
+const { getMessageService } = require('../services/MessageService');
 const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
 
@@ -293,7 +293,8 @@ class CampaignController {
       const validContacts = contacts.filter(contact => contact !== null);
 
       // Enviar mensajes en lotes para evitar rate limiting
-      const results = await TwilioService.sendBulkMessages(
+      const messageService = getMessageService();
+      const results = await messageService.sendBulkMessages(
         validContacts,
         campaign.message,
         req.user.id,

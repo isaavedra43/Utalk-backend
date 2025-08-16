@@ -405,8 +405,8 @@ class TwilioStatusController {
       });
 
       // Importar TwilioService dinámicamente
-      const { getTwilioService } = require('../services/TwilioService');
-      const twilioService = getTwilioService();
+      const { getMessageService } = require('../services/MessageService');
+              const messageService = getMessageService();
 
       const results = [];
       let successCount = 0;

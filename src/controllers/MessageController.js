@@ -18,7 +18,7 @@
 
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
-const { getTwilioService } = require('../services/TwilioService');
+const { getMessageService } = require('../services/MessageService');
 const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const logger = require('../utils/logger');
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
@@ -421,19 +421,20 @@ class MessageController {
 
       // 📤 ENVIAR A TRAVÉS DE TWILIO
       try {
-        const twilioService = getTwilioService();
+        const messageService = getMessageService();
         
         let sentMessage;
         if (mediaUrl) {
           // Enviar con archivos adjuntos
-          sentMessage = await twilioService.sendWhatsAppMessageWithMedia(
-            targetPhone,
-            content,
-            mediaUrl
-          );
+          sentMessage = await messageService.sendWhatsAppMessage({
+            from: process.env.TWILIO_WHATSAPP_NUMBER,
+            to: targetPhone,
+            body: content,
+            mediaUrl: mediaUrl
+          });
         } else {
           // Enviar solo texto
-          sentMessage = await twilioService.sendWhatsAppMessage({
+          sentMessage = await messageService.sendWhatsAppMessage({
             from: process.env.TWILIO_WHATSAPP_NUMBER,
             to: targetPhone,
             body: content
@@ -840,10 +841,10 @@ class MessageController {
         step: 'before_twilio_service_call'
       });
 
-      // Procesar mensaje usando TwilioService (que incluye Socket.IO events)
-      const TwilioService = require('../services/TwilioService');
-      const twilioService = new TwilioService();
-      const { message, conversation } = await twilioService.processIncomingMessage(req.body);
+      // Procesar mensaje usando MessageService (que incluye Socket.IO events)
+      const MessageService = require('../services/MessageService');
+      const messageService = new MessageService();
+      const { message, conversation } = await messageService.processIncomingMessage(req.body);
 
       // === LOG DE EMERGENCIA DESPUÉS DE TWILIOSERVICE ===
       console.log('🚨 EMERGENCY AFTER TWILIOSERVICE:', {

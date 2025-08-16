@@ -1,12 +1,11 @@
 const Message = require('../models/Message');
 const ContactService = require('./ContactService');
 const Conversation = require('../models/Conversation');
-const TwilioService = require('./TwilioService');
-// MediaService eliminado - usar FileService en su lugar
+const twilio = require('twilio');
 const logger = require('../utils/logger');
 const { generateConversationId, normalizePhoneNumber } = require('../utils/conversation');
 const { validateMessagesArrayResponse } = require('../middleware/validation');
-const { firestore } = require('../config/firebase');
+const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const FileService = require('./FileService');
 const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const { integrateAIWithIncomingMessage } = require('./AIWebhookIntegration');
@@ -14,8 +13,48 @@ const { integrateAIWithIncomingMessage } = require('./AIWebhookIntegration');
 /**
  * Servicio centralizado para toda la lógica de mensajes
  * Unifica operaciones distribuidas entre controladores y servicios
+ * Incluye toda la funcionalidad de Twilio (enviar y procesar mensajes)
  */
 class MessageService {
+  constructor(client) {
+    const accountSid =
+      process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID || process.env.TWILIO_ACCOUNTID;
+    const authToken  =
+      process.env.TWILIO_AUTH_TOKEN  || process.env.TWILIO_TOKEN || process.env.TWILIO_SECRET;
+
+    this.whatsappNumber =
+      process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM || process.env.WHATSAPP_FROM;
+
+    this._diagLogBoot(accountSid, authToken, this.whatsappNumber);
+
+    if (!accountSid || !authToken) {
+      // No rompas la app con throw sin control; deja que el caller lo capture y mapee a 424
+      const e = new Error('Missing Twilio credentials: TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN');
+      e.code = 20003; // equivalente a auth fail para mapeo uniforme
+      throw e;
+    }
+    this.client = client || twilio(accountSid, authToken);
+  }
+
+  ensureWhatsApp(number) {
+    // Garantiza prefijo 'whatsapp:' y E.164
+    if (!number) throw new Error('to is required');
+    return number.startsWith('whatsapp:') ? number : `whatsapp:${number}`;
+  }
+
+  ensureFrom(from) {
+    if (!from) throw new Error('from is required');
+    return from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
+  }
+
+  _diagLogBoot(sid, token, from) {
+    const sidLast4 = sid ? String(sid).slice(-4) : null;
+    logger?.info?.('TWILIO:BOOT', {
+      hasSid: !!sid, sidLast4,
+      hasToken: !!token,
+      from
+    });
+  }
   /**
    * Crear mensaje con validación completa y efectos secundarios
    */
@@ -1215,7 +1254,7 @@ class MessageService {
    */
   static async sendLocationMessage(toPhone, latitude, longitude, name = '', address = '', options = {}) {
     try {
-      const twilioService = getTwilioService();
+      const messageService = getMessageService();
       
       logger.info('📍 Enviando mensaje de ubicación', {
         toPhone,
@@ -1225,7 +1264,7 @@ class MessageService {
         address: address || 'Sin dirección'
       });
 
-      const result = await twilioService.sendWhatsAppLocation(toPhone, latitude, longitude, name, address);
+      const result = await messageService.sendWhatsAppLocation(toPhone, latitude, longitude, name, address);
       
       if (result.success) {
         logger.info('✅ Mensaje de ubicación enviado exitosamente', {
@@ -1263,14 +1302,14 @@ class MessageService {
    */
   static async sendStickerMessage(toPhone, stickerUrl, options = {}) {
     try {
-      const twilioService = getTwilioService();
+      const messageService = getMessageService();
       
       logger.info('😀 Enviando mensaje de sticker', {
         toPhone,
         stickerUrl
       });
 
-      const result = await twilioService.sendWhatsAppSticker(toPhone, stickerUrl);
+      const result = await messageService.sendWhatsAppSticker(toPhone, stickerUrl);
       
       if (result.success) {
         logger.info('✅ Mensaje de sticker enviado exitosamente', {
@@ -1302,6 +1341,1071 @@ class MessageService {
       };
     }
   }
+
+  // ===== MÉTODOS MIGRADOS DE TWILIOSERVICE =====
+
+  /**
+   * FUNCIÓN PRINCIPAL: Procesar mensaje entrante desde webhook Twilio
+   * Versión mejorada con manejo de fotos de perfil y metadatos avanzados
+   */
+  async processIncomingMessage(webhookData) {
+    const requestId = `twilio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      logger.info('🔄 MESSAGESERVICE - INICIANDO PROCESAMIENTO', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        messageSid: webhookData.MessageSid,
+        from: webhookData.From,
+        to: webhookData.To,
+        hasBody: !!webhookData.Body,
+        hasProfileName: !!webhookData.ProfileName,
+        hasWaId: !!webhookData.WaId,
+        step: 'twilio_process_start'
+      });
+
+      // PASO 1: Extraer y validar datos del webhook
+      const {
+        MessageSid: twilioSid,
+        From: rawFromPhone,
+        To: rawToPhone,
+        Body: content,
+        MediaUrl0: mediaUrl,
+        MediaContentType0: mediaType,
+        NumMedia: numMedia,
+        ProfileName: profileName,
+        WaId: waId,
+        // Campos adicionales de Twilio
+        AccountSid: accountSid,
+        ApiVersion: apiVersion,
+        Price: price,
+        PriceUnit: priceUnit,
+        NumSegments: numSegments,
+        SmsStatus: smsStatus,
+        SmsSid: smsSid,
+        SmsMessageSid: smsMessageSid,
+        ReferralNumMedia: referralNumMedia,
+        ReferralNumSegments: referralNumSegments,
+        ReferralIntegrationError: referralIntegrationError,
+        ReferralTo: referralTo,
+        ReferralFrom: referralFrom,
+        ReferralMediaUrl: referralMediaUrl,
+        ReferralMediaContentType: referralMediaContentType,
+        ReferralMediaSize: referralMediaSize,
+        ReferralMediaSid: referralMediaSid,
+      } = webhookData;
+
+      logger.info('📋 MESSAGESERVICE - DATOS EXTRAÍDOS', {
+        requestId,
+        twilioSid,
+        rawFromPhone,
+        rawToPhone,
+        contentLength: content?.length,
+        hasMedia: !!mediaUrl,
+        mediaType,
+        numMedia: parseInt(numMedia) || 0,
+        profileName,
+        waId,
+        step: 'data_extraction'
+      });
+
+      // PASO 2: Normalizar números de teléfono
+      const normalizedFromPhone = rawFromPhone?.replace('whatsapp:', '') || '';
+      const normalizedToPhone = rawToPhone?.replace('whatsapp:', '') || '';
+
+      if (!normalizedFromPhone || !normalizedToPhone) {
+        throw new Error('Números de teléfono inválidos en webhook');
+      }
+
+      // PASO 3: Procesar información de contacto
+      const contactInfo = await this.processContactInfo(normalizedFromPhone, profileName, waId);
+
+      // PASO 4: Determinar tipo de mensaje
+      let messageType = 'text';
+      let mediaData = null;
+
+      if (parseInt(numMedia) > 0 && mediaUrl) {
+        messageType = this.determineMediaType(mediaType);
+        mediaData = {
+          url: mediaUrl,
+          type: mediaType,
+          size: null, // Se puede obtener del webhook si está disponible
+        };
+      }
+
+      // PASO 5: Generar ID de conversación
+      const conversationId = generateConversationId(normalizedFromPhone, normalizedToPhone);
+
+      // PASO 6: Crear datos del mensaje
+      const messageData = {
+        id: twilioSid,
+        conversationId,
+        senderIdentifier: normalizedFromPhone,
+        recipientIdentifier: normalizedToPhone,
+        content: content || '',
+        type: messageType,
+        direction: 'inbound',
+        status: 'received',
+        sender: 'customer',
+        timestamp: new Date().toISOString(),
+        mediaUrl: mediaData?.url || null,
+        metadata: {
+          twilio: {
+            sid: twilioSid,
+            accountSid,
+            apiVersion,
+            price,
+            priceUnit,
+            numSegments,
+            smsStatus,
+            smsSid,
+            smsMessageSid,
+            referralNumMedia,
+            referralNumSegments,
+            referralIntegrationError,
+            referralTo: referralTo,
+            referralFrom: referralFrom,
+            referralMediaUrl,
+            referralMediaContentType,
+            referralMediaSize,
+            referralMediaSid,
+          },
+          contact: contactInfo,
+          media: mediaData,
+          webhookReceivedAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      logger.info('📝 MESSAGESERVICE - DATOS DEL MENSAJE PREPARADOS', {
+        requestId,
+        messageId: messageData.id,
+        conversationId: messageData.conversationId,
+        sender: messageData.senderIdentifier,
+        recipient: messageData.recipientIdentifier,
+        type: messageData.type,
+        hasMedia: !!messageData.mediaUrl,
+        hasContactInfo: !!(messageData.metadata.contact),
+        step: 'message_data_prepared'
+      });
+
+      // PASO 7: Buscar o crear conversación
+      const conversation = await this.findOrCreateConversation(
+        conversationId,
+        normalizedFromPhone,
+        normalizedToPhone,
+        contactInfo
+      );
+
+      // PASO 8: Guardar mensaje en Firestore
+      const savedMessage = await this.saveMessageToFirestore(conversationId, messageData);
+
+      // PASO 9: Actualizar conversación con último mensaje
+      await this.updateConversationLastMessage(conversationId, savedMessage);
+
+      // PASO 10: Emitir evento en tiempo real
+      await this.emitRealTimeEvent(conversationId, savedMessage);
+
+      logger.info('✅ MESSAGESERVICE - PROCESAMIENTO COMPLETADO', {
+        requestId,
+        messageId: savedMessage.id,
+        conversationId: savedMessage.conversationId,
+        type: savedMessage.type,
+        direction: savedMessage.direction,
+        hasMedia: !!savedMessage.mediaUrl,
+        step: 'process_complete'
+      });
+
+      return {
+        message: savedMessage,
+        conversation,
+        contactInfo,
+        success: true
+      };
+
+    } catch (error) {
+      logger.error('❌ MESSAGESERVICE - ERROR CRÍTICO', {
+        requestId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5),
+        webhookData: {
+          MessageSid: webhookData.MessageSid,
+          From: webhookData.From,
+          To: webhookData.To,
+          hasBody: !!webhookData.Body,
+          hasMedia: !!webhookData.MediaUrl0
+        },
+        step: 'process_error'
+      });
+
+      // Log del error en Firestore
+      await this.logWebhookError({
+        requestId,
+        error: error.message,
+        stack: error.stack,
+        webhookData,
+        processedAt: new Date().toISOString()
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * Procesar información de contacto desde webhook
+   */
+  async processContactInfo(phoneNumber, profileName, waId) {
+    try {
+      const contactInfo = {
+        phoneNumber,
+        profileName: profileName || null,
+        waId: waId || null,
+        profilePhotoUrl: null,
+        profilePhotoDownloaded: false,
+        lastUpdated: new Date().toISOString()
+      };
+
+      // Intentar descargar foto de perfil si está disponible
+      if (profileName || waId) {
+        try {
+          const profilePhotoUrl = await this.getProfilePhotoUrl(phoneNumber);
+          if (profilePhotoUrl) {
+            contactInfo.profilePhotoUrl = profilePhotoUrl;
+            contactInfo.profilePhotoDownloaded = true;
+            
+            logger.info('📸 Foto de perfil obtenida', {
+              phoneNumber,
+              profilePhotoUrl
+            });
+          }
+        } catch (photoError) {
+          logger.warn('⚠️ Error obteniendo foto de perfil', {
+            phoneNumber,
+            error: photoError.message
+          });
+        }
+      }
+
+      // Actualizar contacto en la base de datos
+      await this.updateContactInDatabase(phoneNumber, contactInfo);
+
+      return contactInfo;
+
+    } catch (error) {
+      logger.error('❌ Error procesando información de contacto', {
+        phoneNumber,
+        error: error.message
+      });
+
+      return {
+        phoneNumber,
+        profileName: null,
+        waId: null,
+        profilePhotoUrl: null,
+        profilePhotoDownloaded: false,
+        lastUpdated: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Obtener URL de foto de perfil de WhatsApp
+   */
+  async getProfilePhotoUrl(phoneNumber) {
+    try {
+      // Nota: Twilio no proporciona API directa para fotos de perfil de WhatsApp
+      // Esta es una implementación de ejemplo que podría expandirse
+      // con APIs de WhatsApp Business o servicios de terceros
+      
+      logger.info('🔍 Intentando obtener foto de perfil', { phoneNumber });
+
+      // Por ahora, retornamos null ya que Twilio no expone esta funcionalidad
+      // En el futuro, se podría integrar con WhatsApp Business API
+      return null;
+
+    } catch (error) {
+      logger.error('Error obteniendo foto de perfil', {
+        phoneNumber,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Actualizar contacto en la base de datos
+   */
+  async updateContactInDatabase(phoneNumber, contactInfo) {
+    try {
+      const contactsRef = firestore.collection('contacts');
+      const contactQuery = await contactsRef.where('phone', '==', phoneNumber).limit(1).get();
+
+      if (!contactQuery.empty) {
+        // Actualizar contacto existente
+        const contactDoc = contactQuery.docs[0];
+        await contactDoc.ref.update({
+          name: contactInfo.profileName || contactDoc.data().name,
+          waId: contactInfo.waId || contactDoc.data().waId,
+          profilePhotoUrl: contactInfo.profilePhotoUrl || contactDoc.data().profilePhotoUrl,
+          lastUpdated: Timestamp.now(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+
+        logger.info('✅ Contacto actualizado en base de datos', {
+          phoneNumber,
+          profileName: contactInfo.profileName,
+          waId: contactInfo.waId,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
+        });
+      } else {
+        // Crear nuevo contacto
+        await contactsRef.add({
+          phone: phoneNumber,
+          name: contactInfo.profileName || 'Usuario WhatsApp',
+          waId: contactInfo.waId,
+          profilePhotoUrl: contactInfo.profilePhotoUrl,
+          createdAt: Timestamp.now(),
+          updatedAt: FieldValue.serverTimestamp(),
+          lastUpdated: Timestamp.now(),
+          source: 'whatsapp_webhook'
+        });
+
+        logger.info('✅ Nuevo contacto creado en base de datos', {
+          phoneNumber,
+          profileName: contactInfo.profileName,
+          waId: contactInfo.waId,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
+        });
+      }
+
+    } catch (error) {
+      logger.error('❌ Error actualizando contacto en base de datos', {
+        phoneNumber,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Buscar o crear conversación
+   */
+  async findOrCreateConversation(conversationId, customerPhone, agentPhone, contactInfo) {
+    try {
+      // Buscar conversación existente
+      const conversationRef = firestore.collection('conversations').doc(conversationId);
+      const conversationDoc = await conversationRef.get();
+
+      if (conversationDoc.exists) {
+        logger.info('📋 Conversación existente encontrada', { conversationId });
+        
+        // Actualizar contadores
+        await conversationRef.update({
+          messageCount: FieldValue.increment(1),
+          unreadCount: FieldValue.increment(1),
+          updatedAt: Timestamp.now(),
+        });
+
+        return {
+          id: conversationId,
+          exists: true,
+          ...conversationDoc.data(),
+        };
+      }
+
+      // Crear nueva conversación con asignación automática de agente
+      logger.info('🆕 Creando nueva conversación con información de contacto', { 
+        conversationId, 
+        customerPhone, 
+        agentPhone,
+        hasContactInfo: !!(contactInfo.profileName || contactInfo.waId)
+      });
+
+      // BUSCAR AGENTES DISPONIBLES PARA ASIGNACIÓN AUTOMÁTICA
+      let assignedTo = null;
+      try {
+        // Primero, buscar agente por teléfono específico
+        const agentByPhoneQuery = await firestore.collection('users')
+          .where('phone', '==', agentPhone)
+          .where('role', 'in', ['agent', 'admin'])
+          .limit(1)
+          .get();
+        
+        if (!agentByPhoneQuery.empty) {
+          const agentData = agentByPhoneQuery.docs[0].data();
+          assignedTo = {
+            id: agentData.email || agentByPhoneQuery.docs[0].id,
+            name: agentData.name || agentData.displayName || agentData.email || 'Agent',
+          };
+          
+          logger.info('👤 Agente encontrado por teléfono específico', { 
+            agentPhone, 
+            assignedToId: assignedTo.id,
+            assignedToName: assignedTo.name,
+          });
+        } else {
+          // Si no hay agente con ese teléfono, buscar cualquier agente disponible
+          logger.info('🔍 No se encontró agente específico, buscando agentes disponibles');
+          
+          const availableAgentsQuery = await firestore.collection('users')
+            .where('role', 'in', ['agent', 'admin'])
+            .where('isActive', '==', true)
+            .limit(5)
+            .get();
+          
+          if (!availableAgentsQuery.empty) {
+            const firstAvailableAgent = availableAgentsQuery.docs[0].data();
+            
+            assignedTo = {
+              id: firstAvailableAgent.email || availableAgentsQuery.docs[0].id,
+              name: firstAvailableAgent.name || firstAvailableAgent.displayName || firstAvailableAgent.email || 'Agent',
+            };
+            
+            logger.info('👤 Agente asignado automáticamente (primer disponible)', {
+              assignedToId: assignedTo.id,
+              assignedToName: assignedTo.name,
+              totalAvailableAgents: availableAgentsQuery.size,
+            });
+          } else {
+            logger.warn('⚠️ No se encontraron agentes disponibles - conversación sin asignar', { 
+              conversationId,
+              agentPhone,
+              customerPhone,
+            });
+            assignedTo = null;
+          }
+        }
+      } catch (userError) {
+        logger.error('Error buscando agentes para asignación', { 
+          agentPhone, 
+          error: userError.message,
+          stack: userError.stack,
+        });
+        assignedTo = null;
+      }
+
+      // Buscar o crear contacto para el cliente usando ContactService
+      let contact;
+      try {
+        logger.info('🔄 Procesando contacto del cliente con información avanzada', { 
+          customerPhone,
+          hasProfileName: !!contactInfo.profileName,
+          hasWaId: !!contactInfo.waId,
+          hasProfilePhoto: !!contactInfo.profilePhotoUrl
+        });
+
+        contact = await ContactService.createOrUpdateFromMessage({
+          from: customerPhone,
+          to: agentPhone,
+          direction: 'inbound',
+          timestamp: new Date().toISOString()
+        }, {
+          lastMessageAt: new Date(),
+          lastMessageContent: 'Nuevo mensaje recibido',
+          lastMessageDirection: 'inbound',
+          profileName: contactInfo.profileName,
+          waId: contactInfo.waId,
+          profilePhotoUrl: contactInfo.profilePhotoUrl
+        });
+
+        logger.info('✅ Contacto del cliente procesado exitosamente', {
+          contactId: contact?.id,
+          customerPhone,
+          profileName: contactInfo.profileName,
+          waId: contactInfo.waId
+        });
+
+      } catch (contactError) {
+        logger.error('❌ Error procesando contacto del cliente', {
+          customerPhone,
+          error: contactError.message,
+          stack: contactError.stack
+        });
+        contact = null;
+      }
+
+      // Crear nueva conversación
+      const newConversationData = {
+        id: conversationId,
+        customerPhone,
+        agentPhone,
+        assignedTo,
+        contact,
+        status: 'active',
+        messageCount: 1,
+        unreadCount: 1,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        lastMessageAt: Timestamp.now(),
+        metadata: {
+          createdFrom: 'whatsapp_webhook',
+          contactInfo,
+          twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+        }
+      };
+
+      await conversationRef.set(newConversationData);
+
+      logger.info('✅ Nueva conversación creada exitosamente', {
+        conversationId,
+        customerPhone,
+        agentPhone,
+        assignedToId: assignedTo?.id,
+        contactId: contact?.id,
+        hasContactInfo: !!(contactInfo.profileName || contactInfo.waId)
+      });
+
+      return {
+        id: conversationId,
+        exists: false,
+        ...newConversationData,
+      };
+
+    } catch (error) {
+      logger.error('❌ Error en findOrCreateConversation', {
+        conversationId,
+        customerPhone,
+        agentPhone,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * GUARDAR MENSAJE EN FIRESTORE COMO SUBCOLECCIÓN
+   * Versión mejorada con metadatos avanzados
+   */
+  async saveMessageToFirestore(conversationId, messageData) {
+    try {
+      logger.info('💾 Guardando mensaje en Firestore con metadatos avanzados', {
+        conversationId,
+        messageId: messageData.id,
+        hasContactInfo: !!(messageData.metadata.contact),
+        hasTwilioMetadata: !!(messageData.metadata.twilio)
+      });
+
+      // Referencia a la subcolección de mensajes
+      const messageRef = firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(messageData.id);
+
+      // Agregar conversationId al mensaje
+      const messageToSave = {
+        ...messageData,
+        conversationId,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+
+      // Guardar en Firestore
+      await messageRef.set(messageToSave);
+
+      logger.info('✅ Mensaje guardado exitosamente con metadatos avanzados', {
+        conversationId,
+        messageId: messageData.id,
+        direction: messageData.direction,
+        type: messageData.type,
+        hasContactInfo: !!(messageData.metadata.contact),
+        hasTwilioMetadata: !!(messageData.metadata.twilio)
+      });
+
+      return messageToSave;
+
+    } catch (error) {
+      logger.error('❌ Error guardando mensaje en Firestore', {
+        error: error.message,
+        stack: error.stack,
+        conversationId,
+        messageId: messageData.id,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ACTUALIZAR CONVERSACIÓN CON ÚLTIMO MENSAJE
+   */
+  async updateConversationLastMessage(conversationId, savedMessage) {
+    try {
+      const conversationRef = firestore.collection('conversations').doc(conversationId);
+
+      const lastMessageData = {
+        id: savedMessage.id,
+        content: savedMessage.content,
+        timestamp: savedMessage.timestamp,
+        sender: savedMessage.sender,
+        type: savedMessage.type,
+      };
+
+      await conversationRef.update({
+        lastMessage: lastMessageData,
+        lastMessageId: savedMessage.id,
+        lastMessageAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+
+      logger.info('✅ Conversación actualizada con último mensaje', {
+        conversationId,
+        lastMessageId: savedMessage.id,
+      });
+
+    } catch (error) {
+      logger.error('❌ Error actualizando último mensaje de conversación', {
+        error: error.message,
+        conversationId,
+        messageId: savedMessage.id,
+      });
+      // No lanzar error, es una operación secundaria
+    }
+  }
+
+  /**
+   * EMITIR EVENTO EN TIEMPO REAL (SOCKET.IO)
+   */
+  async emitRealTimeEvent(conversationId, savedMessage) {
+    const requestId = `realtime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      logger.info('📡 EMITREALTIMEEVENT - INICIANDO EMISIÓN', {
+        requestId,
+        timestamp: new Date().toISOString(),
+        conversationId,
+        messageId: savedMessage.id,
+        direction: savedMessage.direction,
+        type: savedMessage.type,
+        step: 'realtime_emit_start'
+      });
+
+      // Obtener Socket.IO manager
+      const { getEnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
+      const rt = getEnterpriseSocketManager();
+
+      if (!rt) {
+        logger.warn('⚠️ EMITREALTIMEEVENT - SOCKET MANAGER NO DISPONIBLE', {
+          requestId,
+          conversationId,
+          messageId: savedMessage.id,
+          hasSocketManager: false,
+          step: 'socket_not_available'
+        });
+        return;
+      }
+
+      if (typeof rt.emitNewMessage !== 'function') {
+        logger.warn('⚠️ EMITREALTIMEEVENT - EMITNEWMESSAGE NO DISPONIBLE', {
+          requestId,
+          conversationId,
+          messageId: savedMessage.id,
+          hasSocketManager: !!rt,
+          hasEmitNewMessage: !!(rt && typeof rt.emitNewMessage === 'function'),
+          step: 'socket_not_available'
+        });
+        return;
+      }
+
+      // Emitir evento de nuevo mensaje
+      await rt.emitNewMessage(conversationId, savedMessage);
+
+      logger.info('✅ EMITREALTIMEEVENT - PROCESO COMPLETADO', {
+        requestId,
+        conversationId,
+        messageId: savedMessage.id,
+        step: 'realtime_emit_complete'
+      });
+
+    } catch (socketError) {
+      logger.error('❌ EMITREALTIMEEVENT - ERROR CRÍTICO', {
+        requestId,
+        error: socketError.message,
+        stack: socketError.stack?.split('\n').slice(0, 5),
+        conversationId,
+        messageId: savedMessage.id,
+        step: 'realtime_emit_error'
+      });
+      // No lanzar error, es una operación secundaria
+    }
+  }
+
+  /**
+   * Determinar tipo de media basado en content type
+   */
+  determineMediaType(mediaType) {
+    if (!mediaType) return 'text';
+    
+    const type = mediaType.toLowerCase();
+    if (type.includes('image')) return 'image';
+    if (type.includes('video')) return 'video';
+    if (type.includes('audio')) return 'audio';
+    if (type.includes('application') || type.includes('document')) return 'document';
+    if (type.includes('sticker')) return 'sticker';
+    
+    return 'text';
+  }
+
+  /**
+   * ENVIAR MENSAJE WHATSAPP VIA TWILIO
+   */
+  async sendWhatsAppMessage({ from, to, body, mediaUrl }) {
+    try {
+      const payload = {
+        from: this.ensureFrom(from),
+        to: this.ensureWhatsApp(to),
+      };
+
+      if (body) payload.body = body;
+      if (mediaUrl) payload.mediaUrl = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
+
+      // Log de request (sin body completo)
+      logger?.info?.('TWILIO:REQUEST', { from: payload.from, to: payload.to, bodyLen: body?.length, hasMedia: !!mediaUrl });
+
+      const resp = await this.client.messages.create(payload);
+
+      logger?.info?.('TWILIO:RESPONSE_OK', { sid: resp?.sid, status: resp?.status });
+      return resp;
+    } catch (error) {
+      logger?.error?.('TWILIO:RESPONSE_ERR', { error: error.message, from, to });
+      throw error;
+    }
+  }
+
+  /**
+   * 🆕 ENVIAR UBICACIÓN VIA WHATSAPP
+   */
+  async sendWhatsAppLocation(toPhone, latitude, longitude, name = '', address = '') {
+    try {
+      // Validar coordenadas
+      if (!latitude || !longitude) {
+        throw new Error('Latitude y longitude son requeridos');
+      }
+
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new Error('Coordenadas inválidas');
+      }
+
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        throw new Error('Coordenadas fuera de rango válido');
+      }
+
+      // Normalizar números de teléfono
+      const normalizedToPhone = toPhone;
+      const normalizedFromPhone = this.whatsappNumber;
+
+      // Construir mensaje de ubicación
+      const locationMessage = {
+        from: `whatsapp:${normalizedFromPhone}`,
+        to: `whatsapp:${normalizedToPhone}`,
+        body: name && address ? `${name}\n${address}` : (name || address || 'Ubicación compartida'),
+        persistentAction: [`geo:${lat},${lng}`]
+      };
+
+      logger.info('📍 Enviando ubicación WhatsApp via Twilio', {
+        to: normalizedToPhone,
+        from: normalizedFromPhone,
+        latitude: lat,
+        longitude: lng,
+        name: name || 'Sin nombre',
+        address: address || 'Sin dirección'
+      });
+
+      // Enviar mensaje de ubicación
+      const sentMessage = await this.client.messages.create(locationMessage);
+
+      // Preparar datos del mensaje
+      const messageData = {
+        id: sentMessage.sid,
+        senderPhone: normalizedFromPhone,
+        recipientPhone: normalizedToPhone,
+        content: locationMessage.body,
+        type: 'location',
+        direction: 'outbound',
+        status: 'sent',
+        sender: 'agent',
+        location: {
+          latitude: lat,
+          longitude: lng,
+          name: name || '',
+          address: address || ''
+        },
+        timestamp: new Date().toISOString(),
+        metadata: {
+          twilioSid: sentMessage.sid,
+          twilioStatus: sentMessage.status,
+          twilioErrorCode: sentMessage.errorCode,
+          twilioErrorMessage: sentMessage.errorMessage,
+          sentAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      logger.info('✅ Ubicación WhatsApp enviada exitosamente', {
+        twilioSid: sentMessage.sid,
+        senderPhone: messageData.senderPhone,
+        recipientPhone: messageData.recipientPhone,
+        status: sentMessage.status,
+        direction: messageData.direction,
+        location: messageData.location
+      });
+
+      return {
+        success: true,
+        messageData,
+        twilioResponse: sentMessage,
+      };
+
+    } catch (error) {
+      logger.error('❌ Error enviando ubicación WhatsApp', {
+        error: error.message,
+        toPhone,
+        latitude,
+        longitude,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * 🆕 ENVIAR STICKER VIA WHATSAPP
+   */
+  async sendWhatsAppSticker(toPhone, stickerUrl) {
+    try {
+      // Validar URL del sticker
+      if (!stickerUrl || !stickerUrl.trim()) {
+        throw new Error('URL del sticker es requerida');
+      }
+
+      // Normalizar números de teléfono
+      const normalizedToPhone = toPhone;
+      const normalizedFromPhone = this.whatsappNumber;
+
+      // Construir mensaje de sticker
+      const stickerMessage = {
+        from: `whatsapp:${normalizedFromPhone}`,
+        to: `whatsapp:${normalizedToPhone}`,
+        mediaUrl: [stickerUrl]
+      };
+
+      logger.info('😀 Enviando sticker WhatsApp via Twilio', {
+        to: normalizedToPhone,
+        from: normalizedFromPhone,
+        stickerUrl: stickerUrl
+      });
+
+      // Enviar sticker
+      const sentMessage = await this.client.messages.create(stickerMessage);
+
+      // Preparar datos del mensaje
+      const messageData = {
+        id: sentMessage.sid,
+        senderPhone: normalizedFromPhone,
+        recipientPhone: normalizedToPhone,
+        content: 'Sticker enviado',
+        type: 'sticker',
+        direction: 'outbound',
+        status: 'sent',
+        sender: 'agent',
+        sticker: {
+          url: stickerUrl,
+          packId: null, // Se puede obtener del webhook entrante
+          stickerId: null,
+          emoji: null
+        },
+        timestamp: new Date().toISOString(),
+        metadata: {
+          twilioSid: sentMessage.sid,
+          twilioStatus: sentMessage.status,
+          twilioErrorCode: sentMessage.errorCode,
+          twilioErrorMessage: sentMessage.errorMessage,
+          sentAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      logger.info('✅ Sticker WhatsApp enviado exitosamente', {
+        twilioSid: sentMessage.sid,
+        senderPhone: messageData.senderPhone,
+        recipientPhone: messageData.recipientPhone,
+        status: sentMessage.status,
+        direction: messageData.direction,
+        stickerUrl: stickerUrl
+      });
+
+      return {
+        success: true,
+        messageData,
+        twilioResponse: sentMessage,
+      };
+
+    } catch (error) {
+      logger.error('❌ Error enviando sticker WhatsApp', {
+        error: error.message,
+        toPhone,
+        stickerUrl,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * LOG DE ERRORES DE WEBHOOK
+   */
+  async logWebhookError(errorData) {
+    try {
+      const logData = {
+        ...errorData,
+        loggedAt: Timestamp.now(),
+        source: 'twilio_webhook',
+        environment: process.env.NODE_ENV || 'unknown',
+      };
+
+      await firestore
+        .collection('webhook_errors')
+        .add(logData);
+
+      logger.info('📝 Error de webhook guardado en Firestore', {
+        errorMessage: errorData.error,
+        timestamp: errorData.processedAt,
+      });
+
+    } catch (error) {
+      logger.error('❌ Error guardando log de webhook en Firestore', {
+        error: error.message,
+        originalErrorData: errorData,
+      });
+    }
+  }
+
+  /**
+   * ENVIAR MENSAJES EN LOTE
+   */
+  static async sendBulkMessages(contacts, message, campaignId, options = {}) {
+    const requestId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      logger.info('📤 Iniciando envío de mensajes en lote', {
+        requestId,
+        campaignId,
+        totalContacts: contacts.length,
+        messagePreview: message.substring(0, 50)
+      });
+
+      const results = [];
+      const batchSize = options.batchSize || 10;
+      const delayBetweenBatches = options.delayBetweenBatches || 1000;
+
+      // Procesar en lotes para evitar rate limiting
+      for (let i = 0; i < contacts.length; i += batchSize) {
+        const batch = contacts.slice(i, i + batchSize);
+        
+        logger.info(`📦 Procesando lote ${Math.floor(i / batchSize) + 1}`, {
+          requestId,
+          batchStart: i,
+          batchEnd: Math.min(i + batchSize, contacts.length),
+          batchSize: batch.length
+        });
+
+        // Procesar lote en paralelo
+        const batchPromises = batch.map(async (contact) => {
+          try {
+            const messageService = getMessageService();
+            const result = await messageService.sendWhatsAppMessage({
+              from: process.env.TWILIO_WHATSAPP_NUMBER,
+              to: contact.phone,
+              body: message
+            });
+
+            return {
+              contactId: contact.id,
+              phone: contact.phone,
+              success: true,
+              twilioSid: result.sid,
+              status: result.status
+            };
+
+          } catch (error) {
+            logger.error('❌ Error enviando mensaje individual', {
+              contactId: contact.id,
+              phone: contact.phone,
+              error: error.message
+            });
+
+            return {
+              contactId: contact.id,
+              phone: contact.phone,
+              success: false,
+              error: error.message
+            };
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+
+        // Esperar entre lotes para evitar rate limiting
+        if (i + batchSize < contacts.length) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      const failureCount = results.filter(r => !r.success).length;
+
+      logger.info('✅ Envío de mensajes en lote completado', {
+        requestId,
+        campaignId,
+        totalSent: results.length,
+        successCount,
+        failureCount
+      });
+
+      return {
+        success: true,
+        results,
+        summary: {
+          total: results.length,
+          success: successCount,
+          failed: failureCount
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Error en envío de mensajes en lote', {
+        requestId,
+        campaignId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      return {
+        success: false,
+        error: error.message,
+        results: []
+      };
+    }
+  }
 }
 
+// Crear instancia singleton
+const instance = new MessageService();
+function getMessageService(){ return instance; }
+
 module.exports = MessageService;
+module.exports.getMessageService = getMessageService;
