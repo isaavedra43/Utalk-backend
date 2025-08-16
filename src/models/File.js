@@ -26,15 +26,15 @@ class File {
     this.messageId = data.messageId;
     this.userId = data.userId; // Usuario que subió el archivo
     this.uploadedBy = data.uploadedBy;
-    this.uploadedAt = data.uploadedAt || Timestamp.now();
+    this.uploadedAt = data.uploadedAt || new Date();
     this.expiresAt = data.expiresAt;
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.metadata = data.metadata || {};
     this.tags = data.tags || [];
     this.downloadCount = data.downloadCount || 0;
     this.lastAccessedAt = data.lastAccessedAt;
-    this.createdAt = data.createdAt || Timestamp.now();
-    this.updatedAt = data.updatedAt || Timestamp.now();
+    this.createdAt = data.createdAt || new Date();
+    this.updatedAt = data.updatedAt || new Date();
   }
 
   /**
@@ -115,7 +115,17 @@ class File {
     });
 
     // Índice por fecha (para consultas por período)
-    const dateKey = file.uploadedAt.toDate().toISOString().split('T')[0]; // YYYY-MM-DD
+    let dateKey;
+    if (file.uploadedAt && typeof file.uploadedAt.toDate === 'function') {
+      // Es un Timestamp de Firestore
+      dateKey = file.uploadedAt.toDate().toISOString().split('T')[0];
+    } else if (file.uploadedAt instanceof Date) {
+      // Es un Date
+      dateKey = file.uploadedAt.toISOString().split('T')[0];
+    } else {
+      // Usar fecha actual como fallback
+      dateKey = new Date().toISOString().split('T')[0];
+    }
     const dateIndexRef = firestore
       .collection('files_by_date')
       .doc(dateKey)
