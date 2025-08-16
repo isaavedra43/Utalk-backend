@@ -648,11 +648,16 @@ class MessageService {
       const fileService = new FileService();
       const processedFile = await fileService.uploadFile(fileData);
 
+      // Validar que processedFile existe y tiene las propiedades necesarias
+      if (!processedFile) {
+        throw new Error('FileService.uploadFile no retornó datos válidos');
+      }
+
       return {
-        fileId: processedFile?.id || fileId,
+        fileId: processedFile.id || fileId,
         category,
-        url: processedFile?.url || processedFile?.publicUrl,
-        size: processedFile?.size || buffer.byteLength,
+        url: processedFile.url || processedFile.publicUrl,
+        size: processedFile.size || buffer.byteLength,
         mimetype: contentType
       };
 
