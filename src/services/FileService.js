@@ -265,10 +265,14 @@ class FileService {
       };
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe y tiene las propiedades necesarias
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error subiendo archivo con indexación', {
         originalName: fileData.originalName,
-        error: error.message,
-        stack: error.stack?.split('\n').slice(0, 3)
+        error: errorMessage,
+        stack: errorStack
       });
       throw error;
     }
