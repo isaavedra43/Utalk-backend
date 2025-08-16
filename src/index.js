@@ -919,11 +919,25 @@ class ConsolidatedServer {
           this.app._router.handle(req, res);
         });
         
-        // Ruta para proxy de Twilio (pública)
+        // Ruta para proxy de Twilio (pública) - ENDPOINT DIRECTO
         this.app.get('/media/proxy-public', (req, res) => {
-          console.log('🔄 Redirigiendo /media/proxy-public a /api/media/proxy-public');
-          req.url = '/api/media/proxy-public' + req.url.replace('/media/proxy-public', '');
-          this.app._router.handle(req, res);
+          console.log('🔍 MEDIA PROXY-PUBLIC ENDPOINT HIT:', {
+            messageSid: req.query.messageSid,
+            mediaSid: req.query.mediaSid,
+            url: req.url,
+            method: req.method
+          });
+          
+          // Respuesta de prueba simple
+          res.status(200).json({
+            success: true,
+            message: 'Endpoint /media/proxy-public funcionando',
+            data: {
+              messageSid: req.query.messageSid,
+              mediaSid: req.query.mediaSid,
+              timestamp: new Date().toISOString()
+            }
+          });
         });
         
         // Ruta para proxy de archivos almacenados
