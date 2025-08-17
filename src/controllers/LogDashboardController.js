@@ -8,6 +8,8 @@
  * @author Backend Team
  */
 
+const fs = require('fs');
+
 let logMonitor;
 try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
@@ -121,7 +123,6 @@ try {
 }
 
 const logger = require('../utils/logger');
-const fs = require('fs'); // Added for file system operations
 
 class LogDashboardController {
   /**
@@ -1105,86 +1106,86 @@ ${initialDataScript}
   /**
    * Exportar logs de Railway usando su API
    */
-  async exportRailwayLogs(req, res) {
-  try {
-    const { 
-      format = 'json', 
-      level, 
-      hours = 24, 
-      maxLogs = 1000,
-      startDate,
-      endDate 
-    } = req.query;
+  static async exportRailwayLogs(req, res) {
+    try {
+      const { 
+        format = 'json', 
+        level, 
+        hours = 24, 
+        maxLogs = 1000,
+        startDate,
+        endDate 
+      } = req.query;
 
-    // Validar que tenemos las credenciales necesarias
-    if (!process.env.RAILWAY_TOKEN) {
-      return res.status(500).json({
+      // Validar que tenemos las credenciales necesarias
+      if (!process.env.RAILWAY_TOKEN) {
+        return res.status(500).json({
+          success: false,
+          message: 'RAILWAY_TOKEN no configurado',
+          instructions: 'Configura RAILWAY_TOKEN en las variables de entorno'
+        });
+      }
+
+      const RailwayLogExporter = require('../../scripts/export-railway-logs');
+      const exporter = new RailwayLogExporter();
+
+      // Configurar opciones de exportación
+      const options = {
+        level: level || null,
+        maxLogs: parseInt(maxLogs),
+        startDate: startDate ? new Date(startDate) : new Date(Date.now() - hours * 60 * 60 * 1000),
+        endDate: endDate ? new Date(endDate) : new Date()
+      };
+
+      let logsData;
+      let contentType;
+      let filename;
+
+      if (format === 'csv') {
+        logsData = await exporter.exportToCSV('./temp-export.csv', options);
+        contentType = 'text/csv';
+        filename = `railway-logs-${new Date().toISOString().split('T')[0]}.csv`;
+      } else {
+        logsData = await exporter.exportToJSON('./temp-export.json', options);
+        contentType = 'application/json';
+        filename = `railway-logs-${new Date().toISOString().split('T')[0]}.json`;
+      }
+
+      // Configurar headers para descarga
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      // Enviar datos
+      if (format === 'csv') {
+        res.send(logsData);
+      } else {
+        res.json(logsData);
+      }
+
+      // Limpiar archivos temporales
+      try {
+        if (format === 'csv') {
+          fs.unlinkSync('./temp-export.csv');
+        } else {
+          fs.unlinkSync('./temp-export.json');
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ No se pudo limpiar archivo temporal:', cleanupError.message);
+      }
+
+    } catch (error) {
+      logger.error('Error exportando logs de Railway', {
+        category: 'LOG_EXPORT_ERROR',
+        error: error.message,
+        stack: error.stack
+      });
+
+      res.status(500).json({
         success: false,
-        message: 'RAILWAY_TOKEN no configurado',
-        instructions: 'Configura RAILWAY_TOKEN en las variables de entorno'
+        message: 'Error exportando logs',
+        error: error.message
       });
     }
-
-    const RailwayLogExporter = require('../../scripts/export-railway-logs');
-    const exporter = new RailwayLogExporter();
-
-    // Configurar opciones de exportación
-    const options = {
-      level: level || null,
-      maxLogs: parseInt(maxLogs),
-      startDate: startDate ? new Date(startDate) : new Date(Date.now() - hours * 60 * 60 * 1000),
-      endDate: endDate ? new Date(endDate) : new Date()
-    };
-
-    let logsData;
-    let contentType;
-    let filename;
-
-    if (format === 'csv') {
-      logsData = await exporter.exportToCSV('./temp-export.csv', options);
-      contentType = 'text/csv';
-      filename = `railway-logs-${new Date().toISOString().split('T')[0]}.csv`;
-    } else {
-      logsData = await exporter.exportToJSON('./temp-export.json', options);
-      contentType = 'application/json';
-      filename = `railway-logs-${new Date().toISOString().split('T')[0]}.json`;
-    }
-
-    // Configurar headers para descarga
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    // Enviar datos
-    if (format === 'csv') {
-      res.send(logsData);
-    } else {
-      res.json(logsData);
-    }
-
-    // Limpiar archivos temporales
-    try {
-      if (format === 'csv') {
-        fs.unlinkSync('./temp-export.csv');
-      } else {
-        fs.unlinkSync('./temp-export.json');
-      }
-    } catch (cleanupError) {
-      console.warn('⚠️ No se pudo limpiar archivo temporal:', cleanupError.message);
-    }
-
-  } catch (error) {
-    logger.error('Error exportando logs de Railway', {
-      category: 'LOG_EXPORT_ERROR',
-      error: error.message,
-      stack: error.stack
-    });
-
-    res.status(500).json({
-      success: false,
-      message: 'Error exportando logs',
-      error: error.message
-    });
-  }
   }
 }
 
