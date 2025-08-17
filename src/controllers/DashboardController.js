@@ -27,7 +27,6 @@ const moment = require('moment');
 const cacheService = require('../services/CacheService');
 const batchService = require('../services/BatchService');
 const shardingService = require('../services/ShardingService');
-const ErrorWrapper = require('../utils/errorWrapper');
 
 class EnterpriseDashboardController {
   // Cache TTL configuration
@@ -51,317 +50,276 @@ class EnterpriseDashboardController {
    * 🎯 OBTENER MÉTRICAS GENERALES DEL DASHBOARD (CACHED)
    */
   static async getMetrics(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        // Generar cache key único
-        const cacheKey = `dashboard_metrics:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
+      // Generar cache key único
+      const cacheKey = `dashboard_metrics:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
 
-        // Intentar obtener del cache
-        let metrics = await cacheService.get(cacheKey);
-        
-        if (!metrics) {
-          logger.info('Cache MISS for dashboard metrics, computing...', {
-            category: 'DASHBOARD_CACHE_MISS',
-            userId: req.user.id,
-            period
-          });
+      // Intentar obtener del cache
+      let metrics = await cacheService.get(cacheKey);
+      
+      if (!metrics) {
+        logger.info('Cache MISS for dashboard metrics, computing...', {
+          category: 'DASHBOARD_CACHE_MISS',
+          userId: req.user.id,
+          period
+        });
 
-      // Calcular fechas según el período
-      const { start, end } = this.getPeriodDates(period, startDate, endDate);
+        // Calcular fechas según el período
+        const { start, end } = this.getPeriodDates(period, startDate, endDate);
 
-          // Obtener métricas paralelas con optimizaciones
-      const [
-        messageStats,
-        contactStats,
-        campaignStats,
-        userActivity,
-        recentActivity,
-      ] = await Promise.all([
-            this.getCachedMessageMetrics(userId, start, end),
-            this.getCachedContactMetrics(userId, start, end),
-            this.getCachedCampaignMetrics(userId, start, end),
-            this.getCachedUserActivityMetrics(userId, start, end),
-            this.getCachedRecentActivityData(userId, 10),
-          ]);
+        // Obtener métricas paralelas con optimizaciones
+        const [
+          messageStats,
+          contactStats,
+          campaignStats,
+          userActivity,
+          recentActivity,
+        ] = await Promise.all([
+          this.getCachedMessageMetrics(userId, start, end),
+          this.getCachedContactMetrics(userId, start, end),
+          this.getCachedCampaignMetrics(userId, start, end),
+          this.getCachedUserActivityMetrics(userId, start, end),
+          this.getCachedRecentActivityData(userId, 10),
+        ]);
 
-          metrics = {
-        period: {
-          start: start.toISOString(),
-          end: end.toISOString(),
-          type: period,
-        },
-        summary: {
-          totalMessages: messageStats.total,
-          totalContacts: contactStats.total,
-          totalCampaigns: campaignStats.total,
-          activeUsers: userActivity.activeUsers,
-        },
-        messages: messageStats,
-        contacts: contactStats,
-        campaigns: campaignStats,
-        userActivity,
-        recentActivity,
-            trends: await this.getCachedTrendData(userId, start, end),
-            computedAt: new Date().toISOString()
-          };
+        metrics = {
+          period: {
+            start: start.toISOString(),
+            end: end.toISOString(),
+            type: period,
+          },
+          summary: {
+            totalMessages: messageStats.total,
+            totalContacts: contactStats.total,
+            totalCampaigns: campaignStats.total,
+            activeUsers: userActivity.activeUsers,
+          },
+          messages: messageStats,
+          contacts: contactStats,
+          campaigns: campaignStats,
+          userActivity,
+          recentActivity,
+          trends: await this.getCachedTrendData(userId, start, end),
+          computedAt: new Date().toISOString()
+        };
 
-          // Guardar en cache
-          await cacheService.set(cacheKey, metrics, this.CACHE_TTL.METRICS);
+        // Guardar en cache
+        await cacheService.set(cacheKey, metrics, this.CACHE_TTL.METRICS);
 
-          logger.info('Dashboard metrics computed and cached', {
-            category: 'DASHBOARD_METRICS_COMPUTED',
-        userId: req.user.id,
-        period,
-            cacheKey
-          });
-        } else {
-          // Log removido para reducir ruido en producción
-        }
+        logger.info('Dashboard metrics computed and cached', {
+          category: 'DASHBOARD_METRICS_COMPUTED',
+          userId: req.user.id,
+          period,
+          cacheKey
+        });
+      } else {
+        // Log removido para reducir ruido en producción
+      }
 
       res.json(metrics);
     } catch (error) {
       logger.error('Error al obtener métricas del dashboard:', error);
       next(error);
     }
-    }, {
-      maxRequests: this.RATE_LIMITS.METRICS,
-      windowMs: 60000, // 1 minuto
-      operationName: 'dashboard_metrics'
-    })();
   }
 
   /**
    * 📊 OBTENER ESTADÍSTICAS DE MENSAJES (CACHED + SHARDED)
    */
   static async getMessageStats(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        const cacheKey = `message_stats:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
+      const cacheKey = `message_stats:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
 
-        let stats = await cacheService.get(cacheKey);
+      let stats = await cacheService.get(cacheKey);
 
-        if (!stats) {
-      const { start, end } = this.getPeriodDates(period, startDate, endDate);
-          stats = await this.getCachedMessageMetrics(userId, start, end);
-          
-          await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
-        }
+      if (!stats) {
+        const { start, end } = this.getPeriodDates(period, startDate, endDate);
+        stats = await this.getCachedMessageMetrics(userId, start, end);
+        
+        await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
+      }
 
       res.json({
-          period: { start: startDate, end: endDate },
+        period: { start: startDate, end: endDate },
         stats,
-          cached: !!stats
+        cached: !!stats
       });
     } catch (error) {
       logger.error('Error al obtener estadísticas de mensajes:', error);
       next(error);
     }
-    }, {
-      maxRequests: this.RATE_LIMITS.STATS,
-      windowMs: 60000,
-      operationName: 'message_stats'
-    })();
   }
 
   /**
    * 👥 OBTENER ESTADÍSTICAS DE CONTACTOS (CACHED + BATCH)
    */
   static async getContactStats(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        const cacheKey = `contact_stats:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
+      const cacheKey = `contact_stats:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
 
-        let stats = await cacheService.get(cacheKey);
+      let stats = await cacheService.get(cacheKey);
 
-        if (!stats) {
-      const { start, end } = this.getPeriodDates(period, startDate, endDate);
-          stats = await this.getCachedContactMetrics(userId, start, end);
-          
-          await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
-        }
+      if (!stats) {
+        const { start, end } = this.getPeriodDates(period, startDate, endDate);
+        stats = await this.getCachedContactMetrics(userId, start, end);
+        
+        await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
+      }
 
       res.json({
-          period: { start: startDate, end: endDate },
+        period: { start: startDate, end: endDate },
         stats,
-          cached: !!stats
+        cached: !!stats
       });
     } catch (error) {
       logger.error('Error al obtener estadísticas de contactos:', error);
       next(error);
     }
-    }, {
-      maxRequests: this.RATE_LIMITS.STATS,
-      windowMs: 60000,
-      operationName: 'contact_stats'
-    })();
   }
 
   /**
    * 📢 OBTENER ESTADÍSTICAS DE CAMPAÑAS (CACHED)
    */
   static async getCampaignStats(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        const cacheKey = `campaign_stats:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
+      const cacheKey = `campaign_stats:${userId || 'admin'}:${period}:${startDate || 'default'}:${endDate || 'default'}`;
 
-        let stats = await cacheService.get(cacheKey);
+      let stats = await cacheService.get(cacheKey);
 
-        if (!stats) {
-      const { start, end } = this.getPeriodDates(period, startDate, endDate);
-          stats = await this.getCachedCampaignMetrics(userId, start, end);
-          
-          await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
-        }
+      if (!stats) {
+        const { start, end } = this.getPeriodDates(period, startDate, endDate);
+        stats = await this.getCachedCampaignMetrics(userId, start, end);
+        
+        await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
+      }
 
       res.json({
-          period: { start: startDate, end: endDate },
+        period: { start: startDate, end: endDate },
         stats,
-          cached: !!stats
+        cached: !!stats
       });
     } catch (error) {
       logger.error('Error al obtener estadísticas de campañas:', error);
       next(error);
     }
-    }, {
-      maxRequests: this.RATE_LIMITS.STATS,
-      windowMs: 60000,
-      operationName: 'campaign_stats'
-    })();
   }
 
   /**
    * 📈 OBTENER ACTIVIDAD RECIENTE (CACHED + PROGRESSIVE)
    */
   static async getRecentActivity(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
     try {
-        const { limit = 10, offset = 0 } = req.query;
+      const { limit = 10, offset = 0 } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        const cacheKey = `recent_activity:${userId || 'admin'}:${limit}:${offset}`;
+      const cacheKey = `recent_activity:${userId || 'admin'}:${limit}:${offset}`;
 
-        let activity = await cacheService.get(cacheKey);
+      let activity = await cacheService.get(cacheKey);
 
-        if (!activity) {
-          activity = await this.getCachedRecentActivityData(userId, parseInt(limit), parseInt(offset));
-          
-          await cacheService.set(cacheKey, activity, this.CACHE_TTL.ACTIVITY);
-        }
+      if (!activity) {
+        activity = await this.getCachedRecentActivityData(userId, parseInt(limit), parseInt(offset));
+        
+        await cacheService.set(cacheKey, activity, this.CACHE_TTL.ACTIVITY);
+      }
 
       res.json({
-          activity,
-          pagination: {
-            limit: parseInt(limit),
-            offset: parseInt(offset),
-            hasMore: activity.length === parseInt(limit)
-          },
-          cached: !!activity
+        activity,
+        pagination: {
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          hasMore: activity.length === parseInt(limit)
+        },
+        cached: !!activity
       });
     } catch (error) {
       logger.error('Error al obtener actividad reciente:', error);
       next(error);
     }
-    }, {
-      maxRequests: this.RATE_LIMITS.ACTIVITY,
-      windowMs: 60000,
-      operationName: 'recent_activity'
-    })();
   }
 
   /**
    * 📤 EXPORTAR REPORTE (BATCH + CACHED)
    */
   static async exportReport(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
     try {
-        const { format = 'csv', period = '7d', type = 'all' } = req.query;
+      const { format = 'csv', period = '7d', type = 'all' } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        const cacheKey = `export_report:${userId || 'admin'}:${format}:${period}:${type}`;
+      const cacheKey = `export_report:${userId || 'admin'}:${format}:${period}:${type}`;
 
-        let reportData = await cacheService.get(cacheKey);
+      let reportData = await cacheService.get(cacheKey);
 
-        if (!reportData) {
-          const { start, end } = this.getPeriodDates(period);
+      if (!reportData) {
+        const { start, end } = this.getPeriodDates(period);
 
-          // Generar reporte en background si es muy grande
-          if (this.isLargeReport(start, end, type)) {
-            const jobId = await this.queueReportGeneration(userId, format, period, type);
-            
-            return res.json({
-              status: 'processing',
-              jobId,
-              message: 'Reporte grande en proceso. Se notificará cuando esté listo.',
-              estimatedTime: '5-10 minutos'
-            });
-          }
-
-          reportData = await this.generateReportData(userId, start, end, type);
+        // Generar reporte en background si es muy grande
+        if (this.isLargeReport(start, end, type)) {
+          const jobId = await this.queueReportGeneration(userId, format, period, type);
           
-          await cacheService.set(cacheKey, reportData, this.CACHE_TTL.EXPORT);
+          return res.json({
+            status: 'processing',
+            jobId,
+            message: 'Reporte grande en proceso. Se notificará cuando esté listo.',
+            estimatedTime: '5-10 minutos'
+          });
         }
 
-        // Enviar reporte
+        reportData = await this.generateReportData(userId, start, end, type);
+        
+        await cacheService.set(cacheKey, reportData, this.CACHE_TTL.EXPORT);
+      }
+
+      // Enviar reporte
       if (format === 'csv') {
-          const parser = new Parser();
-          const csv = parser.parse(reportData);
-          
-          res.setHeader('Content-Type', 'text/csv');
-          res.setHeader('Content-Disposition', `attachment; filename=report_${period}_${Date.now()}.csv`);
-          res.send(csv);
-        } else {
-          res.json(reportData);
-        }
+        const parser = new Parser();
+        const csv = parser.parse(reportData);
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=report_${period}_${Date.now()}.csv`);
+        res.send(csv);
+      } else {
+        res.json(reportData);
+      }
 
     } catch (error) {
       logger.error('Error al exportar reporte:', error);
       next(error);
     }
-    }, {
-      maxRequests: this.RATE_LIMITS.EXPORT,
-      windowMs: 60000,
-      operationName: 'export_report'
-    })();
   }
 
   /**
    * ⚡ OBTENER MÉTRICAS DE PERFORMANCE (REAL-TIME)
    */
   static async getPerformanceMetrics(req, res, next) {
-    return ErrorWrapper.wrapAsync(async () => {
-      try {
-        const { period = '1h' } = req.query;
-        const userId = req.user.role === 'admin' ? null : req.user.id;
+    try {
+      const { period = '1h' } = req.query;
+      const userId = req.user.role === 'admin' ? null : req.user.id;
 
-        // Métricas en tiempo real (no cacheadas)
-        const metrics = await this.getRealTimePerformanceMetrics(userId, period);
+      // Métricas en tiempo real (no cacheadas)
+      const metrics = await this.getRealTimePerformanceMetrics(userId, period);
 
-        res.json({
-          period,
-          metrics,
-          timestamp: new Date().toISOString(),
-          realTime: true
+      res.json({
+        period,
+        metrics,
+        timestamp: new Date().toISOString(),
+        realTime: true
       });
     } catch (error) {
-        logger.error('Error al obtener métricas de performance:', error);
+      logger.error('Error al obtener métricas de performance:', error);
       next(error);
     }
-    }, {
-      operationName: 'performance_metrics',
-      timeoutMs: 30000
-    })();
   }
 
   // MÉTODOS CACHED OPTIMIZADOS
