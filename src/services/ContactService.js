@@ -346,6 +346,43 @@ class ContactService {
       throw error;
     }
   }
+
+  /**
+   * 💬 Obtener conversaciones recientes de un contacto
+   */
+  static async getRecentConversations(contactId, limit = 5) {
+    try {
+      const Conversation = require('../models/Conversation');
+      
+      // Buscar conversaciones donde el contacto participa
+      const snapshot = await firestore
+        .collection('conversations')
+        .where('participants', 'array-contains', contactId)
+        .orderBy('updatedAt', 'desc')
+        .limit(limit)
+        .get();
+
+      const conversations = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      logger.info('💬 Conversaciones recientes obtenidas', {
+        contactId,
+        limit,
+        found: conversations.length
+      });
+
+      return conversations;
+    } catch (error) {
+      logger.error('❌ Error obteniendo conversaciones recientes', {
+        contactId,
+        limit,
+        error: error.message
+      });
+      return [];
+    }
+  }
 }
 
 module.exports = ContactService; 

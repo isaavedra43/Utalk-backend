@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ContactController = require('../controllers/ContactController');
+const ContactService = require('../services/ContactService');
 const { validateRequest } = require('../middleware/validation');
 const { validatePhoneInBody, validateOptionalPhoneInBody } = require('../middleware/phoneValidation');
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
@@ -210,8 +211,8 @@ router.get('/profile/:phone',
         });
       }
       
-      // Buscar contacto por teléfono
-      const contact = await ContactController.findByPhone(phone);
+      // Buscar contacto por teléfono usando ContactService
+      const contact = await ContactService.findContactByPhone(phone);
       
       if (!contact) {
         return res.status(404).json({
@@ -221,13 +222,13 @@ router.get('/profile/:phone',
       }
       
       // Obtener estadísticas del contacto
-      const stats = await ContactController.getContactStats(contact.id);
+      const stats = await ContactService.getContactStats({ contactId: contact.id });
       
       // Obtener conversaciones recientes
-      const conversations = await ContactController.getRecentConversations(contact.id, 5);
+      const conversations = await ContactService.getRecentConversations(contact.id, 5);
       
       const profile = {
-        contact,
+        contact: contact.toJSON ? contact.toJSON() : contact,
         stats,
         recentConversations: conversations,
         lastActivity: contact.updatedAt || contact.createdAt
@@ -240,6 +241,84 @@ router.get('/profile/:phone',
       
     } catch (error) {
       console.error('Error obteniendo perfil de cliente:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  }
+);
+
+/**
+ * @route GET /api/contacts/client/:phone
+ * @desc Obtener información básica del cliente por número de teléfono (para frontend)
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/client/:phone',
+  authMiddleware,
+  requireReadAccess,
+  async (req, res) => {
+    try {
+      const { phone } = req.params;
+      
+      if (!phone || !phone.match(/^\+[1-9]\d{1,14}$/)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Número de teléfono inválido'
+        });
+      }
+      
+      // Buscar contacto por teléfono usando ContactService
+      const contact = await ContactService.findContactByPhone(phone);
+      
+      if (!contact) {
+        // Si no existe el contacto, crear uno básico con la información disponible
+        const defaultContact = {
+          phone: phone,
+          name: phone, // Usar el teléfono como nombre por defecto
+          waId: phone.replace('+', ''),
+          profilePhotoUrl: null,
+          lastUpdated: new Date().toISOString(),
+          isActive: true,
+          totalMessages: 0,
+          lastContactAt: null,
+          tags: [],
+          customFields: {
+            source: 'webhook'
+          }
+        };
+        
+        return res.json({
+          success: true,
+          data: defaultContact
+        });
+      }
+      
+      // Convertir el contacto a objeto plano
+      const contactData = contact.toJSON ? contact.toJSON() : contact;
+      
+      // Asegurar que todos los campos requeridos estén presentes
+      const clientData = {
+        phone: contactData.phone || phone,
+        name: contactData.name || phone,
+        waId: contactData.waId || phone.replace('+', ''),
+        profilePhotoUrl: contactData.profilePhotoUrl || null,
+        lastUpdated: contactData.updatedAt || contactData.createdAt || new Date().toISOString(),
+        isActive: contactData.isActive !== false,
+        totalMessages: contactData.totalMessages || 0,
+        lastContactAt: contactData.lastContactAt || null,
+        tags: contactData.tags || [],
+        customFields: contactData.customFields || {}
+      };
+      
+      res.json({
+        success: true,
+        data: clientData
+      });
+      
+    } catch (error) {
+      console.error('Error obteniendo información del cliente:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',

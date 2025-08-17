@@ -409,6 +409,15 @@ class Contact {
       updatedAtISO = this.updatedAt;
     }
 
+    let lastContactAtISO = '';
+    if (this.lastContactAt && typeof this.lastContactAt.toDate === 'function') {
+      lastContactAtISO = this.lastContactAt.toDate().toISOString();
+    } else if (this.lastContactAt instanceof Date) {
+      lastContactAtISO = this.lastContactAt.toISOString();
+    } else if (typeof this.lastContactAt === 'string') {
+      lastContactAtISO = this.lastContactAt;
+    }
+
     return {
       id: this.id,
       name: this.name,
@@ -417,6 +426,15 @@ class Contact {
       tags: this.tags || [], // No null
       createdAt: createdAtISO,
       updatedAt: updatedAtISO,
+      lastContactAt: lastContactAtISO,
+      totalMessages: this.totalMessages || 0,
+      isActive: this.isActive !== false,
+      waId: this.waId || this.phone?.replace('+', '') || '',
+      profilePhotoUrl: this.profilePhotoUrl || null,
+      customFields: this.customFields || {},
+      company: this.company || '',
+      lastModifiedBy: this.lastModifiedBy || '',
+      createdBy: this.createdBy || ''
     };
   }
 }
