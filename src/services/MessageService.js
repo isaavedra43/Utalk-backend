@@ -740,81 +740,57 @@ class MessageService {
    */
   static async processIndividualWebhookMedia (mediaUrl, messageSid, index, conversationId, userId) {
     try {
-      logger.info('🔧 SOLUCIÓN 1: Procesando media con bypass completo', {
-        mediaUrl,
-        messageSid,
-        index
-      });
-
-      // Obtener credenciales de Twilio
-      const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
-      const authToken = process.env.TWILIO_AUTH_TOKEN;
-      
-      if (!accountSid || !authToken) {
-        throw new Error('Credenciales de Twilio no configuradas');
-      }
-
-      // Crear credenciales HTTP Basic
-      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-
-      // Descargar el archivo desde la URL de Twilio con autenticación
-      const response = await fetch(mediaUrl, {
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'User-Agent': 'Utalk-Backend/1.0'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error descargando media: ${response.status} - ${response.statusText}`);
-      }
-
-      const buffer = await response.arrayBuffer();
-      const contentType = response.headers.get('content-type');
-      
-      // Determinar categoría basada en content-type
-      let category = 'document';
-      if (contentType.startsWith('image/')) category = 'image';
-      else if (contentType.startsWith('video/')) category = 'video';
-      else if (contentType.startsWith('audio/')) category = 'audio';
-
-      // 🔧 BYPASS COMPLETO: NO USAR FILESERVICE
-      logger.info('🔧 BYPASS COMPLETO: Evitando FileService problemático', {
+      logger.info('🔧 SOLUCIÓN MEJORADA: Procesando media con TwilioMediaService', {
         mediaUrl,
         messageSid,
         index,
-        category,
-        size: buffer.byteLength,
-        contentType
+        conversationId,
+        userId
       });
 
-      // Crear un ID único para el archivo
-      const fileId = `bypass-${messageSid}-${index}-${Date.now()}`;
-      
-      // Retornar información básica sin procesamiento complejo
-      const result = {
-        fileId: fileId,
-        category: category,
-        url: mediaUrl, // Usar la URL original de Twilio
-        size: buffer.byteLength,
-        mimetype: contentType,
-        processed: true,
-        bypassMode: true, // Indicar que se usó bypass
-        originalUrl: mediaUrl // Mantener URL original
-      };
+      // Usar el nuevo TwilioMediaService
+      const TwilioMediaService = require('./TwilioMediaService');
+      const twilioMediaService = new TwilioMediaService();
 
-      logger.info('✅ BYPASS COMPLETO: Media procesado exitosamente', {
-        fileId,
-        category,
-        size: buffer.byteLength,
-        bypassMode: true
+      // Procesar y almacenar el medio
+      const result = await twilioMediaService.processAndStoreMedia(
+        mediaUrl,
+        messageSid,
+        index,
+        conversationId,
+        userId
+      );
+
+      logger.info('✅ SOLUCIÓN MEJORADA: Media procesado exitosamente', {
+        fileId: result.fileId,
+        category: result.category,
+        publicUrl: result.url,
+        size: result.size,
+        storedLocally: result.storedLocally
       });
 
       return result;
 
     } catch (error) {
-      logger.error('❌ BYPASS COMPLETO: Error procesando media individual:', error);
-      throw error;
+      logger.error('❌ SOLUCIÓN MEJORADA: Error procesando media individual:', {
+        mediaUrl,
+        messageSid,
+        index,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+      
+      // Fallback: retornar información básica sin procesamiento
+      return {
+        fileId: `fallback-${messageSid}-${index}-${Date.now()}`,
+        category: 'unknown',
+        url: mediaUrl, // URL original de Twilio
+        size: 0,
+        mimetype: 'application/octet-stream',
+        processed: false,
+        error: error.message,
+        fallbackMode: true
+      };
     }
   }
 

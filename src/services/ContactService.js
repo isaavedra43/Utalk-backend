@@ -260,14 +260,39 @@ class ContactService {
   }
 
   /**
-   * 🔍 Buscar contacto por teléfono con logging detallado
+   * 🔍 Buscar contacto por teléfono con manejo robusto de errores
    */
   static async findContactByPhone(phone) {
+    const ErrorWrapper = require('../utils/errorWrapper');
+    
     try {
-      const contact = await Contact.getByPhone(phone);
+      // Validar parámetro de entrada
+      if (!phone || typeof phone !== 'string') {
+        throw ErrorWrapper.createError(
+          'Número de teléfono inválido',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      // Normalizar número de teléfono
+      const normalizedPhone = phone.trim();
+      if (!normalizedPhone.match(/^\+[1-9]\d{1,14}$/)) {
+        throw ErrorWrapper.createError(
+          'Formato de número de teléfono inválido',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      const contact = await ErrorWrapper.withTimeout(
+        Contact.getByPhone(normalizedPhone),
+        10000, // 10 segundos timeout
+        'ContactService.findContactByPhone'
+      );
       
       logger.info('🔍 Búsqueda de contacto completada', {
-        phone,
+        phone: normalizedPhone,
         found: !!contact,
         contactId: contact?.id,
         isActive: contact?.isActive,
@@ -276,11 +301,22 @@ class ContactService {
 
       return contact;
     } catch (error) {
-      logger.error('❌ Error buscando contacto por teléfono', {
-        phone,
-        error: error.message
+      ErrorWrapper.logError(error, 'ContactService.findContactByPhone', {
+        phone: phone?.substring(0, 10) + '...',
+        phoneType: typeof phone
       });
-      throw error;
+
+      // Re-lanzar error estructurado
+      if (error.code && error.status) {
+        throw error;
+      }
+
+      // Crear error estructurado si no lo tiene
+      throw ErrorWrapper.createError(
+        `Error buscando contacto: ${error.message}`,
+        'CONTACT_SEARCH_ERROR',
+        500
+      );
     }
   }
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const MediaUploadController = require('../controllers/MediaUploadController');
+const TwilioMediaService = require('../services/TwilioMediaService');
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
 const { 
@@ -8,6 +9,8 @@ const {
   conversationFileAuthorizationMiddleware, 
   fileDeleteAuthorizationMiddleware 
 } = require('../middleware/fileAuthorization');
+const { ResponseHandler, ApiError } = require('../utils/responseHandler');
+const logger = require('../utils/logger');
 const Joi = require('joi');
 
 // Validadores específicos para media
@@ -537,5 +540,303 @@ router.post('/reconstruct-urls', async (req, res) => {
     });
   }
 });
+
+
+/**
+ * 📱 RUTAS PARA PROCESAMIENTO DE MEDIOS DE TWILIO
+ * 
+ * Endpoints para procesar y almacenar medios de WhatsApp
+ * que vienen desde URLs de Twilio que requieren autenticación.
+ */
+
+/**
+ * @route POST /api/media/twilio/process
+ * @desc Procesar y almacenar medio de Twilio
+ * @access Private (Admin, Agent)
+ */
+router.post('/twilio/process',
+  authMiddleware,
+  requireWriteAccess,
+  async (req, res) => {
+    try {
+      const { mediaUrl, messageSid, conversationId, index = 0 } = req.body;
+      const userId = req.user.email;
+
+      // Validar parámetros requeridos
+      if (!mediaUrl) {
+        return ResponseHandler.error(res, new ApiError(
+          'MEDIA_URL_REQUIRED',
+          'URL del medio es requerida',
+          'Proporciona una URL válida de Twilio',
+          400
+        ));
+      }
+
+      if (!messageSid) {
+        return ResponseHandler.error(res, new ApiError(
+          'MESSAGE_SID_REQUIRED',
+          'MessageSid es requerido',
+          'Proporciona el MessageSid de Twilio',
+          400
+        ));
+      }
+
+      if (!conversationId) {
+        return ResponseHandler.error(res, new ApiError(
+          'CONVERSATION_ID_REQUIRED',
+          'ID de conversación es requerido',
+          'Proporciona el ID de la conversación',
+          400
+        ));
+      }
+
+      logger.info('🔄 Procesando medio de Twilio', {
+        mediaUrl,
+        messageSid,
+        conversationId,
+        index,
+        userId
+      });
+
+      // Instanciar servicio
+      const twilioMediaService = new TwilioMediaService();
+
+      // Procesar y almacenar el medio
+      const result = await twilioMediaService.processAndStoreMedia(
+        mediaUrl,
+        messageSid,
+        index,
+        conversationId,
+        userId
+      );
+
+      logger.info('✅ Medio de Twilio procesado exitosamente', {
+        fileId: result.fileId,
+        category: result.category,
+        publicUrl: result.url,
+        size: result.size
+      });
+
+      return ResponseHandler.success(res, result, 'Medio procesado y almacenado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error procesando medio de Twilio', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        body: req.body,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.error(res, error);
+    }
+  }
+);
+
+/**
+ * @route POST /api/media/twilio/process-multiple
+ * @desc Procesar múltiples medios de Twilio
+ * @access Private (Admin, Agent)
+ */
+router.post('/twilio/process-multiple',
+  authMiddleware,
+  requireWriteAccess,
+  async (req, res) => {
+    try {
+      const { mediaUrls, messageSid, conversationId } = req.body;
+      const userId = req.user.email;
+
+      // Validar parámetros requeridos
+      if (!mediaUrls || !Array.isArray(mediaUrls) || mediaUrls.length === 0) {
+        return ResponseHandler.error(res, new ApiError(
+          'MEDIA_URLS_REQUIRED',
+          'Array de URLs de medios es requerido',
+          'Proporciona un array válido de URLs de Twilio',
+          400
+        ));
+      }
+
+      if (!messageSid) {
+        return ResponseHandler.error(res, new ApiError(
+          'MESSAGE_SID_REQUIRED',
+          'MessageSid es requerido',
+          'Proporciona el MessageSid de Twilio',
+          400
+        ));
+      }
+
+      if (!conversationId) {
+        return ResponseHandler.error(res, new ApiError(
+          'CONVERSATION_ID_REQUIRED',
+          'ID de conversación es requerido',
+          'Proporciona el ID de la conversación',
+          400
+        ));
+      }
+
+      logger.info('🔄 Procesando múltiples medios de Twilio', {
+        messageSid,
+        conversationId,
+        userId,
+        mediaCount: mediaUrls.length
+      });
+
+      // Instanciar servicio
+      const twilioMediaService = new TwilioMediaService();
+
+      // Procesar múltiples medios
+      const results = await twilioMediaService.processMultipleMedia(
+        mediaUrls,
+        messageSid,
+        conversationId,
+        userId
+      );
+
+      const successCount = results.filter(r => r.processed).length;
+      const errorCount = results.filter(r => r.error).length;
+
+      logger.info('✅ Múltiples medios de Twilio procesados', {
+        messageSid,
+        totalProcessed: successCount,
+        totalErrors: errorCount,
+        total: results.length
+      });
+
+      return ResponseHandler.success(res, {
+        results,
+        summary: {
+          total: results.length,
+          processed: successCount,
+          errors: errorCount
+        }
+      }, `Procesados ${successCount} de ${results.length} medios exitosamente`);
+
+    } catch (error) {
+      logger.error('❌ Error procesando múltiples medios de Twilio', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        body: req.body,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.error(res, error);
+    }
+  }
+);
+
+/**
+ * @route GET /api/media/twilio/info
+ * @desc Obtener información de medio de Twilio sin descargar
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/twilio/info',
+  authMiddleware,
+  requireReadAccess,
+  async (req, res) => {
+    try {
+      const { mediaUrl } = req.query;
+
+      if (!mediaUrl) {
+        return ResponseHandler.error(res, new ApiError(
+          'MEDIA_URL_REQUIRED',
+          'URL del medio es requerida',
+          'Proporciona una URL válida de Twilio',
+          400
+        ));
+      }
+
+      logger.info('🔍 Obteniendo información de medio de Twilio', {
+        mediaUrl,
+        userEmail: req.user.email
+      });
+
+      // Instanciar servicio
+      const twilioMediaService = new TwilioMediaService();
+
+      // Obtener información del medio
+      const info = await twilioMediaService.getMediaInfo(mediaUrl);
+
+      logger.info('✅ Información de medio obtenida', {
+        mediaUrl,
+        contentType: info.contentType,
+        contentLength: info.contentLength
+      });
+
+      return ResponseHandler.success(res, info, 'Información del medio obtenida exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo información de medio de Twilio', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        query: req.query,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.error(res, error);
+    }
+  }
+);
+
+/**
+ * @route POST /api/media/twilio/cleanup
+ * @desc Limpiar medios temporales
+ * @access Private (Admin)
+ */
+router.post('/twilio/cleanup',
+  authMiddleware,
+  requireWriteAccess,
+  async (req, res) => {
+    try {
+      const { fileIds } = req.body;
+
+      if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return ResponseHandler.error(res, new ApiError(
+          'FILE_IDS_REQUIRED',
+          'Array de IDs de archivos es requerido',
+          'Proporciona un array válido de IDs de archivos',
+          400
+        ));
+      }
+
+      logger.info('🧹 Iniciando limpieza de medios temporales', {
+        fileCount: fileIds.length,
+        userEmail: req.user.email
+      });
+
+      // Instanciar servicio
+      const twilioMediaService = new TwilioMediaService();
+
+      // Limpiar medios temporales
+      const results = await twilioMediaService.cleanupTempMedia(fileIds);
+
+      const successCount = results.filter(r => r.cleaned).length;
+      const errorCount = results.filter(r => r.error).length;
+
+      logger.info('✅ Limpieza de medios temporales completada', {
+        totalCleaned: successCount,
+        totalErrors: errorCount,
+        total: results.length
+      });
+
+      return ResponseHandler.success(res, {
+        results,
+        summary: {
+          total: results.length,
+          cleaned: successCount,
+          errors: errorCount
+        }
+      }, `Limpieza completada: ${successCount} de ${results.length} archivos`);
+
+    } catch (error) {
+      logger.error('❌ Error en limpieza de medios temporales', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        body: req.body,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.error(res, error);
+    }
+  }
+);
 
 module.exports = router;

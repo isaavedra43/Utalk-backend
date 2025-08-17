@@ -1,251 +1,376 @@
 /**
- * 🛡️ MANEJO MEJORADO DE ERRORES PARA EVITAR CASCADAS - SUPER ROBUSTO
+ * 🛡️ MIDDLEWARE MEJORADO DE MANEJO DE ERRORES
  * 
- * Middleware que mejora el manejo de errores para:
- * - Evitar cascadas de errores
- * - Proporcionar respuestas más informativas
- * - Logging estructurado de errores
- * - Manejo específico de errores de rate limiting
- * - Recuperación automática de errores no críticos
+ * Proporciona manejo robusto de errores con respuestas estructuradas
+ * y logging detallado para debugging.
  * 
- * @version 2.0.0 - Super robusto con recuperación automática
+ * @version 2.0.0
  * @author Backend Team
  */
 
 const logger = require('../utils/logger');
 
-/**
- * Middleware para manejo mejorado de errores - SUPER ROBUSTO
- */
-function enhancedErrorHandler(err, req, res, next) {
-  // ✅ SUPER ROBUSTO: Verificar que next sea una función válida
-  if (typeof next !== 'function') {
-    console.error('❌ ERROR: next no es función en enhancedErrorHandler');
-    return;
-  }
-
-  // ✅ SUPER ROBUSTO: Si ya se envió una respuesta, no hacer nada
-  if (res.headersSent) {
-          logger.warn('Respuesta ya enviada, no procesando error', {
-        category: 'ERROR_HANDLER_RESPONSE_SENT',
-        error: err.message,
-        statusCode: res?.statusCode || 0
-      });
-    return next(err);
-  }
-
-  const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const timestamp = new Date().toISOString();
-  const requestId = req.requestId || 'unknown';
-
-  // ✅ SUPER ROBUSTO: Log del error con contexto completo
-  logger.error('Error en aplicación', {
-    errorId,
-    requestId,
-    error: {
-      name: err.name,
-      message: err.message,
-      stack: err.stack?.split('\n').slice(0, 5), // Solo las primeras 5 líneas
-      code: err.code,
-      statusCode: err.statusCode,
-      isOperational: err.isOperational || false
-    },
-    request: {
+class EnhancedErrorHandler {
+  /**
+   * 🎯 MANEJAR ERRORES DE VALIDACIÓN
+   */
+  static handleValidationError(error, req, res, next) {
+    const errorDetails = {
+      type: 'VALIDATION_ERROR',
+      message: 'Error de validación en los datos de entrada',
+      details: error.details || error.message,
+      field: error.field || 'unknown',
+      timestamp: new Date().toISOString(),
+      path: req.path,
       method: req.method,
-      url: req.originalUrl,
-      ip: req.ip,
       userAgent: req.headers['user-agent']?.substring(0, 100),
-      userEmail: req.user?.email?.substring(0, 20) + '...',
-      userRole: req.user?.role,
-      headers: {
-        'content-type': req.headers['content-type'],
-        'authorization': req.headers.authorization ? 'Bearer ***' : 'none',
-        'origin': req.headers.origin
-      }
-    },
-    timestamp,
-    environment: process.env.NODE_ENV || 'development'
-  });
+      ip: req.ip
+    };
 
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de rate limiting
-  if (err.statusCode === 429 || err.code === 'RATE_LIMIT_EXCEEDED') {
-    return res.status(429).json({
-      success: false,
-      error: {
-        type: 'RATE_LIMIT_ERROR',
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: err.message || 'Demasiadas solicitudes. Por favor, espera un momento.',
-        retryAfter: err.retryAfter || 60,
-        eventName: err.eventName,
-        timestamp,
-        errorId
-      }
+    logger.warn('⚠️ Error de validación detectado', {
+      category: 'VALIDATION_ERROR',
+      ...errorDetails,
+      userEmail: req.user?.email
     });
-  }
 
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de validación
-  if (err.name === 'ValidationError' || err.statusCode === 400) {
     return res.status(400).json({
       success: false,
       error: {
-        type: 'VALIDATION_ERROR',
-        code: 'INVALID_REQUEST',
-        message: 'Los datos proporcionados no son válidos.',
-        details: err.details || err.message,
-        timestamp,
-        errorId
-      }
+        code: 'VALIDATION_ERROR',
+        message: errorDetails.message,
+        details: errorDetails.details,
+        field: errorDetails.field
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
     });
   }
 
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de autenticación
-  if (err.statusCode === 401 || err.code === 'UNAUTHORIZED') {
+  /**
+   * 🔐 MANEJAR ERRORES DE AUTENTICACIÓN
+   */
+  static handleAuthError(error, req, res, next) {
+    const errorDetails = {
+      type: 'AUTHENTICATION_ERROR',
+      message: 'Error de autenticación',
+      details: error.message || 'Token inválido o expirado',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      ip: req.ip
+    };
+
+    logger.warn('🔐 Error de autenticación detectado', {
+      category: 'AUTH_ERROR',
+      ...errorDetails
+    });
+
     return res.status(401).json({
       success: false,
       error: {
-        type: 'AUTHENTICATION_ERROR',
-        code: 'UNAUTHORIZED',
-        message: 'No tienes permisos para realizar esta acción.',
-        timestamp,
-        errorId
-      }
+        code: 'AUTHENTICATION_ERROR',
+        message: errorDetails.message,
+        details: errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
     });
   }
 
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de autorización
-  if (err.statusCode === 403 || err.code === 'FORBIDDEN') {
+  /**
+   * 🚫 MANEJAR ERRORES DE AUTORIZACIÓN
+   */
+  static handleAuthorizationError(error, req, res, next) {
+    const errorDetails = {
+      type: 'AUTHORIZATION_ERROR',
+      message: 'Error de autorización',
+      details: error.message || 'No tienes permisos para realizar esta acción',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      userEmail: req.user?.email,
+      ip: req.ip
+    };
+
+    logger.warn('🚫 Error de autorización detectado', {
+      category: 'AUTHORIZATION_ERROR',
+      ...errorDetails
+    });
+
     return res.status(403).json({
       success: false,
       error: {
-        type: 'AUTHORIZATION_ERROR',
-        code: 'FORBIDDEN',
-        message: 'No tienes permisos para acceder a este recurso.',
-        timestamp,
-        errorId
-      }
+        code: 'AUTHORIZATION_ERROR',
+        message: errorDetails.message,
+        details: errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
     });
   }
 
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de base de datos
-  if (err.code === 'DATABASE_ERROR' || err.name === 'FirebaseError' || err.code === 'ENOTFOUND') {
-    return res.status(503).json({
-      success: false,
-      error: {
-        type: 'DATABASE_ERROR',
-        code: 'SERVICE_UNAVAILABLE',
-        message: 'Error de conexión con la base de datos. Intenta de nuevo en unos momentos.',
-        timestamp,
-        errorId
-      }
-    });
-  }
-
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de WebSocket
-  if (err.code === 'SOCKET_ERROR' || err.name === 'SocketError') {
-    return res.status(503).json({
-      success: false,
-      error: {
-        type: 'SOCKET_ERROR',
-        code: 'SERVICE_UNAVAILABLE',
-        message: 'Error de conexión en tiempo real. Intenta de nuevo en unos momentos.',
-        timestamp,
-        errorId
-      }
-    });
-  }
-
-  // ✅ SUPER ROBUSTO: Manejo específico de errores de timeout
-  if (err.code === 'TIMEOUT' || err.name === 'TimeoutError') {
-    return res.status(408).json({
-      success: false,
-      error: {
-        type: 'TIMEOUT_ERROR',
-        code: 'REQUEST_TIMEOUT',
-        message: 'La solicitud tardó demasiado en procesarse. Intenta de nuevo.',
-        timestamp,
-        errorId
-      }
-    });
-  }
-
-  // ✅ SUPER ROBUSTO: Error interno del servidor (500)
-  const statusCode = err.statusCode || 500;
-  const isDevelopment = process.env.NODE_ENV === 'development';
-
-  return res.status(statusCode).json({
-    success: false,
-    error: {
-      type: 'INTERNAL_SERVER_ERROR',
-      code: 'SERVER_ERROR',
-      message: isDevelopment ? err.message : 'Error interno del servidor.',
-      ...(isDevelopment && { 
-        stack: err.stack?.split('\n').slice(0, 3),
-        originalError: err.message,
-        name: err.name,
-        code: err.code
-      }),
-      timestamp,
-      errorId
-    }
-  });
-}
-
-/**
- * Middleware para capturar errores no manejados
- */
-function unhandledErrorHandler(err, req, res, next) {
-  // ✅ CRÍTICO: Verificar que next sea una función válida
-  if (typeof next !== 'function') {
-    console.error('❌ ERROR: next no es función en unhandledErrorHandler');
-    return;
-  }
-
-  // Log del error no manejado
-  logger.error('Error no manejado detectado', {
-    error: {
-      name: err.name,
-      message: err.message,
-      stack: err.stack
-    },
-    request: {
+  /**
+   * 🔍 MANEJAR ERRORES DE RECURSO NO ENCONTRADO
+   */
+  static handleNotFoundError(error, req, res, next) {
+    const errorDetails = {
+      type: 'NOT_FOUND_ERROR',
+      message: 'Recurso no encontrado',
+      details: error.message || 'El recurso solicitado no existe',
+      timestamp: new Date().toISOString(),
+      path: req.path,
       method: req.method,
-      url: req.originalUrl,
+      userEmail: req.user?.email,
       ip: req.ip
-    },
-    timestamp: new Date().toISOString()
-  });
+    };
 
-  // Si ya se envió una respuesta, no hacer nada
-  if (res.headersSent) {
-    return next(err);
+    logger.info('🔍 Recurso no encontrado', {
+      category: 'NOT_FOUND',
+      ...errorDetails
+    });
+
+    return res.status(404).json({
+      success: false,
+      error: {
+        code: 'NOT_FOUND_ERROR',
+        message: errorDetails.message,
+        details: errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
+    });
   }
 
-  // Enviar respuesta de error genérica
-  return res.status(500).json({
-    success: false,
-    error: {
-      type: 'UNHANDLED_ERROR',
-      code: 'INTERNAL_ERROR',
-      message: 'Error interno del servidor.',
-      timestamp: new Date().toISOString()
+  /**
+   * 🗄️ MANEJAR ERRORES DE BASE DE DATOS
+   */
+  static handleDatabaseError(error, req, res, next) {
+    const errorDetails = {
+      type: 'DATABASE_ERROR',
+      message: 'Error de base de datos',
+      details: error.message || 'Error interno de base de datos',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      userEmail: req.user?.email,
+      ip: req.ip,
+      stack: error.stack?.split('\n').slice(0, 5)
+    };
+
+    logger.error('🗄️ Error de base de datos detectado', {
+      category: 'DATABASE_ERROR',
+      ...errorDetails
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Error interno de base de datos',
+        details: process.env.NODE_ENV === 'production' 
+          ? 'Error interno del servidor' 
+          : errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
+    });
+  }
+
+  /**
+   * 🌐 MANEJAR ERRORES DE RED/SERVICIOS EXTERNOS
+   */
+  static handleNetworkError(error, req, res, next) {
+    const errorDetails = {
+      type: 'NETWORK_ERROR',
+      message: 'Error de red o servicio externo',
+      details: error.message || 'Error de conectividad',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      userEmail: req.user?.email,
+      ip: req.ip
+    };
+
+    logger.error('🌐 Error de red detectado', {
+      category: 'NETWORK_ERROR',
+      ...errorDetails
+    });
+
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: 'Servicio temporalmente no disponible',
+        details: process.env.NODE_ENV === 'production' 
+          ? 'Error de conectividad temporal' 
+          : errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
+    });
+  }
+
+  /**
+   * 💾 MANEJAR ERRORES DE ARCHIVOS/MEDIA
+   */
+  static handleFileError(error, req, res, next) {
+    const errorDetails = {
+      type: 'FILE_ERROR',
+      message: 'Error de procesamiento de archivo',
+      details: error.message || 'Error al procesar archivo',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      userEmail: req.user?.email,
+      ip: req.ip
+    };
+
+    logger.error('💾 Error de archivo detectado', {
+      category: 'FILE_ERROR',
+      ...errorDetails
+    });
+
+    return res.status(422).json({
+      success: false,
+      error: {
+        code: 'FILE_ERROR',
+        message: 'Error al procesar archivo',
+        details: process.env.NODE_ENV === 'production' 
+          ? 'Error en el procesamiento del archivo' 
+          : errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId || 'unknown'
+    });
+  }
+
+  /**
+   * 🎯 MANEJADOR PRINCIPAL DE ERRORES
+   */
+  static handleError(error, req, res, next) {
+    // Generar ID de request si no existe
+    if (!req.requestId) {
+      req.requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
-  });
+
+    const errorDetails = {
+      type: 'UNKNOWN_ERROR',
+      message: 'Error interno del servidor',
+      details: error.message || 'Error desconocido',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      userEmail: req.user?.email,
+      ip: req.ip,
+      stack: error.stack?.split('\n').slice(0, 10),
+      requestId: req.requestId
+    };
+
+    // Log del error completo
+    logger.error('💥 Error no manejado detectado', {
+      category: 'UNHANDLED_ERROR',
+      ...errorDetails
+    });
+
+    // Determinar tipo de error y manejarlo apropiadamente
+    if (error.name === 'ValidationError' || error.type === 'VALIDATION_ERROR') {
+      return this.handleValidationError(error, req, res, next);
+    }
+
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return this.handleAuthError(error, req, res, next);
+    }
+
+    if (error.code === 'PERMISSION_DENIED' || error.type === 'AUTHORIZATION_ERROR') {
+      return this.handleAuthorizationError(error, req, res, next);
+    }
+
+    if (error.code === 'NOT_FOUND' || error.status === 404) {
+      return this.handleNotFoundError(error, req, res, next);
+    }
+
+    if (error.code === 'UNAVAILABLE' || error.code === 'DEADLINE_EXCEEDED') {
+      return this.handleDatabaseError(error, req, res, next);
+    }
+
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+      return this.handleNetworkError(error, req, res, next);
+    }
+
+    if (error.code === 'FILE_PROCESSING_ERROR' || error.type === 'FILE_ERROR') {
+      return this.handleFileError(error, req, res, next);
+    }
+
+    // Error genérico para casos no manejados
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Error interno del servidor',
+        details: process.env.NODE_ENV === 'production' 
+          ? 'Ha ocurrido un error interno' 
+          : errorDetails.details
+      },
+      timestamp: errorDetails.timestamp,
+      requestId: req.requestId
+    });
+  }
+
+  /**
+   * 🛡️ MIDDLEWARE PARA MANEJAR RUTAS NO ENCONTRADAS
+   */
+  static handleNotFound(req, res, next) {
+    const error = new Error('Ruta no encontrada');
+    error.status = 404;
+    error.code = 'NOT_FOUND';
+    return this.handleNotFoundError(error, req, res, next);
+  }
+
+  /**
+   * 🔧 MIDDLEWARE PARA AGREGAR ID DE REQUEST
+   */
+  static addRequestId(req, res, next) {
+    req.requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    res.setHeader('X-Request-ID', req.requestId);
+    next();
+  }
+
+  /**
+   * 📊 MIDDLEWARE PARA LOGGING DE REQUESTS
+   */
+  static logRequest(req, res, next) {
+    const startTime = Date.now();
+    
+    // Log del request
+    logger.info('📥 Request recibido', {
+      category: 'REQUEST_LOG',
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      userAgent: req.headers['user-agent']?.substring(0, 100),
+      ip: req.ip,
+      userEmail: req.user?.email,
+      timestamp: new Date().toISOString()
+    });
+
+    // Interceptar el final de la respuesta
+    res.on('finish', () => {
+      const duration = Date.now() - startTime;
+      
+      logger.info('📤 Response enviado', {
+        category: 'RESPONSE_LOG',
+        requestId: req.requestId,
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        duration: `${duration}ms`,
+        userEmail: req.user?.email,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    next();
+  }
 }
 
-/**
- * Middleware para manejo de promesas rechazadas
- */
-function promiseRejectionHandler(reason, promise) {
-  logger.error('Promesa rechazada no manejada', {
-    reason: reason?.message || reason,
-    stack: reason?.stack,
-    promise: promise.toString(),
-    timestamp: new Date().toISOString()
-  });
-}
-
-module.exports = {
-  enhancedErrorHandler,
-  unhandledErrorHandler,
-  promiseRejectionHandler
-}; 
+module.exports = EnhancedErrorHandler; 
