@@ -837,6 +837,37 @@ ${initialDataScript}
             }
         }
 
+        function testExport() {
+            try {
+                console.log('🧪 Iniciando test export...');
+                showToast('Iniciando test export...', 'info', 1000);
+                
+                fetch('/api/logs/test-export?format=json')
+                    .then(response => response.blob())
+                    .then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'test-logs.json';
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(url);
+                        
+                        console.log('🧪 Test export completado');
+                        showToast('Test export completado', 'success', 3000);
+                    })
+                    .catch(error => {
+                        console.error('🧪 Error en test export:', error);
+                        showToast('Error en test export: ' + error.message, 'error');
+                    });
+            } catch (err) {
+                console.error('🧪 Error en test export:', err);
+                showToast('Error en test export: ' + err.message, 'error');
+            }
+        }
+
         function generateTestLogs() {
             fetch('/api/logs/generate-test', { method: 'POST' })
                 .then(response => response.json())
@@ -869,46 +900,7 @@ ${initialDataScript}
             }
         }
 
-        async function testExport() {
-            try {
-                console.log('🧪 Iniciando test de exportación...');
-                showToast('Probando exportación...', 'info', 1000);
 
-                const res = await fetch('/api/logs/test-export?format=json');
-                console.log('🧪 Respuesta del test:', res.status, res.statusText);
-                
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    console.error('🧪 Error en test:', errorText);
-                    showToast('Error en test: ' + res.status, 'error');
-                    return;
-                }
-
-                const contentDisposition = res.headers.get('content-disposition') || '';
-                const match = contentDisposition.match(/filename="?([^";]+)"?/i);
-                const filename = match ? match[1] : 'test-logs.json';
-
-                console.log('🧪 Descargando archivo de test:', filename);
-                const blob = await res.blob();
-                console.log('🧪 Blob de test creado, tamaño:', blob.size);
-                
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-                
-                console.log('🧪 Test de exportación completado:', filename);
-                showToast('Test completado: ' + filename, 'success', 3000);
-            } catch (err) {
-                console.error('🧪 Error en test de exportación:', err);
-                showToast('Error en test: ' + err.message, 'error');
-            }
-        }
 
         // Event listeners para filtros ya configurados arriba
 
