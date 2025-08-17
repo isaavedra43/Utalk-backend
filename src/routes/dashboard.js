@@ -12,7 +12,6 @@ const express = require('express');
 const router = express.Router();
 const EnterpriseDashboardController = require('../controllers/DashboardController');
 const { authMiddleware, requireRole } = require('../middleware/auth');
-const ErrorWrapper = require('../utils/errorWrapper');
 const logger = require('../utils/logger');
 
 /**
@@ -23,16 +22,20 @@ const logger = require('../utils/logger');
 router.get('/metrics',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Dashboard metrics request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      role: req.user.role,
-      period: req.query.period || '7d'
-    });
-    
-    await EnterpriseDashboardController.getMetrics(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Dashboard metrics request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        role: req.user.role,
+        period: req.query.period || '7d'
+      });
+      
+      await EnterpriseDashboardController.getMetrics(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -43,15 +46,19 @@ router.get('/metrics',
 router.get('/messages/stats',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Message stats request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      period: req.query.period || '7d'
-    });
-    
-    await EnterpriseDashboardController.getMessageStats(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Message stats request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        period: req.query.period || '7d'
+      });
+      
+      await EnterpriseDashboardController.getMessageStats(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -62,15 +69,19 @@ router.get('/messages/stats',
 router.get('/contacts/stats',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Contact stats request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      period: req.query.period || '7d'
-    });
-    
-    await EnterpriseDashboardController.getContactStats(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Contact stats request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        period: req.query.period || '7d'
+      });
+      
+      await EnterpriseDashboardController.getContactStats(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -81,15 +92,19 @@ router.get('/contacts/stats',
 router.get('/campaigns/stats',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Campaign stats request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      period: req.query.period || '7d'
-    });
-    
-    await EnterpriseDashboardController.getCampaignStats(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Campaign stats request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        period: req.query.period || '7d'
+      });
+      
+      await EnterpriseDashboardController.getCampaignStats(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -100,16 +115,20 @@ router.get('/campaigns/stats',
 router.get('/recent-activity',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Recent activity request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      limit: req.query.limit || 10,
-      offset: req.query.offset || 0
-    });
-    
-    await EnterpriseDashboardController.getRecentActivity(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Recent activity request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        limit: req.query.limit || 10,
+        offset: req.query.offset || 0
+      });
+      
+      await EnterpriseDashboardController.getRecentActivity(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -120,17 +139,21 @@ router.get('/recent-activity',
 router.get('/export-report',
   authMiddleware,
   requireRole(['admin', 'agent']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Export report request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      format: req.query.format || 'csv',
-      period: req.query.period || '7d',
-      type: req.query.type || 'all'
-    });
-    
-    await EnterpriseDashboardController.exportReport(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Export report request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        format: req.query.format || 'csv',
+        period: req.query.period || '7d',
+        type: req.query.type || 'all'
+      });
+      
+      await EnterpriseDashboardController.exportReport(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -141,15 +164,19 @@ router.get('/export-report',
 router.get('/performance',
   authMiddleware,
   requireRole(['admin']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('Performance metrics request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id,
-      period: req.query.period || '1h'
-    });
-    
-    await EnterpriseDashboardController.getPerformanceMetrics(req, res, next);
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('Performance metrics request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id,
+        period: req.query.period || '1h'
+      });
+      
+      await EnterpriseDashboardController.getPerformanceMetrics(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**
@@ -160,19 +187,23 @@ router.get('/performance',
 router.get('/system-stats',
   authMiddleware,
   requireRole(['admin']),
-  ErrorWrapper.wrapAsync(async (req, res, next) => {
-    logger.info('System stats request', {
-      category: 'DASHBOARD_ROUTE',
-      userId: req.user.id
-    });
-    
-    const stats = EnterpriseDashboardController.getStats();
-    res.json({
-      success: true,
-      data: stats,
-      timestamp: new Date().toISOString()
-    });
-  })
+  async (req, res, next) => {
+    try {
+      logger.info('System stats request', {
+        category: 'DASHBOARD_ROUTE',
+        userId: req.user.id
+      });
+      
+      const stats = EnterpriseDashboardController.getStats();
+      res.json({
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 module.exports = router;
