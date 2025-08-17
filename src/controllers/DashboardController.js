@@ -27,7 +27,7 @@ const moment = require('moment');
 const cacheService = require('../services/CacheService');
 const batchService = require('../services/BatchService');
 const shardingService = require('../services/ShardingService');
-const { asyncWrapper, rateLimitWrapper } = require('../utils/errorWrapper');
+const ErrorWrapper = require('../utils/errorWrapper');
 
 class EnterpriseDashboardController {
   // Cache TTL configuration
@@ -51,7 +51,7 @@ class EnterpriseDashboardController {
    * 🎯 OBTENER MÉTRICAS GENERALES DEL DASHBOARD (CACHED)
    */
   static async getMetrics(req, res, next) {
-    return rateLimitWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
@@ -137,7 +137,7 @@ class EnterpriseDashboardController {
    * 📊 OBTENER ESTADÍSTICAS DE MENSAJES (CACHED + SHARDED)
    */
   static async getMessageStats(req, res, next) {
-    return rateLimitWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
@@ -173,7 +173,7 @@ class EnterpriseDashboardController {
    * 👥 OBTENER ESTADÍSTICAS DE CONTACTOS (CACHED + BATCH)
    */
   static async getContactStats(req, res, next) {
-    return rateLimitWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
@@ -209,7 +209,7 @@ class EnterpriseDashboardController {
    * 📢 OBTENER ESTADÍSTICAS DE CAMPAÑAS (CACHED)
    */
   static async getCampaignStats(req, res, next) {
-    return rateLimitWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
     try {
       const { period = '7d', startDate, endDate } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
@@ -245,7 +245,7 @@ class EnterpriseDashboardController {
    * 📈 OBTENER ACTIVIDAD RECIENTE (CACHED + PROGRESSIVE)
    */
   static async getRecentActivity(req, res, next) {
-    return rateLimitWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
     try {
         const { limit = 10, offset = 0 } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
@@ -284,7 +284,7 @@ class EnterpriseDashboardController {
    * 📤 EXPORTAR REPORTE (BATCH + CACHED)
    */
   static async exportReport(req, res, next) {
-    return rateLimitWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
     try {
         const { format = 'csv', period = '7d', type = 'all' } = req.query;
       const userId = req.user.role === 'admin' ? null : req.user.id;
@@ -340,7 +340,7 @@ class EnterpriseDashboardController {
    * ⚡ OBTENER MÉTRICAS DE PERFORMANCE (REAL-TIME)
    */
   static async getPerformanceMetrics(req, res, next) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       try {
         const { period = '1h' } = req.query;
         const userId = req.user.role === 'admin' ? null : req.user.id;

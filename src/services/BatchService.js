@@ -19,7 +19,7 @@
 
 const { firestore } = require('../config/firebase');
 const logger = require('../utils/logger');
-const { asyncWrapper, retryableWrapper } = require('../utils/errorWrapper');
+const ErrorWrapper = require('../utils/errorWrapper');
 const cacheService = require('./CacheService');
 
 class EnterpriseBatchService {
@@ -155,7 +155,7 @@ class EnterpriseBatchService {
    * 🚀 EJECUTAR BATCH
    */
   async executeBatch(batchOperation) {
-    return retryableWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       const startTime = Date.now();
       
       try {
@@ -222,7 +222,7 @@ class EnterpriseBatchService {
    * 📊 PROCESAR OPERACIONES MASIVAS
    */
   async processBatchOperations(operations, options = {}) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       const {
         batchSize = this.batchSize,
         maxConcurrent = this.maxConcurrentBatches,

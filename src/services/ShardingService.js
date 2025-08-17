@@ -19,7 +19,7 @@
 
 const { firestore, FieldValue } = require('../config/firebase');
 const logger = require('../utils/logger');
-const { asyncWrapper } = require('../utils/errorWrapper');
+const ErrorWrapper = require('../utils/errorWrapper');
 const moment = require('moment');
 
 class EnterpriseShardingService {
@@ -145,7 +145,7 @@ class EnterpriseShardingService {
    * 🔍 BUSCAR EN MÚLTIPLES SHARDS
    */
   async queryAcrossShards(collection, queryConfig, options = {}) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       const {
         strategy = 'date',
         dateRange = null,
@@ -326,7 +326,7 @@ class EnterpriseShardingService {
    * 📊 CREAR NUEVA PARTICIÓN
    */
   async createPartition(collection, strategy, data = {}) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       const partitionName = this.generatePartitionName(collection, strategy, data);
       
       logger.info('Creating new partition', {
@@ -368,7 +368,7 @@ class EnterpriseShardingService {
    * 📦 ARCHIVAR PARTICIÓN
    */
   async archivePartition(partitionName, options = {}) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       const {
         targetStorage = 'cold_storage',
         compression = true,
@@ -438,7 +438,7 @@ class EnterpriseShardingService {
    * 🗑️ ELIMINAR PARTICIÓN
    */
   async deletePartition(partitionName) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       logger.info('Deleting partition', {
         category: 'SHARDING_DELETE_START',
         partitionName
@@ -491,7 +491,7 @@ class EnterpriseShardingService {
    * 🔄 MIGRAR DATOS ENTRE SHARDS
    */
   async migrateData(sourcePartition, targetPartition, options = {}) {
-    return asyncWrapper(async () => {
+    return ErrorWrapper.wrapAsync(async () => {
       const {
         batchSize = 500,
         progressCallback = null

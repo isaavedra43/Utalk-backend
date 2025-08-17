@@ -12,7 +12,7 @@ const express = require('express');
 const router = express.Router();
 const EnterpriseDashboardController = require('../controllers/DashboardController');
 const { authMiddleware, requireRole } = require('../middleware/auth');
-const { asyncWrapper } = require('../utils/errorWrapper');
+const ErrorWrapper = require('../utils/errorWrapper');
 const logger = require('../utils/logger');
 
 /**
@@ -23,7 +23,7 @@ const logger = require('../utils/logger');
 router.get('/metrics',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Dashboard metrics request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -43,7 +43,7 @@ router.get('/metrics',
 router.get('/messages/stats',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Message stats request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -62,7 +62,7 @@ router.get('/messages/stats',
 router.get('/contacts/stats',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Contact stats request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -81,7 +81,7 @@ router.get('/contacts/stats',
 router.get('/campaigns/stats',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Campaign stats request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -100,7 +100,7 @@ router.get('/campaigns/stats',
 router.get('/recent-activity',
   authMiddleware,
   requireRole(['admin', 'agent', 'viewer']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Recent activity request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -120,7 +120,7 @@ router.get('/recent-activity',
 router.get('/export-report',
   authMiddleware,
   requireRole(['admin', 'agent']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Export report request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -141,7 +141,7 @@ router.get('/export-report',
 router.get('/performance',
   authMiddleware,
   requireRole(['admin']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('Performance metrics request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id,
@@ -160,7 +160,7 @@ router.get('/performance',
 router.get('/system-stats',
   authMiddleware,
   requireRole(['admin']),
-  asyncWrapper(async (req, res, next) => {
+  ErrorWrapper.wrapAsync(async (req, res, next) => {
     logger.info('System stats request', {
       category: 'DASHBOARD_ROUTE',
       userId: req.user.id

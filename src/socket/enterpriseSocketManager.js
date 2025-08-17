@@ -27,7 +27,7 @@ const jwt = require('jsonwebtoken');
 // Los modelos se inyectan como dependencias para romper ciclos
 const { memoryManager } = require('../utils/memoryManager');
 const logger = require('../utils/logger');
-const { asyncWrapper, externalServiceWrapper } = require('../utils/errorWrapper');
+const ErrorWrapper = require('../utils/errorWrapper');
 const { getAccessTokenConfig } = require('../config/jwt');
 
 // Helper defensivo para evitar "Cannot read properties of undefined (reading 'set')"
