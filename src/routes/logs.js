@@ -96,6 +96,31 @@ router.get('/dashboard-html',
 );
 
 /**
+ * 📜 GET DASHBOARD JAVASCRIPT
+ * @route GET /api/logs/dashboard.js
+ * @desc Archivo JavaScript del dashboard
+ * @access Public
+ */
+router.get('/dashboard.js', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    const jsPath = path.join(__dirname, '..', 'controllers', 'dashboard.js');
+    const jsContent = fs.readFileSync(jsPath, 'utf8');
+    
+    res.set({
+      'Content-Type': 'application/javascript',
+      'Cache-Control': 'no-cache'
+    });
+    res.send(jsContent);
+  } catch (error) {
+    console.error('❌ Error sirviendo dashboard.js:', error);
+    res.status(500).send('// Error cargando dashboard JavaScript');
+  }
+});
+
+/**
  * 📊 GET DASHBOARD DATA
  * @route GET /api/logs/dashboard
  * @desc Datos del dashboard (estadísticas)
