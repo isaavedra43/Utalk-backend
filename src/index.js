@@ -1136,20 +1136,23 @@ class ConsolidatedServer {
   setupErrorHandling() {
     try {
       // Importar el middleware de manejo de errores mejorado
-      const { enhancedErrorHandler, unhandledErrorHandler, promiseRejectionHandler } = require('./middleware/enhancedErrorHandler');
+      const EnhancedErrorHandler = require('./middleware/enhancedErrorHandler');
 
       // Configurar manejo de promesas rechazadas
-      process.on('unhandledRejection', promiseRejectionHandler);
+      process.on('unhandledRejection', (reason, promise) => {
+        logger.error('❌ Promesa rechazada no manejada', {
+          category: 'UNHANDLED_REJECTION',
+          reason: reason?.message || reason,
+          stack: reason?.stack,
+          promise: promise?.toString()
+        });
+      });
 
       // Middleware de manejo de errores mejorado
-      this.app.use(enhancedErrorHandler);
+      this.app.use(EnhancedErrorHandler.handleError);
 
-      // Middleware para errores no manejados (solo si no se envió respuesta)
-      this.app.use((err, req, res, next) => {
-        if (!res.headersSent) {
-          return unhandledErrorHandler(err, req, res, next);
-        }
-      });
+      // Middleware para rutas no encontradas
+      this.app.use('*', EnhancedErrorHandler.handleNotFound);
 
       logger.info('✅ Manejo de errores mejorado configurado', {
         category: 'ERROR_HANDLING_SETUP_SUCCESS'
