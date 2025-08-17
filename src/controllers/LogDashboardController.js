@@ -121,6 +121,7 @@ try {
 }
 
 const logger = require('../utils/logger');
+const fs = require('fs'); // Added for file system operations
 
 class LogDashboardController {
   /**
@@ -540,6 +541,8 @@ ${initialDataScript}
                 <button id="btnUpdate" class="btn btn-primary">🔄 Actualizar</button>
                 <button id="btnExportJSON" class="btn btn-export">📤 Exportar JSON</button>
                 <button id="btnExportCSV" class="btn btn-export">📤 Exportar CSV</button>
+                <button id="btnExportRailwayJSON" class="btn btn-export" style="background: #ff6b35;">🚀 Railway JSON</button>
+                <button id="btnExportRailwayCSV" class="btn btn-export" style="background: #ff6b35;">🚀 Railway CSV</button>
                 <button id="btnTestExport" class="btn btn-export">🧪 Test Export</button>
                 <button id="btnClear" class="btn btn-secondary">🗑️ Limpiar Logs</button>
                 <button id="btnGenerate" class="btn btn-primary">🧪 Generar Logs</button>
@@ -583,6 +586,8 @@ ${initialDataScript}
         var btnUpdate = document.getElementById('btnUpdate');
         var btnExportJSON = document.getElementById('btnExportJSON');
         var btnExportCSV = document.getElementById('btnExportCSV');
+        var btnExportRailwayJSON = document.getElementById('btnExportRailwayJSON');
+        var btnExportRailwayCSV = document.getElementById('btnExportRailwayCSV');
         var btnTestExport = document.getElementById('btnTestExport');
         var btnClear = document.getElementById('btnClear');
         var btnGenerate = document.getElementById('btnGenerate');
@@ -591,6 +596,8 @@ ${initialDataScript}
         if (btnUpdate) btnUpdate.addEventListener('click', loadLogs);
         if (btnExportJSON) btnExportJSON.addEventListener('click', function(){ exportLogs('json'); });
         if (btnExportCSV) btnExportCSV.addEventListener('click', function(){ exportLogs('csv'); });
+        if (btnExportRailwayJSON) btnExportRailwayJSON.addEventListener('click', function(){ exportRailwayLogs('json'); });
+        if (btnExportRailwayCSV) btnExportRailwayCSV.addEventListener('click', function(){ exportRailwayLogs('csv'); });
         if (btnTestExport) btnTestExport.addEventListener('click', function(){ testExport(); });
         if (btnClear) btnClear.addEventListener('click', clearLogs);
         if (btnGenerate) btnGenerate.addEventListener('click', generateTestLogs);
@@ -707,14 +714,66 @@ ${initialDataScript}
             }).join('');
         }
 
-        async function exportLogs(format) {
+        async function exportRailwayLogs(format) {
             try {
-                console.log('📤 Iniciando exportación:', format);
+                console.log('🚀 Iniciando exportación de Railway:', format);
                 
                 const level = document.getElementById('levelFilter').value;
                 const category = document.getElementById('categoryFilter').value;
                 const timeRange = document.getElementById('timeRangeFilter').value;
 
+                // Usar el endpoint específico de Railway
+                const params = new URLSearchParams({ format, level, category, timeRange });
+                const url = '/api/logs/export-railway?' + params;
+                
+                console.log('🚀 URL de exportación Railway:', url);
+                showToast('Iniciando exportación de Railway...', 'info', 1000);
+
+                const res = await fetch(url);
+                console.log('🚀 Respuesta del servidor Railway:', res.status, res.statusText);
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error('🚀 Error en respuesta Railway:', errorText);
+                    showToast('Error del servidor Railway: ' + res.status + ' - ' + res.statusText, 'error');
+                    return;
+                }
+
+                const contentDisposition = res.headers.get('content-disposition') || '';
+                const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+                const filename = match ? match[1] : ('railway-logs-' + new Date().toISOString().slice(0,10) + '.' + format);
+
+                console.log('🚀 Descargando archivo Railway:', filename);
+                const blob = await res.blob();
+                console.log('🚀 Blob creado, tamaño:', blob.size);
+                
+                const url2 = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url2;
+                a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url2);
+                
+                console.log('🚀 Exportación Railway completada:', filename);
+                showToast('Exportación Railway completada: ' + filename, 'success', 3000);
+            } catch (err) {
+                console.error('🚀 Error exportando Railway:', err);
+                showToast('Error de red al exportar Railway: ' + err.message, 'error');
+            }
+        }
+
+        async function exportLogs(format) {
+            try {
+                console.log('📤 Iniciando exportación local:', format);
+                
+                const level = document.getElementById('levelFilter').value;
+                const category = document.getElementById('categoryFilter').value;
+                const timeRange = document.getElementById('timeRangeFilter').value;
+
+                // Usar el endpoint local para exportar logs locales
                 const params = new URLSearchParams({ format, level, category, timeRange });
                 const url = '/api/logs/export?' + params;
                 
@@ -1041,6 +1100,91 @@ ${initialDataScript}
     } catch (error) {
       console.error('❌ Error generando logs de prueba:', error.message);
     }
+  }
+
+  /**
+   * Exportar logs de Railway usando su API
+   */
+  async exportRailwayLogs(req, res) {
+  try {
+    const { 
+      format = 'json', 
+      level, 
+      hours = 24, 
+      maxLogs = 1000,
+      startDate,
+      endDate 
+    } = req.query;
+
+    // Validar que tenemos las credenciales necesarias
+    if (!process.env.RAILWAY_TOKEN) {
+      return res.status(500).json({
+        success: false,
+        message: 'RAILWAY_TOKEN no configurado',
+        instructions: 'Configura RAILWAY_TOKEN en las variables de entorno'
+      });
+    }
+
+    const RailwayLogExporter = require('../../scripts/export-railway-logs');
+    const exporter = new RailwayLogExporter();
+
+    // Configurar opciones de exportación
+    const options = {
+      level: level || null,
+      maxLogs: parseInt(maxLogs),
+      startDate: startDate ? new Date(startDate) : new Date(Date.now() - hours * 60 * 60 * 1000),
+      endDate: endDate ? new Date(endDate) : new Date()
+    };
+
+    let logsData;
+    let contentType;
+    let filename;
+
+    if (format === 'csv') {
+      logsData = await exporter.exportToCSV('./temp-export.csv', options);
+      contentType = 'text/csv';
+      filename = `railway-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    } else {
+      logsData = await exporter.exportToJSON('./temp-export.json', options);
+      contentType = 'application/json';
+      filename = `railway-logs-${new Date().toISOString().split('T')[0]}.json`;
+    }
+
+    // Configurar headers para descarga
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Enviar datos
+    if (format === 'csv') {
+      res.send(logsData);
+    } else {
+      res.json(logsData);
+    }
+
+    // Limpiar archivos temporales
+    try {
+      if (format === 'csv') {
+        fs.unlinkSync('./temp-export.csv');
+      } else {
+        fs.unlinkSync('./temp-export.json');
+      }
+    } catch (cleanupError) {
+      console.warn('⚠️ No se pudo limpiar archivo temporal:', cleanupError.message);
+    }
+
+  } catch (error) {
+    logger.error('Error exportando logs de Railway', {
+      category: 'LOG_EXPORT_ERROR',
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Error exportando logs',
+      error: error.message
+    });
+  }
   }
 }
 

@@ -2277,7 +2277,7 @@ class MessageService {
         customerPhone,
         agentPhone,
         assignedTo,
-        contact,
+        contact: contact ? contact.toJSON() : null, // Convertir a objeto plano para Firestore
         status: 'active',
         messageCount: 1,
         unreadCount: 1,

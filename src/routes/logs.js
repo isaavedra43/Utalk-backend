@@ -136,6 +136,16 @@ router.get('/export',
 );
 
 /**
+ * 🚀 EXPORT RAILWAY LOGS
+ * @route GET /api/logs/export-railway
+ * @desc Exportar logs directamente de Railway usando su API
+ * @access Public (sin autenticación para debugging)
+ */
+router.get('/export-railway',
+  LogDashboardController.exportRailwayLogs
+);
+
+/**
  * 🧪 TEST EXPORT
  * @route GET /api/logs/test-export
  * @desc Endpoint de prueba para exportación
