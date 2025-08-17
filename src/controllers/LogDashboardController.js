@@ -648,31 +648,31 @@ ${initialDataScript}
 
         function displayStats(stats) {
             const statsGrid = document.getElementById('statsGrid');
-            statsGrid.innerHTML = '
-                <div class="stat-card">\
-                    <h3>📊 Total Logs</h3>\
-                    <p>' + stats.total + '</p>\
-                </div>\
-                <div class="stat-card">\
-                    <h3>⏰ Última Hora</h3>\
-                    <p>' + stats.lastHour + '</p>\
-                </div>\
-                <div class="stat-card">\
-                    <h3>📅 Últimas 24h</h3>\
-                    <p>' + stats.last24Hours + '</p>\
-                </div>\
-                <div class="stat-card">\
-                    <h3>🚨 Errores</h3>\
-                    <p>' + stats.byLevel.error + '</p>\
-                </div>\
-                <div class="stat-card">\
-                    <h3>⚠️ Warnings</h3>\
-                    <p>' + stats.byLevel.warn + '</p>\
-                </div>\
-                <div class="stat-card">\
-                    <h3>ℹ️ Info</h3>\
-                    <p>' + stats.byLevel.info + '</p>\
-                </div>';
+            statsGrid.innerHTML = 
+                '<div class="stat-card">' +
+                    '<h3>📊 Total Logs</h3>' +
+                    '<p>' + stats.total + '</p>' +
+                '</div>' +
+                '<div class="stat-card">' +
+                    '<h3>⏰ Última Hora</h3>' +
+                    '<p>' + stats.lastHour + '</p>' +
+                '</div>' +
+                '<div class="stat-card">' +
+                    '<h3>📅 Últimas 24h</h3>' +
+                    '<p>' + stats.last24Hours + '</p>' +
+                '</div>' +
+                '<div class="stat-card">' +
+                    '<h3>🚨 Errores</h3>' +
+                    '<p>' + stats.byLevel.error + '</p>' +
+                '</div>' +
+                '<div class="stat-card">' +
+                    '<h3>⚠️ Warnings</h3>' +
+                    '<p>' + stats.byLevel.warn + '</p>' +
+                '</div>' +
+                '<div class="stat-card">' +
+                    '<h3>ℹ️ Info</h3>' +
+                    '<p>' + stats.byLevel.info + '</p>' +
+                '</div>';
         }
 
         function loadLogs() {
