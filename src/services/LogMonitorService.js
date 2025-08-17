@@ -28,6 +28,13 @@ class LogMonitorService {
   }
 
   /**
+   * 🔧 HELPER: Convertir log.message a string de forma segura
+   */
+  _getMessageString(message) {
+    return typeof message === 'string' ? message : String(message || '');
+  }
+
+  /**
    * 📝 ADD LOG
    */
   addLog(level, category, message, data = {}) {
@@ -73,11 +80,12 @@ class LogMonitorService {
     // Filtrar por búsqueda
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
-      filteredLogs = filteredLogs.filter(log => 
-        log.message.toLowerCase().includes(searchTerm) ||
-        log.category.toLowerCase().includes(searchTerm) ||
-        log.userId.toLowerCase().includes(searchTerm)
-      );
+      filteredLogs = filteredLogs.filter(log => {
+        const messageText = this._getMessageString(log.message);
+        return messageText.toLowerCase().includes(searchTerm) ||
+               log.category.toLowerCase().includes(searchTerm) ||
+               log.userId.toLowerCase().includes(searchTerm);
+      });
     }
 
     // Filtrar por rango de tiempo
@@ -186,7 +194,7 @@ class LogMonitorService {
           log.timestamp,
           log.level,
           log.category,
-          log.message.replace(/"/g, '""'), // Escapar comillas
+          this._getMessageString(log.message).replace(/"/g, '""'), // Escapar comillas
           log.userId,
           log.endpoint,
           log.ip
@@ -230,7 +238,7 @@ class LogMonitorService {
     const searchTerm = query.toLowerCase();
     const results = this.logs.filter(log => {
       const searchableText = [
-        log.message,
+        this._getMessageString(log.message),
         log.category,
         log.userId,
         log.endpoint,
@@ -247,10 +255,11 @@ class LogMonitorService {
    * 📈 GET RATE LIMIT METRICS
    */
   getRateLimitMetrics() {
-    const rateLimitLogs = this.logs.filter(log => 
-      log.category === 'RATE_LIMIT' || 
-      log.message.includes('RATE_LIMIT')
-    );
+    const rateLimitLogs = this.logs.filter(log => {
+      const messageText = this._getMessageString(log.message);
+      return log.category === 'RATE_LIMIT' || 
+             messageText.includes('RATE_LIMIT');
+    });
 
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
