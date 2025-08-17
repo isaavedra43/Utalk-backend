@@ -876,6 +876,19 @@ class EnterpriseSocketManager {
         socket.join('role-agent'); // Admins see everything
       }
 
+      // 🔧 CORRECCIÓN CRÍTICA: Unirse automáticamente al workspace room
+      const workspaceRoomId = `ws:${socket.workspaceId || 'default_workspace'}:ten:${socket.tenantId || 'default_tenant'}:workspace`;
+      socket.join(workspaceRoomId);
+      
+      logger.info('🔗 Usuario unido al workspace room', {
+        category: 'SOCKET_WORKSPACE_JOIN',
+        userEmail: userEmail?.substring(0, 20) + '...',
+        workspaceRoomId,
+        socketId: socket.id,
+        workspaceId: socket.workspaceId,
+        tenantId: socket.tenantId
+      });
+
       // Log removido para reducir ruido en producción
 
     } catch (error) {
@@ -4093,6 +4106,17 @@ class EnterpriseSocketManager {
         }
       });
 
+      // 🔧 CORRECCIÓN CRÍTICA: Emitir también al workspace general para nuevas conversaciones
+      const workspaceRoomId = `ws:${workspaceId || 'default_workspace'}:ten:${tenantId || 'default_tenant'}:workspace`;
+      this.io.to(workspaceRoomId).emit('conversation-event', { 
+        conversationId, 
+        lastMessage, 
+        updatedAt, 
+        unreadCount, 
+        correlationId,
+        isNewConversation: true
+      });
+
       // Emitir alias para compatibilidad futura
       this.broadcastToConversation({
         workspaceId, tenantId, conversationId,
@@ -4109,7 +4133,8 @@ class EnterpriseSocketManager {
       logger.info('RT:BROADCAST conversation-event', { 
         event: 'conversation-event', 
         conversationId: conversationId?.substring(0, 20) + '...', 
-        correlationId 
+        correlationId,
+        workspaceRoom: workspaceRoomId
       });
 
     } catch (error) {
@@ -5241,6 +5266,60 @@ class EnterpriseSocketManager {
         }
       });
       return false;
+    }
+  }
+
+  /**
+   * 📡 EMIT NEW MESSAGE (FACADE PARA NUEVOS MENSAJES)
+   * Emite eventos cuando llega un nuevo mensaje
+   */
+  emitNewMessage({ workspaceId, tenantId, conversationId, message, correlationId }) {
+    try {
+      // Emitir evento principal a la conversación específica
+      this.broadcastToConversation({
+        workspaceId, tenantId, conversationId,
+        event: 'new-message',
+        payload: { 
+          conversationId, 
+          message, 
+          correlationId 
+        }
+      });
+
+      // 🔧 CORRECCIÓN CRÍTICA: Emitir también al workspace general para nuevas conversaciones
+      const workspaceRoomId = `ws:${workspaceId || 'default_workspace'}:ten:${tenantId || 'default_tenant'}:workspace`;
+      this.io.to(workspaceRoomId).emit('new-message', { 
+        conversationId, 
+        message, 
+        correlationId,
+        isNewConversation: true
+      });
+
+      // Emitir alias para compatibilidad futura
+      this.broadcastToConversation({
+        workspaceId, tenantId, conversationId,
+        event: 'message.created',
+        payload: { 
+          conversationId, 
+          message, 
+          correlationId 
+        }
+      });
+
+      logger.info('RT:BROADCAST new-message', { 
+        event: 'new-message', 
+        conversationId: conversationId?.substring(0, 20) + '...', 
+        messageId: message?.id,
+        correlationId,
+        workspaceRoom: workspaceRoomId
+      });
+
+    } catch (error) {
+      logger.error('RT:ERROR emitNewMessage', { 
+        where: 'emitNewMessage', 
+        err: error.message,
+        conversationId: conversationId?.substring(0, 20) + '...'
+      });
     }
   }
 }

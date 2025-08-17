@@ -2271,41 +2271,50 @@ class MessageService {
         contact = null;
       }
 
-      // Crear nueva conversación
-      const newConversationData = {
-        id: conversationId,
-        customerPhone,
-        agentPhone,
-        assignedTo,
-        contact: contact ? contact.toJSON() : null, // Convertir a objeto plano para Firestore
-        status: 'active',
-        messageCount: 1,
-        unreadCount: 1,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        lastMessageAt: Timestamp.now(),
-        metadata: {
-          createdFrom: 'whatsapp_webhook',
-          contactInfo,
-          twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
-        }
+      // 🔧 CORRECCIÓN CRÍTICA: Usar ConversationsRepository para crear conversación con participantes
+      const { ConversationsRepository } = require('../repositories/ConversationsRepository');
+      const conversationsRepo = new ConversationsRepository();
+      
+      // Preparar datos del mensaje para el repositorio
+      const messageForRepo = {
+        conversationId,
+        messageId: `temp_${Date.now()}`,
+        senderIdentifier: customerPhone,
+        recipientIdentifier: agentPhone,
+        content: 'Nuevo mensaje recibido',
+        direction: 'inbound',
+        type: 'text',
+        status: 'received',
+        timestamp: new Date().toISOString(),
+        profileName: contactInfo.profileName,
+        waId: contactInfo.waId,
+        workspaceId: 'default_workspace',
+        tenantId: 'default_tenant'
       };
 
-      await conversationRef.set(newConversationData);
+      // Usar el repositorio para crear la conversación con participantes por defecto
+      const result = await conversationsRepo.upsertFromInbound(messageForRepo);
+      
+      logger.info('✅ Conversación creada usando ConversationsRepository', {
+        conversationId,
+        participantsCount: result.conversation.participants?.length || 0,
+        participants: result.conversation.participants
+      });
 
-      logger.info('✅ Nueva conversación creada exitosamente', {
+      logger.info('✅ Nueva conversación creada exitosamente usando repositorio', {
         conversationId,
         customerPhone,
         agentPhone,
         assignedToId: assignedTo?.id,
         contactId: contact?.id,
-        hasContactInfo: !!(contactInfo.profileName || contactInfo.waId)
+        hasContactInfo: !!(contactInfo.profileName || contactInfo.waId),
+        participantsCount: result.conversation.participants?.length || 0
       });
 
       return {
         id: conversationId,
         exists: false,
-        ...newConversationData,
+        ...result.conversation,
       };
 
     } catch (error) {
