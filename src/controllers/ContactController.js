@@ -6,6 +6,7 @@ const csvParser = require('csv-parser');
 const multer = require('multer');
 const { ResponseHandler, ApiError, CommonErrors } = require('../utils/responseHandler');
 const { Readable } = require('stream');
+const ContactConversationSyncService = require('../services/ContactConversationSyncService');
 
 /**
  * Controlador de contactos con procesamiento CSV en memoria
@@ -665,6 +666,109 @@ class ContactController {
    */
   static uploadMiddleware() {
     return upload.single('csvFile');
+  }
+
+  /**
+   * �� POST /api/contacts/sync-conversations
+   * Sincronizar todas las conversaciones con sus contactos
+   * @access Private (Admin only)
+   */
+  static async syncConversationsWithContacts(req, res, next) {
+    try {
+      // 🔒 VALIDAR PERMISOS - Solo admin puede ejecutar sincronización
+      if (req.user.role !== 'admin') {
+        return ResponseHandler.error(res, new ApiError(
+          'USER_NOT_AUTHORIZED',
+          'No tienes permisos para ejecutar sincronización',
+          'Solo los administradores pueden ejecutar este endpoint',
+          403
+        ));
+      }
+
+      logger.info('🔄 Iniciando sincronización masiva conversaciones-contactos', {
+        userEmail: req.user.email,
+        timestamp: new Date().toISOString()
+      });
+
+      // Ejecutar sincronización masiva
+      const result = await ContactConversationSyncService.syncAllConversationsWithContacts();
+
+      logger.info('✅ Sincronización masiva completada', {
+        userEmail: req.user.email,
+        successCount: result.success,
+        failedCount: result.failed,
+        totalProcessed: result.success + result.failed
+      });
+
+      return ResponseHandler.success(res, {
+        success: result.success,
+        failed: result.failed,
+        totalProcessed: result.success + result.failed,
+        successRate: ((result.success / (result.success + result.failed)) * 100).toFixed(2) + '%',
+        timestamp: new Date().toISOString()
+      }, 'Sincronización completada exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error en sincronización masiva', {
+        userEmail: req.user.email,
+        error: error.message,
+        stack: error.stack
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔄 POST /api/contacts/:phone/sync-conversations
+   * Sincronizar conversaciones de un contacto específico
+   * @access Private (Admin, Agent)
+   */
+  static async syncContactConversations(req, res, next) {
+    try {
+      const { phone } = req.params;
+
+      logger.info('🔄 Iniciando sincronización conversaciones para contacto específico', {
+        phone,
+        userEmail: req.user.email
+      });
+
+      // Ejecutar sincronización para contacto específico
+      const success = await ContactConversationSyncService.syncContactWithConversations(phone);
+
+      if (success) {
+        logger.info('✅ Sincronización completada para contacto', {
+          phone,
+          userEmail: req.user.email
+        });
+
+        return ResponseHandler.success(res, {
+          phone,
+          success: true,
+          timestamp: new Date().toISOString()
+        }, 'Contacto sincronizado exitosamente');
+      } else {
+        logger.warn('⚠️ Sincronización fallida para contacto', {
+          phone,
+          userEmail: req.user.email
+        });
+
+        return ResponseHandler.error(res, new ApiError(
+          'SYNC_FAILED',
+          'No se pudo sincronizar el contacto',
+          'Verifica que el contacto exista y tenga conversaciones',
+          404
+        ));
+      }
+
+    } catch (error) {
+      logger.error('❌ Error sincronizando contacto específico', {
+        phone: req.params.phone,
+        userEmail: req.user.email,
+        error: error.message,
+        stack: error.stack
+      });
+      return ResponseHandler.error(res, error);
+    }
   }
 }
 

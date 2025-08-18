@@ -16,6 +16,7 @@ class Contact {
     this.totalMessages = data.totalMessages || 0;
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
+    this.conversationIds = data.conversationIds || []; // ✅ NUEVA REFERENCIA A CONVERSACIONES
   }
 
   /**
@@ -434,7 +435,8 @@ class Contact {
       customFields: this.customFields || {},
       company: this.company || '',
       lastModifiedBy: this.lastModifiedBy || '',
-      createdBy: this.createdBy || ''
+      createdBy: this.createdBy || '',
+      conversationIds: this.conversationIds || [] // ✅ NUEVA REFERENCIA A CONVERSACIONES
     };
   }
 }

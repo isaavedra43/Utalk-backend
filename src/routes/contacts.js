@@ -328,4 +328,31 @@ router.get('/client/:phone',
   }
 );
 
+/**
+ * @route POST /api/contacts/sync-conversations
+ * @desc Sincronizar todas las conversaciones con sus contactos
+ * @access Private (Admin only)
+ */
+router.post('/sync-conversations',
+  authMiddleware,
+  requireWriteAccess,
+  ContactController.syncConversationsWithContacts
+);
+
+/**
+ * @route POST /api/contacts/:phone/sync-conversations
+ * @desc Sincronizar conversaciones de un contacto específico
+ * @access Private (Admin, Agent)
+ */
+router.post('/:phone/sync-conversations',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({
+    params: Joi.object({
+      phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required()
+    })
+  }),
+  ContactController.syncContactConversations
+);
+
 module.exports = router;

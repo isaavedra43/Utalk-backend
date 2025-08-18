@@ -1927,7 +1927,11 @@ class MessageService {
       // PASO 9: Actualizar conversación con último mensaje
       await this.updateConversationLastMessage(conversationId, savedMessage);
 
-      // PASO 10: Emitir evento en tiempo real
+      // PASO 10: Sincronizar conversación con contacto
+      const ContactConversationSyncService = require('./ContactConversationSyncService');
+      await ContactConversationSyncService.syncConversationWithContact(conversationId, normalizedFromPhone);
+
+      // PASO 11: Emitir evento en tiempo real
       await this.emitRealTimeEvent(conversationId, savedMessage);
 
       logger.info('✅ MESSAGESERVICE - PROCESAMIENTO COMPLETADO', {

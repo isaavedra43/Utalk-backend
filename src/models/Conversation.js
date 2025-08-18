@@ -599,6 +599,9 @@ class Conversation {
         lastSeen: this.contact?.lastSeen || this.lastMessageAt
       };
 
+      // ✅ NUEVA REFERENCIA AL CONTACTO
+      const contactId = normalizedCustomerPhone;
+
               // ASSIGNED_TO: Objeto con EMAIL y nombre.
       let assignedTo = null;
       if (this.assignedTo) {
@@ -613,6 +616,7 @@ class Conversation {
         id: this.id,
         participants: validatedParticipants,
         customerPhone: normalizedCustomerPhone,
+        contactId: contactId, // ✅ NUEVA REFERENCIA AL CONTACTO
         // agentPhone: DEPRECATED
         contact,
         assignedTo,
