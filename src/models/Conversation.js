@@ -589,8 +589,8 @@ class Conversation {
       // Construir objeto contact según especificación
       const contact = {
         id: normalizedCustomerPhone || this.contact?.id || 'unknown',
-        name: this.contact?.profileName || this.contact?.name || normalizedCustomerPhone || 'Cliente',
-        profileName: this.contact?.profileName,
+        name: this.contact?.profileName || this.contact?.name || this.customerName || normalizedCustomerPhone || 'Cliente',
+        profileName: this.contact?.profileName || this.customerName,
         phoneNumber: normalizedCustomerPhone,
         waId: this.contact?.waId,
         avatar: this.contact?.avatar || null,

@@ -156,14 +156,23 @@ class ConversationsRepository {
       // Optional: derive contact if not present
       contact: docData.contact ? {
         id: docData.contact.id || docData.customerPhone,
-        name: docData.contact.profileName || docData.contact.name || 'Cliente',
-        profileName: docData.contact.profileName,
+        name: docData.contact.profileName || docData.contact.name || docData.customerName || 'Cliente',
+        profileName: docData.contact.profileName || docData.customerName,
         phoneNumber: docData.customerPhone,
         waId: docData.contact.waId,
         hasProfilePhoto: docData.contact.hasProfilePhoto || false,
         avatar: docData.contact.avatar || null,
         channel: 'whatsapp'
-      } : (docData.customerPhone ? { phone: docData.customerPhone } : undefined),
+      } : (docData.customerPhone ? { 
+        id: docData.customerPhone,
+        name: docData.customerName || 'Cliente',
+        profileName: docData.customerName,
+        phoneNumber: docData.customerPhone,
+        waId: null,
+        hasProfilePhoto: false,
+        avatar: null,
+        channel: 'whatsapp'
+      } : undefined),
       // Preserve other fields
       createdAt: docData.createdAt,
       updatedAt: docData.updatedAt,

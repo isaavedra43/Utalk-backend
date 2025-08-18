@@ -103,6 +103,19 @@ class ConversationService {
       if (conversationData.contact && conversationData.contact.profileName) {
         // Asegurar que el nombre se use correctamente
         conversationData.contact.name = conversationData.contact.profileName;
+      } else if (conversationData.customerName && conversationData.customerPhone) {
+        // Si no hay contact.profileName pero sí hay customerName, crear estructura de contacto
+        conversationData.contact = {
+          id: conversationData.customerPhone,
+          name: conversationData.customerName,
+          profileName: conversationData.customerName,
+          phoneNumber: conversationData.customerPhone,
+          waId: null,
+          hasProfilePhoto: false,
+          avatar: null,
+          channel: 'whatsapp',
+          lastSeen: conversationData.lastMessageAt
+        };
       }
 
       logger.info('Conversación obtenida exitosamente', {
