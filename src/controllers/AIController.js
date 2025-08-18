@@ -1116,6 +1116,74 @@ class AIController {
       return ResponseHandler.error(res, error);
     }
   }
+
+  /**
+   * 🧪 TESTEAR CONEXIÓN CON LM STUDIO
+   */
+  static async testLMStudioConnection(req, res) {
+    try {
+      const { generateWithProvider } = require('../ai/vendors');
+      const LMStudioProvider = require('../ai/vendors/lmstudio');
+      
+      const lmstudio = new LMStudioProvider();
+      
+      // Test de conexión
+      const connectionTest = await lmstudio.testConnection();
+      
+      if (!connectionTest.success) {
+        return ResponseHandler.error(res, {
+          message: 'Error conectando con LM Studio',
+          error: connectionTest.error,
+          details: {
+            baseURL: lmstudio.baseURL,
+            timeout: lmstudio.timeout
+          }
+        }, 500);
+      }
+      
+      // Test de generación
+      const generationTest = await generateWithProvider('lmstudio', {
+        prompt: 'Responde solo con "OK" si estás funcionando correctamente.',
+        maxTokens: 10,
+        temperature: 0.1
+      });
+      
+      if (!generationTest.success) {
+        return ResponseHandler.error(res, {
+          message: 'Error generando respuesta con LM Studio',
+          error: generationTest.error,
+          connectionTest: connectionTest
+        }, 500);
+      }
+      
+      // Obtener estadísticas del modelo
+      const modelStats = await lmstudio.getModelStats();
+      
+      return ResponseHandler.success(res, {
+        message: 'LM Studio funcionando correctamente',
+        connection: connectionTest,
+        generation: {
+          success: generationTest.success,
+          content: generationTest.content,
+          usage: generationTest.usage
+        },
+        models: modelStats.models || [],
+        totalModels: modelStats.totalModels || 0
+      }, 'LM Studio test completado exitosamente');
+      
+    } catch (error) {
+      logger.error('Error en test de LM Studio', {
+        category: 'LM_STUDIO_TEST_ERROR',
+        error: error.message,
+        stack: error.stack
+      });
+      
+      return ResponseHandler.error(res, {
+        message: 'Error interno en test de LM Studio',
+        error: error.message
+      }, 500);
+    }
+  }
 }
 
 module.exports = AIController;

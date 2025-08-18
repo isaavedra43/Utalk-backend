@@ -66,7 +66,13 @@ const SUPPORTED_MODELS = [
   'gpt-3.5-turbo',
   'claude-3-haiku',
   'claude-3-sonnet',
-  'gemini-1.5-flash'
+  'gemini-1.5-flash',
+  // Modelos LM Studio
+  'local-model',
+  'llama-3.1-8b',
+  'mistral-7b',
+  'codellama-7b',
+  'llama-3.1-70b'
 ];
 
 /**

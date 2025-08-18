@@ -281,6 +281,16 @@ router.get('/health',
 );
 
 /**
+ * Rutas de LM Studio
+ */
+
+// POST /api/ai/test-lmstudio
+router.post('/test-lmstudio',
+  authMiddleware,
+  AIController.testLMStudioConnection
+);
+
+/**
  * Rutas de validación de configuración IA
  */
 
