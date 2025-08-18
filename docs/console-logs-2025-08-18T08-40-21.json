@@ -1,9 +1,9 @@
 {
-  "exportDate": "2025-08-18T07:31:38.647Z",
-  "totalLogs": 47,
+  "exportDate": "2025-08-18T08:40:21.229Z",
+  "totalLogs": 46,
   "logs": [
     {
-      "timestamp": "2025-08-18T07:30:12.924Z",
+      "timestamp": "2025-08-18T08:38:38.900Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado de conexión actualizado:",
       "data": [
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.924Z",
+      "timestamp": "2025-08-18T08:38:38.900Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
       "data": [
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.924Z",
+      "timestamp": "2025-08-18T08:38:38.901Z",
       "level": "log",
       "message": "🔐 AuthProvider - Estado actual:",
       "data": [
@@ -45,7 +45,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.924Z",
+      "timestamp": "2025-08-18T08:38:38.901Z",
       "level": "log",
       "message": "🔐 AuthContext - Estado que se pasa al contexto:",
       "data": [
@@ -62,7 +62,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.925Z",
+      "timestamp": "2025-08-18T08:38:38.903Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado de conexión actualizado:",
       "data": [
@@ -77,7 +77,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.925Z",
+      "timestamp": "2025-08-18T08:38:38.903Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
       "data": [
@@ -87,7 +87,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.925Z",
+      "timestamp": "2025-08-18T08:38:38.903Z",
       "level": "log",
       "message": "🔐 AuthProvider - Estado actual:",
       "data": [
@@ -104,7 +104,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:12.925Z",
+      "timestamp": "2025-08-18T08:38:38.903Z",
       "level": "log",
       "message": "🔐 AuthContext - Estado que se pasa al contexto:",
       "data": [
@@ -121,12 +121,12 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:15.430Z",
+      "timestamp": "2025-08-18T08:38:41.559Z",
       "level": "info",
-      "message": "[2025-08-18T07:30:15.430Z] [INFO] [AUTH] Iniciando login con backend | Data: {\n  \"email\": \"admin@company.com\"\n}"
+      "message": "[2025-08-18T08:38:41.559Z] [INFO] [AUTH] Iniciando login con backend | Data: {\n  \"email\": \"admin@company.com\"\n}"
     },
     {
-      "timestamp": "2025-08-18T07:30:15.435Z",
+      "timestamp": "2025-08-18T08:38:41.568Z",
       "level": "log",
       "message": "🔐 AuthProvider - Estado actual:",
       "data": [
@@ -143,7 +143,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:15.435Z",
+      "timestamp": "2025-08-18T08:38:41.568Z",
       "level": "log",
       "message": "🔐 AuthContext - Estado que se pasa al contexto:",
       "data": [
@@ -160,12 +160,12 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.592Z",
+      "timestamp": "2025-08-18T08:38:42.303Z",
       "level": "log",
       "message": "🔌 useConversations - Cleanup por desconexión..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.593Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 useConversations - No registrando listeners:",
       "data": [
@@ -179,17 +179,17 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.593Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Conectando WebSocket en ruta /chat"
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 Iniciando conexión de socket..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 Configurando socket con URL:",
       "data": [
@@ -199,7 +199,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 Token disponible:",
       "data": [
@@ -209,7 +209,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 Configuración de entorno:",
       "data": [
@@ -223,7 +223,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔐 JWT - Información extraída del token:",
       "data": [
@@ -239,7 +239,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔐 JWT - Payload completo del token:",
       "data": [
@@ -252,8 +252,8 @@
             "userId": "admin@company.com",
             "workspaceId": "default_workspace",
             "tenantId": "default_tenant",
-            "iat": 1755502216,
-            "exp": 1755503116,
+            "iat": 1755506322,
+            "exp": 1755507222,
             "aud": "utalk-api",
             "iss": "utalk-backend"
           }
@@ -261,7 +261,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔐 JWT - Información extraída del token:",
       "data": [
@@ -275,7 +275,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.594Z",
+      "timestamp": "2025-08-18T08:38:42.305Z",
       "level": "log",
       "message": "🔌 Información del usuario para socket:",
       "data": [
@@ -290,17 +290,17 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.595Z",
+      "timestamp": "2025-08-18T08:38:42.306Z",
       "level": "log",
       "message": "🔌 Conectando socket explícitamente..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.595Z",
+      "timestamp": "2025-08-18T08:38:42.307Z",
       "level": "log",
       "message": "🔌 Socket creado, conexión iniciada automáticamente"
     },
     {
-      "timestamp": "2025-08-18T07:30:16.596Z",
+      "timestamp": "2025-08-18T08:38:42.307Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado de conexión actualizado:",
       "data": [
@@ -315,22 +315,22 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.596Z",
+      "timestamp": "2025-08-18T08:38:42.307Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Usuario autenticado detectado, conectando WebSocket..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.596Z",
+      "timestamp": "2025-08-18T08:38:42.307Z",
       "level": "log",
       "message": "🔌 Ya hay una conexión en progreso, saltando..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.597Z",
+      "timestamp": "2025-08-18T08:38:42.307Z",
       "level": "log",
       "message": "🔌 useConversations - Cleanup por desconexión..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.597Z",
+      "timestamp": "2025-08-18T08:38:42.307Z",
       "level": "log",
       "message": "🔌 useConversations - No registrando listeners:",
       "data": [
@@ -344,7 +344,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.605Z",
+      "timestamp": "2025-08-18T08:38:42.311Z",
       "level": "log",
       "message": "🔌 useConversations - No registrando listeners:",
       "data": [
@@ -358,7 +358,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.605Z",
+      "timestamp": "2025-08-18T08:38:42.311Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado de conexión actualizado:",
       "data": [
@@ -373,17 +373,17 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:16.666Z",
+      "timestamp": "2025-08-18T08:38:42.379Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Login exitoso, conectando WebSocket..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.666Z",
+      "timestamp": "2025-08-18T08:38:42.380Z",
       "level": "log",
       "message": "🔌 Ya hay una conexión en progreso, saltando..."
     },
     {
-      "timestamp": "2025-08-18T07:30:16.994Z",
+      "timestamp": "2025-08-18T08:38:42.550Z",
       "level": "log",
       "message": "🔌 useConversations - No registrando listeners:",
       "data": [
@@ -397,17 +397,17 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:17.163Z",
+      "timestamp": "2025-08-18T08:38:42.770Z",
       "level": "log",
       "message": "🔌 useConversations - Registrando listeners de eventos WebSocket"
     },
     {
-      "timestamp": "2025-08-18T07:30:17.163Z",
+      "timestamp": "2025-08-18T08:38:42.770Z",
       "level": "log",
       "message": "🔌 useConversations - Listener webhook:new-message registrado correctamente"
     },
     {
-      "timestamp": "2025-08-18T07:30:17.163Z",
+      "timestamp": "2025-08-18T08:38:42.770Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado de conexión actualizado:",
       "data": [
@@ -422,12 +422,12 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:17.163Z",
+      "timestamp": "2025-08-18T08:38:42.770Z",
       "level": "log",
       "message": "🔌 WebSocketContext - WebSocket conectado en /chat, disparando sincronización inicial..."
     },
     {
-      "timestamp": "2025-08-18T07:30:17.164Z",
+      "timestamp": "2025-08-18T08:38:42.770Z",
       "level": "log",
       "message": "🔌 WebSocketContext - Estado actualizado en DOM:",
       "data": [
@@ -437,7 +437,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:17.789Z",
+      "timestamp": "2025-08-18T08:38:43.087Z",
       "level": "warn",
       "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
       "data": [
@@ -447,7 +447,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:17.789Z",
+      "timestamp": "2025-08-18T08:38:43.087Z",
       "level": "warn",
       "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
       "data": [
@@ -457,7 +457,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:17.828Z",
+      "timestamp": "2025-08-18T08:38:43.110Z",
       "level": "warn",
       "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
       "data": [
@@ -467,7 +467,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:17.828Z",
+      "timestamp": "2025-08-18T08:38:43.110Z",
       "level": "warn",
       "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
       "data": [
@@ -477,12 +477,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:34.973Z",
-      "level": "warn",
-      "message": "⚠️ [DEBUG] Backend devolvió conversación sin datos de contacto"
-    },
-    {
-      "timestamp": "2025-08-18T07:30:35.696Z",
+      "timestamp": "2025-08-18T08:38:45.833Z",
       "level": "log",
       "message": "🔐 JWT - Información extraída del token:",
       "data": [
@@ -498,7 +493,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:35.696Z",
+      "timestamp": "2025-08-18T08:38:45.833Z",
       "level": "log",
       "message": "🔐 JWT - Payload completo del token:",
       "data": [
@@ -511,8 +506,8 @@
             "userId": "admin@company.com",
             "workspaceId": "default_workspace",
             "tenantId": "default_tenant",
-            "iat": 1755502216,
-            "exp": 1755503116,
+            "iat": 1755506322,
+            "exp": 1755507222,
             "aud": "utalk-api",
             "iss": "utalk-backend"
           }
@@ -520,7 +515,7 @@
       ]
     },
     {
-      "timestamp": "2025-08-18T07:30:35.696Z",
+      "timestamp": "2025-08-18T08:38:45.833Z",
       "level": "log",
       "message": "🔐 JWT - Información extraída del token:",
       "data": [
