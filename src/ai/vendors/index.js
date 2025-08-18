@@ -9,6 +9,7 @@
  */
 
 const openaiProvider = require('./openai');
+const lmstudioProvider = require('./lmstudio');
 const logger = require('../../utils/logger');
 
 /**
@@ -21,6 +22,13 @@ const PROVIDERS = {
     defaultModel: 'gpt-4o-mini',
     models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
     enabled: true
+  },
+  lmstudio: {
+    name: 'LM Studio',
+    module: lmstudioProvider,
+    defaultModel: 'local-model',
+    models: ['local-model', 'llama-3.1-8b', 'mistral-7b', 'codellama-7b'],
+    enabled: process.env.LM_STUDIO_ENABLED === 'true'
   },
   anthropic: {
     name: 'Anthropic',
@@ -82,7 +90,17 @@ async function generateWithProvider(providerName, params) {
     workspaceId: params.workspaceId
   });
   
-  return await provider.module.generateWithOpenAI(params);
+  // Usar método específico según el proveedor
+  if (providerName === 'lmstudio') {
+    return await provider.module.generateWithRetry(params.prompt, {
+      maxTokens: params.maxTokens || 150,
+      temperature: params.temperature || 0.3,
+      model: params.model || provider.defaultModel,
+      systemPrompt: params.systemPrompt
+    });
+  } else {
+    return await provider.module.generateWithOpenAI(params);
+  }
 }
 
 /**
