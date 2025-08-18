@@ -589,9 +589,14 @@ class Conversation {
       // Construir objeto contact según especificación
       const contact = {
         id: normalizedCustomerPhone || this.contact?.id || 'unknown',
-        name: this.contact?.name || normalizedCustomerPhone || 'Cliente',
+        name: this.contact?.profileName || this.contact?.name || normalizedCustomerPhone || 'Cliente',
+        profileName: this.contact?.profileName,
+        phoneNumber: normalizedCustomerPhone,
+        waId: this.contact?.waId,
         avatar: this.contact?.avatar || null,
         channel: 'whatsapp',
+        hasProfilePhoto: this.contact?.hasProfilePhoto || false,
+        lastSeen: this.contact?.lastSeen || this.lastMessageAt
       };
 
               // ASSIGNED_TO: Objeto con EMAIL y nombre.

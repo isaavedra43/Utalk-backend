@@ -99,6 +99,12 @@ class ConversationService {
         ...doc.data()
       };
 
+      // ✅ SINCRONIZAR INFORMACIÓN DEL CONTACTO SI ES NECESARIO
+      if (conversationData.contact && conversationData.contact.profileName) {
+        // Asegurar que el nombre se use correctamente
+        conversationData.contact.name = conversationData.contact.profileName;
+      }
+
       logger.info('Conversación obtenida exitosamente', {
         conversationId: id,
         hasData: !!conversationData,
