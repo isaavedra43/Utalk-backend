@@ -7,9 +7,10 @@ const { validatePhoneInBody, validateOptionalPhoneInBody } = require('../middlew
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const Joi = require('joi');
 
+const logger = require('../utils/logger');
+
 // Validadores específicos para contactos
 const contactValidators = {
-const logger = require('../utils/logger');
   validateCreate: validateRequest({
     body: Joi.object({
       phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
