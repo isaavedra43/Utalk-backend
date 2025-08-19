@@ -241,7 +241,7 @@ router.get('/profile/:phone',
       });
       
     } catch (error) {
-      logger.error('Error obteniendo perfil de cliente:', { category: 'ERROR_OBTENIENDO_PERFIL_DE_CLI' }error);
+      logger.error('Error obteniendo perfil de cliente:', { category: 'ERROR_OBTENIENDO_PERFIL_DE_CLI', data: error });
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',
@@ -319,7 +319,7 @@ router.get('/client/:phone',
       });
       
     } catch (error) {
-      logger.error('Error obteniendo información del cliente:', { category: 'ERROR_OBTENIENDO_INFORMACI_N_D' }error);
+      logger.error('Error obteniendo información del cliente:', { category: 'ERROR_OBTENIENDO_INFORMACI_N_D', data: error });
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',

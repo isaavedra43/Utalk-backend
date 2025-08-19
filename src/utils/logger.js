@@ -28,9 +28,9 @@ let logMonitor;
 try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
   logMonitor = monitor;
-  logger.info('LogMonitorService integrado correctamente', { category: 'LOGMONITORSERVICE_INTEGRADO_CO' });
+  // logger.info será llamado después de la declaración del logger
 } catch (error) {
-  logger.warn('LogMonitorService no disponible, continuando sin integración:', { category: 'LOGMONITORSERVICE_NO_DISPONIBL', error: error.message });
+  // logger.warn será llamado después de la declaración del logger
   logMonitor = null;
 }
 
@@ -93,7 +93,7 @@ class LogMonitorTransport extends winston.Transport {
         }
       }
     } catch (error) {
-      logger.error('❌ Error en LogMonitorTransport:', { category: '_ERROR_EN_LOGMONITORTRANSPORT_', error: error.message });
+      // Error en LogMonitorTransport - evitar recursión
     }
     
     callback();
@@ -152,7 +152,13 @@ if (logMonitor) {
   logger.add(new LogMonitorTransport({
     level: 'info'
   }));
-  logger.info('LogMonitorTransport agregado al logger', { category: 'LOGMONITORTRANSPORT_AGREGADO_A' });
+  logger.info('LogMonitorTransport agregado al logger', { 
+    category: 'LOGMONITOR_TRANSPORT_ADDED' 
+  });
+} else {
+  logger.warn('LogMonitorService no disponible, continuando sin integración', { 
+    category: 'LOGMONITOR_NOT_AVAILABLE' 
+  });
 }
 
 // Configuración específica para Railway
@@ -168,7 +174,7 @@ if (process.env.RAILWAY_ENVIRONMENT) {
     handleRejections: true
   }));
   
-  logger.info('🔧 Logger configurado para Railway: solo errores críticos', { category: '_LOGGER_CONFIGURADO_PARA_RAILW' });
+  console.log('🔧 Logger configurado para Railway: solo errores críticos');
 }
 
 // Método para obtener estadísticas del logger

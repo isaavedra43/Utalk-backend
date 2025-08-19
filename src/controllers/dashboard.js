@@ -79,7 +79,7 @@ function loadStats() {
             }
         })
         .catch(error => {
-            logger.error('Error cargando stats:', { category: 'ERROR_CARGANDO_STATS_' }error);
+            logger.error('Error cargando stats:', { category: 'ERROR_CARGANDO_STATS_', data: error });
             showToast('Error de red al cargar estadísticas', 'error');
         });
 }
@@ -135,7 +135,7 @@ function loadLogs() {
             }
         })
         .catch(error => {
-            logger.error('❌ Error cargando logs:', { category: '_ERROR_CARGANDO_LOGS_' }error);
+            logger.error('❌ Error cargando logs:', { category: '_ERROR_CARGANDO_LOGS_', data: error });
             showToast('Error de red al cargar logs', 'error');
         });
 }
@@ -155,7 +155,7 @@ function displayLogs(logs) {
 
 async function exportRailwayLogs(format) {
     try {
-        logger.info('🚀 Iniciando exportación de Railway:', { category: '_INICIANDO_EXPORTACI_N_DE_RAIL' }format);
+        logger.info('🚀 Iniciando exportación de Railway:', { category: '_INICIANDO_EXPORTACI_N_DE_RAIL', data: format });
         
         const level = document.getElementById('levelFilter').value;
         const category = document.getElementById('categoryFilter').value;
@@ -165,15 +165,19 @@ async function exportRailwayLogs(format) {
         const params = new URLSearchParams({ format, level, category, timeRange });
         const url = '/api/logs/export-railway?' + params;
         
-        logger.info('🚀 URL de exportación Railway:', { category: '_URL_DE_EXPORTACI_N_RAILWAY_' }url);
+        logger.info('🚀 URL de exportación Railway:', { category: '_URL_DE_EXPORTACI_N_RAILWAY_', data: url });
         showToast('Iniciando exportación de Railway...', 'info', 1000);
 
         const res = await fetch(url);
-        logger.info('🚀 Respuesta del servidor Railway:', { category: '_RESPUESTA_DEL_SERVIDOR_RAILWA' }res.status, res.statusText);
+        logger.info('🚀 Respuesta del servidor Railway', {
+          category: 'RAILWAY_RESPONSE',
+          status: res.status,
+          statusText: res.statusText
+        });
         
         if (!res.ok) {
             const errorText = await res.text();
-            logger.error('🚀 Error en respuesta Railway:', { category: '_ERROR_EN_RESPUESTA_RAILWAY_' }errorText);
+            logger.error('🚀 Error en respuesta Railway:', { category: '_ERROR_EN_RESPUESTA_RAILWAY_', data: errorText });
             showToast('Error del servidor Railway: ' + res.status + ' - ' + res.statusText, 'error');
             return;
         }
@@ -182,9 +186,12 @@ async function exportRailwayLogs(format) {
         const match = contentDisposition.match(/filename="?([^";]+)"?/i);
         const filename = match ? match[1] : ('railway-logs-' + new Date().toISOString().slice(0,10) + '.' + format);
 
-        logger.info('🚀 Descargando archivo Railway:', { category: '_DESCARGANDO_ARCHIVO_RAILWAY_' }filename);
+        logger.info('🚀 Descargando archivo Railway:', { category: '_DESCARGANDO_ARCHIVO_RAILWAY_', data: filename });
         const blob = await res.blob();
-        logger.info('🚀 Blob Railway creado, tamaño:', { category: '_BLOB_RAILWAY_CREADO_TAMA_O_' }blob.size);
+        logger.info('🚀 Blob Railway creado', {
+          category: 'RAILWAY_BLOB_CREATED',
+          size: blob.size
+        });
         
         const url2 = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -196,17 +203,17 @@ async function exportRailwayLogs(format) {
         a.remove();
         URL.revokeObjectURL(url2);
         
-        logger.info('🚀 Exportación Railway completada:', { category: '_EXPORTACI_N_RAILWAY_COMPLETAD' }filename);
+        logger.info('🚀 Exportación Railway completada:', { category: '_EXPORTACI_N_RAILWAY_COMPLETAD', data: filename });
         showToast('Exportación Railway completada: ' + filename, 'success', 3000);
     } catch (err) {
-        logger.error('🚀 Error exportando Railway:', { category: '_ERROR_EXPORTANDO_RAILWAY_' }err);
+        logger.error('🚀 Error exportando Railway:', { category: '_ERROR_EXPORTANDO_RAILWAY_', data: err });
         showToast('Error de red al exportar Railway: ' + err.message, 'error');
     }
 }
 
 async function exportLogs(format) {
     try {
-        logger.info('📤 Iniciando exportación local:', { category: '_INICIANDO_EXPORTACI_N_LOCAL_' }format);
+        logger.info('📤 Iniciando exportación local:', { category: '_INICIANDO_EXPORTACI_N_LOCAL_', data: format });
         
         const level = document.getElementById('levelFilter').value;
         const category = document.getElementById('categoryFilter').value;
@@ -216,15 +223,19 @@ async function exportLogs(format) {
         const params = new URLSearchParams({ format, level, category, timeRange });
         const url = '/api/logs/export?' + params;
         
-        logger.info('📤 URL de exportación:', { category: '_URL_DE_EXPORTACI_N_' }url);
+        logger.info('📤 URL de exportación:', { category: '_URL_DE_EXPORTACI_N_', data: url });
         showToast('Iniciando exportación...', 'info', 1000);
 
         const res = await fetch(url);
-        logger.info('📤 Respuesta del servidor:', { category: '_RESPUESTA_DEL_SERVIDOR_' }res.status, res.statusText);
+        logger.info('📤 Respuesta del servidor', {
+          category: 'SERVER_RESPONSE',
+          status: res.status,
+          statusText: res.statusText
+        });
         
         if (!res.ok) {
             const errorText = await res.text();
-            logger.error('📤 Error en respuesta:', { category: '_ERROR_EN_RESPUESTA_' }errorText);
+            logger.error('📤 Error en respuesta:', { category: '_ERROR_EN_RESPUESTA_', data: errorText });
             showToast('Error del servidor: ' + res.status + ' - ' + res.statusText, 'error');
             return;
         }
@@ -233,9 +244,12 @@ async function exportLogs(format) {
         const match = contentDisposition.match(/filename="?([^";]+)"?/i);
         const filename = match ? match[1] : ('logs-' + new Date().toISOString().slice(0,10) + '.' + format);
 
-        logger.info('📤 Descargando archivo:', { category: '_DESCARGANDO_ARCHIVO_' }filename);
+        logger.info('📤 Descargando archivo:', { category: '_DESCARGANDO_ARCHIVO_', data: filename });
         const blob = await res.blob();
-        logger.info('📤 Blob creado, tamaño:', { category: '_BLOB_CREADO_TAMA_O_' }blob.size);
+        logger.info('📤 Blob creado', {
+          category: 'BLOB_CREATED',
+          size: blob.size
+        });
         
         const url2 = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -247,10 +261,10 @@ async function exportLogs(format) {
         a.remove();
         URL.revokeObjectURL(url2);
         
-        logger.info('📤 Exportación completada:', { category: '_EXPORTACI_N_COMPLETADA_' }filename);
+        logger.info('📤 Exportación completada:', { category: '_EXPORTACI_N_COMPLETADA_', data: filename });
         showToast('Exportación completada: ' + filename, 'success', 3000);
     } catch (err) {
-        logger.error('📤 Error exportando:', { category: '_ERROR_EXPORTANDO_' }err);
+        logger.error('📤 Error exportando:', { category: '_ERROR_EXPORTANDO_', data: err });
         showToast('Error de red al exportar: ' + err.message, 'error');
     }
 }
@@ -277,11 +291,11 @@ function testExport() {
                 showToast('Test export completado', 'success', 3000);
             })
             .catch(error => {
-                logger.error('🧪 Error en test export:', { category: '_ERROR_EN_TEST_EXPORT_' }error);
+                logger.error('🧪 Error en test export:', { category: '_ERROR_EN_TEST_EXPORT_', data: error });
                 showToast('Error en test export: ' + error.message, 'error');
             });
     } catch (err) {
-        logger.error('🧪 Error en test export:', { category: '_ERROR_EN_TEST_EXPORT_' }err);
+        logger.error('🧪 Error en test export:', { category: '_ERROR_EN_TEST_EXPORT_', data: err });
         showToast('Error en test export: ' + err.message, 'error');
     }
 }
@@ -300,7 +314,7 @@ function clearLogs() {
                 }
             })
             .catch(error => {
-                logger.error('Error limpiando logs:', { category: 'ERROR_LIMPIANDO_LOGS_' }error);
+                logger.error('Error limpiando logs:', { category: 'ERROR_LIMPIANDO_LOGS_', data: error });
                 showToast('Error de red al limpiar logs', 'error');
             });
     }
@@ -319,7 +333,7 @@ function generateTestLogs() {
             }
         })
         .catch(error => {
-            logger.error('❌ Error en la petición:', { category: '_ERROR_EN_LA_PETICI_N_' }error);
+            logger.error('❌ Error en la petición:', { category: '_ERROR_EN_LA_PETICI_N_', data: error });
             showToast('Error de red al generar logs', 'error');
         });
 }

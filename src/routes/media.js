@@ -524,7 +524,7 @@ router.post('/reconstruct-urls', async (req, res) => {
       });
       
     } catch (twilioError) {
-      logger.error('Error obteniendo media de Twilio:', { category: 'ERROR_OBTENIENDO_MEDIA_DE_TWIL' }twilioError);
+      logger.error('Error obteniendo media de Twilio:', { category: 'ERROR_OBTENIENDO_MEDIA_DE_TWIL', data: twilioError });
       return res.status(500).json({
         success: false,
         message: 'Error obteniendo media de Twilio',
@@ -533,7 +533,7 @@ router.post('/reconstruct-urls', async (req, res) => {
     }
     
   } catch (error) {
-    logger.error('Error reconstruyendo URLs de media:', { category: 'ERROR_RECONSTRUYENDO_URLS_DE_M' }error);
+    logger.error('Error reconstruyendo URLs de media:', { category: 'ERROR_RECONSTRUYENDO_URLS_DE_M', data: error });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',

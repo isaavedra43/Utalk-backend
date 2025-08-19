@@ -75,7 +75,7 @@ router.post('/generate-test', (req, res) => {
       logsGenerated: 9
     });
   } catch (error) {
-    logger.error('❌ Error generando logs de prueba:', { category: '_ERROR_GENERANDO_LOGS_DE_PRUEB' }error);
+    logger.error('❌ Error generando logs de prueba:', { category: '_ERROR_GENERANDO_LOGS_DE_PRUEB', data: error });
     res.status(500).json({
       success: false,
       error: 'GENERATE_TEST_ERROR',
@@ -115,7 +115,7 @@ router.get('/dashboard.js', (req, res) => {
     });
     res.send(jsContent);
   } catch (error) {
-    logger.error('❌ Error sirviendo dashboard.js:', { category: '_ERROR_SIRVIENDO_DASHBOARD_JS_' }error);
+    logger.error('❌ Error sirviendo dashboard.js:', { category: '_ERROR_SIRVIENDO_DASHBOARD_JS_', data: error });
     res.status(500).send('// Error cargando dashboard JavaScript');
   }
 });
@@ -207,10 +207,10 @@ router.get('/test-export', (req, res) => {
       'Cache-Control': 'no-cache'
     });
     
-    logger.info('🧪 TEST_EXPORT: Enviando archivo de prueba:', { category: '_TEST_EXPORT_ENVIANDO_ARCHIVO_' }filename);
+    logger.info('🧪 TEST_EXPORT: Enviando archivo de prueba:', { category: '_TEST_EXPORT_ENVIANDO_ARCHIVO_', data: filename });
     res.send(data);
   } catch (error) {
-    logger.error('❌ Error en test-export:', { category: '_ERROR_EN_TEST_EXPORT_' }error);
+    logger.error('❌ Error en test-export:', { category: '_ERROR_EN_TEST_EXPORT_', data: error });
     res.status(500).json({
       success: false,
       error: 'TEST_EXPORT_ERROR',

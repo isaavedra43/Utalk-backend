@@ -167,7 +167,7 @@ function validateConversationIdForDatabase(conversationId) {
       isValid: true
     };
   } catch (error) {
-    logger.error('❌ Error validando conversationId:', { category: '_ERROR_VALIDANDO_CONVERSATIONI' }error);
+    logger.error('❌ Error validando conversationId:', { category: '_ERROR_VALIDANDO_CONVERSATIONI', data: error });
     return {
       isValid: false,
       error: 'Error interno validando conversationId'
