@@ -1,0 +1,264 @@
+{
+  "exportDate": "2025-08-19T01:30:50.490Z",
+  "totalLogs": 27,
+  "logs": [
+    {
+      "timestamp": "2025-08-19T01:28:52.879Z",
+      "level": "info",
+      "message": "[2025-08-19T01:28:52.879Z] [INFO] [AUTH] No hay tokens en localStorage"
+    },
+    {
+      "timestamp": "2025-08-19T01:28:52.881Z",
+      "level": "info",
+      "message": "[2025-08-19T01:28:52.881Z] [INFO] [AUTH] No hay tokens en localStorage"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:05.049Z",
+      "level": "info",
+      "message": "[2025-08-19T01:29:05.049Z] [INFO] [AUTH] Iniciando login con backend | Data: {\n  \"email\": \"admin@company.com\"\n}"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.266Z",
+      "level": "log",
+      "message": "🔌 useConversations - Cleanup por desconexión..."
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.268Z",
+      "level": "log",
+      "message": "🔌 Iniciando conexión de socket..."
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.268Z",
+      "level": "log",
+      "message": "🔌 Configurando socket con URL:",
+      "data": [
+        [
+          "wss://utalk-backend-production.up.railway.app"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.268Z",
+      "level": "log",
+      "message": "🔌 Token disponible:",
+      "data": [
+        [
+          "Sí"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.268Z",
+      "level": "log",
+      "message": "🔌 Configuración de entorno:",
+      "data": [
+        [
+          {
+            "WS_URL": "wss://utalk-backend-production.up.railway.app",
+            "BACKEND_URL": "https://utalk-backend-production.up.railway.app",
+            "DEV_MODE": true
+          }
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.268Z",
+      "level": "log",
+      "message": "🔌 Información del usuario para socket:",
+      "data": [
+        [
+          {
+            "workspaceId": "default_workspace",
+            "tenantId": "default_tenant",
+            "userId": "admin@company.com",
+            "email": "admin@company.com"
+          }
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.269Z",
+      "level": "log",
+      "message": "🔌 Conectando socket explícitamente..."
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.270Z",
+      "level": "log",
+      "message": "🔌 Socket creado, conexión iniciada automáticamente"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.270Z",
+      "level": "log",
+      "message": "🔌 Ya hay una conexión en progreso, saltando..."
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.271Z",
+      "level": "log",
+      "message": "🔌 useConversations - Cleanup por desconexión..."
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.341Z",
+      "level": "log",
+      "message": "🔌 Ya hay una conexión en progreso, saltando..."
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.957Z",
+      "level": "log",
+      "message": "🔌 useConversations - Listener webhook:new-message registrado correctamente"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.957Z",
+      "level": "log",
+      "message": "🔌 WebSocket conectado en /chat"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:06.957Z",
+      "level": "log",
+      "message": "🔌 WebSocket conectado",
+      "data": [
+        [
+          {
+            "timestamp": "2025-08-19T01:29:06.957Z",
+            "uptime": "14239ms"
+          }
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:07.489Z",
+      "level": "warn",
+      "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
+      "data": [
+        [
+          "conv_+5214775211021_+5214793176502"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:07.489Z",
+      "level": "warn",
+      "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
+      "data": [
+        [
+          "conv_+5214777270766_+5214793176502"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:07.489Z",
+      "level": "warn",
+      "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
+      "data": [
+        [
+          "conv_+5214773790184_+5214793176502"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:07.627Z",
+      "level": "warn",
+      "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
+      "data": [
+        [
+          "conv_+5214775211021_+5214793176502"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:07.628Z",
+      "level": "warn",
+      "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
+      "data": [
+        [
+          "conv_+5214777270766_+5214793176502"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:07.628Z",
+      "level": "warn",
+      "message": "⚠️ [DEBUG] Conversación sin datos de contacto:",
+      "data": [
+        [
+          "conv_+5214773790184_+5214793176502"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:54.643Z",
+      "level": "error",
+      "message": "❌ XHR ERROR [xhr_29]",
+      "data": [
+        {
+          "method": "POST",
+          "url": "https://utalk-backend-production.up.railway.app/api/media/upload",
+          "status": 400,
+          "statusText": "",
+          "responseTime": 445,
+          "requestId": "xhr_29",
+          "timestamp": "2025-08-19T01:29:54.643Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-19T01:29:54.644Z",
+      "level": "error",
+      "message": "[2025-08-19T01:29:54.644Z] [ERROR] [API] API Error: POST /api/media/upload | Data: {\n  \"status\": 400,\n  \"data\": {\n    \"success\": false,\n    \"error\": \"NO_FILE\",\n    \"message\": \"No se recibió ningún archivo\",\n    \"suggestion\": \"Incluye un archivo en el campo \\\"file\\\" del formulario\",\n    \"docs\": \"https://api.utalk.com/docs/general/errors\",\n    \"help\": \"Si necesitas ayuda, contacta soporte@utalk.com y menciona el código de error 'NO_FILE'\",\n    \"details\": {},\n    \"timestamp\": \"2025-08-19T01:29:54.519Z\"\n  },\n  \"message\": \"Request failed with status code 400\"\n} | Error: Request failed with status code 400 | Stack: AxiosError: Request failed with status code 400\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:1585:7)"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:54.644Z",
+      "level": "error",
+      "message": "[2025-08-19T01:29:54.644Z] [ERROR] [API] Error en respuesta de API | Data: {\n  \"method\": \"POST\",\n  \"url\": \"/api/media/upload\",\n  \"status\": 400,\n  \"statusText\": \"\",\n  \"errorData\": {\n    \"success\": false,\n    \"error\": \"NO_FILE\",\n    \"message\": \"No se recibió ningún archivo\",\n    \"suggestion\": \"Incluye un archivo en el campo \\\"file\\\" del formulario\",\n    \"docs\": \"https://api.utalk.com/docs/general/errors\",\n    \"help\": \"Si necesitas ayuda, contacta soporte@utalk.com y menciona el código de error 'NO_FILE'\",\n    \"details\": {},\n    \"timestamp\": \"2025-08-19T01:29:54.519Z\"\n  },\n  \"isNetworkError\": false,\n  \"isTimeout\": false\n} | Error: Request failed with status code 400 | Stack: AxiosError: Request failed with status code 400\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:1585:7)"
+    },
+    {
+      "timestamp": "2025-08-19T01:29:54.644Z",
+      "level": "error",
+      "message": "❌ Error subiendo archivo:",
+      "data": [
+        [
+          {
+            "message": "Request failed with status code 400",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 400\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=ecd98c77:2143:41)\n    at async Object.uploadFile (http://localhost:5173/src/services/fileUpload.ts?t=1755563992806:10:22)\n    at async uploadAndSend (http://localhost:5173/src/components/chat/MessageInput.tsx?t=1755563992806:318:44)",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "multipart/form-data",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTU2Njk0NiwiZXhwIjoxNzU1NTY3ODQ2LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.8J5Hg1QpgCOeaaCqeUanx958LloUvX8wJzzUsqBQA5E"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "method": "post",
+              "url": "/api/media/upload",
+              "data": {},
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_REQUEST",
+            "status": 400
+          }
+        ]
+      ]
+    }
+  ]
+}

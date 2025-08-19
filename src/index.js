@@ -69,7 +69,7 @@ class ConsolidatedServer {
     
     // 🚨 RUTA DE EMERGENCIA PARA DIAGNÓSTICO - AGREGAR AL INICIO
     this.app.get('/emergency-test', (req, res) => {
-      console.log('🚨 EMERGENCIA: Petición recibida en /emergency-test desde:', req.ip);
+      logger.info('EMERGENCIA: Petición recibida en /emergency-test desde:', { category: 'EMERGENCIA_PETICI_N_RECIBIDA_E', ip: req.ip });
       res.status(200).json({
         status: 'EMERGENCY_ROUTE_WORKING',
         timestamp: new Date().toISOString(),
@@ -1013,24 +1013,24 @@ class ConsolidatedServer {
       }
 
       try {
-        console.log('🧠 Intentando configurar /api/knowledge...');
+        logger.info('🧠 Intentando configurar /api/knowledge...', { category: '_INTENTANDO_CONFIGURAR_API_KNO' });
         this.app.use('/api/knowledge', knowledgeRoutes);
-        console.log('✅ /api/knowledge configurado exitosamente');
+        logger.info('/api/knowledge configurado exitosamente', { category: '_API_KNOWLEDGE_CONFIGURADO_EXI' });
       } catch (error) {
-        console.error('❌ Error configurando /api/knowledge:', error.message);
+        logger.error('❌ Error configurando /api/knowledge:', { category: '_ERROR_CONFIGURANDO_API_KNOWLE', error: error.message });
       }
 
       try {
-        console.log('📁 Intentando configurar /api/media...');
+        logger.info('📁 Intentando configurar /api/media...', { category: '_INTENTANDO_CONFIGURAR_API_MED' });
         this.app.use('/api/media', mediaRoutes);
-        console.log('✅ /api/media configurado exitosamente');
+        logger.info('/api/media configurado exitosamente', { category: '_API_MEDIA_CONFIGURADO_EXITOSA' });
       } catch (error) {
-        console.error('❌ Error configurando /api/media:', error.message);
+        logger.error('❌ Error configurando /api/media:', { category: '_ERROR_CONFIGURANDO_API_MEDIA_' , error: error.message });
       }
 
       // 🔧 CORRECCIÓN: Rutas para /media/proxy (sin autenticación)
       try {
-        console.log('🖼️ Configurando rutas /media/proxy...');
+        logger.info('🖼️ Configurando rutas /media/proxy...', { category: '_CONFIGURANDO_RUTAS_MEDIA_PROX' });
         
         // Ruta para proxy de Twilio
         this.app.get('/media/proxy', (req, res) => {
@@ -1096,115 +1096,115 @@ class ConsolidatedServer {
         
         // Ruta para proxy de archivos almacenados
         this.app.get('/media/proxy-file-public/:fileId', (req, res) => {
-          console.log('🔄 Redirigiendo /media/proxy-file-public a /api/media/proxy-file-public');
+          logger.info('🔄 Redirigiendo /media/proxy-file-public a /api/media/proxy-file-public', { category: '_REDIRIGIENDO_MEDIA_PROXY_FILE' });
           req.url = req.url.replace('/media/proxy-file-public', '/api/media/proxy-file-public');
           this.app._router.handle(req, res);
         });
         
-        console.log('✅ Rutas /media/proxy configuradas exitosamente');
+        logger.info('Rutas /media/proxy configuradas exitosamente', { category: 'RUTAS_MEDIA_PROXY_CONFIGURADAS' });
       } catch (error) {
-        console.error('❌ Error configurando /media/proxy:', error.message);
+        logger.error('❌ Error configurando /media/proxy:', { category: '_ERROR_CONFIGURANDO_MEDIA_PROX' , error: error.message });
       }
 
       try {
-        console.log('📊 Intentando configurar /api/dashboard...');
+        logger.info('📊 Intentando configurar /api/dashboard...', { category: '_INTENTANDO_CONFIGURAR_API_DAS' });
         this.app.use('/api/dashboard', dashboardRoutes);
-        console.log('✅ /api/dashboard configurado exitosamente');
+        logger.info('/api/dashboard configurado exitosamente', { category: '_API_DASHBOARD_CONFIGURADO_EXI' });
       } catch (error) {
-        console.error('❌ Error configurando /api/dashboard:', error.message);
+        logger.error('❌ Error configurando /api/dashboard:', { category: '_ERROR_CONFIGURANDO_API_DASHBO' , error: error.message });
       }
 
       try {
-        console.log('📞 Intentando configurar /api/twilio...');
+        logger.info('📞 Intentando configurar /api/twilio...', { category: '_INTENTANDO_CONFIGURAR_API_TWI' });
         this.app.use('/api/twilio', twilioRoutes);
-        console.log('✅ /api/twilio configurado exitosamente');
+        logger.info('/api/twilio configurado exitosamente', { category: '_API_TWILIO_CONFIGURADO_EXITOS' });
       } catch (error) {
-        console.error('❌ Error configurando /api/twilio:', error.message);
+        logger.error('❌ Error configurando /api/twilio:', { category: '_ERROR_CONFIGURANDO_API_TWILIO', error: error.message });
       }
 
       try {
-        console.log('🤖 Intentando configurar /api/ai...');
+        logger.info('🤖 Intentando configurar /api/ai...', { category: '_INTENTANDO_CONFIGURAR_API_AI_' });
         this.app.use('/api/ai', aiRoutes.router);
-        console.log('✅ /api/ai configurado exitosamente');
+        logger.info('/api/ai configurado exitosamente', { category: '_API_AI_CONFIGURADO_EXITOSAMEN' });
       } catch (error) {
-        console.error('❌ Error configurando /api/ai:', error.message);
+        logger.error('❌ Error configurando /api/ai:', { category: '_ERROR_CONFIGURANDO_API_AI_' , error: error.message });
       }
 
       try {
-        console.log('📊 Intentando configurar /api/ai/reports...');
+        logger.info('📊 Intentando configurar /api/ai/reports...', { category: '_INTENTANDO_CONFIGURAR_API_AI_' });
         this.app.use('/api/ai/reports', reportRoutes.router);
-        console.log('✅ /api/ai/reports configurado exitosamente');
+        logger.info('/api/ai/reports configurado exitosamente', { category: '_API_AI_REPORTS_CONFIGURADO_EX' });
       } catch (error) {
-        console.error('❌ Error configurando /api/ai/reports:', error.message);
+        logger.error('❌ Error configurando /api/ai/reports:', { category: '_ERROR_CONFIGURANDO_API_AI_REP' , error: error.message });
       }
 
       try {
-        console.log('🔍 Intentando configurar /api/ai/rag...');
+        logger.debug('Intentando configurar /api/ai/rag...', { category: 'INTENTANDO_CONFIGURAR_API_AI_R' });
         this.app.use('/api/ai/rag', ragRoutes.router);
-        console.log('✅ /api/ai/rag configurado exitosamente');
+        logger.info('/api/ai/rag configurado exitosamente', { category: '_API_AI_RAG_CONFIGURADO_EXITOS' });
       } catch (error) {
-        console.error('❌ Error configurando /api/ai/rag:', error.message);
+        logger.error('❌ Error configurando /api/ai/rag:', { category: '_ERROR_CONFIGURANDO_API_AI_RAG' , error: error.message });
       }
 
       try {
-        console.log('⚙️ Intentando configurar /api/ai/ops...');
+        logger.info('⚙️ Intentando configurar /api/ai/ops...', { category: '_INTENTANDO_CONFIGURAR_API_AI_' });
         this.app.use('/api/ai/ops', aiOpsRoutes.router);
-        console.log('✅ /api/ai/ops configurado exitosamente');
+        logger.info('/api/ai/ops configurado exitosamente', { category: '_API_AI_OPS_CONFIGURADO_EXITOS' });
       } catch (error) {
-        console.error('❌ Error configurando /api/ai/ops:', error.message);
+        logger.error('❌ Error configurando /api/ai/ops:', { category: '_ERROR_CONFIGURANDO_API_AI_OPS' , error: error.message });
       }
 
       // 🔧 DASHBOARD DE LOGS
       try {
-        console.log('⚙️ Intentando configurar /logs...');
+        logger.info('⚙️ Intentando configurar /logs...', { category: '_INTENTANDO_CONFIGURAR_LOGS_' });
         
         // Ruta para API de logs (debe ir primero)
         this.app.use('/api/logs', logRoutes);
         
         // Ruta para dashboard HTML (debe ir después y ser más específica)
         this.app.get('/logs', (req, res) => {
-          console.log('📊 Dashboard HTML solicitado desde:', req.ip);
+          logger.info('📊 Dashboard HTML solicitado desde:', { category: '_DASHBOARD_HTML_SOLICITADO_DES', ip: req.ip });
           const LogDashboardController = require('./controllers/LogDashboardController');
           return LogDashboardController.getDashboardHTML(req, res);
         });
         
-        console.log('✅ Dashboard de logs configurado exitosamente');
+        logger.info('Dashboard de logs configurado exitosamente', { category: 'DASHBOARD_DE_LOGS_CONFIGURADO_' });
       } catch (error) {
-        console.error('❌ Error configurando dashboard de logs:', error.message);
+        logger.error('❌ Error configurando dashboard de logs:', { category: '_ERROR_CONFIGURANDO_DASHBOARD_' , error: error.message });
       }
 
       // 📊 ANALYTICS Y MÉTRICAS
       try {
-        console.log('📊 Intentando configurar /api/analytics...');
+        logger.info('📊 Intentando configurar /api/analytics...', { category: '_INTENTANDO_CONFIGURAR_API_ANA' });
         const analyticsRoutes = require('./routes/analytics');
         this.app.use('/api/analytics', analyticsRoutes);
-        console.log('✅ /api/analytics configurado exitosamente');
+        logger.info('/api/analytics configurado exitosamente', { category: '_API_ANALYTICS_CONFIGURADO_EXI' });
       } catch (error) {
-        console.error('❌ Error configurando /api/analytics:', error.message);
+        logger.error('❌ Error configurando /api/analytics:', { category: '_ERROR_CONFIGURANDO_API_ANALYT' , error: error.message });
       }
 
       // 🔧 CORRECCIÓN: Redirecciones de compatibilidad para rutas sin /api
       this.app.use('/conversations', (req, res) => {
-        console.log('🔄 Redirigiendo /conversations a /api/conversations');
+        logger.info('🔄 Redirigiendo /conversations a /api/conversations', { category: '_REDIRIGIENDO_CONVERSATIONS_A_' });
         req.url = req.url.replace('/conversations', '/api/conversations');
         this.app._router.handle(req, res);
       });
 
       this.app.use('/contacts', (req, res) => {
-        console.log('🔄 Redirigiendo /contacts a /api/contacts');
+        logger.info('🔄 Redirigiendo /contacts a /api/contacts', { category: '_REDIRIGIENDO_CONTACTS_A_API_C' });
         req.url = req.url.replace('/contacts', '/api/contacts');
         this.app._router.handle(req, res);
       });
 
       this.app.use('/messages', (req, res) => {
-        console.log('🔄 Redirigiendo /messages a /api/messages');
+        logger.info('🔄 Redirigiendo /messages a /api/messages', { category: '_REDIRIGIENDO_MESSAGES_A_API_M' });
         req.url = req.url.replace('/messages', '/api/messages');
         this.app._router.handle(req, res);
       });
 
       // Ruta catch-all para 404
       this.app.use('*', (req, res) => {
-        console.log('🚫 Ruta no encontrada:', req.method, req.originalUrl, 'desde IP:', req.ip);
+        logger.info('🚫 Ruta no encontrada:', { category: '_RUTA_NO_ENCONTRADA_', method: req.method, url: req.originalUrl, ip: req.ip });
         
         logger.warn('Ruta no encontrada', {
           category: 'ROUTE_NOT_FOUND',
@@ -1230,7 +1230,7 @@ class ConsolidatedServer {
           requestId: req.requestId
         });
       });
-      console.log('✅ Catch-all 404 configurado');
+      logger.info('Catch-all 404 configurado', { category: 'CATCH_ALL_404_CONFIGURADO' });
 
       // ✅ CONTAR RUTAS REGISTRADAS
       const routeCount = this.app._router ? this.app._router.stack.length : 0;
@@ -1242,7 +1242,7 @@ class ConsolidatedServer {
       });
 
     } catch (error) {
-      console.error('💥 ERROR CRÍTICO en setupRoutes:', error.message);
+      logger.error('💥 ERROR CRÍTICO en setupRoutes:', { category: '_ERROR_CR_TICO_EN_SETUPROUTES_' , error: error.message });
       logger.error('ERROR CRÍTICO configurando rutas', {
         category: 'ROUTES_ERROR_CRITICAL',
         error: error.message,

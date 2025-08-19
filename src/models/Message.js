@@ -22,7 +22,8 @@ class Message {
       this.conversationId = data.conversationId;
 
       // === LOG CONSOLIDADO DE CONSTRUCTOR ===
-      console.log('🚨 MESSAGE CONSTRUCTOR:', {
+      logger.debug('Message constructor', {
+        category: 'MESSAGE_CONSTRUCTOR',
         requestId,
         originalDataId: data.id,
         assignedMessageId: this.id,
@@ -152,8 +153,9 @@ class Message {
       await firestore.collection('conversations').doc(message.conversationId).collection('messages').doc(uniqueMessageId).set(firestoreData);
 
       // === LOG CRÍTICO DESPUÉS DE FIRESTORE SAVE ===
-      console.log('🚨 MESSAGE SAVED SUCCESSFULLY:', { 
-          requestId,
+      logger.info('Message saved successfully', {
+        category: 'MESSAGE_SAVED_SUCCESS',
+        requestId,
         messageId: uniqueMessageId, 
           conversationId: message.conversationId,
         firestorePath: `conversations/${message.conversationId}/messages/${uniqueMessageId}`,
@@ -164,8 +166,9 @@ class Message {
         return message;
 
     } catch (error) {
-      console.log('🚨 MESSAGE.CREATE ERROR:', {
-          requestId,
+      logger.error('Message create error', {
+        category: 'MESSAGE_CREATE_ERROR',
+        requestId,
         error: error.message,
         errorType: error.constructor.name,
         messageId: uniqueMessageId,
@@ -566,7 +569,8 @@ class Message {
       const normalizedUpdatedAt = safeDateToISOString(this.updatedAt);
 
     // 🔍 LOG PARA DEBUGGEAR TOJSON
-    console.log('🔍 MESSAGE TOJSON - PROCESANDO MEDIA URL:', {
+    logger.debug('Message toJSON - procesando media URL', {
+      category: 'MESSAGE_TOJSON_MEDIA',
       messageId: this.id,
       originalMediaUrl: this.mediaUrl,
       type: this.type,
@@ -581,13 +585,13 @@ class Message {
         const baseUrl = process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app';
         
         // 🔍 LOG PARA DEBUGGEAR TRANSFORMACIÓN DE URL
-        console.log('🔍 MESSAGE TOJSON - TRANSFORMANDO URL:', {
+        logger.debug('MESSAGE TOJSON - TRANSFORMANDO URL:', { category: 'MESSAGE_TOJSON_TRANSFORMANDO_U', 
           messageId: this.id,
           originalMediaUrl: this.mediaUrl,
           baseUrl: baseUrl,
           isFirebase: this.mediaUrl.includes('firebase'),
           isTwilio: this.mediaUrl.includes('api.twilio.com')
-        });
+         });
         
         if (this.mediaUrl.includes('firebase')) {
           // Si es una URL de Firebase Storage, generar URL pública
@@ -598,12 +602,12 @@ class Message {
           // Generar URL pública del proxy
           processedMediaUrl = `${baseUrl}/media/proxy-file-public/${fileId}`;
           
-          console.log('🔍 MESSAGE TOJSON - FIREBASE URL TRANSFORMADA:', {
+          logger.debug('MESSAGE TOJSON - FIREBASE URL TRANSFORMADA:', { category: 'MESSAGE_TOJSON_FIREBASE_URL_TR', 
             messageId: this.id,
             originalUrl: this.mediaUrl,
             publicUrl: processedMediaUrl,
             fileId
-          });
+           });
         } else if (this.mediaUrl.includes('api.twilio.com')) {
           // Si es una URL de Twilio, generar URL pública del proxy
           const urlParts = this.mediaUrl.split('/');
@@ -613,41 +617,41 @@ class Message {
           // Generar URL pública del proxy de Twilio
           processedMediaUrl = `${baseUrl}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
           
-          console.log('🔍 MESSAGE TOJSON - TWILIO URL TRANSFORMADA:', {
+          logger.debug('MESSAGE TOJSON - TWILIO URL TRANSFORMADA:', { category: 'MESSAGE_TOJSON_TWILIO_URL_TRAN', 
             messageId: this.id,
             originalUrl: this.mediaUrl,
             publicUrl: processedMediaUrl,
             messageSid,
             mediaSid,
             urlParts: urlParts
-          });
+           });
         } else {
-          console.log('🔍 MESSAGE TOJSON - URL NO RECONOCIDA:', {
+          logger.debug('MESSAGE TOJSON - URL NO RECONOCIDA:', { category: 'MESSAGE_TOJSON_URL_NO_RECONOCI', 
             messageId: this.id,
             originalUrl: this.mediaUrl,
             processedMediaUrl: this.mediaUrl // Mantener original
-          });
+           });
           processedMediaUrl = this.mediaUrl; // Mantener URL original
         }
       } catch (error) {
-        console.log('🔍 MESSAGE TOJSON - ERROR EN TRANSFORMACIÓN:', {
+        logger.debug('MESSAGE TOJSON - ERROR EN TRANSFORMACIÓN:', { category: 'MESSAGE_TOJSON_ERROR_EN_TRANSF', 
           messageId: this.id,
           originalUrl: this.mediaUrl,
           error: error.message,
           stack: error.stack
-        });
+         });
         // Mantener URL original si hay error
         processedMediaUrl = this.mediaUrl;
       }
     }
 
     // 🔍 LOG FINAL PARA DEBUGGEAR TOJSON
-    console.log('🔍 MESSAGE TOJSON - RESULTADO FINAL:', {
+    logger.debug('MESSAGE TOJSON - RESULTADO FINAL:', { category: 'MESSAGE_TOJSON_RESULTADO_FINAL', 
       messageId: this.id,
       originalMediaUrl: this.mediaUrl,
       processedMediaUrl: processedMediaUrl,
       hasProcessedMediaUrl: !!processedMediaUrl
-    });
+     });
 
     return {
       id: this.id,

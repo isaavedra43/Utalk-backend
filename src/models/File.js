@@ -1,6 +1,7 @@
 const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const { prepareForFirestore } = require('../utils/firestore');
+const logger = require('../utils/logger');
 
 /**
  * 📁 MODELO DE ARCHIVOS CON INDEXACIÓN ESCALABLE
@@ -133,11 +134,11 @@ class File {
       }
     } catch (dateError) {
       // 🔧 CORRECCIÓN CRÍTICA: Manejar errores de fecha
-      console.error('⚠️ Error procesando fecha para índice:', {
+      logger.error('⚠️ Error procesando fecha para índice:', { category: '_ERROR_PROCESANDO_FECHA_PARA_N', 
         error: dateError.message,
         uploadedAt: file.uploadedAt,
         uploadedAtType: typeof file.uploadedAt
-      });
+       });
       dateKey = new Date().toISOString().split('T')[0];
     }
     const dateIndexRef = firestore
@@ -161,11 +162,11 @@ class File {
     } catch (batchError) {
       // 🔧 CORRECCIÓN: No fallar completamente si hay problemas con índices
       // Solo loggear el error pero continuar
-      console.error('⚠️ Error ejecutando batch de índices (no crítico):', {
+      logger.error('⚠️ Error ejecutando batch de índices (no crítico):', { category: '_ERROR_EJECUTANDO_BATCH_DE_NDI', 
         fileId: file.id,
         error: batchError.message,
         stack: batchError.stack?.split('\n').slice(0, 3)
-      });
+       });
       // No lanzar el error para evitar que falle todo el proceso
       // throw batchError;
     }

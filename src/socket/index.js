@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 /**
  * 🔄 SOCKET MANAGER ACCESSOR
  * 
@@ -9,12 +10,12 @@ let _manager = null;
 
 function setSocketManager(manager) {
   _manager = manager;
-  console.log('✅ Socket manager registrado globalmente');
+  logger.info('Socket manager registrado globalmente', { category: 'SOCKET_MANAGER_REGISTRADO_GLOB' });
 }
 
 function getSocketManager() {
   if (!_manager) {
-    console.warn('⚠️ Socket manager no inicializado, retornando null');
+    logger.warn('⚠️ Socket manager no inicializado, retornando null', { category: '_SOCKET_MANAGER_NO_INICIALIZAD' });
     return null;
   }
   return _manager;
@@ -45,7 +46,7 @@ function emitConversationUpdated(args) {
 // 🔧 FUNCIÓN DE PRUEBA: Verificar que el workspaceId se extrae correctamente
 function testWorkspaceIdExtraction(socket) {
   if (!socket) {
-    console.log('❌ Socket no proporcionado para prueba de workspaceId');
+    logger.error('Socket no proporcionado para prueba de workspaceId', { category: 'SOCKET_NO_PROPORCIONADO_PARA_P' });
     return false;
   }
 
@@ -53,7 +54,7 @@ function testWorkspaceIdExtraction(socket) {
   const tenantId = socket.tenantId || socket.decodedToken?.tenantId || 'default_tenant';
   const userId = socket.userEmail || socket.decodedToken?.email || 'unknown';
 
-  console.log('🔍 PRUEBA WORKSPACEID:', {
+  logger.debug('PRUEBA WORKSPACEID:', { category: 'PRUEBA_WORKSPACEID_', 
     socketId: socket.id,
     userId: userId,
     workspaceId: workspaceId,
@@ -62,7 +63,7 @@ function testWorkspaceIdExtraction(socket) {
     hasTenantId: !!tenantId,
     workspaceIdSource: socket.workspaceId ? 'socket.workspaceId' : 
                       socket.decodedToken?.workspaceId ? 'socket.decodedToken.workspaceId' : 'default_workspace'
-  });
+   });
 
   return workspaceId && workspaceId !== 'default_workspace';
 }

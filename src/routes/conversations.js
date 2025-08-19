@@ -12,6 +12,7 @@ const Joi = require('joi');
 
 // Validadores específicos para conversaciones
 const conversationValidators = {
+const logger = require('../utils/logger');
   validateCreate: validateRequest({
     body: Joi.object({
       customerPhone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),

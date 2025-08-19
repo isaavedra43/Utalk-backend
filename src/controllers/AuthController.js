@@ -13,34 +13,45 @@ class AuthController {
    * Genera access token (corto) + refresh token (largo)
    */
   static async login(req, res, next) {
-    console.log('🔍 [LOGIN] === INICIO DEL MÉTODO LOGIN ===');
-    console.log('🔍 [LOGIN] req.logger existe:', !!req.logger);
-    console.log('🔍 [LOGIN] req.logger.auth existe:', !!(req.logger && typeof req.logger.auth === 'function'));
+    logger.info('Iniciando proceso de login', {
+      category: 'AUTH_LOGIN_START',
+      hasReqLogger: !!req.logger,
+      hasAuthLogger: !!(req.logger && typeof req.logger.auth === 'function')
+    });
     
     try {
       const { email, password } = req.body;
-      console.log('🔍 [LOGIN] Datos recibidos:', { email: email ? 'presente' : 'ausente', password: password ? 'presente' : 'ausente' });
+      logger.debug('Datos de login recibidos', {
+        category: 'AUTH_LOGIN_DATA',
+        hasEmail: !!email,
+        hasPassword: !!password
+      });
 
       // ✅ NUEVO: Log de intento de login
-      console.log('🔍 [LOGIN] Intentando loggear intento de login...');
       if (req.logger && typeof req.logger.auth === 'function') {
-        console.log('🔍 [LOGIN] req.logger.auth disponible, llamando...');
         req.logger.auth('login_attempt', {
           email,
           ip: req.ip,
           userAgent: req.headers['user-agent']?.substring(0, 100)
         });
-        console.log('🔍 [LOGIN] req.logger.auth ejecutado exitosamente');
+        logger.debug('Logger auth ejecutado', {
+          category: 'AUTH_LOGGER_SUCCESS',
+          action: 'login_attempt'
+        });
       } else {
-        console.log('❌ [LOGIN] req.logger.auth NO disponible');
+        logger.warn('req.logger.auth no disponible', {
+          category: 'AUTH_LOGGER_WARNING'
+        });
       }
 
       // Validación de entrada
-      console.log('🔍 [LOGIN] Validando datos de entrada...');
       if (!email || !password) {
-        console.log('❌ [LOGIN] Datos incompletos:', { email: !!email, password: !!password });
+        logger.warn('Credenciales incompletas en login', {
+          category: 'AUTH_VALIDATION_ERROR',
+          hasEmail: !!email,
+          hasPassword: !!password
+        });
         if (req.logger && typeof req.logger.auth === 'function') {
-          console.log('🔍 [LOGIN] Loggeando fallo por credenciales faltantes...');
           req.logger.auth('login_failed', {
             reason: 'missing_credentials',
             email: email || 'not_provided',
@@ -54,39 +65,47 @@ class AuthController {
           code: 'MISSING_CREDENTIALS',
         });
       }
-      console.log('✅ [LOGIN] Datos de entrada válidos');
+      logger.debug('Datos de entrada validados exitosamente', {
+        category: 'AUTH_VALIDATION_SUCCESS'
+      });
 
       // ✅ NUEVO: Log de validación de contraseña
-      console.log('🔍 [LOGIN] Intentando loggear query de base de datos...');
-      console.log('🔍 [LOGIN] req.logger.database existe:', !!(req.logger && typeof req.logger.database === 'function'));
-      
       if (req.logger && typeof req.logger.database === 'function') {
-        console.log('🔍 [LOGIN] req.logger.database disponible, llamando...');
         req.logger.database('query_started', {
           operation: 'user_validation',
           email
         });
-        console.log('🔍 [LOGIN] req.logger.database ejecutado exitosamente');
+        logger.debug('Database logger ejecutado', {
+          category: 'AUTH_DB_LOGGER_SUCCESS',
+          operation: 'query_started'
+        });
       } else {
-        console.log('❌ [LOGIN] req.logger.database NO disponible');
+        logger.warn('req.logger.database no disponible', {
+          category: 'AUTH_DB_LOGGER_WARNING'
+        });
       }
 
-      // Asegúrate que 'findUserByEmail' siempre retorne un objeto válido o null, pero nunca undefined directamente
-      console.log('🔍 [LOGIN] Llamando User.getByEmail...');
+      // Buscar usuario por email
+      logger.debug('Consultando usuario en base de datos', {
+        category: 'AUTH_DB_QUERY',
+        operation: 'getByEmail'
+      });
       const user = await User.getByEmail(email);
-      console.log('🔍 [LOGIN] User.getByEmail resultado:', { 
-        userExists: !!user, 
-        userType: typeof user, 
-        userEmail: user?.email,
-        userRole: user?.role 
+      logger.debug('Resultado de consulta de usuario', {
+        category: 'AUTH_DB_RESULT',
+        userExists: !!user,
+        userType: typeof user,
+        hasEmail: !!user?.email,
+        hasRole: !!user?.role
       });
 
-      // VERIFICACIÓN EXHAUSTIVA:
-      console.log('🔍 [LOGIN] Verificando si usuario existe...');
+      // Verificar si el usuario existe
       if (!user) {
-        console.log('❌ [LOGIN] Usuario no encontrado');
+        logger.warn('Usuario no encontrado en login', {
+          category: 'AUTH_USER_NOT_FOUND',
+          email: email.substring(0, 10) + '...'
+        });
         if (req.logger && typeof req.logger.auth === 'function') {
-          console.log('🔍 [LOGIN] Loggeando fallo por usuario no encontrado...');
           req.logger.auth('login_failed', {
             reason: 'user_not_found',
             email,
@@ -100,17 +119,26 @@ class AuthController {
           code: 'USER_NOT_FOUND'
         });
       }
-      console.log('✅ [LOGIN] Usuario encontrado');
+      logger.debug('Usuario encontrado exitosamente', {
+        category: 'AUTH_USER_FOUND'
+      });
 
-      // VALIDA SIEMPRE LA CONTRASEÑA DIRECTAMENTE CON EL MODELO (sin Firebase Auth)
-      console.log('🔍 [LOGIN] Validando contraseña...');
+      // Validar contraseña
+      logger.debug('Validando contraseña de usuario', {
+        category: 'AUTH_PASSWORD_VALIDATION'
+      });
       const isPasswordValid = await User.validatePassword(email, password);
-      console.log('🔍 [LOGIN] Resultado validación contraseña:', isPasswordValid);
+      logger.debug('Resultado de validación de contraseña', {
+        category: 'AUTH_PASSWORD_RESULT',
+        isValid: isPasswordValid
+      });
 
       if (!isPasswordValid) {
-        console.log('❌ [LOGIN] Contraseña inválida');
+        logger.warn('Contraseña inválida en login', {
+          category: 'AUTH_INVALID_PASSWORD',
+          email: email.substring(0, 10) + '...'
+        });
         if (req.logger && typeof req.logger.auth === 'function') {
-          console.log('🔍 [LOGIN] Loggeando fallo por contraseña inválida...');
           req.logger.auth('login_failed', {
             reason: 'invalid_password',
             email,
@@ -119,7 +147,6 @@ class AuthController {
         }
 
         if (req.logger && typeof req.logger.security === 'function') {
-          console.log('🔍 [LOGIN] Loggeando actividad sospechosa...');
           req.logger.security('suspicious_activity', {
             type: 'failed_login',
             email,
@@ -134,55 +161,55 @@ class AuthController {
           code: 'INVALID_PASSWORD'
         });
       }
-      console.log('✅ [LOGIN] Contraseña válida');
+      logger.debug('Contraseña validada exitosamente', {
+        category: 'AUTH_PASSWORD_SUCCESS'
+      });
 
-      // ✅ NUEVO: Log de usuario obtenido
-      console.log('🔍 [LOGIN] Loggeando documento leído...');
+      // ✅ Log de documento leído
       if (req.logger && typeof req.logger.database === 'function') {
-        console.log('🔍 [LOGIN] req.logger.database disponible para document_read...');
         req.logger.database('document_read', {
           operation: 'user_by_email',
           email,
           found: !!user
         });
-        console.log('🔍 [LOGIN] document_read loggeado exitosamente');
-      } else {
-        console.log('❌ [LOGIN] req.logger.database NO disponible para document_read');
       }
 
-      // ACTUALIZAR último login
-      console.log('🔍 [LOGIN] Actualizando último login...');
-      console.log('🔍 [LOGIN] user.updateLastLogin existe:', typeof user.updateLastLogin);
+      // Actualizar último login
+      logger.debug('Actualizando último login del usuario', {
+        category: 'AUTH_UPDATE_LOGIN'
+      });
       await user.updateLastLogin();
-      console.log('✅ [LOGIN] Último login actualizado');
+      logger.debug('Último login actualizado exitosamente', {
+        category: 'AUTH_UPDATE_LOGIN_SUCCESS'
+      });
       
-      console.log('🔍 [LOGIN] Loggeando documento actualizado...');
       if (req.logger && typeof req.logger.database === 'function') {
-        console.log('🔍 [LOGIN] req.logger.database disponible para document_updated...');
         req.logger.database('document_updated', {
           operation: 'last_login_update',
           email
         });
-        console.log('🔍 [LOGIN] document_updated loggeado exitosamente');
-      } else {
-        console.log('❌ [LOGIN] req.logger.database NO disponible para document_updated');
       }
 
-      // 🔄 GENERAR ACCESS TOKEN (corto - 15 minutos)
-      console.log('🔍 [LOGIN] Obteniendo configuración JWT...');
+      // Generar access token
+      logger.debug('Obteniendo configuración JWT', {
+        category: 'AUTH_JWT_CONFIG'
+      });
       const jwtConfig = getAccessTokenConfig();
-      console.log('🔍 [LOGIN] jwtConfig obtenido:', { 
-        hasSecret: !!jwtConfig.secret, 
+      logger.debug('Configuración JWT obtenida', {
+        category: 'AUTH_JWT_CONFIG_SUCCESS',
+        hasSecret: !!jwtConfig.secret,
         hasExpiresIn: !!jwtConfig.expiresIn,
         hasIssuer: !!jwtConfig.issuer,
-        hasAudience: !!jwtConfig.audience 
+        hasAudience: !!jwtConfig.audience
       });
 
       if (!jwtConfig.secret) {
-        console.log('❌ [LOGIN] JWT_SECRET no configurado');
+        logger.error('JWT_SECRET no configurado', {
+          category: 'AUTH_JWT_ERROR',
+          severity: 'CRITICAL'
+        });
         if (req.logger && typeof req.logger.error === 'function') {
-          console.log('🔍 [LOGIN] Loggeando error de JWT_SECRET...');
-          req.logger.error('💥 JWT_SECRET no configurado');
+          req.logger.error('JWT_SECRET no configurado');
         }
         return res.status(500).json({
           error: 'Error de configuración',
@@ -190,42 +217,46 @@ class AuthController {
           code: 'SERVER_ERROR',
         });
       }
-      console.log('✅ [LOGIN] JWT_SECRET configurado correctamente');
+      logger.debug('JWT_SECRET configurado correctamente', {
+        category: 'AUTH_JWT_CONFIG_VALID'
+      });
 
-      // ✅ PAYLOAD DEL ACCESS TOKEN
-      console.log('🔍 [LOGIN] Creando payload del access token...');
+      // Crear payload del access token
       const accessTokenPayload = {
         email: user.email,
         role: user.role,
         name: user.name,
         type: 'access',
-        userId: user.id,           // 🔧 CORRECCIÓN: Agregar userId
+        userId: user.id,
         workspaceId: user.workspaceId || process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
         tenantId: user.tenantId || process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
         iat: Math.floor(Date.now() / 1000),
       };
-      console.log('🔍 [LOGIN] accessTokenPayload creado:', { 
-        email: accessTokenPayload.email, 
-        role: accessTokenPayload.role, 
-        name: accessTokenPayload.name,
+      logger.debug('Access token payload creado', {
+        category: 'AUTH_TOKEN_PAYLOAD',
+        hasEmail: !!accessTokenPayload.email,
+        role: accessTokenPayload.role,
+        hasName: !!accessTokenPayload.name,
         type: accessTokenPayload.type,
-        userId: accessTokenPayload.userId,           // 🔧 CORRECCIÓN: Log userId
-        workspaceId: accessTokenPayload.workspaceId, // 🔧 CORRECCIÓN: Log workspaceId
-        tenantId: accessTokenPayload.tenantId,       // 🔧 CORRECCIÓN: Log tenantId
-        iat: accessTokenPayload.iat 
+        hasUserId: !!accessTokenPayload.userId,
+        hasWorkspaceId: !!accessTokenPayload.workspaceId,
+        hasTenantId: !!accessTokenPayload.tenantId
       });
 
-      // ✅ GENERACIÓN DEL ACCESS TOKEN
-      console.log('🔍 [LOGIN] Generando access token...');
+      // Generar access token
+      logger.debug('Generando access token', {
+        category: 'AUTH_TOKEN_GENERATION'
+      });
       const accessToken = jwt.sign(accessTokenPayload, jwtConfig.secret, { 
         expiresIn: jwtConfig.expiresIn,
         issuer: jwtConfig.issuer,
         audience: jwtConfig.audience,
       });
-      console.log('✅ [LOGIN] Access token generado exitosamente');
+      logger.debug('Access token generado exitosamente', {
+        category: 'AUTH_TOKEN_SUCCESS'
+      });
 
-      // 🔄 GENERAR REFRESH TOKEN (largo - 7 días)
-      console.log('🔍 [LOGIN] Creando deviceInfo...');
+      // Generar refresh token
       const deviceInfo = {
         deviceId: req.headers['x-device-id'] || uuidv4(),
         ipAddress: req.ip,
@@ -233,26 +264,26 @@ class AuthController {
         deviceType: req.headers['x-device-type'] || 'web',
         loginAt: new Date().toISOString()
       };
-      console.log('🔍 [LOGIN] deviceInfo creado:', { 
-        deviceId: deviceInfo.deviceId, 
-        ipAddress: deviceInfo.ipAddress, 
-        deviceType: deviceInfo.deviceType,
-        loginAt: deviceInfo.loginAt 
+      logger.debug('Device info creado para refresh token', {
+        category: 'AUTH_DEVICE_INFO',
+        hasDeviceId: !!deviceInfo.deviceId,
+        ipAddress: deviceInfo.ipAddress,
+        deviceType: deviceInfo.deviceType
       });
 
-      console.log('🔍 [LOGIN] Generando refresh token...');
-      console.log('🔍 [LOGIN] Parámetros para RefreshToken.generate:', { 
-        userEmail: user.email, 
-        userId: user.id, 
-        deviceInfoExists: !!deviceInfo 
+      logger.debug('Generando refresh token', {
+        category: 'AUTH_REFRESH_TOKEN_GENERATION',
+        userEmail: user.email.substring(0, 10) + '...',
+        hasUserId: !!user.id,
+        hasDeviceInfo: !!deviceInfo
       });
       const refreshToken = await RefreshToken.generate(user.email, user.id, deviceInfo);
-      console.log('✅ [LOGIN] Refresh token generado exitosamente');
+      logger.debug('Refresh token generado exitosamente', {
+        category: 'AUTH_REFRESH_TOKEN_SUCCESS'
+      });
 
-      // ✅ NUEVO: Log de tokens generados
-      console.log('🔍 [LOGIN] Loggeando tokens generados...');
+      // Log de tokens generados
       if (req.logger && typeof req.logger.auth === 'function') {
-        console.log('🔍 [LOGIN] req.logger.auth disponible para tokens_generated...');
         req.logger.auth('tokens_generated', {
           email: user.email,
           role: user.role,
@@ -260,15 +291,10 @@ class AuthController {
           refreshTokenExpiresIn: '7d',
           deviceId: deviceInfo.deviceId
         });
-        console.log('🔍 [LOGIN] tokens_generated loggeado exitosamente');
-      } else {
-        console.log('❌ [LOGIN] req.logger.auth NO disponible para tokens_generated');
       }
 
-      // LOGIN EXITOSO
-      console.log('🔍 [LOGIN] Loggeando login exitoso...');
+      // Login exitoso
       if (req.logger && typeof req.logger.auth === 'function') {
-        console.log('🔍 [LOGIN] req.logger.auth disponible para login_success...');
         req.logger.auth('login_success', {
           email: user.email,
           name: user.name,
@@ -278,19 +304,18 @@ class AuthController {
           userAgent: req.headers['user-agent']?.substring(0, 100),
           deviceId: deviceInfo.deviceId
         });
-        console.log('🔍 [LOGIN] login_success loggeado exitosamente');
-      } else {
-        console.log('❌ [LOGIN] req.logger.auth NO disponible para login_success');
       }
 
-      // Solo aquí retornas una respuesta de éxito
-      console.log('🔍 [LOGIN] Preparando respuesta exitosa...');
-      console.log('🔍 [LOGIN] user.toJSON existe:', typeof user.toJSON);
+      // Preparar respuesta exitosa
+      logger.debug('Preparando respuesta de login exitoso', {
+        category: 'AUTH_RESPONSE_PREPARATION'
+      });
       const userJSON = user.toJSON();
-      console.log('🔍 [LOGIN] user.toJSON resultado:', { 
-        hasEmail: !!userJSON.email, 
-        hasName: !!userJSON.name, 
-        hasRole: !!userJSON.role 
+      logger.debug('Usuario serializado para respuesta', {
+        category: 'AUTH_USER_SERIALIZATION',
+        hasEmail: !!userJSON.email,
+        hasName: !!userJSON.name,
+        hasRole: !!userJSON.role
       });
       
       const response = {
@@ -308,38 +333,33 @@ class AuthController {
         }
       };
       
-      console.log('✅ [LOGIN] === LOGIN EXITOSO - ENVIANDO RESPUESTA ===');
+      logger.info('Login completado exitosamente', {
+        category: 'AUTH_LOGIN_SUCCESS',
+        email: user.email.substring(0, 10) + '...',
+        role: user.role,
+        deviceId: deviceInfo.deviceId
+      });
       return res.status(200).json(response);
 
     } catch (error) {
-      console.log('❌ [LOGIN] === ERROR CAPTURADO EN CATCH ===');
-      console.log('❌ [LOGIN] Tipo de error:', typeof error);
-      console.log('❌ [LOGIN] Error es objeto:', error && typeof error === 'object');
-      console.log('❌ [LOGIN] Error tiene message:', !!(error && error.message));
-      
       const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Error desconocido';
-      console.error('❌ [LOGIN] Error en AuthController.login:', errorMessage);
-      console.log('❌ [LOGIN] Stack trace:', error?.stack);
       
-      // Validación adicional para evitar errores de undefined en el logger
-      console.log('🔍 [LOGIN] Verificando req.logger.error...');
-      console.log('🔍 [LOGIN] req existe:', !!req);
-      console.log('🔍 [LOGIN] req.logger existe:', !!(req && req.logger));
-      console.log('🔍 [LOGIN] req.logger.error existe:', !!(req && req.logger && typeof req.logger.error === 'function'));
+      logger.error('Error crítico en proceso de login', {
+        category: 'AUTH_LOGIN_ERROR',
+        error: errorMessage,
+        stack: error?.stack?.split('\n').slice(0, 3),
+        email: req.body?.email ? req.body.email.substring(0, 10) + '...' : 'unknown',
+        ip: req.ip || 'unknown'
+      });
       
       if (req && req.logger && typeof req.logger.error === 'function') {
-        console.log('🔍 [LOGIN] Loggeando error crítico...');
         req.logger.error('Error crítico en login', {
           email: req.body?.email || 'unknown',
           error: errorMessage,
           ip: req.ip || 'unknown'
         });
-        console.log('🔍 [LOGIN] Error crítico loggeado exitosamente');
-      } else {
-        console.log('❌ [LOGIN] req.logger.error NO disponible');
       }
       
-      console.log('❌ [LOGIN] === ENVIANDO RESPUESTA DE ERROR ===');
       return res.status(500).json({ 
         error: 'Error interno del servidor',
         message: 'Ocurrió un error durante el login',

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 /**
  * 📊 LOG MONITOR SERVICE - DASHBOARD INTERNO
  * 
@@ -24,7 +25,7 @@ class LogMonitorService {
       this.cleanupOldLogs();
     }, 5 * 60 * 1000);
     
-    console.log('✅ LogMonitorService inicializado');
+    logger.info('LogMonitorService inicializado', { category: 'LOGMONITORSERVICE_INICIALIZADO' });
   }
 
   /**

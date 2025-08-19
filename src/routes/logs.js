@@ -20,7 +20,7 @@ const { authMiddleware } = require('../middleware/auth');
  * @access Public
  */
 router.get('/test', (req, res) => {
-  console.log('🧪 LOGS_TEST: Endpoint de prueba accedido');
+  logger.info('🧪 LOGS_TEST: Endpoint de prueba accedido', { category: '_LOGS_TEST_ENDPOINT_DE_PRUEBA_' });
   res.json({
     success: true,
     message: 'Dashboard de logs funcionando correctamente',
@@ -42,7 +42,7 @@ router.get('/test', (req, res) => {
  */
 router.post('/generate-test', (req, res) => {
   try {
-    console.log('🧪 GENERATE_TEST_LOGS: Generando logs de prueba...');
+    logger.info('🧪 GENERATE_TEST_LOGS: Generando logs de prueba...', { category: '_GENERATE_TEST_LOGS_GENERANDO_' });
     
     const logger = require('../utils/logger');
     
@@ -75,7 +75,7 @@ router.post('/generate-test', (req, res) => {
       logsGenerated: 9
     });
   } catch (error) {
-    console.error('❌ Error generando logs de prueba:', error);
+    logger.error('❌ Error generando logs de prueba:', { category: '_ERROR_GENERANDO_LOGS_DE_PRUEB' }error);
     res.status(500).json({
       success: false,
       error: 'GENERATE_TEST_ERROR',
@@ -115,7 +115,7 @@ router.get('/dashboard.js', (req, res) => {
     });
     res.send(jsContent);
   } catch (error) {
-    console.error('❌ Error sirviendo dashboard.js:', error);
+    logger.error('❌ Error sirviendo dashboard.js:', { category: '_ERROR_SIRVIENDO_DASHBOARD_JS_' }error);
     res.status(500).send('// Error cargando dashboard JavaScript');
   }
 });
@@ -178,7 +178,7 @@ router.get('/export-railway',
  */
 router.get('/test-export', (req, res) => {
   try {
-    console.log('🧪 TEST_EXPORT: Probando exportación...');
+    logger.info('🧪 TEST_EXPORT: Probando exportación...', { category: '_TEST_EXPORT_PROBANDO_EXPORTAC' });
     
     const testData = [
       { timestamp: new Date().toISOString(), level: 'info', message: 'Test log 1' },
@@ -207,10 +207,10 @@ router.get('/test-export', (req, res) => {
       'Cache-Control': 'no-cache'
     });
     
-    console.log('🧪 TEST_EXPORT: Enviando archivo de prueba:', filename);
+    logger.info('🧪 TEST_EXPORT: Enviando archivo de prueba:', { category: '_TEST_EXPORT_ENVIANDO_ARCHIVO_' }filename);
     res.send(data);
   } catch (error) {
-    console.error('❌ Error en test-export:', error);
+    logger.error('❌ Error en test-export:', { category: '_ERROR_EN_TEST_EXPORT_' }error);
     res.status(500).json({
       success: false,
       error: 'TEST_EXPORT_ERROR',

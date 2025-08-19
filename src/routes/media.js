@@ -114,6 +114,7 @@ router.post('/upload',
   requireWriteAccess,
   mediaValidators.validateUpload,
   MediaUploadController.getUploadRateLimit(),
+  MediaUploadController.getMulterConfig().single('file'),
   MediaUploadController.uploadMedia
 );
 
@@ -523,7 +524,7 @@ router.post('/reconstruct-urls', async (req, res) => {
       });
       
     } catch (twilioError) {
-      console.error('Error obteniendo media de Twilio:', twilioError);
+      logger.error('Error obteniendo media de Twilio:', { category: 'ERROR_OBTENIENDO_MEDIA_DE_TWIL' }twilioError);
       return res.status(500).json({
         success: false,
         message: 'Error obteniendo media de Twilio',
@@ -532,7 +533,7 @@ router.post('/reconstruct-urls', async (req, res) => {
     }
     
   } catch (error) {
-    console.error('Error reconstruyendo URLs de media:', error);
+    logger.error('Error reconstruyendo URLs de media:', { category: 'ERROR_RECONSTRUYENDO_URLS_DE_M' }error);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',

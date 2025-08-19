@@ -9,6 +9,7 @@ const Joi = require('joi');
 
 // Validadores específicos para contactos
 const contactValidators = {
+const logger = require('../utils/logger');
   validateCreate: validateRequest({
     body: Joi.object({
       phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
@@ -240,7 +241,7 @@ router.get('/profile/:phone',
       });
       
     } catch (error) {
-      console.error('Error obteniendo perfil de cliente:', error);
+      logger.error('Error obteniendo perfil de cliente:', { category: 'ERROR_OBTENIENDO_PERFIL_DE_CLI' }error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',
@@ -318,7 +319,7 @@ router.get('/client/:phone',
       });
       
     } catch (error) {
-      console.error('Error obteniendo información del cliente:', error);
+      logger.error('Error obteniendo información del cliente:', { category: 'ERROR_OBTENIENDO_INFORMACI_N_D' }error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',

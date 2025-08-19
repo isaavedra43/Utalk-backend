@@ -116,7 +116,8 @@ class MessageController {
 
       // 🔍 LOG PARA DEBUGGEAR MENSAJES ENVIADOS AL FRONTEND
       const mediaMessages = messages.filter(msg => msg.type === 'media' || msg.type === 'image');
-      console.log('🔍 MESSAGE CONTROLLER - MENSAJES DE MEDIA ENVIADOS AL FRONTEND:', {
+      logger.debug('Mensajes de media enviados al frontend', {
+        category: 'MESSAGE_CONTROLLER_MEDIA',
         conversationId,
         totalMessages: messages.length,
         mediaMessagesCount: mediaMessages.length,
@@ -255,7 +256,8 @@ class MessageController {
       };
 
       // 🔍 LOG PARA DEBUGGEAR MEDIA URL
-      console.log('🔍 MESSAGE CONTROLLER - DATOS DEL MENSAJE:', {
+      logger.debug('Datos del mensaje', {
+        category: 'MESSAGE_CONTROLLER_DATA',
         conversationId,
         hasAttachments: attachmentsData.length > 0,
         mediaUrl: messageData.mediaUrl,
@@ -373,7 +375,8 @@ class MessageController {
       });
 
       // 🔍 LOG PARA DEBUGGEAR RESPUESTA AL FRONTEND
-      console.log('🔍 MESSAGE CONTROLLER - RESPUESTA AL FRONTEND:', {
+      logger.debug('Respuesta al frontend', {
+        category: 'MESSAGE_CONTROLLER_RESPONSE',
         messageId: result.message.id,
         conversationId,
         mediaUrl: result.message.mediaUrl,
@@ -791,7 +794,8 @@ class MessageController {
     const requestId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // === LOG DE EMERGENCIA CRÍTICO AL INICIO ===
-    console.log('🚨 EMERGENCY WEBHOOK RECEIVED:', {
+    logger.info('Emergency webhook received', {
+      category: 'WEBHOOK_EMERGENCY',
       requestId,
       timestamp: new Date().toISOString(),
       method: req.method,
@@ -824,7 +828,7 @@ class MessageController {
       const { From: fromPhone, To: twilioPhone, Body: content, MessageSid: messageSid, NumMedia: numMedia } = req.body;
 
       // === LOG DE EMERGENCIA DESPUÉS DE DESTRUCTURACIÓN ===
-      console.log('🚨 EMERGENCY WEBHOOK DATA EXTRACTED:', {
+      logger.info('EMERGENCY WEBHOOK DATA EXTRACTED:', { category: 'EMERGENCY_WEBHOOK_DATA_EXTRACT', 
         requestId,
         fromPhone,
         twilioPhone,
@@ -837,7 +841,7 @@ class MessageController {
         mediaUrl: req.body.MediaUrl0,
         mediaType: req.body.MediaContentType0,
         step: 'data_extracted'
-      });
+       });
 
       logger.info('📥 PAYLOAD WEBHOOK RECIBIDO', {
         requestId,
@@ -856,19 +860,19 @@ class MessageController {
       const hasContent = content && content.trim().length > 0;
       
       // === LOG DE EMERGENCIA ANTES DE VALIDACIÓN ===
-      console.log('🚨 EMERGENCY BEFORE VALIDATION:', {
+      logger.info('EMERGENCY BEFORE VALIDATION:', { category: 'EMERGENCY_BEFORE_VALIDATION_', 
         requestId,
         hasFrom: !!fromPhone,
         hasContent: !!content,
         hasMedia,
         numMedia: parseInt(numMedia || '0'),
         step: 'before_validation'
-      });
+       });
       
       // Permitir mensajes multimedia sin contenido de texto
       if (!fromPhone || (!hasContent && !hasMedia)) {
         // === LOG DE EMERGENCIA PARA VALIDACIÓN FALLIDA ===
-        console.log('🚨 EMERGENCY VALIDATION FAILED:', {
+        logger.info('EMERGENCY VALIDATION FAILED:', { category: 'EMERGENCY_VALIDATION_FAILED_', 
           requestId,
           hasFrom: !!fromPhone,
           hasContent: !!content,
@@ -876,7 +880,7 @@ class MessageController {
           numMedia: parseInt(numMedia || '0'),
           messageSid,
           step: 'validation_failed'
-        });
+         });
         
         logger.warn('❌ WEBHOOK DATOS FALTANTES', {
           requestId,
@@ -898,7 +902,7 @@ class MessageController {
       }
 
       // === LOG DE EMERGENCIA DESPUÉS DE VALIDACIÓN ===
-      console.log('🚨 EMERGENCY VALIDATION PASSED:', {
+      logger.info('EMERGENCY VALIDATION PASSED:', { category: 'EMERGENCY_VALIDATION_PASSED_', 
         requestId,
         fromPhone,
         twilioPhone,
@@ -906,7 +910,7 @@ class MessageController {
         hasContent: !!content,
         hasMedia,
         step: 'validation_passed'
-      });
+       });
 
       logger.info('✅ WEBHOOK VALIDACIÓN BÁSICA PASADA', {
         requestId,
@@ -956,14 +960,14 @@ class MessageController {
       });
 
       // === LOG DE EMERGENCIA ANTES DE MESSAGESERVICE ===
-      console.log('🚨 EMERGENCY BEFORE MESSAGESERVICE:', {
+      logger.info('EMERGENCY BEFORE MESSAGESERVICE:', { category: 'EMERGENCY_BEFORE_MESSAGESERVIC', 
         requestId,
         messageSid,
         fromPhone: normalizedPhone,
         hasContent: !!content,
         hasMedia: parseInt(numMedia) > 0,
         step: 'before_twilio_service_call'
-      });
+       });
 
       // Procesar mensaje usando MessageService (que incluye Socket.IO events)
       const MessageService = require('../services/MessageService');
@@ -971,13 +975,13 @@ class MessageController {
       const { message, conversation } = await messageService.processIncomingMessage(req.body);
 
       // === LOG DE EMERGENCIA DESPUÉS DE MESSAGESERVICE ===
-      console.log('🚨 EMERGENCY AFTER MESSAGESERVICE:', {
+      logger.info('EMERGENCY AFTER MESSAGESERVICE:', { category: 'EMERGENCY_AFTER_MESSAGESERVICE', 
         requestId,
         messageId: message?.id,
         conversationId: conversation?.id || message?.conversationId,
         success: !!message,
         step: 'after_twilio_service'
-      });
+       });
 
       logger.info('✅ MESSAGESERVICE PROCESAMIENTO COMPLETADO', {
         requestId,
@@ -1007,14 +1011,14 @@ class MessageController {
 
     } catch (error) {
       // === LOG DE EMERGENCIA CRÍTICO EN CATCH PRINCIPAL ===
-      console.log('🚨 EMERGENCY WEBHOOK CRITICAL ERROR:', {
+      logger.info('EMERGENCY WEBHOOK CRITICAL ERROR:', { category: 'EMERGENCY_WEBHOOK_CRITICAL_ERR', 
         requestId,
         error: error.message,
         errorType: error.constructor.name,
         errorStack: error.stack?.split('\n').slice(0, 10),
         timestamp: new Date().toISOString(),
         step: 'critical_error'
-      });
+       });
       
       logger.error('❌ ERROR CRÍTICO EN WEBHOOK', {
         requestId,

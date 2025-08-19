@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 /**
  * 🔍 SISTEMA DE LOGGING PROFESIONAL Y ESTRUCTURADO
  * 
@@ -27,9 +28,9 @@ let logMonitor;
 try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
   logMonitor = monitor;
-  console.log('✅ LogMonitorService integrado correctamente');
+  logger.info('LogMonitorService integrado correctamente', { category: 'LOGMONITORSERVICE_INTEGRADO_CO' });
 } catch (error) {
-  console.log('⚠️ LogMonitorService no disponible, continuando sin integración:', error.message);
+  logger.warn('LogMonitorService no disponible, continuando sin integración:', { category: 'LOGMONITORSERVICE_NO_DISPONIBL' }error.message);
   logMonitor = null;
 }
 
@@ -92,7 +93,7 @@ class LogMonitorTransport extends winston.Transport {
         }
       }
     } catch (error) {
-      console.error('❌ Error en LogMonitorTransport:', error.message);
+      logger.error('❌ Error en LogMonitorTransport:', { category: '_ERROR_EN_LOGMONITORTRANSPORT_' }error.message);
     }
     
     callback();
@@ -151,7 +152,7 @@ if (logMonitor) {
   logger.add(new LogMonitorTransport({
     level: 'info'
   }));
-  console.log('✅ LogMonitorTransport agregado al logger');
+  logger.info('LogMonitorTransport agregado al logger', { category: 'LOGMONITORTRANSPORT_AGREGADO_A' });
 }
 
 // Configuración específica para Railway
@@ -167,7 +168,7 @@ if (process.env.RAILWAY_ENVIRONMENT) {
     handleRejections: true
   }));
   
-  console.log('🔧 Logger configurado para Railway: solo errores críticos');
+  logger.info('🔧 Logger configurado para Railway: solo errores críticos', { category: '_LOGGER_CONFIGURADO_PARA_RAILW' });
 }
 
 // Método para obtener estadísticas del logger
@@ -182,7 +183,7 @@ logger.getStats = function() {
 // Método para generar logs de prueba
 logger.generateTestLogs = function() {
   if (logMonitor) {
-    console.log('🧪 Generando logs de prueba para dashboard...');
+    logger.info('🧪 Generando logs de prueba para dashboard...', { category: '_GENERANDO_LOGS_DE_PRUEBA_PARA' });
     
     // Generar logs de diferentes niveles y categorías
     logger.info('Sistema iniciado correctamente', { category: 'SYSTEM', userId: 'system' });
@@ -193,7 +194,7 @@ logger.generateTestLogs = function() {
     logger.info('Mensaje enviado exitosamente', { category: 'MESSAGE', userId: 'user_789' });
     logger.debug('Rate limit check completado', { category: 'RATE_LIMIT', userId: 'user_101' });
     
-    console.log('✅ Logs de prueba generados');
+    logger.info('Logs de prueba generados', { category: 'LOGS_DE_PRUEBA_GENERADOS' });
   }
 };
 

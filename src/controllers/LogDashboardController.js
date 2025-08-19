@@ -15,7 +15,7 @@ try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
   logMonitor = monitor;
 } catch (error) {
-  console.error('❌ Error importando LogMonitorService:', error.message);
+  logger.error('❌ Error importando LogMonitorService:', { category: '_ERROR_IMPORTANDO_LOGMONITORSE' }error.message);
   // Crear un mock del logMonitor para evitar errores
   logMonitor = {
     getStats: () => ({ 
@@ -130,10 +130,10 @@ class LogDashboardController {
    */
   static async getDashboard(req, res) {
     try {
-      console.log('🔍 getDashboard llamado');
+      logger.debug('getDashboard llamado', { category: 'GETDASHBOARD_LLAMADO' });
       
       if (!logMonitor) {
-        console.error('❌ logMonitor no está disponible');
+        logger.error('❌ logMonitor no está disponible', { category: '_LOGMONITOR_NO_EST_DISPONIBLE' });
         return res.status(500).json({
           success: false,
           error: 'LOG_MONITOR_UNAVAILABLE',
@@ -144,13 +144,13 @@ class LogDashboardController {
       // 🔧 GENERAR LOGS DE PRUEBA SI NO HAY SUFICIENTES
       LogDashboardController.ensureTestLogs(logMonitor);
 
-      console.log('📊 Obteniendo stats...');
+      logger.info('📊 Obteniendo stats...', { category: '_OBTENIENDO_STATS_' });
       const stats = logMonitor.getStats();
-      console.log('📊 Stats obtenidos:', stats);
+      logger.info('📊 Stats obtenidos:', { category: '_STATS_OBTENIDOS_' }stats);
       
-      console.log('📈 Obteniendo rate limit metrics...');
+      logger.info('📈 Obteniendo rate limit metrics...', { category: '_OBTENIENDO_RATE_LIMIT_METRICS' });
       const rateLimitMetrics = logMonitor.getRateLimitMetrics();
-      console.log('📈 Rate limit metrics obtenidos:', rateLimitMetrics);
+      logger.info('📈 Rate limit metrics obtenidos:', { category: '_RATE_LIMIT_METRICS_OBTENIDOS_' }rateLimitMetrics);
       
       const response = {
         success: true,
@@ -161,10 +161,10 @@ class LogDashboardController {
         }
       };
 
-      console.log('✅ Enviando respuesta:', response);
+      logger.info('Enviando respuesta:', { category: 'ENVIANDO_RESPUESTA_' }response);
       res.json(response);
     } catch (error) {
-      console.error('❌ Error en getDashboard:', error);
+      logger.error('❌ Error en getDashboard:', { category: '_ERROR_EN_GETDASHBOARD_' }error);
       logger.error('Error obteniendo dashboard de logs', {
         category: 'LOG_DASHBOARD_ERROR',
         error: error.message,
@@ -185,10 +185,10 @@ class LogDashboardController {
    */
   static async getLogs(req, res) {
     try {
-      console.log('🔍 getLogs llamado con query:', req.query);
+      logger.debug('getLogs llamado con query:', { category: 'GETLOGS_LLAMADO_CON_QUERY_' }req.query);
       
       if (!logMonitor) {
-        console.error('❌ logMonitor no está disponible en getLogs');
+        logger.error('❌ logMonitor no está disponible en getLogs', { category: '_LOGMONITOR_NO_EST_DISPONIBLE_' });
         return res.status(500).json({
           success: false,
           error: 'LOG_MONITOR_UNAVAILABLE',
@@ -216,9 +216,9 @@ class LogDashboardController {
         limit: parseInt(limit)
       };
 
-      console.log('🔍 Aplicando filtros:', filters);
+      logger.debug('Aplicando filtros:', { category: 'APLICANDO_FILTROS_' }filters);
       const logs = logMonitor.getLogs(filters);
-      console.log('📋 Logs obtenidos:', logs.length);
+      logger.info('📋 Logs obtenidos:', { category: '_LOGS_OBTENIDOS_' }logs.length);
       
       const total = logs.length;
       const pageSize = 100;
@@ -240,10 +240,10 @@ class LogDashboardController {
         }
       };
 
-      console.log('✅ Enviando respuesta getLogs con', paginatedLogs.length, 'logs');
+      logger.info('Enviando respuesta getLogs con', { category: 'ENVIANDO_RESPUESTA_GETLOGS_CON' }paginatedLogs.length, 'logs');
       res.json(response);
     } catch (error) {
-      console.error('❌ Error en getLogs:', error);
+      logger.error('❌ Error en getLogs:', { category: '_ERROR_EN_GETLOGS_' }error);
       logger.error('Error obteniendo logs', {
         category: 'LOG_DASHBOARD_ERROR',
         error: error.message,
@@ -405,7 +405,7 @@ class LogDashboardController {
       try {
         this.generateTestLogs(logMonitor);
       } catch (error) {
-        console.error('❌ Error generando logs de prueba:', error.message);
+        logger.error('❌ Error generando logs de prueba:', { category: '_ERROR_GENERANDO_LOGS_DE_PRUEB' }error.message);
       }
 
       // Datos iniciales para render inmediato
@@ -661,9 +661,9 @@ ${initialDataScript}
         });
       });
 
-      console.log('🧪 Test logs generados para dashboard');
+      logger.info('🧪 Test logs generados para dashboard', { category: '_TEST_LOGS_GENERADOS_PARA_DASH' });
     } catch (error) {
-      console.error('❌ Error en generateTestLogs:', error.message);
+      logger.error('❌ Error en generateTestLogs:', { category: '_ERROR_EN_GENERATETESTLOGS_' }error.message);
     }
   }
 
@@ -677,7 +677,7 @@ ${initialDataScript}
       
       // Si hay menos de 5 logs en la última hora, generar logs de prueba
       if (recentLogs.length < 5) {
-        console.log('🧪 Generando logs de prueba para dashboard...');
+        logger.info('🧪 Generando logs de prueba para dashboard...', { category: '_GENERANDO_LOGS_DE_PRUEBA_PARA' });
         
         // Generar logs con timestamps escalonados
         const testLogs = [
@@ -738,10 +738,10 @@ ${initialDataScript}
           });
         });
 
-        console.log('✅ Logs de prueba generados para dashboard');
+        logger.info('Logs de prueba generados para dashboard', { category: 'LOGS_DE_PRUEBA_GENERADOS_PARA_' });
       }
     } catch (error) {
-      console.error('❌ Error generando logs de prueba:', error.message);
+      logger.error('❌ Error generando logs de prueba:', { category: '_ERROR_GENERANDO_LOGS_DE_PRUEB' }error.message);
     }
   }
 
@@ -812,7 +812,7 @@ ${initialDataScript}
           fs.unlinkSync('./temp-export.json');
         }
       } catch (cleanupError) {
-        console.warn('⚠️ No se pudo limpiar archivo temporal:', cleanupError.message);
+        logger.warn('⚠️ No se pudo limpiar archivo temporal:', { category: '_NO_SE_PUDO_LIMPIAR_ARCHIVO_TE' }cleanupError.message);
       }
 
     } catch (error) {

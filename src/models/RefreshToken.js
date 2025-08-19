@@ -39,11 +39,12 @@ class RefreshToken {
    * Crear un nuevo refresh token
    */
   static async create(tokenData) {
-    console.log('🔍 [REFRESH_TOKEN] Creando refresh token...');
-    console.log('🔍 [REFRESH_TOKEN] tokenData recibido:', { 
-      userEmail: tokenData.userEmail, 
+    logger.debug('Creando refresh token', { category: 'REFRESH_TOKEN_CREATE' });
+    logger.debug('TokenData recibido', {
+      category: 'REFRESH_TOKEN_DATA',
+      userEmail: tokenData.userEmail,
       userId: tokenData.userId,
-      deviceId: tokenData.deviceId 
+      deviceId: tokenData.deviceId
     });
 
     const refreshToken = new RefreshToken(tokenData);
@@ -66,34 +67,28 @@ class RefreshToken {
       maxUses: refreshToken.maxUses
     };
 
-    console.log('🔍 [REFRESH_TOKEN] Guardando en Firestore...');
+    logger.debug('Guardando en Firestore', { category: 'REFRESH_TOKEN_FIRESTORE_SAVE' });
     // Guardar en Firestore
     await firestore.collection('refresh_tokens').doc(refreshToken.id).set(cleanData);
-    console.log('✅ [REFRESH_TOKEN] Guardado en Firestore exitosamente');
+    logger.info('Guardado en Firestore exitosamente', { category: 'REFRESH_TOKEN_FIRESTORE_SUCCESS' });
 
-    console.log('🔍 [REFRESH_TOKEN] Creando índices...');
+    logger.debug('Creando índices', { category: 'REFRESH_TOKEN_INDEXES_CREATE' });
     // Crear índices para consultas eficientes
     await this.createIndexes(refreshToken);
-    console.log('✅ [REFRESH_TOKEN] Índices creados exitosamente');
+    logger.info('Índices creados exitosamente', { category: 'REFRESH_TOKEN_INDEXES_SUCCESS' });
 
-    console.log('🔍 [REFRESH_TOKEN] Loggeando con logger...');
-    console.log('🔍 [REFRESH_TOKEN] logger existe:', !!logger);
-    console.log('🔍 [REFRESH_TOKEN] logger.info existe:', !!(logger && typeof logger.info === 'function'));
+    logger.info('Refresh token creado', {
+      category: 'REFRESH_TOKEN_CREATED',
+      tokenId: refreshToken.id,
+      userEmail: refreshToken.userEmail,
+      familyId: refreshToken.familyId,
+      deviceId: refreshToken.deviceId
+    });
 
-    if (logger && typeof logger.info === 'function') {
-      console.log('🔍 [REFRESH_TOKEN] Logger.info ejecutado');
-      logger.info('🔄 Refresh token creado', {
-        tokenId: refreshToken.id,
-        userEmail: refreshToken.userEmail,
-        familyId: refreshToken.familyId,
-        deviceId: refreshToken.deviceId
-      });
-      console.log('✅ [REFRESH_TOKEN] logger.info ejecutado exitosamente');
-    } else {
-      console.log('❌ [REFRESH_TOKEN] logger.info NO disponible');
-    }
-
-    console.log('✅ [REFRESH_TOKEN] Refresh token creado exitosamente');
+    logger.info('Refresh token creado exitosamente', { 
+      category: 'REFRESH_TOKEN_CREATE_SUCCESS',
+      tokenId: refreshToken.id
+    });
     return refreshToken;
   }
 
@@ -421,8 +416,9 @@ class RefreshToken {
    * Generar nuevo refresh token
    */
   static async generate(userEmail, userId, deviceInfo = {}) {
-    console.log('🔍 [REFRESH_TOKEN] Generando refresh token...');
-    console.log('🔍 [REFRESH_TOKEN] Parámetros recibidos:', { 
+    logger.debug('Generando refresh token', { category: 'REFRESH_TOKEN_GENERATE' });
+    logger.debug('Parámetros recibidos', {
+      category: 'REFRESH_TOKEN_PARAMS',
       userEmail, 
       userId, 
       deviceInfoExists: !!deviceInfo 
@@ -430,7 +426,10 @@ class RefreshToken {
 
     // Validar que userId no sea undefined
     if (!userId) {
-      console.log('❌ [REFRESH_TOKEN] userId es undefined, usando userEmail como fallback');
+      logger.warn('userId undefined, usando userEmail como fallback', {
+        category: 'REFRESH_TOKEN_USERID_FALLBACK',
+        userEmail
+      });
       userId = userEmail; // Usar userEmail como fallback
     }
 
@@ -458,7 +457,8 @@ class RefreshToken {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 días por defecto
 
-    console.log('🔍 [REFRESH_TOKEN] Creando refresh token con datos:', {
+    logger.debug('Creando refresh token con datos', {
+      category: 'REFRESH_TOKEN_CREATE_DATA',
       userEmail,
       userId,
       deviceId: deviceInfo.deviceId || uuidv4(),
@@ -478,7 +478,9 @@ class RefreshToken {
       maxUses: 100
     });
 
-    console.log('✅ [REFRESH_TOKEN] Refresh token generado exitosamente');
+    logger.info('Refresh token generado exitosamente', {
+      category: 'REFRESH_TOKEN_GENERATE_SUCCESS'
+    });
     return refreshToken;
   }
 

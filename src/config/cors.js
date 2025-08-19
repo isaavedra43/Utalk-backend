@@ -64,12 +64,12 @@ const corsOptions = {
   origin(origin, cb) {
     // Solo log si hay un origen real (no undefined)
     if (origin) {
-      console.log('🌐 CORS Origin Check:', origin);
+      logger.info('🌐 CORS Origin Check:', { category: '_CORS_ORIGIN_CHECK_' }origin);
       if (isOriginAllowed(origin)) {
-        console.log('✅ CORS Origin Allowed:', origin);
+        logger.info('CORS Origin Allowed:', { category: 'CORS_ORIGIN_ALLOWED_' }origin);
         return cb(null, true);
       }
-      console.log('❌ CORS Origin Blocked:', origin);
+      logger.error('CORS Origin Blocked:', { category: 'CORS_ORIGIN_BLOCKED_' }origin);
       return cb(null, false);
     }
     // Para origins undefined (health checks, etc.) - permitir silenciosamente
@@ -98,11 +98,11 @@ const corsOptions = {
  */
 const socketCorsOptions = {
   origin(origin, cb) {
-    console.log('🔌 Socket CORS Origin Check:', origin);
+    logger.info('🔌 Socket CORS Origin Check:', { category: '_SOCKET_CORS_ORIGIN_CHECK_' }origin);
     
     // 🔧 CORRECCIÓN: Manejar origin undefined de manera más robusta
     if (!origin || origin === 'undefined' || origin === 'null') {
-      console.log('✅ Socket CORS Origin Allowed (undefined/null)');
+      logger.info('Socket CORS Origin Allowed (undefined/null)', { category: 'SOCKET_CORS_ORIGIN_ALLOWED_UND' });
       logger.info('Socket CORS: Origin undefined permitido', {
         category: 'SOCKET_CORS_ALLOWED',
         origin: origin || 'undefined',
@@ -113,7 +113,7 @@ const socketCorsOptions = {
     
     // Validar origen si está presente
     if (isOriginAllowed(origin)) {
-      console.log('✅ Socket CORS Origin Allowed:', origin);
+      logger.info('Socket CORS Origin Allowed:', { category: 'SOCKET_CORS_ORIGIN_ALLOWED_' }origin);
       logger.info('Socket CORS: Origin permitido', {
         category: 'SOCKET_CORS_ALLOWED',
         origin,
@@ -122,7 +122,7 @@ const socketCorsOptions = {
       return cb(null, true);
     }
     
-    console.log('❌ Socket CORS Origin Blocked:', origin);
+    logger.error('Socket CORS Origin Blocked:', { category: 'SOCKET_CORS_ORIGIN_BLOCKED_' }origin);
     logger.warn('Socket CORS: Origin bloqueado', {
       category: 'SOCKET_CORS_BLOCKED',
       origin,

@@ -3579,10 +3579,10 @@ class FileService {
             metadataCacheSize: this.metadataCache.size
           });
         } catch (logError) {
-          console.error('Error en logger.debug durante cache cleanup:', logError.message);
+          // Error en logging - continuar con cleanup silenciosamente
         }
       } else {
-        console.log('🧹 Cache cleanup completado - Logger no disponible');
+        // Cache cleanup completado
       }
     }, this.cacheConfig.cleanupInterval);
   }

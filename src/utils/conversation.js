@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
 
 /**
  * Utilidades para gestión de conversaciones
@@ -33,7 +34,7 @@ function generateConversationId (phone1, phone2) {
   
   // 🔧 VALIDACIÓN CRÍTICA: Prevenir IDs con doble ++
   if (conversationId.includes('++')) {
-    console.error('🚨 ERROR CRÍTICO: Se intentó generar ID con doble ++', {
+    logger.error('🚨 ERROR CRÍTICO: Se intentó generar ID con doble ++', { category: '_ERROR_CR_TICO_SE_INTENT_GENER', 
       phone1: sorted[0],
       phone2: sorted[1],
       normalized1,
@@ -41,27 +42,27 @@ function generateConversationId (phone1, phone2) {
       sorted,
       generatedId: conversationId,
       timestamp: new Date().toISOString()
-    });
+     });
     
     // Normalizar el ID para evitar el doble ++
     const correctedId = conversationId.replace(/\+\+/g, '+');
-    console.warn('🔧 ID corregido automáticamente:', {
+    logger.warn('🔧 ID corregido automáticamente:', { category: '_ID_CORREGIDO_AUTOM_TICAMENTE_', 
       original: conversationId,
       corrected: correctedId
-    });
+     });
     
     return correctedId;
   }
   
   // Log para debugging
-  console.log('✅ ID de conversación generado correctamente:', {
+  logger.info('ID de conversación generado correctamente:', { category: 'ID_DE_CONVERSACI_N_GENERADO_CO', 
     phone1: sorted[0],
     phone2: sorted[1],
     normalized1,
     normalized2,
     conversationId,
     hasDoublePlus: conversationId.includes('++')
-  });
+   });
   
   return conversationId;
 }
@@ -134,18 +135,18 @@ function validateConversationIdForDatabase(conversationId) {
 
     // 🔧 DETECTAR DOBLE ++
     if (conversationId.includes('++')) {
-      console.error('🚨 ERROR CRÍTICO: ConversationId contiene doble ++', {
+      logger.error('🚨 ERROR CRÍTICO: ConversationId contiene doble ++', { category: '_ERROR_CR_TICO_CONVERSATIONID_', 
         conversationId,
         timestamp: new Date().toISOString()
-      });
+       });
 
       // Corregir automáticamente
       const correctedId = conversationId.replace(/\+\+/g, '+');
       
-      console.warn('🔧 ConversationId corregido automáticamente:', {
+      logger.warn('🔧 ConversationId corregido automáticamente:', { category: '_CONVERSATIONID_CORREGIDO_AUTO', 
         original: conversationId,
         corrected: correctedId
-      });
+       });
 
       return {
         isValid: false,
@@ -166,7 +167,7 @@ function validateConversationIdForDatabase(conversationId) {
       isValid: true
     };
   } catch (error) {
-    console.error('❌ Error validando conversationId:', error);
+    logger.error('❌ Error validando conversationId:', { category: '_ERROR_VALIDANDO_CONVERSATIONI' }error);
     return {
       isValid: false,
       error: 'Error interno validando conversationId'
@@ -192,39 +193,39 @@ function normalizePhoneNumber (phone) {
   
   // 🔧 VALIDACIÓN CRÍTICA: Prevenir doble ++
   if (normalized.includes('++')) {
-    console.error('🚨 ERROR: Número de teléfono contiene doble ++', {
+    logger.error('🚨 ERROR: Número de teléfono contiene doble ++', { category: '_ERROR_N_MERO_DE_TEL_FONO_CONT', 
       original: phone,
       normalized,
       timestamp: new Date().toISOString()
-    });
+     });
     
     // Corregir automáticamente
     normalized = normalized.replace(/\+\+/g, '+');
-    console.warn('🔧 Número corregido automáticamente:', {
+    logger.warn('🔧 Número corregido automáticamente:', { category: '_N_MERO_CORREGIDO_AUTOM_TICAME', 
       original: phone,
       corrected: normalized
-    });
+     });
   }
   
   // Asegurar que tenga el formato correcto
   if (normalized.startsWith('+')) {
     // Formato internacional: +1234567890
     if (normalized.length < 11) {
-      console.warn('⚠️ Número muy corto para formato internacional:', {
+      logger.warn('⚠️ Número muy corto para formato internacional:', { category: '_N_MERO_MUY_CORTO_PARA_FORMATO', 
         phone,
         normalized,
         length: normalized.length
-      });
+       });
       return null; // Muy corto para ser válido
     }
   } else {
     // Formato local: 1234567890
     if (normalized.length < 10) {
-      console.warn('⚠️ Número muy corto para formato local:', {
+      logger.warn('⚠️ Número muy corto para formato local:', { category: '_N_MERO_MUY_CORTO_PARA_FORMATO', 
         phone,
         normalized,
         length: normalized.length
-      });
+       });
       return null; // Muy corto para ser válido
     }
     // Agregar + si no lo tiene
@@ -233,10 +234,10 @@ function normalizePhoneNumber (phone) {
   
   // Validación final
   if (!/^\+\d{10,}$/.test(normalized)) {
-    console.error('❌ Número de teléfono inválido después de normalización:', {
+    logger.error('❌ Número de teléfono inválido después de normalización:', { category: '_N_MERO_DE_TEL_FONO_INV_LIDO_D', 
       original: phone,
       normalized,
-      pattern: /^\+\d{10,}$/
+      pattern: /^\+\d{10, }$/
     });
     return null;
   }

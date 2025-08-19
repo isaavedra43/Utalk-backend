@@ -30,7 +30,11 @@ class MessageService {
     if (!accountSid || !authToken) {
       // En desarrollo local o cuando NODE_ENV no está definido, permitir que la app funcione sin credenciales de Twilio
       if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-        console.warn('⚠️ WARNING: Missing Twilio credentials in development mode. Some features may not work.');
+        logger.warn('Missing Twilio credentials in development mode', { 
+          category: 'TWILIO_CONFIG_WARNING',
+          environment: process.env.NODE_ENV || 'undefined',
+          message: 'Some features may not work'
+        });
         this.client = null;
         return;
       }
@@ -339,8 +343,9 @@ class MessageService {
       // Verificar si el mensaje ya existe (duplicados)
         const existingMessage = await Message.getByTwilioSid(MessageSid);
         if (existingMessage) {
-        console.log('🚨 MESSAGE DUPLICATE DETECTED:', {
-            requestId,
+        logger.warn('Message duplicate detected', {
+          category: 'MESSAGE_DUPLICATE',
+          requestId,
           messageSid: MessageSid,
             existingMessageId: existingMessage.id,
           step: 'duplicate_detected'
@@ -437,7 +442,8 @@ class MessageService {
       }
       
       // 🔍 LOG DETALLADO DEL WEBHOOK COMPLETO
-      console.log('🔍 WEBHOOK COMPLETO RECIBIDO:', {
+      logger.info('Webhook completo recibido', {
+        category: 'WEBHOOK_RECEIVED',
         requestId,
         timestamp: new Date().toISOString(),
         messageSid: MessageSid,
@@ -454,7 +460,8 @@ class MessageService {
       
       // Procesar media si es un mensaje multimedia
       if (messageType === 'media' && parseInt(NumMedia || '0') > 0) {
-        console.log('🔄 INICIANDO PROCESAMIENTO DE MEDIA:', {
+        logger.info('Iniciando procesamiento de media', {
+          category: 'MEDIA_PROCESSING_START',
           requestId,
           messageType,
           numMedia: parseInt(NumMedia),
@@ -463,7 +470,8 @@ class MessageService {
         
         try {
           const mediaResult = await this.processWebhookMedia(webhookData);
-          console.log('📊 RESULTADO DE MEDIA:', {
+          logger.info('Resultado de media procesado', {
+            category: 'MEDIA_PROCESSING_RESULT',
             requestId,
             urlsCount: mediaResult.urls.length,
             urls: mediaResult.urls,
@@ -477,7 +485,8 @@ class MessageService {
             // Actualizar el tipo basado en el tipo principal detectado
             messageData.type = mediaResult.primaryType;
             
-            console.log('✅ MEDIA ASIGNADO AL MENSAJE:', {
+            logger.info('Media asignado al mensaje', {
+              category: 'MEDIA_ASSIGNED',
               requestId,
               mediaUrl: messageData.mediaUrl,
               type: messageData.type
@@ -490,7 +499,8 @@ class MessageService {
               mediaCount: mediaResult.count
             });
           } else {
-            console.log('❌ NO SE ENCONTRARON URLs DE MEDIA:', {
+            logger.warn('No se encontraron URLs de media', {
+              category: 'MEDIA_NO_URLS',
               requestId,
               mediaResult,
               webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media')),
@@ -499,20 +509,27 @@ class MessageService {
             
             // 🔧 CORRECCIÓN: Si no se encontraron URLs pero NumMedia > 0, intentar extraer manualmente
             if (parseInt(NumMedia || '0') > 0) {
-              console.log('🔧 Intentando extracción manual de media...');
+              logger.info('Intentando extracción manual de media', {
+                category: 'MEDIA_MANUAL_EXTRACTION'
+              });
               const manualUrls = [];
               
               for (let i = 0; i < parseInt(NumMedia); i++) {
                 const mediaUrl = webhookData[`MediaUrl${i}`];
                 if (mediaUrl) {
                   manualUrls.push(mediaUrl);
-                  console.log(`🔧 MediaUrl${i} encontrado manualmente: ${mediaUrl}`);
+                  logger.info('MediaUrl encontrado manualmente', {
+                    category: 'MEDIA_MANUAL_FOUND',
+                    index: i,
+                    mediaUrl
+                  });
                 }
               }
               
               if (manualUrls.length > 0) {
                 messageData.mediaUrl = manualUrls[0];
-                console.log('✅ MEDIA ASIGNADO MANUALMENTE:', {
+                logger.info('Media asignado manualmente', {
+                  category: 'MEDIA_MANUAL_ASSIGNED',
                   requestId,
                   mediaUrl: messageData.mediaUrl
                 });
@@ -520,7 +537,8 @@ class MessageService {
             }
           }
         } catch (mediaError) {
-          console.log('❌ ERROR PROCESANDO MEDIA:', {
+          logger.error('Error procesando media', {
+            category: 'MEDIA_PROCESSING_ERROR',
             requestId,
             error: mediaError.message,
             stack: mediaError.stack?.split('\n').slice(0, 3)
@@ -533,7 +551,8 @@ class MessageService {
           });
         }
       } else {
-        console.log('ℹ️ NO ES MENSAJE DE MEDIA O NO TIENE MEDIA:', {
+        logger.debug('No es mensaje de media o no tiene media', {
+          category: 'MESSAGE_NO_MEDIA',
           requestId,
           messageType,
           numMedia: parseInt(NumMedia || '0')
@@ -544,8 +563,9 @@ class MessageService {
       const conversationsRepo = getConversationsRepository();
       const result = await conversationsRepo.upsertFromInbound(messageData);
 
-      console.log('🚨 MESSAGE PROCESSED SUCCESSFULLY:', {
-            requestId,
+      logger.info('Message processed successfully', {
+        category: 'MESSAGE_PROCESSED_SUCCESS',
+        requestId,
         messageId: result.message.id,
         conversationId: result.message.conversationId,
         sender: result.message.senderIdentifier,
@@ -617,9 +637,10 @@ class MessageService {
       return { success: true, message: result.message, conversation: result.conversation };
 
       } catch (error) {
-      console.log('🚨 MESSAGESERVICE ERROR:', {
-            requestId,
-            error: error.message,
+      logger.error('MessageService error', {
+        category: 'MESSAGESERVICE_ERROR',
+        requestId,
+        error: error.message,
         errorType: error.constructor.name,
         webhookData: {
           From: webhookData?.From,
@@ -659,7 +680,8 @@ class MessageService {
     const numMedia = parseInt(webhookData.NumMedia || '0');
 
     // 🔍 LOG DETALLADO DEL PROCESAMIENTO DE MEDIA
-    console.log('🔍 PROCESAMIENTO DE MEDIA - DATOS COMPLETOS:', {
+    logger.debug('Procesamiento de media - datos completos', {
+      category: 'MEDIA_PROCESSING_DATA',
       messageSid: webhookData.MessageSid,
       numMedia,
       referralNumMedia: webhookData.referralNumMedia,
@@ -668,7 +690,8 @@ class MessageService {
       webhookDataComplete: JSON.stringify(webhookData, null, 2)
     });
 
-    console.log('🔍 Procesando media del webhook:', {
+    logger.debug('Procesando media del webhook', {
+      category: 'MEDIA_WEBHOOK_PROCESSING',
       numMedia,
       webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
     });
@@ -678,7 +701,12 @@ class MessageService {
       const mediaUrl = webhookData[`MediaUrl${i}`];
       const mediaContentType = webhookData[`MediaContentType${i}`];
 
-      console.log(`🔍 Media ${i}:`, { mediaUrl, mediaContentType });
+      logger.debug('Media individual procesado', {
+        category: 'MEDIA_INDIVIDUAL',
+        index: i,
+        mediaUrl,
+        mediaContentType
+      });
 
       if (mediaUrl) {
         // Determinar categoría basada en content-type
@@ -697,9 +725,17 @@ class MessageService {
         });
         types.add(category);
 
-        console.log(`✅ Media ${i} procesado:`, { category, url: mediaUrl });
+        logger.info('Media procesado exitosamente', {
+          category: 'MEDIA_PROCESSED_SUCCESS',
+          index: i,
+          mediaCategory: category,
+          url: mediaUrl
+        });
       } else {
-        console.log(`❌ Media ${i} sin URL`);
+        logger.warn('Media sin URL', {
+          category: 'MEDIA_NO_URL',
+          index: i
+        });
       }
     }
 
@@ -719,10 +755,14 @@ class MessageService {
       count: mediaUrls.length,
     };
 
-    console.log('📊 Resultado del procesamiento de media:', result);
+    logger.info('Resultado del procesamiento de media', {
+      category: 'MEDIA_PROCESSING_COMPLETE',
+      result
+    });
     
     // 🔍 LOG FINAL DEL PROCESAMIENTO
-    console.log('🔍 PROCESAMIENTO DE MEDIA COMPLETADO:', {
+    logger.info('Procesamiento de media completado', {
+      category: 'MEDIA_PROCESSING_FINISHED',
       messageSid: webhookData.MessageSid,
       numMedia,
       urlsFound: mediaUrls.length,
@@ -1769,7 +1809,8 @@ class MessageService {
         let mediaData = null;
 
         if (parseInt(numMedia) > 0) {
-          console.log('🔍 MESSAGESERVICE - INICIANDO PROCESAMIENTO DE MEDIOS:', {
+          logger.info('MessageService - iniciando procesamiento de medios', {
+            category: 'MESSAGESERVICE_MEDIA_START',
             requestId,
             numMedia: parseInt(numMedia),
             hasMediaUrl: !!mediaUrl,
@@ -1789,7 +1830,8 @@ class MessageService {
             // Procesar todos los medios del webhook
             const mediaInfo = await MessageService.processWebhookMedia(webhookData);
             
-            console.log('🔍 MESSAGESERVICE - RESULTADO DE processWebhookMedia:', {
+            logger.info('MessageService - resultado de processWebhookMedia', {
+              category: 'MESSAGESERVICE_MEDIA_RESULT',
               requestId,
               mediaInfo: mediaInfo,
               urlsCount: mediaInfo.urls.length,
@@ -1878,7 +1920,8 @@ class MessageService {
       };
 
       // 🔍 LOGGING CRÍTICO DE MESSAGE DATA
-      console.log('🔍 MESSAGESERVICE - MESSAGE DATA CREADO:', {
+      logger.debug('MessageService - message data creado', {
+        category: 'MESSAGESERVICE_DATA_CREATED',
         requestId,
         messageId: messageData.id,
         conversationId: messageData.conversationId,
@@ -1890,7 +1933,8 @@ class MessageService {
       });
 
         // 🔍 LOGGING DETALLADO DE MEDIA
-        console.log('🔍 MESSAGESERVICE - DIAGNÓSTICO DE MEDIA:', {
+        logger.debug('MessageService - diagnóstico de media', {
+          category: 'MESSAGESERVICE_MEDIA_DIAGNOSTIC',
           requestId,
           mediaData: mediaData,
           mediaDataUrls: mediaData?.urls,
