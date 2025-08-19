@@ -1,4 +1,4 @@
-const logger = require('../utils/logger');
+// Importación circular removida - logger se declara más abajo
 /**
  * 🔍 SISTEMA DE LOGGING PROFESIONAL Y ESTRUCTURADO
  * 
@@ -30,7 +30,7 @@ try {
   logMonitor = monitor;
   logger.info('LogMonitorService integrado correctamente', { category: 'LOGMONITORSERVICE_INTEGRADO_CO' });
 } catch (error) {
-  logger.warn('LogMonitorService no disponible, continuando sin integración:', { category: 'LOGMONITORSERVICE_NO_DISPONIBL' }error.message);
+  logger.warn('LogMonitorService no disponible, continuando sin integración:', { category: 'LOGMONITORSERVICE_NO_DISPONIBL', error: error.message });
   logMonitor = null;
 }
 
@@ -93,7 +93,7 @@ class LogMonitorTransport extends winston.Transport {
         }
       }
     } catch (error) {
-      logger.error('❌ Error en LogMonitorTransport:', { category: '_ERROR_EN_LOGMONITORTRANSPORT_' }error.message);
+      logger.error('❌ Error en LogMonitorTransport:', { category: '_ERROR_EN_LOGMONITORTRANSPORT_', error: error.message });
     }
     
     callback();
