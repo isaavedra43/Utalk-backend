@@ -129,7 +129,13 @@ class ConversationController {
         cacheService.set(cacheKey, result, 120);
         
         // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a base de datos
-        console.log(`📊 DB_CALL: conversations - ${userEmail} - page:${pageNum} - limit:${limitNum} - search:${search ? 'yes' : 'no'}`);
+        logger.debug('DB call para conversaciones', {
+          category: 'CONVERSATIONS_DB_CALL',
+          userEmail,
+          page: pageNum,
+          limit: limitNum,
+          hasSearch: !!search
+        });
         
         // 🔧 CAPTURAR EN LOG MONITOR
         logMonitor.addLog('info', 'DB', `Database call: conversations`, {

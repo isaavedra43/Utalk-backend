@@ -1234,7 +1234,10 @@ class ConsolidatedServer {
 
       // ✅ CONTAR RUTAS REGISTRADAS
       const routeCount = this.app._router ? this.app._router.stack.length : 0;
-      console.log(`📊 TOTAL RUTAS REGISTRADAS: ${routeCount}`);
+      logger.info('Total rutas registradas', { 
+        category: 'ROUTES_REGISTERED',
+        routeCount 
+      });
 
       logger.info('✅ Rutas configuradas exitosamente', {
         category: 'ROUTES_SUCCESS',

@@ -36,7 +36,12 @@ function isOriginAllowed(origin) {
   try {
     const u = new URL(origin);
     const allowedStatic = STATIC_WHITELIST.includes(u.origin);
-    console.log(`🔍 CORS Check: origin=${origin}, hostname=${u.hostname}, allowed=${allowedStatic}`);
+    logger.debug('CORS check', {
+      category: 'CORS_CHECK',
+      origin,
+      hostname: u.hostname,
+      allowed: allowedStatic
+    });
     if (allowedStatic) {
       logger.info('✅ CORS permitido (estático)', { category: 'CORS_ALLOWED', origin, type: 'static' });
       return true;
