@@ -80,8 +80,11 @@ class ConsolidatedServer {
     });
 
     // ✅ CRÍTICO: Railway debe inyectar PORT - Debugging intensivo
-    console.log('🔍 DEBUG PORT - process.env.PORT:', process.env.PORT);
-    console.log('🔍 DEBUG PORT - typeof:', typeof process.env.PORT);
+    logger.info('Verificando configuración de puerto Railway', {
+      category: 'RAILWAY_CONFIG',
+      port: process.env.PORT,
+      portType: typeof process.env.PORT
+    });
     
     // Buscar puertos alternativos que Railway pueda usar
     const railwayPorts = Object.keys(process.env)
@@ -90,22 +93,66 @@ class ConsolidatedServer {
         acc[key] = process.env[key];
         return acc;
       }, {});
-    console.log('🔍 DEBUG - Todas las variables PORT:', railwayPorts);
+    logger.debug('Variables de puerto detectadas', {
+      category: 'RAILWAY_CONFIG',
+      railwayPorts
+    });
     
     // Usar PORT de Railway o fallback a 3001
     this.PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
     
     // ⚠️ CRÍTICO: Log si Railway no inyecta PORT
     if (!process.env.PORT) {
-      console.error('🚨 CRÍTICO: Railway NO está inyectando process.env.PORT');
-      console.log('📋 Variables de entorno disponibles:', Object.keys(process.env).filter(k => k.includes('PORT') || k.includes('RAILWAY')));
+      logger.error('Railway no está inyectando process.env.PORT', {
+        category: 'RAILWAY_CONFIG_ERROR',
+        severity: 'CRITICAL',
+        availableVars: Object.keys(process.env).filter(k => k.includes('PORT') || k.includes('RAILWAY'))
+      });
     } else {
-      console.log('✅ Railway PORT detectado:', process.env.PORT);
+      logger.info('Railway PORT configurado correctamente', {
+        category: 'RAILWAY_CONFIG',
+        port: process.env.PORT
+      });
     }
     this.startTime = Date.now();
     
     // Configurar proceso
     this.setupProcess();
+  }
+
+  /**
+   * 🚀 INICIALIZACIÓN ORQUESTADA DEL SERVIDOR
+   * Método requerido por el entrypoint. Crea el servidor HTTP,
+   * configura middlewares, rutas, servicios y health checks.
+   */
+  async initialize() {
+    // 1) Validar entorno
+    this.validateEnvironmentVariables();
+
+    // 2) Configuración base de middlewares y CORS
+    this.setupBasicMiddleware();
+
+    // 3) Rutas de la aplicación
+    this.setupRoutes();
+
+    // 4) Manejo global de errores
+    this.setupErrorHandling();
+
+    // 5) Crear servidor HTTP sobre Express (requerido por startServer)
+    if (!this.server) {
+      this.server = (require('http')).createServer(this.app);
+    }
+
+    // 6) Inicializar servicios (Socket, Health, Colas, etc.)
+    await this.initializeServices();
+
+    // 7) Arrancar servidor HTTP
+    await this.startServer();
+
+    // 8) Iniciar monitoreo de salud
+    await this.startHealthMonitoring();
+
+    return true;
   }
 
   /**
@@ -118,23 +165,37 @@ class ConsolidatedServer {
       JWT_SECRET: process.env.JWT_SECRET ? '***SET***' : undefined
     };
 
-    console.log('🔍 Variables críticas:', criticalVars);
+    logger.info('Validación de variables de entorno críticas', {
+      category: 'ENV_VALIDATION',
+      criticalVars
+    });
 
     // ⚠️ Advertencias por variables faltantes
     if (!process.env.JWT_SECRET) {
-      console.warn('⚠️ JWT_SECRET no configurado - Autenticación no funcionará');
+      logger.warn('JWT_SECRET no configurado', {
+        category: 'ENV_VALIDATION',
+        severity: 'HIGH',
+        impact: 'Autenticación no funcionará'
+      });
     }
 
     // ❌ Variables que YA NO necesitamos (para limpiar Railway)
     const deprecatedVars = ['REDIS_URL', 'REDISCLOUD_URL', 'RATE_LIMIT_REDIS'];
     deprecatedVars.forEach(varName => {
       if (process.env[varName]) {
-        console.warn(`⚠️ Variable obsoleta detectada: ${varName} (se puede eliminar)`);
+        logger.warn('Variable obsoleta detectada', {
+          category: 'ENV_VALIDATION',
+          variableName: varName,
+          recommendation: 'Se puede eliminar de Railway'
+        });
       }
     });
 
     // ✅ Variables que SÍ necesitamos
-    console.log('✅ Variables Railway requeridas: PORT, NODE_ENV');
+    logger.info('Variables Railway requeridas validadas', {
+      category: 'ENV_VALIDATION',
+      requiredVars: ['PORT', 'NODE_ENV']
+    });
   }
 
   /**
@@ -189,7 +250,9 @@ class ConsolidatedServer {
    */
   async initializeServices() {
     try {
-      console.log('🔧 Inicializando servicios...');
+      logger.info('Inicializando servicios del servidor', {
+        category: 'SERVICE_INIT'
+      });
       
       // Inicializar servicios de colas
       await this.initializeQueueServices();
@@ -198,9 +261,16 @@ class ConsolidatedServer {
       await this.initializeSocketIO();
       await this.initializeHealthChecks();
       
-      console.log('✅ Todos los servicios inicializados correctamente');
+      logger.info('Todos los servicios inicializados correctamente', {
+        category: 'SERVICE_INIT',
+        status: 'success'
+      });
     } catch (error) {
-      console.error('❌ Error inicializando servicios:', error);
+      logger.error('Error inicializando servicios', {
+        category: 'SERVICE_INIT_ERROR',
+        error: error.message,
+        stack: error.stack
+      });
       // No fallar la aplicación si algunos servicios no están disponibles
     }
   }
@@ -211,9 +281,14 @@ class ConsolidatedServer {
   async initializeQueueServices() {
     try {
       await campaignQueueService.initialize();
-      console.log('✅ Servicios de colas inicializados');
+      logger.info('Servicios de colas inicializados correctamente', {
+        category: 'QUEUE_SERVICE_INIT'
+      });
     } catch (error) {
-      console.error('❌ Error inicializando servicios de colas:', error);
+      logger.error('Error inicializando servicios de colas', {
+        category: 'QUEUE_SERVICE_ERROR',
+        error: error.message
+      });
       // No fallar la aplicación si las colas no están disponibles
     }
   }
@@ -467,7 +542,10 @@ class ConsolidatedServer {
         };
         res.json(diagnostics);
       });
-      console.log('✅ /diagnostics configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/diagnostics'
+      });
 
       // ✅ TIP 1: Endpoint para verificar variables de entorno (seguro)
       this.app.get('/env-check', (req, res) => {
@@ -484,7 +562,10 @@ class ConsolidatedServer {
         };
         res.json(envStatus);
       });
-      console.log('✅ /env-check configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/env-check'
+      });
 
       // HEALTH CHECK MEJORADO - Para liveness/readiness probes
       this.app.get('/health', (req, res) => {
@@ -492,15 +573,26 @@ class ConsolidatedServer {
         const health = healthService.getSimpleHealthCheck();
         
         // Log para Railway diagnostics
-        console.log(`🏥 Health check solicitado desde: ${req.ip} - Status: ${health.status}`);
+        logger.debug('Health check solicitado', {
+          category: 'HEALTH_CHECK',
+          clientIp: req.ip,
+          status: health.status
+        });
         
         res.status(health.statusCode).json(health);
       });
-      console.log('✅ /health configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/health'
+      });
 
       // ✅ TIP 1: Endpoint específico para verificar conectividad desde Vercel
       this.app.get('/ping', (req, res) => {
-        console.log('🏓 Ping recibido desde:', req.ip, req.headers.origin);
+        logger.debug('Ping recibido', {
+          category: 'PING_REQUEST',
+          clientIp: req.ip,
+          origin: req.headers.origin
+        });
         res.status(200).json({
           pong: true,
           timestamp: new Date().toISOString(),
@@ -508,11 +600,18 @@ class ConsolidatedServer {
           origin: req.headers.origin
         });
       });
-      console.log('✅ /ping configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/ping'
+      });
 
       // ✅ CRÍTICO: Endpoint específico para probar CORS
       this.app.get('/cors-test', (req, res) => {
-        console.log('🧪 CORS Test desde:', req.ip, req.headers.origin);
+        logger.debug('CORS Test solicitado', {
+          category: 'CORS_TEST',
+          clientIp: req.ip,
+          origin: req.headers.origin
+        });
         res.status(200).json({
           corsTest: true,
           timestamp: new Date().toISOString(),
@@ -527,18 +626,31 @@ class ConsolidatedServer {
           }
         });
       });
-      console.log('✅ /cors-test configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/cors-test'
+      });
 
       // ✅ SUPER ROBUSTO: Endpoint para probar OPTIONS preflight
       this.app.options('/cors-test', (req, res) => {
-        console.log('🛡️ OPTIONS preflight test para /cors-test');
+        logger.debug('OPTIONS preflight test', {
+          category: 'CORS_PREFLIGHT',
+          endpoint: '/cors-test'
+        });
         res.status(204).end();
       });
-      console.log('✅ OPTIONS /cors-test configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: 'OPTIONS /cors-test'
+      });
 
       // ✅ CRÍTICO: Endpoint específico para login test
       this.app.get('/login-test', (req, res) => {
-        console.log('🔐 Login Test desde:', req.ip, req.headers.origin);
+        logger.debug('Login Test solicitado', {
+          category: 'LOGIN_TEST',
+          clientIp: req.ip,
+          origin: req.headers.origin
+        });
         res.status(200).json({
           loginTest: true,
           timestamp: new Date().toISOString(),
@@ -547,14 +659,23 @@ class ConsolidatedServer {
           serverStatus: 'healthy'
         });
       });
-      console.log('✅ /login-test configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/login-test'
+      });
 
       // ✅ CRÍTICO: Endpoint OPTIONS para login
       this.app.options('/api/auth/login', (req, res) => {
-        console.log('🛡️ OPTIONS preflight para /api/auth/login desde:', req.headers.origin);
+        logger.debug('OPTIONS preflight para login', {
+          category: 'AUTH_PREFLIGHT',
+          origin: req.headers.origin
+        });
         res.status(204).end();
       });
-      console.log('✅ OPTIONS /api/auth/login configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: 'OPTIONS /api/auth/login'
+      });
 
       // Health check detallado enterprise
       this.app.get('/health/detailed', async (req, res) => {
@@ -623,7 +744,10 @@ class ConsolidatedServer {
           });
         }
       });
-      console.log('✅ /health/detailed configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/health/detailed'
+      });
 
       // Readiness probe para Kubernetes
       this.app.get('/ready', (req, res) => {
@@ -653,7 +777,10 @@ class ConsolidatedServer {
           });
         }
       });
-      console.log('✅ /ready configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/ready'
+      });
 
       // Liveness probe para Kubernetes
       this.app.get('/live', (req, res) => {
@@ -663,7 +790,10 @@ class ConsolidatedServer {
           uptime: process.uptime()
         });
       });
-      console.log('✅ /live configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/live'
+      });
 
       // Métricas endpoint enterprise (protegido)
       this.app.get('/api/internal/metrics', authMiddleware, async (req, res) => {
@@ -708,11 +838,17 @@ class ConsolidatedServer {
           });
         }
       });
-      console.log('✅ /api/internal/metrics configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/api/internal/metrics'
+      });
 
       // ✅ TIP 2: Endpoint root informativo
       this.app.get('/', (req, res) => {
-        console.log('📋 Root endpoint solicitado desde:', req.ip);
+        logger.debug('Root endpoint solicitado', {
+          category: 'ROOT_ENDPOINT',
+          clientIp: req.ip
+        });
         res.json({
           service: 'UTalk Backend API',
           status: 'running',
@@ -727,22 +863,41 @@ class ConsolidatedServer {
           }
         });
       });
-      console.log('✅ / (root) configurado');
+      logger.debug('Endpoint configurado', {
+        category: 'ENDPOINT_SETUP',
+        endpoint: '/ (root)'
+      });
 
       // 🚨 INTENTAR CONFIGURAR RUTAS PRINCIPALES CON MANEJO DE ERRORES
-      console.log('🔧 Configurando rutas principales de la API...');
+      logger.info('Configurando rutas principales de la API', {
+        category: 'ROUTES_CONFIG'
+      });
 
       // ✅ CRÍTICO: Agregar middleware de logging ANTES de todas las rutas /api
       const loggingMiddleware = require('./middleware/logging');
       this.app.use('/api', loggingMiddleware);
-      console.log('✅ Middleware de logging configurado para /api');
+      logger.debug('Middleware configurado', {
+        category: 'MIDDLEWARE_SETUP',
+        middleware: 'logging',
+        path: '/api'
+      });
 
       try {
-        console.log('📝 Intentando configurar /api/auth...');
+        logger.debug('Configurando ruta', {
+          category: 'ROUTE_SETUP',
+          route: '/api/auth'
+        });
         this.app.use('/api/auth', authRoutes);
-        console.log('✅ /api/auth configurado exitosamente');
+        logger.info('Ruta configurada exitosamente', {
+          category: 'ROUTE_SETUP',
+          route: '/api/auth'
+        });
       } catch (error) {
-        console.error('❌ Error configurando /api/auth:', error.message);
+        logger.error('Error configurando ruta', {
+          category: 'ROUTE_SETUP_ERROR',
+          route: '/api/auth',
+          error: error.message
+        });
       }
 
       // Log único de pipelines (A1)
@@ -768,43 +923,93 @@ class ConsolidatedServer {
       } catch (_) {}
 
       try {
-        console.log('👥 Intentando configurar /api/contacts...');
+        logger.debug('Configurando ruta', {
+          category: 'ROUTE_SETUP',
+          route: '/api/contacts'
+        });
         this.app.use('/api/contacts', contactRoutes);
-        console.log('✅ /api/contacts configurado exitosamente');
+        logger.info('Ruta configurada exitosamente', {
+          category: 'ROUTE_SETUP',
+          route: '/api/contacts'
+        });
       } catch (error) {
-        console.error('❌ Error configurando /api/contacts:', error.message);
+        logger.error('Error configurando ruta', {
+          category: 'ROUTE_SETUP_ERROR',
+          route: '/api/contacts',
+          error: error.message
+        });
       }
 
       try {
-        console.log('💬 Intentando configurar /api/conversations...');
+        logger.debug('Configurando ruta', {
+          category: 'ROUTE_SETUP',
+          route: '/api/conversations'
+        });
         this.app.use('/api/conversations', conversationRoutes);
-        console.log('✅ /api/conversations configurado exitosamente');
+        logger.info('Ruta configurada exitosamente', {
+          category: 'ROUTE_SETUP',
+          route: '/api/conversations'
+        });
       } catch (error) {
-        console.error('❌ Error configurando /api/conversations:', error.message);
+        logger.error('Error configurando ruta', {
+          category: 'ROUTE_SETUP_ERROR',
+          route: '/api/conversations',
+          error: error.message
+        });
       }
 
       try {
-        console.log('📩 Intentando configurar /api/messages...');
+        logger.debug('Configurando ruta', {
+          category: 'ROUTE_SETUP',
+          route: '/api/messages'
+        });
         this.app.use('/api/messages', messageRoutes);
-        console.log('✅ /api/messages configurado exitosamente');
+        logger.info('Ruta configurada exitosamente', {
+          category: 'ROUTE_SETUP',
+          route: '/api/messages'
+        });
       } catch (error) {
-        console.error('❌ Error configurando /api/messages:', error.message);
+        logger.error('Error configurando ruta', {
+          category: 'ROUTE_SETUP_ERROR',
+          route: '/api/messages',
+          error: error.message
+        });
       }
 
       try {
-        console.log('🎯 Intentando configurar /api/campaigns...');
+        logger.debug('Configurando ruta', {
+          category: 'ROUTE_SETUP',
+          route: '/api/campaigns'
+        });
         this.app.use('/api/campaigns', campaignRoutes);
-        console.log('✅ /api/campaigns configurado exitosamente');
+        logger.info('Ruta configurada exitosamente', {
+          category: 'ROUTE_SETUP',
+          route: '/api/campaigns'
+        });
       } catch (error) {
-        console.error('❌ Error configurando /api/campaigns:', error.message);
+        logger.error('Error configurando ruta', {
+          category: 'ROUTE_SETUP_ERROR',
+          route: '/api/campaigns',
+          error: error.message
+        });
       }
 
       try {
-        console.log('👥 Intentando configurar /api/team...');
+        logger.debug('Configurando ruta', {
+          category: 'ROUTE_SETUP',
+          route: '/api/team'
+        });
         this.app.use('/api/team', teamRoutes);
-        console.log('✅ /api/team configurado exitosamente');
+        logger.info('Ruta configurada exitosamente', {
+          category: 'ROUTE_SETUP',
+          route: '/api/team'
+        });
       } catch (error) {
-        console.error('❌ Error configurando /api/team:', error.message);
+        logger.error('Error configurando ruta', {
+          category: 'ROUTE_SETUP_ERROR',
+          route: '/api/team',
+          error: error.message
+        });
       }
 
       try {
@@ -829,14 +1034,21 @@ class ConsolidatedServer {
         
         // Ruta para proxy de Twilio
         this.app.get('/media/proxy', (req, res) => {
-          console.log('🔄 Redirigiendo /media/proxy a /api/media/proxy-public');
+          logger.debug('Redireccionando ruta de media', {
+            category: 'MEDIA_PROXY',
+            from: '/media/proxy',
+            to: '/api/media/proxy-public'
+          });
           req.url = '/api/media/proxy-public' + req.url.replace('/media/proxy', '');
           this.app._router.handle(req, res);
         });
         
         // Ruta de prueba simple
         this.app.get('/test-media', (req, res) => {
-          console.log('🔍 TEST-MEDIA ENDPOINT HIT');
+          logger.debug('Test media endpoint solicitado', {
+            category: 'TEST_ENDPOINT',
+            endpoint: '/test-media'
+          });
           res.status(200).json({
             success: true,
             message: 'Test endpoint funcionando',
@@ -846,7 +1058,8 @@ class ConsolidatedServer {
         
         // Ruta para proxy de Twilio (pública) - ENDPOINT DIRECTO
         this.app.get('/media/proxy-public', async (req, res) => {
-          console.log('🔍 MEDIA PROXY-PUBLIC ENDPOINT HIT:', {
+          logger.info('Proxy público de media solicitado', {
+            category: 'MEDIA_PROXY_PUBLIC',
             messageSid: req.query.messageSid,
             mediaSid: req.query.mediaSid,
             url: req.url,
@@ -869,7 +1082,11 @@ class ConsolidatedServer {
             return await MediaUploadController.proxyTwilioMedia(req, res);
             
           } catch (error) {
-            console.error('❌ Error en proxy-public:', error);
+            logger.error('Error en proxy público de media', {
+              category: 'MEDIA_PROXY_ERROR',
+              error: error.message,
+              stack: error.stack
+            });
             res.status(500).json({
               error: 'Error interno del servidor',
               message: error.message
@@ -1115,7 +1332,10 @@ class ConsolidatedServer {
     const socketIndex = require('./socket');
     
     // Log de diagnóstico de imports
-    console.log('[BOOT] socket exports:', Object.keys(require('./socket/enterpriseSocketManager')));
+    logger.debug('Socket exports detectados', {
+      category: 'SOCKET_BOOT',
+      exports: Object.keys(require('./socket/enterpriseSocketManager'))
+    });
 
     // Verificar que el server esté creado
     if (!this.server) {
@@ -1132,7 +1352,11 @@ class ConsolidatedServer {
       Conversation = require('./models/Conversation');
       Message = require('./models/Message');
     } catch (error) {
-      console.warn('⚠️ Models no disponibles (Firebase no configurado):', error.message);
+      logger.warn('Models no disponibles para Socket.IO', {
+        category: 'SOCKET_MODELS_WARNING',
+        reason: 'Firebase no configurado',
+        error: error.message
+      });
     }
 
     // Instanciar el manager con dependencias inyectadas
@@ -1153,7 +1377,11 @@ class ConsolidatedServer {
     });
 
     // Log de diagnóstico
-    console.log('[BOOT] typeof manager:', typeof this.socketManager, 'name:', this.socketManager?.constructor?.name);
+    logger.debug('Socket manager configurado', {
+      category: 'SOCKET_BOOT',
+      managerType: typeof this.socketManager,
+      managerName: this.socketManager?.constructor?.name
+    });
 
     return this.socketManager;
   }
