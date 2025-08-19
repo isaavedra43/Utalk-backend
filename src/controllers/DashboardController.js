@@ -27,6 +27,7 @@ const moment = require('moment');
 const cacheService = require('../services/CacheService');
 const batchService = require('../services/BatchService');
 const shardingService = require('../services/ShardingService');
+const campaignQueueService = require('../services/CampaignQueueService');
 
 class EnterpriseDashboardController {
   // Cache TTL configuration
@@ -318,6 +319,56 @@ class EnterpriseDashboardController {
       });
     } catch (error) {
       logger.error('Error al obtener métricas de performance:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener métricas de campañas en cola
+   */
+  static async getCampaignQueueMetrics(req, res, next) {
+    try {
+      const metrics = campaignQueueService.metrics;
+      
+      // Obtener estadísticas de colas
+      const campaignQueue = campaignQueueService.campaignQueue;
+      const processingQueue = campaignQueueService.processingQueue;
+      
+      const campaignQueueStats = campaignQueue ? await campaignQueue.getJobCounts() : {};
+      const processingQueueStats = processingQueue ? await processingQueue.getJobCounts() : {};
+      
+      const queueMetrics = {
+        campaignQueue: {
+          waiting: campaignQueueStats.waiting || 0,
+          active: campaignQueueStats.active || 0,
+          completed: campaignQueueStats.completed || 0,
+          failed: campaignQueueStats.failed || 0,
+          delayed: campaignQueueStats.delayed || 0
+        },
+        processingQueue: {
+          waiting: processingQueueStats.waiting || 0,
+          active: processingQueueStats.active || 0,
+          completed: processingQueueStats.completed || 0,
+          failed: processingQueueStats.failed || 0,
+          delayed: processingQueueStats.delayed || 0
+        },
+        system: {
+          campaignsProcessed: metrics.campaignsProcessed,
+          messagesSent: metrics.messagesSent,
+          messagesFailed: metrics.messagesFailed,
+          averageProcessingTime: metrics.averageProcessingTime,
+          activeWorkers: metrics.activeWorkers,
+          circuitBreakerStatus: campaignQueueService.circuitBreaker.isOpen ? 'open' : 'closed'
+        }
+      };
+
+      res.json({
+        success: true,
+        metrics: queueMetrics
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo métricas de cola de campañas:', error);
       next(error);
     }
   }

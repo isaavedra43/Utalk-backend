@@ -11,7 +11,7 @@
 const express = require('express');
 const router = express.Router();
 const EnterpriseDashboardController = require('../controllers/DashboardController');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, requireReadAccess } = require('../middleware/auth');
 const logger = require('../utils/logger');
 
 /**
@@ -204,6 +204,17 @@ router.get('/system-stats',
       next(error);
     }
   }
+);
+
+/**
+ * @route GET /api/dashboard/campaign-queue-metrics
+ * @desc Obtener métricas de campañas en cola
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/campaign-queue-metrics',
+  authMiddleware,
+  requireReadAccess,
+  EnterpriseDashboardController.getCampaignQueueMetrics
 );
 
 module.exports = router;

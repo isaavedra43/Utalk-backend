@@ -3,6 +3,7 @@ const Contact = require('../models/Contact');
 const { getMessageService } = require('../services/MessageService');
 const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
+const campaignQueueService = require('../services/CampaignQueueService');
 
 /**
  * Calcular fechas de inicio y fin basadas en un período
@@ -254,7 +255,7 @@ class CampaignController {
   }
 
   /**
-   * Enviar campaña
+   * Enviar campaña usando sistema de colas
    */
   static async sendCampaign (req, res, next) {
     try {
@@ -283,57 +284,28 @@ class CampaignController {
         });
       }
 
-      // Cambiar estado a enviando
-      await campaign.updateStatus('sending');
-
-      // Obtener contactos
-      const contacts = await Promise.all(
-        campaign.contacts.map(contactId => Contact.getById(contactId)),
-      );
-      const validContacts = contacts.filter(contact => contact !== null);
-
-      // Enviar mensajes en lotes para evitar rate limiting
-      const messageService = getMessageService();
-      const results = await messageService.sendBulkMessages(
-        validContacts,
-        campaign.message,
-        req.user.id,
-      );
-
-      // Actualizar métricas de la campaña
-      const sentCount = results.filter(r => r.success).length;
-      const failedCount = results.filter(r => !r.success).length;
-
-      await campaign.updateMetrics({
-        sentCount,
-        failedCount,
+      // Encolar campaña para procesamiento asíncrono
+      const queueResult = await campaignQueueService.queueCampaign(id, {
+        userId: req.user.id,
+        priority: 'normal'
       });
 
-      // Guardar resultados detallados
-      await campaign.update({ results });
-
-      // Cambiar estado a completado
-      await campaign.updateStatus('completed');
-
-      logger.info('Campaña enviada', {
+      logger.info('Campaña encolada para envío', {
         campaignId: campaign.id,
-        sentCount,
-        failedCount,
+        jobId: queueResult.jobId,
+        estimatedContacts: queueResult.estimatedContacts,
         sentBy: req.user.id,
       });
 
       res.json({
-        message: 'Campaña enviada exitosamente',
-        results: {
-          total: validContacts.length,
-          sent: sentCount,
-          failed: failedCount,
-          details: results,
-        },
+        message: 'Campaña encolada exitosamente para envío',
+        jobId: queueResult.jobId,
+        estimatedContacts: queueResult.estimatedContacts,
+        estimatedTime: queueResult.estimatedTime,
         campaign: campaign.toJSON(),
       });
     } catch (error) {
-      logger.error('Error al enviar campaña:', error);
+      logger.error('Error al encolar campaña:', error);
       next(error);
     }
   }
@@ -1007,6 +979,85 @@ class CampaignController {
     } catch (error) {
       logger.error('Error cancelando mensajes pendientes:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Obtener estado de campaña en cola
+   */
+  static async getCampaignQueueStatus(req, res, next) {
+    try {
+      const { campaignId } = req.params;
+
+      const status = await campaignQueueService.getCampaignStatus(campaignId);
+
+      res.json({
+        success: true,
+        status
+      });
+    } catch (error) {
+      logger.error('Error obteniendo estado de campaña en cola:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Pausar campaña en cola
+   */
+  static async pauseCampaignInQueue(req, res, next) {
+    try {
+      const { campaignId } = req.params;
+
+      const result = await campaignQueueService.pauseCampaign(campaignId);
+
+      res.json({
+        success: true,
+        message: 'Campaña pausada exitosamente',
+        result
+      });
+    } catch (error) {
+      logger.error('Error pausando campaña en cola:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Reanudar campaña en cola
+   */
+  static async resumeCampaignInQueue(req, res, next) {
+    try {
+      const { campaignId } = req.params;
+
+      const result = await campaignQueueService.resumeCampaign(campaignId);
+
+      res.json({
+        success: true,
+        message: 'Campaña reanudada exitosamente',
+        result
+      });
+    } catch (error) {
+      logger.error('Error reanudando campaña en cola:', error);
+      next(error);
+    }
+  }
+
+  /**
+   * Detener campaña en cola
+   */
+  static async stopCampaignInQueue(req, res, next) {
+    try {
+      const { campaignId } = req.params;
+
+      const result = await campaignQueueService.stopCampaign(campaignId);
+
+      res.json({
+        success: true,
+        message: 'Campaña detenida exitosamente',
+        result
+      });
+    } catch (error) {
+      logger.error('Error deteniendo campaña en cola:', error);
+      next(error);
     }
   }
 }

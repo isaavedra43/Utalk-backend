@@ -56,6 +56,9 @@ const logRoutes = require('./routes/logs');
 // Servicios
 // SocketManager se importa dinámicamente en initializeSocketIO()
 
+// Importar servicios de colas
+const campaignQueueService = require('./services/CampaignQueueService');
+
 class ConsolidatedServer {
   constructor() {
     this.app = express();
@@ -182,124 +185,36 @@ class ConsolidatedServer {
   }
 
   /**
-   * 🚀 INICIALIZAR SERVIDOR
+   * 🚀 INICIALIZAR SERVICIOS
    */
-  async initialize() {
+  async initializeServices() {
     try {
-      // ✅ TIP 2: Log inmediato para Railway diagnostics
-      console.log(`🚀 UTalk Backend iniciando en puerto ${this.PORT} (0.0.0.0)...`);
+      console.log('🔧 Inicializando servicios...');
       
-      // ✅ VALIDACIÓN DE VARIABLES CRÍTICAS
-      this.validateEnvironmentVariables();
+      // Inicializar servicios de colas
+      await this.initializeQueueServices();
       
-      logger.info('🚀 Iniciando servidor consolidado enterprise...', {
-        category: 'SERVER_STARTUP',
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        pid: process.pid,
-        environment: process.env.NODE_ENV || 'development',
-        memoryLimit: process.env.NODE_OPTIONS,
-        startupTime: new Date().toISOString(),
-        requestLogger: { mode: 'wrapper-enabled' }
-      });
-
-      // ✅ INICIALIZACIÓN TOLERANTE A FALLOS
-      const serviceStatus = {
-        memory: false,
-        health: false,
-        rateLimiting: false
-      };
-
-      // 1. Inicializar gestión de memoria (no crítico)
-      try {
-        await this.initializeMemoryManagement();
-        serviceStatus.memory = true;
-        console.log('✅ Memory management inicializado');
-      } catch (error) {
-        console.warn('⚠️ Memory management falló, continuando...', error.message);
-      }
-
-      // ❌ DESACTIVADO: Rate limiting con Redis (temporalmente)
-      // await this.initializeRateLimit();
-      console.warn('⚠️ RATE LIMITING DESACTIVADO - Solo para debugging');
-
-      // 3. Inicializar health checks (no crítico)
-      try {
-        await this.initializeHealthChecks();
-        serviceStatus.health = true;
-        console.log('✅ Health checks inicializados');
-      } catch (error) {
-        console.warn('⚠️ Health checks fallaron, continuando...', error.message);
-      }
-
-      // ✅ Log del estado de servicios
-      console.log('📊 Estado de servicios:', serviceStatus);
-
-      // 4. Configurar middlewares básicos
-      this.setupBasicMiddleware();
-
-      // Logs de diagnóstico de CORS
-      const { STATIC_WHITELIST, REGEX_WHITELIST } = require('./config/cors');
-      console.log('[CORS] static:', STATIC_WHITELIST);
-      console.log('[CORS] regex:', REGEX_WHITELIST.map(r => r.toString()));
-
-      // ❌ DESACTIVADO: Rate limiting en rutas (temporalmente)
-      // this.setupRateLimiting();
+      // Inicializar otros servicios existentes
+      await this.initializeSocketIO();
+      await this.initializeHealthChecks();
       
-      // ✅ TIP 1: Middleware dummy para logging de requests
-      this.app.use('/api', (req, res, next) => {
-        console.log(`📥 API Request: ${req.method} ${req.path} from ${req.ip}`);
-        next();
-      });
-
-      // 6. Configurar rutas y middlewares de aplicación
-      this.setupRoutes();
-
-      // 7. Configurar middleware global de errores
-      this.setupErrorHandling();
-
-      // 8. Crear servidor HTTP
-      this.server = createServer(this.app);
-
-      // 9. Inicializar Socket.IO
-      this.initializeSocketIO();
-
-      // 10. Iniciar servidor
-      await this.startServer();
-
-      // 11. Iniciar monitoreo de salud
-      await this.startHealthMonitoring();
-
-      logger.info('✅ Servidor consolidado enterprise inicializado exitosamente', {
-        category: 'SERVER_SUCCESS',
-        port: this.PORT,
-        environment: process.env.NODE_ENV || 'development',
-        features: {
-          memoryManagement: serviceStatus.memory,
-          rateLimiting: false, // ✅ TIP 2: Reflejar estado real
-          healthChecks: serviceStatus.health,
-          errorHandling: true,
-          logging: true,
-          socketIO: true,
-          gracefulShutdown: true,
-          degradedMode: !serviceStatus.memory || !serviceStatus.health // ✅ TIP 2: Indicar modo degradado
-        },
-        startupDuration: Date.now() - this.startTime + 'ms',
-        memoryUsage: process.memoryUsage()
-      });
-
+      console.log('✅ Todos los servicios inicializados correctamente');
     } catch (error) {
-      logger.error('💥 Error fatal durante inicialización del servidor', {
-        category: 'SERVER_STARTUP_FAILURE',
-        error: error.message,
-        stack: error.stack,
-        severity: 'CRITICAL',
-        requiresAttention: true,
-        startupDuration: Date.now() - this.startTime + 'ms'
-      });
-      
-      process.exit(1);
+      console.error('❌ Error inicializando servicios:', error);
+      // No fallar la aplicación si algunos servicios no están disponibles
+    }
+  }
+
+  /**
+   * 🗄️ INICIALIZAR SERVICIOS DE COLAS
+   */
+  async initializeQueueServices() {
+    try {
+      await campaignQueueService.initialize();
+      console.log('✅ Servicios de colas inicializados');
+    } catch (error) {
+      console.error('❌ Error inicializando servicios de colas:', error);
+      // No fallar la aplicación si las colas no están disponibles
     }
   }
 

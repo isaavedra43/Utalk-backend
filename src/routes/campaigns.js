@@ -180,4 +180,52 @@ router.post('/:campaignId/stop',
   CampaignController.stopCampaign
 );
 
+/**
+ * @route GET /api/campaigns/:campaignId/queue-status
+ * @desc Obtener estado de campaña en cola
+ * @access Private (Agent, Admin)
+ */
+router.get('/:campaignId/queue-status',
+  authMiddleware,
+  requireReadAccess,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.getCampaignQueueStatus
+);
+
+/**
+ * @route POST /api/campaigns/:campaignId/queue-pause
+ * @desc Pausar campaña en cola
+ * @access Private (Agent, Admin)
+ */
+router.post('/:campaignId/queue-pause',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.pauseCampaignInQueue
+);
+
+/**
+ * @route POST /api/campaigns/:campaignId/queue-resume
+ * @desc Reanudar campaña en cola
+ * @access Private (Agent, Admin)
+ */
+router.post('/:campaignId/queue-resume',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.resumeCampaignInQueue
+);
+
+/**
+ * @route POST /api/campaigns/:campaignId/queue-stop
+ * @desc Detener campaña en cola
+ * @access Private (Agent, Admin)
+ */
+router.post('/:campaignId/queue-stop',
+  authMiddleware,
+  requireWriteAccess,
+  validateRequest({ params: Joi.object({ campaignId: Joi.string().min(1).max(128).pattern(/^[a-zA-Z0-9_-]+$/).required() }) }),
+  CampaignController.stopCampaignInQueue
+);
+
 module.exports = router;
