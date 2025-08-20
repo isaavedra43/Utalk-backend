@@ -11,30 +11,30 @@ const rateLimit = require('express-rate-limit');
  */
 class MediaUploadController {
 
-  constructor() {
-    // Rate limiting para uploads
-    this.uploadLimit = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 50, // 50 uploads por ventana
-      standardHeaders: true,
-      legacyHeaders: false,
-      handler: (req, res) => {
-        logger.warn('Rate limit de uploads excedido', {
-          ip: req.ip,
-          userEmail: req.user?.email,
-          userAgent: req.headers['user-agent']?.substring(0, 100),
-          timestamp: new Date().toISOString()
-        });
-        
-        res.status(429).json({
-          error: 'Demasiadas subidas de archivos',
-          message: 'Has excedido el límite de subidas. Intenta nuevamente en 15 minutos.',
-          retryAfter: Math.ceil(15 * 60), // 15 minutos en segundos
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
+  // 🔧 CORRECCIÓN CRÍTICA: Rate limiting como propiedad estática
+  static uploadLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 50, // 50 uploads por ventana
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      logger.warn('Rate limit de uploads excedido', {
+        ip: req.ip,
+        userEmail: req.user?.email,
+        userAgent: req.headers['user-agent']?.substring(0, 100),
+        timestamp: new Date().toISOString()
+      });
+      
+      res.status(429).json({
+        error: 'Demasiadas subidas de archivos',
+        message: 'Has excedido el límite de subidas. Intenta nuevamente en 15 minutos.',
+        retryAfter: Math.ceil(15 * 60), // 15 minutos en segundos
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
 
+  constructor() {
     // Configuración de multer para memoria
     this.multerConfig = multer({
       storage: multer.memoryStorage(),
@@ -61,7 +61,7 @@ class MediaUploadController {
    * Obtener configuración de rate limiting
    */
   getUploadRateLimit() {
-    return this.uploadLimit;
+    return MediaUploadController.uploadLimit;
   }
 
   /**
