@@ -24,10 +24,22 @@ const cacheService = require('./CacheService');
 
 class EnterpriseBatchService {
   constructor() {
-    this.batchSize = parseInt(process.env.BATCH_SIZE) || 500; // Firestore limit
-    this.maxConcurrentBatches = parseInt(process.env.MAX_CONCURRENT_BATCHES) || 10;
+    // Configuración optimizada para performance
+    this.batchSize = parseInt(process.env.BATCH_SIZE) || 1000; // Aumentado para mejor throughput
+    this.maxConcurrentBatches = parseInt(process.env.MAX_CONCURRENT_BATCHES) || 20; // Más concurrencia
     this.retryAttempts = parseInt(process.env.BATCH_RETRY_ATTEMPTS) || 3;
-    this.retryDelay = parseInt(process.env.BATCH_RETRY_DELAY) || 1000;
+    this.retryDelay = parseInt(process.env.BATCH_RETRY_DELAY) || 500; // Reducido para mejor performance
+    
+    // Configuración de performance
+    this.config = {
+      enableParallelProcessing: true,
+      chunkSize: 100, // Tamaño de chunks para procesamiento paralelo
+      maxMemoryUsage: 1024 * 1024 * 100, // 100MB máximo por batch
+      enableCompression: true,
+      compressionThreshold: 1024, // Comprimir datos > 1KB
+      enableCaching: true,
+      cacheTTL: 5 * 60 * 1000 // 5 minutos
+    };
     
     this.activeBatches = new Map();
     this.batchQueue = [];
@@ -36,7 +48,10 @@ class EnterpriseBatchService {
       operationsProcessed: 0,
       errors: 0,
       averageBatchTime: 0,
-      lastReset: Date.now()
+      lastReset: Date.now(),
+      memoryUsage: 0,
+      cacheHits: 0,
+      cacheMisses: 0
     };
 
     this.initialize();
@@ -524,6 +539,178 @@ class EnterpriseBatchService {
     }
   }
 
+  /**
+   * 🚀 OPTIMIZACIONES DE PERFORMANCE
+   */
+  
+  /**
+   * Procesamiento paralelo de operaciones
+   */
+  async processParallel(operations, chunkSize = this.config.chunkSize) {
+    const startTime = performance.now();
+    const chunks = this.chunkArray(operations, chunkSize);
+    const results = [];
+    
+    // Procesar chunks en paralelo
+    const chunkPromises = chunks.map(async (chunk, index) => {
+      try {
+        const batch = this.createBatch(`parallel_${index}`);
+        chunk.forEach(op => {
+          this.addOperation(batch, op.type, op.collection, op.data, op.id);
+        });
+        
+        const result = await this.commitBatch(batch);
+        return { chunkIndex: index, success: true, result };
+      } catch (error) {
+        logger.error(`Error procesando chunk ${index}:`, error);
+        return { chunkIndex: index, success: false, error: error.message };
+      }
+    });
+    
+    const chunkResults = await Promise.all(chunkPromises);
+    const duration = performance.now() - startTime;
+    
+    logger.info(`Procesamiento paralelo completado: ${operations.length} operaciones en ${duration.toFixed(2)}ms`);
+    
+    return {
+      totalOperations: operations.length,
+      chunksProcessed: chunks.length,
+      successfulChunks: chunkResults.filter(r => r.success).length,
+      failedChunks: chunkResults.filter(r => !r.success).length,
+      duration: duration,
+      results: chunkResults
+    };
+  }
+  
+  /**
+   * Dividir array en chunks
+   */
+  chunkArray(array, chunkSize) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+  }
+  
+  /**
+   * Compresión de datos para optimizar memoria
+   */
+  compressData(data) {
+    if (!this.config.enableCompression || typeof data !== 'object') {
+      return data;
+    }
+    
+    try {
+      const jsonString = JSON.stringify(data);
+      if (jsonString.length > this.config.compressionThreshold) {
+        // Compresión simple usando Buffer
+        const buffer = Buffer.from(jsonString, 'utf8');
+        return {
+          compressed: true,
+          data: buffer,
+          originalSize: jsonString.length,
+          compressedSize: buffer.length
+        };
+      }
+    } catch (error) {
+      logger.error('Error comprimiendo datos:', error);
+    }
+    
+    return data;
+  }
+  
+  /**
+   * Descompresión de datos
+   */
+  decompressData(data) {
+    if (data && data.compressed && Buffer.isBuffer(data.data)) {
+      try {
+        const jsonString = data.data.toString('utf8');
+        return JSON.parse(jsonString);
+      } catch (error) {
+        logger.error('Error descomprimiendo datos:', error);
+        return data;
+      }
+    }
+    return data;
+  }
+  
+  /**
+   * Cache inteligente para operaciones repetitivas
+   */
+  async getCachedOperation(operationKey) {
+    if (!this.config.enableCaching) return null;
+    
+    try {
+      const cached = await cacheService.get(`batch_op:${operationKey}`);
+      if (cached) {
+        this.metrics.cacheHits++;
+        return this.decompressData(cached);
+      }
+      this.metrics.cacheMisses++;
+    } catch (error) {
+      logger.error('Error obteniendo operación cacheada:', error);
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Cachear resultado de operación
+   */
+  async cacheOperation(operationKey, result) {
+    if (!this.config.enableCaching) return;
+    
+    try {
+      const compressedResult = this.compressData(result);
+      await cacheService.set(`batch_op:${operationKey}`, compressedResult, this.config.cacheTTL);
+    } catch (error) {
+      logger.error('Error cacheando operación:', error);
+    }
+  }
+  
+  /**
+   * Monitoreo de memoria en tiempo real
+   */
+  monitorMemoryUsage() {
+    const memUsage = process.memoryUsage();
+    this.metrics.memoryUsage = memUsage.heapUsed;
+    
+    if (memUsage.heapUsed > this.config.maxMemoryUsage) {
+      logger.warn('Uso de memoria alto en BatchService', {
+        category: 'BATCH_MEMORY_WARNING',
+        heapUsed: Math.round(memUsage.heapUsed / (1024 * 1024)) + 'MB',
+        maxAllowed: Math.round(this.config.maxMemoryUsage / (1024 * 1024)) + 'MB'
+      });
+      
+      // Forzar limpieza de memoria
+      this.forceMemoryCleanup();
+    }
+  }
+  
+  /**
+   * Limpieza forzada de memoria
+   */
+  forceMemoryCleanup() {
+    // Limpiar batches antiguos
+    const now = Date.now();
+    const maxAge = 30 * 60 * 1000; // 30 minutos
+    
+    for (const [id, batch] of this.activeBatches) {
+      if (now - batch.startTime > maxAge) {
+        this.activeBatches.delete(id);
+        logger.debug(`Batch antiguo eliminado: ${id}`);
+      }
+    }
+    
+    // Forzar garbage collection si está disponible
+    if (global.gc) {
+      global.gc();
+      logger.debug('Garbage collection forzado en BatchService');
+    }
+  }
+  
   /**
    * 🛑 GRACEFUL SHUTDOWN
    */

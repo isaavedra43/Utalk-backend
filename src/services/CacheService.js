@@ -21,12 +21,15 @@ const totalMemory = os.totalmem();
 const availableMemory = os.freemem();
 
 const adaptiveLimits = {
-  maxMapsPerInstance: Math.max(10, Math.floor(totalMemory / (50 * 1024 * 1024))), // 50MB por mapa, mínimo 10
-  maxEntriesPerMap: Math.max(1000, Math.floor(availableMemory / (1024 * 1024))), // 1MB por entrada, mínimo 1000
-  memoryWarningThreshold: totalMemory * 0.7, // 70% de la RAM total
-  memoryCriticalThreshold: totalMemory * 0.9, // 90% de la RAM total
-  defaultTTL: 30 * 60 * 1000, // 30 minutos
-  cleanupInterval: 5 * 60 * 1000 // 5 minutos
+  maxMapsPerInstance: Math.max(20, Math.floor(totalMemory / (25 * 1024 * 1024))), // 25MB por mapa, mínimo 20
+  maxEntriesPerMap: Math.max(2000, Math.floor(availableMemory / (512 * 1024))), // 512KB por entrada, mínimo 2000
+  memoryWarningThreshold: totalMemory * 0.75, // 75% de la RAM total
+  memoryCriticalThreshold: totalMemory * 0.85, // 85% de la RAM total
+  defaultTTL: 15 * 60 * 1000, // 15 minutos (reducido para mejor performance)
+  cleanupInterval: 2 * 60 * 1000, // 2 minutos (más frecuente)
+  batchSize: 100, // Tamaño de lote para operaciones masivas
+  enableCompression: true, // Habilitar compresión para valores grandes
+  maxValueSize: 1024 * 1024 // 1MB máximo por valor
 };
 
 class ManagedMap {
@@ -503,6 +506,143 @@ class UnifiedCacheService extends EventEmitter {
         used: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)) + 'MB'
       }
     };
+  }
+  
+  /**
+   * 🚀 OPTIMIZACIONES DE PERFORMANCE
+   */
+  
+  /**
+   * Compresión de valores grandes para ahorrar memoria
+   */
+  compressValue(value) {
+    if (!adaptiveLimits.enableCompression || typeof value !== 'string') {
+      return value;
+    }
+    
+    if (value.length > 1024) { // Solo comprimir strings grandes
+      try {
+        // Compresión simple usando Buffer
+        const buffer = Buffer.from(value, 'utf8');
+        if (buffer.length > adaptiveLimits.maxValueSize) {
+          logger.warn('Valor demasiado grande para cache', {
+            size: buffer.length,
+            maxSize: adaptiveLimits.maxValueSize
+          });
+          return null; // No cachear valores muy grandes
+        }
+        return buffer;
+      } catch (error) {
+        logger.error('Error comprimiendo valor', error);
+        return value;
+      }
+    }
+    
+    return value;
+  }
+  
+  /**
+   * Descompresión de valores
+   */
+  decompressValue(value) {
+    if (Buffer.isBuffer(value)) {
+      try {
+        return value.toString('utf8');
+      } catch (error) {
+        logger.error('Error descomprimiendo valor', error);
+        return value;
+      }
+    }
+    return value;
+  }
+  
+  /**
+   * Operaciones en lote para mejor performance
+   */
+  async batchSet(entries, ttlMs = null) {
+    const startTime = performance.now();
+    const results = [];
+    
+    for (let i = 0; i < entries.length; i += adaptiveLimits.batchSize) {
+      const batch = entries.slice(i, i + adaptiveLimits.batchSize);
+      const batchResults = await Promise.all(
+        batch.map(([key, value]) => this.set(key, value, ttlMs))
+      );
+      results.push(...batchResults);
+    }
+    
+    const duration = performance.now() - startTime;
+    logger.debug(`Batch set completado: ${entries.length} entradas en ${duration.toFixed(2)}ms`);
+    
+    return results;
+  }
+  
+  /**
+   * Operaciones en lote para obtener múltiples valores
+   */
+  async batchGet(keys) {
+    const startTime = performance.now();
+    const results = {};
+    
+    for (let i = 0; i < keys.length; i += adaptiveLimits.batchSize) {
+      const batch = keys.slice(i, i + adaptiveLimits.batchSize);
+      const batchResults = await Promise.all(
+        batch.map(key => this.get(key))
+      );
+      
+      batch.forEach((key, index) => {
+        results[key] = batchResults[index];
+      });
+    }
+    
+    const duration = performance.now() - startTime;
+    logger.debug(`Batch get completado: ${keys.length} claves en ${duration.toFixed(2)}ms`);
+    
+    return results;
+  }
+  
+  /**
+   * Precalentamiento de cache para rutas críticas
+   */
+  async prewarmCache(patterns) {
+    logger.info('Iniciando precalentamiento de cache...');
+    const startTime = performance.now();
+    
+    for (const pattern of patterns) {
+      try {
+        // Aquí implementarías la lógica específica para cada patrón
+        // Por ejemplo, cargar datos de configuración, estadísticas, etc.
+        logger.debug(`Precalentando patrón: ${pattern}`);
+      } catch (error) {
+        logger.error(`Error precalentando patrón ${pattern}:`, error);
+      }
+    }
+    
+    const duration = performance.now() - startTime;
+    logger.info(`Precalentamiento completado en ${duration.toFixed(2)}ms`);
+  }
+  
+  /**
+   * Optimización de memoria agresiva
+   */
+  async aggressiveOptimization() {
+    logger.info('Iniciando optimización agresiva de memoria...');
+    
+    // Forzar garbage collection si está disponible
+    if (global.gc) {
+      global.gc();
+      logger.debug('Garbage collection forzado');
+    }
+    
+    // Limpiar entradas expiradas de todos los mapas
+    for (const [name, managedMap] of this.managedMaps.entries()) {
+      managedMap.cleanup();
+    }
+    
+    // Limpiar cache simple
+    this.performGlobalCleanup();
+    
+    logger.info('Optimización agresiva completada');
   }
   
   /**

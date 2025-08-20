@@ -17,9 +17,26 @@ class PerformanceMetricsService {
     };
     
     this.startTime = Date.now();
+    this.batchSize = 50; // Procesar métricas en lotes
+    this.batchTimer = null;
+    this.pendingMetrics = [];
     
-    logger.info('PerformanceMetricsService inicializado', {
-      category: 'PERFORMANCE_METRICS_INIT'
+    // Configuración de performance
+    this.config = {
+      slowQueryThreshold: 500, // ms
+      batchInterval: 5000, // 5 segundos
+      maxMetricsPerBatch: 100,
+      enableRealTimeAlerts: true,
+      compressionThreshold: 1000 // Comprimir métricas después de 1000 entradas
+    };
+    
+    // Iniciar procesamiento por lotes
+    this.startBatchProcessing();
+    
+    logger.info('PerformanceMetricsService inicializado con optimizaciones', {
+      category: 'PERFORMANCE_METRICS_INIT',
+      batchSize: this.batchSize,
+      batchInterval: this.config.batchInterval
     });
   }
 
@@ -331,6 +348,228 @@ class PerformanceMetricsService {
     };
   }
 
+  /**
+   * 🚀 OPTIMIZACIONES DE PERFORMANCE
+   */
+  
+  /**
+   * Procesamiento por lotes para reducir overhead
+   */
+  startBatchProcessing() {
+    this.batchTimer = setInterval(() => {
+      this.processBatchMetrics();
+    }, this.config.batchInterval);
+  }
+  
+  /**
+   * Procesar métricas en lotes
+   */
+  processBatchMetrics() {
+    if (this.pendingMetrics.length === 0) return;
+    
+    const startTime = performance.now();
+    const batch = this.pendingMetrics.splice(0, this.config.maxMetricsPerBatch);
+    
+    // Procesar métricas en paralelo
+    const promises = batch.map(metric => {
+      switch (metric.type) {
+        case 'query':
+          return this.processQueryMetric(metric);
+        case 'repository':
+          return this.processRepositoryMetric(metric);
+        case 'cache':
+          return this.processCacheMetric(metric);
+        case 'error':
+          return this.processErrorMetric(metric);
+        default:
+          return Promise.resolve();
+      }
+    });
+    
+    Promise.all(promises).then(() => {
+      const duration = performance.now() - startTime;
+      logger.debug(`Batch processing completado: ${batch.length} métricas en ${duration.toFixed(2)}ms`);
+    });
+  }
+  
+  /**
+   * Procesar métrica de query optimizada
+   */
+  async processQueryMetric(metric) {
+    const key = `${metric.operation}:${metric.collection}`;
+    const existing = this.metrics.queries.get(key);
+    
+    if (existing) {
+      // Actualizar métrica existente de forma optimizada
+      existing.totalQueries++;
+      existing.totalTime += metric.queryTime;
+      existing.avgTime = existing.totalTime / existing.totalQueries;
+      existing.minTime = Math.min(existing.minTime, metric.queryTime);
+      existing.maxTime = Math.max(existing.maxTime, metric.queryTime);
+      existing.lastQuery = new Date();
+      
+      if (metric.success) {
+        existing.successCount++;
+      } else {
+        existing.errorCount++;
+      }
+    } else {
+      // Crear nueva métrica
+      this.metrics.queries.set(key, {
+        operation: metric.operation,
+        collection: metric.collection,
+        totalQueries: 1,
+        totalTime: metric.queryTime,
+        avgTime: metric.queryTime,
+        minTime: metric.queryTime,
+        maxTime: metric.queryTime,
+        successCount: metric.success ? 1 : 0,
+        errorCount: metric.success ? 0 : 1,
+        lastQuery: new Date()
+      });
+    }
+    
+    // Alertas en tiempo real para queries lentas
+    if (this.config.enableRealTimeAlerts && metric.queryTime > this.config.slowQueryThreshold) {
+      logger.warn('Query lenta detectada (tiempo real)', {
+        category: 'PERFORMANCE_SLOW_QUERY_REALTIME',
+        operation: metric.operation,
+        collection: metric.collection,
+        queryTime: `${metric.queryTime}ms`,
+        threshold: `${this.config.slowQueryThreshold}ms`
+      });
+    }
+  }
+  
+  /**
+   * Procesar métrica de repositorio optimizada
+   */
+  async processRepositoryMetric(metric) {
+    const key = `${metric.repositoryName}:${metric.method}`;
+    const existing = this.metrics.repositories.get(key);
+    
+    if (existing) {
+      existing.totalCalls++;
+      existing.totalTime += metric.queryTime;
+      existing.avgTime = existing.totalTime / existing.totalCalls;
+      existing.minTime = Math.min(existing.minTime, metric.queryTime);
+      existing.maxTime = Math.max(existing.maxTime, metric.queryTime);
+      existing.lastCall = new Date();
+      
+      if (metric.success) {
+        existing.successCount++;
+      } else {
+        existing.errorCount++;
+      }
+      
+      if (metric.cacheHit) {
+        existing.cacheHits++;
+      } else {
+        existing.cacheMisses++;
+      }
+    } else {
+      this.metrics.repositories.set(key, {
+        repositoryName: metric.repositoryName,
+        method: metric.method,
+        totalCalls: 1,
+        totalTime: metric.queryTime,
+        avgTime: metric.queryTime,
+        minTime: metric.queryTime,
+        maxTime: metric.queryTime,
+        successCount: metric.success ? 1 : 0,
+        errorCount: metric.success ? 0 : 1,
+        cacheHits: metric.cacheHit ? 1 : 0,
+        cacheMisses: metric.cacheHit ? 0 : 1,
+        lastCall: new Date()
+      });
+    }
+  }
+  
+  /**
+   * Procesar métrica de cache optimizada
+   */
+  async processCacheMetric(metric) {
+    const key = `${metric.cacheName}:${metric.operation}`;
+    const existing = this.metrics.cache.get(key);
+    
+    if (existing) {
+      existing.totalOperations++;
+      existing.totalTime += metric.operationTime;
+      existing.avgTime = existing.totalTime / existing.totalOperations;
+      existing.lastOperation = new Date();
+      
+      if (metric.success) {
+        existing.successCount++;
+      } else {
+        existing.errorCount++;
+      }
+    } else {
+      this.metrics.cache.set(key, {
+        cacheName: metric.cacheName,
+        operation: metric.operation,
+        totalOperations: 1,
+        totalTime: metric.operationTime,
+        avgTime: metric.operationTime,
+        successCount: metric.success ? 1 : 0,
+        errorCount: metric.success ? 0 : 1,
+        lastOperation: new Date()
+      });
+    }
+  }
+  
+  /**
+   * Procesar métrica de error optimizada
+   */
+  async processErrorMetric(metric) {
+    const key = `${metric.type}:${metric.operation}`;
+    const existing = this.metrics.errors.get(key);
+    
+    if (existing) {
+      existing.count++;
+      existing.lastError = new Date();
+      existing.recentErrors.push({
+        message: metric.error.message,
+        timestamp: new Date(),
+        stack: metric.error.stack?.split('\n').slice(0, 3)
+      });
+      
+      // Mantener solo los últimos 10 errores
+      if (existing.recentErrors.length > 10) {
+        existing.recentErrors = existing.recentErrors.slice(-10);
+      }
+    } else {
+      this.metrics.errors.set(key, {
+        type: metric.type,
+        operation: metric.operation,
+        count: 1,
+        lastError: new Date(),
+        recentErrors: [{
+          message: metric.error.message,
+          timestamp: new Date(),
+          stack: metric.error.stack?.split('\n').slice(0, 3)
+        }]
+      });
+    }
+  }
+  
+  /**
+   * Compresión de métricas para ahorrar memoria
+   */
+  compressMetrics() {
+    const compressionThreshold = this.config.compressionThreshold;
+    
+    for (const [key, metric] of this.metrics.queries) {
+      if (metric.totalQueries > compressionThreshold) {
+        // Comprimir métricas antiguas
+        metric.avgTime = Math.round(metric.avgTime * 100) / 100;
+        metric.minTime = Math.round(metric.minTime);
+        metric.maxTime = Math.round(metric.maxTime);
+      }
+    }
+    
+    logger.debug('Métricas comprimidas para optimizar memoria');
+  }
+  
   /**
    * Limpiar métricas antiguas
    */
