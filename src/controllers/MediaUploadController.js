@@ -77,7 +77,37 @@ class MediaUploadController {
    */
   async uploadMedia(req, res) {
     try {
+      // 🔧 VALIDACIONES CRÍTICAS DE ENTRADA
+      if (!req || typeof req !== 'object') {
+        logger.error('❌ Request object inválido', { reqType: typeof req });
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_REQUEST',
+          'Request inválido',
+          'Estructura de request incorrecta',
+          400
+        ));
+      }
+
+      if (!req.user || !req.user.email || !req.user.id) {
+        logger.error('❌ Usuario no autenticado correctamente', {
+          hasUser: !!req.user,
+          hasEmail: !!(req.user && req.user.email),
+          hasId: !!(req.user && req.user.id)
+        });
+        return ResponseHandler.error(res, new ApiError(
+          'AUTH_REQUIRED',
+          'Usuario no autenticado',
+          'Inicia sesión para subir archivos',
+          401
+        ));
+      }
+
       if (!req.file) {
+        logger.warn('⚠️ No se recibió archivo en request', {
+          userEmail: req.user.email,
+          hasBody: !!req.body,
+          bodyKeys: req.body ? Object.keys(req.body) : []
+        });
         return ResponseHandler.error(res, new ApiError(
           'NO_FILE',
           'No se recibió ningún archivo',
@@ -86,9 +116,71 @@ class MediaUploadController {
         ));
       }
 
+      // 🔧 VALIDACIÓN ROBUSTA DEL ARCHIVO
       const file = req.file;
       const userEmail = req.user.email;
       const { conversationId, tags = [], metadata = {} } = req.body;
+
+      // Validar propiedades críticas del archivo
+      if (!file.buffer || !Buffer.isBuffer(file.buffer)) {
+        logger.error('❌ Archivo sin buffer válido', {
+          userEmail,
+          fileName: file.originalname,
+          hasBuffer: !!file.buffer,
+          bufferType: typeof file.buffer,
+          isBuffer: Buffer.isBuffer(file.buffer)
+        });
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_FILE_BUFFER',
+          'Archivo corrupto o inválido',
+          'El archivo no se pudo procesar correctamente',
+          400
+        ));
+      }
+
+      if (!file.originalname || typeof file.originalname !== 'string') {
+        logger.error('❌ Nombre de archivo inválido', {
+          userEmail,
+          originalname: file.originalname,
+          originalnameType: typeof file.originalname
+        });
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_FILENAME',
+          'Nombre de archivo inválido',
+          'El archivo debe tener un nombre válido',
+          400
+        ));
+      }
+
+      if (!file.mimetype || typeof file.mimetype !== 'string') {
+        logger.error('❌ Tipo MIME inválido', {
+          userEmail,
+          fileName: file.originalname,
+          mimetype: file.mimetype,
+          mimetypeType: typeof file.mimetype
+        });
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_MIMETYPE',
+          'Tipo de archivo inválido',
+          'El archivo no tiene un tipo MIME válido',
+          400
+        ));
+      }
+
+      if (!file.size || typeof file.size !== 'number' || file.size <= 0) {
+        logger.error('❌ Tamaño de archivo inválido', {
+          userEmail,
+          fileName: file.originalname,
+          size: file.size,
+          sizeType: typeof file.size
+        });
+        return ResponseHandler.error(res, new ApiError(
+          'INVALID_FILE_SIZE',
+          'Tamaño de archivo inválido',
+          'El archivo debe tener un tamaño válido',
+          400
+        ));
+      }
 
       logger.info('🔄 Iniciando subida de archivo (FASE 4)', {
         originalName: file.originalname,
@@ -96,22 +188,43 @@ class MediaUploadController {
         mimetype: file.mimetype,
         uploadedBy: userEmail,
         conversationId: conversationId || 'none',
-        hasTags: tags.length > 0
+        hasTags: Array.isArray(tags) && tags.length > 0,
+        hasMetadata: typeof metadata === 'object' && Object.keys(metadata).length > 0,
+        bufferSize: file.buffer.length,
+        userAgent: req.headers['user-agent']?.substring(0, 100) + '...'
       });
 
-      // Validar compatibilidad con WhatsApp
-      const isWhatsAppCompatible = this.isWhatsAppCompatible(file.mimetype, file.size);
+      // 🔧 VALIDACIÓN DE COMPATIBILIDAD CON WHATSAPP
+      let isWhatsAppCompatible = false;
+      try {
+        isWhatsAppCompatible = this.isWhatsAppCompatible(file.mimetype, file.size);
+        
+        logger.debug('📱 Validación WhatsApp completada', {
+          fileName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          isCompatible: isWhatsAppCompatible
+        });
+      } catch (whatsappValidationError) {
+        logger.warn('⚠️ Error validando compatibilidad WhatsApp', {
+          fileName: file.originalname,
+          error: whatsappValidationError?.message || 'Error desconocido',
+          stack: whatsappValidationError?.stack?.split('\n').slice(0, 2) || []
+        });
+        isWhatsAppCompatible = false;
+      }
       
       if (!isWhatsAppCompatible) {
         logger.warn('⚠️ Archivo no compatible con WhatsApp', {
           mimetype: file.mimetype,
           size: file.size,
-          uploadedBy: userEmail
+          uploadedBy: userEmail,
+          fileName: file.originalname
         });
       }
 
-      // Subir archivo y obtener metadatos
-      const result = await this.fileService.uploadFile({
+      // 🔧 PREPARAR DATOS PARA SUBIDA CON VALIDACIONES
+      const uploadData = {
         buffer: file.buffer,
         originalName: file.originalname,
         mimetype: file.mimetype,
@@ -119,14 +232,25 @@ class MediaUploadController {
         userId: req.user.id,
         uploadedBy: userEmail,
         conversationId: conversationId,
-        tags: tags,
+        tags: Array.isArray(tags) ? tags : [],
         metadata: {
-          ...metadata,
+          ...(typeof metadata === 'object' && metadata !== null ? metadata : {}),
           whatsappCompatible: isWhatsAppCompatible,
           uploadedVia: 'api',
-          userAgent: req.headers['user-agent']?.substring(0, 200)
+          userAgent: req.headers['user-agent']?.substring(0, 200),
+          uploadTimestamp: new Date().toISOString(),
+          clientIP: req.ip || req.connection?.remoteAddress || 'unknown'
         }
+      };
+
+      logger.debug('📤 Iniciando subida de archivo con FileService', {
+        fileName: file.originalname,
+        uploadDataKeys: Object.keys(uploadData),
+        metadataKeys: Object.keys(uploadData.metadata)
       });
+
+      // 🔧 SUBIR ARCHIVO CON MANEJO ROBUSTO DE ERRORES
+      const result = await this.fileService.uploadFile(uploadData);
 
       // Generar preview automático si es compatible
       let previewUrl = null;
@@ -247,24 +371,127 @@ class MediaUploadController {
       }, 'Archivo subido exitosamente');
 
     } catch (error) {
-      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe antes de acceder a sus propiedades
-      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
-      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      // 🔧 MANEJO ROBUSTO DE ERRORES CON INFORMACIÓN DETALLADA
+      const errorInfo = {
+        hasError: !!error,
+        errorExists: error !== null && error !== undefined,
+        errorType: error ? error.constructor?.name || 'Unknown' : 'NoError',
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack),
+        errorString: String(error),
+        errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      };
+
+      const errorMessage = (error && typeof error.message === 'string') 
+        ? error.message 
+        : (error && typeof error === 'string') 
+          ? error 
+          : 'Error completamente desconocido en subida de archivo';
+
+      const errorStack = (error && error.stack) 
+        ? error.stack.split('\n').slice(0, 5) 
+        : ['Stack trace no disponible'];
       
-      logger.error('❌ Error subiendo archivo (FASE 4):', {
+      // 🔧 LOG DETALLADO DEL ERROR
+      logger.error('❌ Error subiendo archivo (FASE 4)', {
+        // Información del error
         error: errorMessage,
         stack: errorStack,
-        userEmail: req.user?.email,
-        fileSize: req.file?.size,
-        mimetype: req.file?.mimetype
+        errorInfo,
+        
+        // Información del usuario
+        userEmail: req.user?.email || 'unknown',
+        userId: req.user?.id || 'unknown',
+        userRole: req.user?.role || 'unknown',
+        
+        // Información del archivo
+        fileName: req.file?.originalname || 'unknown',
+        fileSize: req.file?.size || 0,
+        mimetype: req.file?.mimetype || 'unknown',
+        hasFileBuffer: !!(req.file && req.file.buffer),
+        fileBufferSize: req.file?.buffer?.length || 0,
+        
+        // Información del request
+        requestMethod: req.method,
+        requestUrl: req.url,
+        requestIP: req.ip || req.connection?.remoteAddress || 'unknown',
+        userAgent: req.headers?.['user-agent']?.substring(0, 200) || 'unknown',
+        conversationId: req.body?.conversationId || 'none',
+        
+        // Contexto técnico
+        requestHeaders: {
+          contentType: req.headers?.['content-type'],
+          contentLength: req.headers?.['content-length'],
+          origin: req.headers?.origin
+        },
+        
+        // Información de depuración
+        hasBody: !!req.body,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        hasFile: !!req.file,
+        fileKeys: req.file ? Object.keys(req.file) : [],
+        
+        // Timestamp
+        errorTimestamp: new Date().toISOString()
+      });
+
+      // 🔧 DETERMINAR CÓDIGO DE ERROR APROPIADO
+      let statusCode = 500;
+      let errorCode = 'UPLOAD_FAILED';
+      let userMessage = 'Error subiendo archivo';
+      let detailMessage = 'Intenta nuevamente o contacta soporte si el problema persiste';
+
+      // Análisis del tipo de error para mejor respuesta
+      if (error && error.message) {
+        const message = error.message.toLowerCase();
+        
+        if (message.includes('archivo inválido') || message.includes('validación')) {
+          statusCode = 400;
+          errorCode = 'INVALID_FILE';
+          userMessage = 'Archivo no válido';
+          detailMessage = 'El archivo no cumple con los requisitos de formato o tamaño';
+        } else if (message.includes('tipo mime') || message.includes('no permitido')) {
+          statusCode = 400;
+          errorCode = 'UNSUPPORTED_FILE_TYPE';
+          userMessage = 'Tipo de archivo no soportado';
+          detailMessage = 'El tipo de archivo no está permitido en el sistema';
+        } else if (message.includes('tamaño') || message.includes('grande')) {
+          statusCode = 413;
+          errorCode = 'FILE_TOO_LARGE';
+          userMessage = 'Archivo demasiado grande';
+          detailMessage = 'El archivo excede el tamaño máximo permitido';
+        } else if (message.includes('firebase') || message.includes('storage')) {
+          statusCode = 503;
+          errorCode = 'STORAGE_ERROR';
+          userMessage = 'Error de almacenamiento';
+          detailMessage = 'Problema temporal con el almacenamiento, intenta más tarde';
+        } else if (message.includes('database') || message.includes('firestore')) {
+          statusCode = 503;
+          errorCode = 'DATABASE_ERROR';
+          userMessage = 'Error de base de datos';
+          detailMessage = 'Problema temporal con la base de datos, intenta más tarde';
+        }
+      }
+
+      logger.debug('🎯 Error clasificado para respuesta', {
+        statusCode,
+        errorCode,
+        userMessage,
+        detailMessage,
+        originalError: errorMessage
       });
 
       return ResponseHandler.error(res, new ApiError(
-        'UPLOAD_FAILED',
-        'Error subiendo archivo',
-        'Intenta nuevamente o contacta soporte si el problema persiste',
-        500,
-        { originalError: errorMessage }
+        errorCode,
+        userMessage,
+        detailMessage,
+        statusCode,
+        { 
+          originalError: errorMessage,
+          errorType: errorInfo.errorType,
+          timestamp: new Date().toISOString(),
+          requestId: req.headers?.['x-request-id'] || 'unknown'
+        }
       ));
     }
   }

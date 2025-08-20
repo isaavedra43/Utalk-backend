@@ -29,6 +29,81 @@ try {
  */
 class FileService {
   constructor() {
+    // 🔧 VALIDACIONES CRÍTICAS DE CONFIGURACIÓN AL INICIALIZAR
+    this.initializationStatus = {
+      firebaseConfigured: false,
+      firestoreAvailable: false,
+      storageAvailable: false,
+      dependencies: {
+        admin: !!admin,
+        sharp: !!sharp,
+        uuid: !!uuidv4
+      }
+    };
+
+    try {
+      // Validar Firebase Admin SDK
+      if (!admin || !admin.apps) {
+        logger.error('❌ Firebase Admin SDK no disponible', {
+          hasAdmin: !!admin,
+          hasApps: !!(admin && admin.apps)
+        });
+      } else if (admin.apps.length === 0) {
+        logger.warn('⚠️ Firebase Admin SDK no inicializado', {
+          appsLength: admin.apps.length
+        });
+      } else {
+        this.initializationStatus.firebaseConfigured = true;
+        
+        // Validar Firestore
+        try {
+          if (firestore) {
+            this.initializationStatus.firestoreAvailable = true;
+            logger.debug('✅ Firestore disponible');
+          } else {
+            logger.warn('⚠️ Firestore no disponible');
+          }
+        } catch (firestoreError) {
+          logger.warn('⚠️ Error verificando Firestore', {
+            error: firestoreError?.message || 'Error desconocido'
+          });
+        }
+
+        // Validar Storage
+        try {
+          const bucket = admin.storage().bucket();
+          if (bucket) {
+            this.initializationStatus.storageAvailable = true;
+            logger.debug('✅ Firebase Storage disponible');
+          }
+        } catch (storageError) {
+          logger.warn('⚠️ Error verificando Firebase Storage', {
+            error: storageError?.message || 'Error desconocido'
+          });
+        }
+      }
+
+      // Validar dependencias críticas
+      if (!sharp) {
+        logger.error('❌ Sharp no disponible para procesamiento de imágenes');
+      }
+
+      if (!uuidv4) {
+        logger.error('❌ UUID v4 no disponible para generación de IDs');
+      }
+
+      logger.info('🔧 FileService inicializado', {
+        initializationStatus: this.initializationStatus,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (initError) {
+      logger.error('❌ Error crítico inicializando FileService', {
+        error: initError?.message || 'Error desconocido',
+        stack: initError?.stack?.split('\n').slice(0, 3) || []
+      });
+    }
+
     // Configuración de tipos de archivo permitidos
     this.allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     this.allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/avi'];
@@ -82,44 +157,112 @@ class FileService {
   }
 
   /**
-   * Obtener bucket de Firebase Storage de forma segura
+   * 🔧 Obtener bucket de Firebase Storage con validaciones robustas
    */
   getBucket() {
     try {
-      // Verificar si Firebase está inicializado
-      if (!admin.apps.length) {
-        logger.error('Firebase Admin SDK no inicializado');
-        throw new Error('Firebase Admin SDK no inicializado');
+      logger.debug('🔍 Obteniendo bucket de Firebase Storage...', {
+        initializationStatus: this.initializationStatus
+      });
+
+      // 🔧 VALIDACIONES CRÍTICAS DE FIREBASE
+      if (!admin) {
+        logger.error('❌ Firebase Admin SDK no disponible', {
+          hasAdmin: !!admin,
+          adminType: typeof admin
+        });
+        throw new Error('Firebase Admin SDK no está disponible en el sistema');
       }
 
-      // Obtener bucket de forma segura
-      const bucket = admin.storage().bucket();
-      if (!bucket) {
-        logger.error('Bucket de Firebase Storage no disponible');
-        throw new Error('Bucket de Firebase Storage no disponible');
+      if (!admin.apps) {
+        logger.error('❌ Firebase Admin SDK apps no disponible', {
+          hasAdmin: !!admin,
+          hasApps: !!(admin && admin.apps),
+          adminKeys: admin ? Object.keys(admin) : []
+        });
+        throw new Error('Firebase Admin SDK no está configurado correctamente');
       }
+
+      if (!admin.apps.length) {
+        logger.error('❌ Firebase Admin SDK no inicializado', {
+          appsLength: admin.apps.length,
+          hasApps: !!admin.apps,
+          initializationStatus: this.initializationStatus
+        });
+        throw new Error('Firebase Admin SDK no está inicializado. Verifica la configuración de Firebase.');
+      }
+
+      // 🔧 VALIDAR STORAGE ESPECÍFICAMENTE
+      if (!admin.storage) {
+        logger.error('❌ Firebase Storage no disponible', {
+          hasStorage: !!admin.storage,
+          adminMethods: admin ? Object.getOwnPropertyNames(admin) : []
+        });
+        throw new Error('Firebase Storage no está disponible');
+      }
+
+      // 🔧 OBTENER BUCKET CON VALIDACIONES
+      let bucket;
+      try {
+        bucket = admin.storage().bucket();
+      } catch (storageError) {
+        logger.error('❌ Error creando instancia de Storage', {
+          error: storageError?.message || 'Error desconocido',
+          stack: storageError?.stack?.split('\n').slice(0, 3) || [],
+          hasStorage: !!admin.storage
+        });
+        throw new Error(`Error accediendo a Firebase Storage: ${storageError?.message || 'Error desconocido'}`);
+      }
+
+      if (!bucket) {
+        logger.error('❌ Bucket de Firebase Storage es nulo', {
+          bucket,
+          bucketType: typeof bucket
+        });
+        throw new Error('No se pudo obtener el bucket de Firebase Storage');
+      }
+
+      // 🔧 VALIDAR MÉTODOS CRÍTICOS DEL BUCKET
+      const requiredMethods = ['file', 'upload', 'getFiles'];
+      const missingMethods = requiredMethods.filter(method => typeof bucket[method] !== 'function');
+      
+      if (missingMethods.length > 0) {
+        logger.error('❌ Bucket carece de métodos requeridos', {
+          missingMethods,
+          availableMethods: Object.getOwnPropertyNames(bucket),
+          bucketType: typeof bucket
+        });
+        throw new Error(`Bucket de Firebase Storage no tiene métodos requeridos: ${missingMethods.join(', ')}`);
+      }
+
+      logger.debug('✅ Bucket de Firebase Storage obtenido correctamente', {
+        hasBucket: !!bucket,
+        bucketName: bucket.name || 'unknown',
+        availableMethods: requiredMethods.filter(method => typeof bucket[method] === 'function')
+      });
 
       return bucket;
+
     } catch (error) {
-      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe antes de acceder a sus propiedades
-      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
-      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
-      
-      logger.error('❌ Error obteniendo bucket de Firebase Storage:', {
-        error: errorMessage,
-        stack: errorStack,
-        adminAppsLength: admin.apps.length,
-        environment: process.env.NODE_ENV,
-        errorType: error ? error.constructor.name : 'Unknown',
-        hasError: !!error,
-        hasMessage: !!(error && error.message),
-        hasStack: !!(error && error.stack)
+      logger.error('❌ Error crítico obteniendo bucket de Firebase Storage', {
+        error: error?.message || 'Error desconocido',
+        stack: error?.stack?.split('\n').slice(0, 5) || [],
+        errorType: error?.constructor?.name || 'Unknown',
+        hasAdmin: !!admin,
+        appsLength: admin?.apps?.length || 0,
+        initializationStatus: this.initializationStatus,
+        dependencies: {
+          admin: !!admin,
+          adminApps: !!(admin && admin.apps),
+          adminStorage: !!(admin && admin.storage)
+        }
       });
       
-      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
-      const descriptiveError = new Error(`Firebase Storage no disponible: ${errorMessage}`);
-      descriptiveError.originalError = error;
-      throw descriptiveError;
+      // 🔧 PROPAGEAR ERROR CON CONTEXTO ADICIONAL
+      const enhancedError = new Error(`Error obteniendo bucket de Firebase Storage: ${error?.message || 'Error desconocido'}`);
+      enhancedError.originalError = error;
+      enhancedError.initializationStatus = this.initializationStatus;
+      throw enhancedError;
     }
   }
 
@@ -178,12 +321,17 @@ class FileService {
   }
 
   /**
-   * 🆕 Subir archivo con indexación automática
+   * 📁 Subir archivo con indexación completa
    */
   async uploadFile(fileData, options = {}) {
     const startTime = Date.now();
     
     try {
+      // 🔧 VALIDACIÓN ROBUSTA DE DATOS DE ENTRADA
+      if (!fileData || typeof fileData !== 'object') {
+        throw new Error('Datos de archivo inválidos: fileData es requerido y debe ser un objeto');
+      }
+
       const {
         buffer,
         originalName,
@@ -196,61 +344,215 @@ class FileService {
         tags = []
       } = fileData;
 
+      // 🔧 VALIDACIONES CRÍTICAS DE DATOS
+      if (!buffer || !Buffer.isBuffer(buffer)) {
+        throw new Error('Buffer de archivo inválido o inexistente');
+      }
+      
+      if (!originalName || typeof originalName !== 'string') {
+        throw new Error('Nombre de archivo original requerido');
+      }
+      
+      if (!mimetype || typeof mimetype !== 'string') {
+        throw new Error('Tipo MIME requerido');
+      }
+      
+      if (!size || typeof size !== 'number' || size <= 0) {
+        throw new Error('Tamaño de archivo inválido');
+      }
+      
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('ID de usuario requerido');
+      }
+      
+      if (!uploadedBy || typeof uploadedBy !== 'string') {
+        throw new Error('Usuario que sube el archivo requerido');
+      }
+
       logger.info('🔄 Iniciando subida de archivo con indexación', {
         originalName,
         mimetype,
         size,
-        conversationId,
-        uploadedBy
+        conversationId: conversationId || 'none',
+        uploadedBy,
+        hasBuffer: !!buffer,
+        bufferSize: buffer ? buffer.length : 0
       });
 
-      // Validar archivo
+      // 🔧 VALIDACIÓN ROBUSTA DEL ARCHIVO
+      logger.debug('🔍 Validando archivo...', {
+        originalName,
+        mimetype,
+        size,
+        bufferLength: buffer.length
+      });
+
       const validation = this.validateFile({ buffer, mimetype, size });
-      if (!validation || !validation.valid) {
-        const errorMessage = validation && validation.error ? validation.error : 'Error de validación desconocido';
+      
+      // 🔧 VALIDACIÓN CRÍTICA: Verificar que validation existe y tiene estructura válida
+      if (!validation) {
+        logger.error('❌ Validación de archivo devolvió resultado nulo', {
+          originalName,
+          mimetype,
+          size,
+          validationResult: validation
+        });
+        throw new Error('Error crítico: validación de archivo falló completamente');
+      }
+
+      if (typeof validation !== 'object') {
+        logger.error('❌ Validación de archivo devolvió tipo incorrecto', {
+          originalName,
+          mimetype,
+          size,
+          validationType: typeof validation,
+          validationValue: validation
+        });
+        throw new Error('Error crítico: resultado de validación tiene tipo incorrecto');
+      }
+
+      if (!validation.hasOwnProperty('valid')) {
+        logger.error('❌ Validación de archivo no tiene propiedad "valid"', {
+          originalName,
+          mimetype,
+          size,
+          validationKeys: Object.keys(validation),
+          validationResult: validation
+        });
+        throw new Error('Error crítico: resultado de validación no tiene estructura esperada');
+      }
+
+      if (!validation.valid) {
+        const errorMessage = (validation && typeof validation.error === 'string') 
+          ? validation.error 
+          : 'Error de validación desconocido - estructura de validación inválida';
+        
+        logger.warn('⚠️ Archivo no válido', {
+          originalName,
+          mimetype,
+          size,
+          validationError: errorMessage,
+          validationResult: validation
+        });
+        
         throw new Error(`Archivo inválido: ${errorMessage}`);
+      }
+
+      // 🔧 VALIDACIÓN ROBUSTA DE CATEGORÍA
+      if (!validation.category || typeof validation.category !== 'string') {
+        logger.error('❌ Categoría de archivo inválida', {
+          originalName,
+          mimetype,
+          category: validation.category,
+          validationResult: validation
+        });
+        throw new Error('Error crítico: categoría de archivo no determinada correctamente');
       }
 
       const category = validation.category;
       const fileId = uuidv4();
 
-      // 🆕 EMITIR EVENTO DE PROCESAMIENTO INICIADO
+      logger.debug('✅ Archivo validado correctamente', {
+        fileId,
+        category,
+        originalName,
+        mimetype,
+        size
+      });
+
+      // 🆕 EMITIR EVENTO DE PROCESAMIENTO INICIADO CON MANEJO DE ERRORES
       try {
         const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
         const socketManager = new EnterpriseSocketManager();
         
-        socketManager.emitFileProcessing({
-          fileId: fileId,
-          conversationId: conversationId || 'general',
-          progress: 0,
-          stage: 'uploading',
-          processedBy: uploadedBy
-        });
+        if (socketManager && typeof socketManager.emitFileProcessing === 'function') {
+          socketManager.emitFileProcessing({
+            fileId: fileId,
+            conversationId: conversationId || 'general',
+            progress: 0,
+            stage: 'uploading',
+            processedBy: uploadedBy
+          });
+          
+          logger.debug('📡 Evento de procesamiento iniciado emitido', { fileId });
+        } else {
+          logger.warn('⚠️ SocketManager no disponible o método no existe');
+        }
       } catch (socketError) {
         logger.warn('⚠️ Error emitiendo evento de procesamiento iniciado', {
-          error: socketError.message,
+          error: socketError?.message || 'Error desconocido',
+          stack: socketError?.stack?.split('\n').slice(0, 3) || [],
           fileId
         });
       }
 
-      // Procesar archivo según su tipo
+      // 🔧 PROCESAMIENTO DE ARCHIVO CON VALIDACIONES ROBUSTAS
+      logger.debug('🔄 Iniciando procesamiento de archivo por categoría...', {
+        fileId,
+        category,
+        conversationId: conversationId || 'none'
+      });
+
       const processedFile = await this.processFileByCategory(
         buffer, fileId, conversationId, category, mimetype, originalName
       );
 
-      // Validar que processedFile existe y tiene las propiedades necesarias
+      // 🔧 VALIDACIONES CRÍTICAS DEL RESULTADO DE PROCESAMIENTO
       if (!processedFile) {
-        throw new Error('Error: No se pudo procesar el archivo. Resultado indefinido.');
+        logger.error('❌ Procesamiento de archivo devolvió resultado nulo', {
+          fileId,
+          category,
+          originalName,
+          mimetype,
+          processedFileResult: processedFile
+        });
+        throw new Error('Error crítico: No se pudo procesar el archivo. Resultado indefinido.');
       }
 
-      // Validar que processedFile tiene las propiedades mínimas necesarias
-      if (!processedFile.storagePath || !processedFile.publicUrl) {
-        throw new Error('Error: Resultado de procesamiento incompleto. Faltan propiedades requeridas.');
+      if (typeof processedFile !== 'object') {
+        logger.error('❌ Procesamiento de archivo devolvió tipo incorrecto', {
+          fileId,
+          category,
+          originalName,
+          processedFileType: typeof processedFile,
+          processedFileValue: processedFile
+        });
+        throw new Error('Error crítico: resultado de procesamiento tiene tipo incorrecto');
       }
+
+      // 🔧 VALIDAR PROPIEDADES REQUERIDAS DEL ARCHIVO PROCESADO
+      const requiredProperties = ['storagePath', 'publicUrl'];
+      const missingProperties = requiredProperties.filter(prop => !processedFile[prop]);
+      
+      if (missingProperties.length > 0) {
+        logger.error('❌ Archivo procesado carece de propiedades requeridas', {
+          fileId,
+          category,
+          originalName,
+          missingProperties,
+          availableProperties: Object.keys(processedFile),
+          processedFileResult: processedFile
+        });
+        throw new Error(`Error crítico: Resultado de procesamiento incompleto. Faltan propiedades: ${missingProperties.join(', ')}`);
+      }
+
+      logger.debug('✅ Archivo procesado correctamente', {
+        fileId,
+        storagePath: processedFile.storagePath,
+        publicUrl: processedFile.publicUrl,
+        hasMetadata: !!processedFile.metadata
+      });
 
       // 🆕 Guardar archivo en base de datos con metadata completa
       let fileRecord;
       try {
+        logger.debug('💾 Guardando archivo en base de datos...', {
+          fileId,
+          conversationId: conversationId || 'none',
+          userId,
+          uploadedBy
+        });
+
         fileRecord = await this.saveFileToDatabase({
           fileId,
           conversationId,
@@ -268,12 +570,24 @@ class FileService {
           publicUrl: processedFile.publicUrl,
           tags
         });
+
+        logger.debug('✅ Archivo guardado en base de datos', {
+          fileId,
+          recordId: fileRecord?.id || 'unknown'
+        });
+
       } catch (dbError) {
         logger.error('❌ Error guardando archivo en base de datos', {
           fileId,
-          conversationId,
-          error: dbError.message,
-          stack: dbError.stack
+          conversationId: conversationId || 'none',
+          error: dbError?.message || 'Error desconocido',
+          stack: dbError?.stack?.split('\n').slice(0, 5) || [],
+          errorType: dbError?.constructor?.name || 'Unknown',
+          dbErrorDetails: {
+            name: dbError?.name,
+            code: dbError?.code,
+            syscall: dbError?.syscall
+          }
         });
         throw dbError;
       }
@@ -286,61 +600,112 @@ class FileService {
         size: this.formatFileSize(size),
         storagePath: processedFile.storagePath,
         processTime: `${processTime}ms`,
-        uploadedBy
+        uploadedBy,
+        conversationId: conversationId || 'none'
       });
 
-      // 🆕 EMITIR EVENTO DE ARCHIVO LISTO
+      // 🆕 EMITIR EVENTO DE ARCHIVO LISTO CON MANEJO DE ERRORES
       try {
         const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
         const socketManager = new EnterpriseSocketManager();
         
-        socketManager.emitFileReady({
-          fileId: fileId,
-          conversationId: conversationId || 'general',
-          fileUrl: processedFile.publicUrl,
-          metadata: {
-            category,
-            size: this.formatFileSize(size),
-            processTime: `${processTime}ms`,
-            storagePath: processedFile.storagePath
-          },
-          readyBy: uploadedBy
-        });
+        if (socketManager && typeof socketManager.emitFileReady === 'function') {
+          socketManager.emitFileReady({
+            fileId: fileId,
+            conversationId: conversationId || 'general',
+            fileUrl: processedFile.publicUrl,
+            metadata: {
+              category,
+              size: this.formatFileSize(size),
+              processTime: `${processTime}ms`,
+              storagePath: processedFile.storagePath
+            },
+            readyBy: uploadedBy
+          });
+          
+          logger.debug('📡 Evento de archivo listo emitido', { fileId });
+        } else {
+          logger.warn('⚠️ SocketManager no disponible para emitir evento de archivo listo');
+        }
       } catch (socketError) {
         logger.warn('⚠️ Error emitiendo evento de archivo listo', {
-          error: socketError.message,
+          error: socketError?.message || 'Error desconocido',
+          stack: socketError?.stack?.split('\n').slice(0, 3) || [],
           fileId
         });
       }
 
-      return {
-        ...(fileRecord ? fileRecord.toJSON() : {}),
+      // 🔧 VALIDACIÓN FINAL DEL RESULTADO
+      const result = {
+        ...(fileRecord && typeof fileRecord.toJSON === 'function' ? fileRecord.toJSON() : {}),
         processTime: `${processTime}ms`
       };
 
+      logger.debug('🎯 Resultado final de subida de archivo', {
+        fileId,
+        hasFileRecord: !!fileRecord,
+        resultKeys: Object.keys(result),
+        processTime: `${processTime}ms`
+      });
+
+      return result;
+
     } catch (error) {
-      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe y tiene las propiedades necesarias
-      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
-      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      // 🔧 MANEJO ROBUSTO DE ERRORES CON INFORMACIÓN DETALLADA
+      const errorInfo = {
+        hasError: !!error,
+        errorExists: error !== null && error !== undefined,
+        errorType: error ? error.constructor?.name || 'Unknown' : 'NoError',
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack),
+        errorString: String(error),
+        errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      };
+
+      const errorMessage = (error && typeof error.message === 'string') 
+        ? error.message 
+        : (error && typeof error === 'string') 
+          ? error 
+          : 'Error completamente desconocido en subida de archivo';
+
+      const errorStack = (error && error.stack) 
+        ? error.stack.split('\n').slice(0, 5) 
+        : ['Stack trace no disponible'];
       
-      // 🔧 CORRECCIÓN CRÍTICA: Loggear información adicional para debugging
+      // 🔧 LOG DETALLADO DEL ERROR
       logger.error('❌ Error subiendo archivo con indexación', {
-        originalName: fileData.originalName,
-        mimetype: fileData.mimetype,
-        size: fileData.size,
-        conversationId: fileData.conversationId,
-        uploadedBy: fileData.uploadedBy,
+        // Información del archivo
+        originalName: fileData?.originalName || 'unknown',
+        mimetype: fileData?.mimetype || 'unknown', 
+        size: fileData?.size || 0,
+        conversationId: fileData?.conversationId || 'none',
+        uploadedBy: fileData?.uploadedBy || 'unknown',
+        userId: fileData?.userId || 'unknown',
+        
+        // Información del error
         error: errorMessage,
         stack: errorStack,
-        errorType: error ? error.constructor.name : 'Unknown',
-        hasError: !!error,
-        hasMessage: !!(error && error.message),
-        hasStack: !!(error && error.stack)
+        errorInfo,
+        
+        // Contexto de depuración
+        fileDataKeys: fileData ? Object.keys(fileData) : [],
+        hasFileData: !!fileData,
+        fileDataType: typeof fileData,
+        
+        // Tiempo de procesamiento
+        processingTime: `${Date.now() - startTime}ms`
       });
       
-      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      // 🔧 CREAR ERROR DESCRIPTIVO PARA PROPAGAR
       const descriptiveError = new Error(`Error subiendo archivo: ${errorMessage}`);
       descriptiveError.originalError = error;
+      descriptiveError.fileInfo = {
+        originalName: fileData?.originalName,
+        mimetype: fileData?.mimetype,
+        size: fileData?.size,
+        uploadedBy: fileData?.uploadedBy
+      };
+      
       throw descriptiveError;
     }
   }
@@ -1206,27 +1571,150 @@ class FileService {
   }
 
   /**
-   * Validar archivo
+   * 🔧 Validar archivo antes de subir con manejo robusto
    */
   validateFile(file) {
-    const { buffer, mimetype, size } = file;
+    try {
+      // 🔧 VALIDACIÓN ROBUSTA DE ENTRADA
+      if (!file || typeof file !== 'object') {
+        logger.error('❌ validateFile: parámetro file inválido', {
+          fileType: typeof file,
+          fileValue: file
+        });
+        return { valid: false, error: 'Parámetro de archivo inválido' };
+      }
 
-    if (!buffer || !mimetype || !size) {
-      return { valid: false, error: 'Datos de archivo incompletos' };
+      const { buffer, mimetype, size } = file;
+
+      logger.debug('🔍 Validando archivo...', {
+        hasBuffer: !!buffer,
+        bufferType: typeof buffer,
+        isBuffer: Buffer.isBuffer(buffer),
+        mimetype,
+        size,
+        sizeType: typeof size
+      });
+
+      // 🔧 VALIDACIONES CRÍTICAS DE PROPIEDADES
+      if (!buffer) {
+        logger.warn('⚠️ Buffer de archivo faltante', { file });
+        return { valid: false, error: 'Buffer de archivo requerido' };
+      }
+
+      if (!Buffer.isBuffer(buffer)) {
+        logger.warn('⚠️ Buffer no es del tipo correcto', { 
+          bufferType: typeof buffer,
+          bufferConstructor: buffer?.constructor?.name
+        });
+        return { valid: false, error: 'Buffer de archivo inválido' };
+      }
+
+      if (!mimetype || typeof mimetype !== 'string') {
+        logger.warn('⚠️ Tipo MIME inválido', { 
+          mimetype, 
+          mimetypeType: typeof mimetype 
+        });
+        return { valid: false, error: 'Tipo MIME requerido y debe ser string' };
+      }
+
+      if (!size || typeof size !== 'number' || size <= 0) {
+        logger.warn('⚠️ Tamaño de archivo inválido', { 
+          size, 
+          sizeType: typeof size,
+          isPositive: size > 0
+        });
+        return { valid: false, error: 'Tamaño de archivo debe ser un número positivo' };
+      }
+
+      // 🔧 VALIDAR CATEGORÍA DE ARCHIVO
+      const category = this.getFileCategory(mimetype);
+
+      logger.debug('📂 Categoría de archivo determinada', {
+        mimetype,
+        category,
+        isKnown: category !== 'unknown'
+      });
+
+      if (category === 'unknown') {
+        logger.warn('⚠️ Tipo de archivo no permitido', { 
+          mimetype,
+          allowedTypes: {
+            image: this.allowedImageTypes,
+            video: this.allowedVideoTypes,
+            audio: this.allowedAudioTypes,
+            document: this.allowedDocumentTypes,
+            sticker: this.allowedStickerTypes
+          }
+        });
+        return { valid: false, error: `Tipo de archivo no permitido: ${mimetype}` };
+      }
+
+      // 🔧 VALIDAR TAMAÑO MÁXIMO
+      const maxSize = this.getMaxSize(category);
+      
+      logger.debug('📏 Validando tamaño de archivo', {
+        category,
+        fileSize: size,
+        maxSize,
+        fileSizeFormatted: this.formatFileSize(size),
+        maxSizeFormatted: this.formatFileSize(maxSize),
+        isWithinLimit: size <= maxSize
+      });
+
+      if (size > maxSize) {
+        logger.warn('⚠️ Archivo excede tamaño máximo', {
+          category,
+          fileSize: size,
+          maxSize,
+          fileSizeFormatted: this.formatFileSize(size),
+          maxSizeFormatted: this.formatFileSize(maxSize),
+          exceedsBy: size - maxSize
+        });
+        return { 
+          valid: false, 
+          error: `Archivo demasiado grande. Máximo: ${this.formatFileSize(maxSize)}, recibido: ${this.formatFileSize(size)}` 
+        };
+      }
+
+      // 🔧 VALIDACIÓN ADICIONAL DE INTEGRIDAD
+      if (buffer.length !== size) {
+        logger.warn('⚠️ Inconsistencia entre tamaño reportado y tamaño real del buffer', {
+          reportedSize: size,
+          actualBufferSize: buffer.length,
+          difference: Math.abs(buffer.length - size)
+        });
+      }
+
+      logger.debug('✅ Archivo validado exitosamente', {
+        category,
+        mimetype,
+        size: this.formatFileSize(size),
+        bufferSize: buffer.length
+      });
+
+      return { 
+        valid: true, 
+        category,
+        metadata: {
+          bufferSize: buffer.length,
+          reportedSize: size,
+          mimetype
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Error crítico en validateFile', {
+        error: error?.message || 'Error desconocido',
+        stack: error?.stack?.split('\n').slice(0, 3) || [],
+        file: file ? 'present' : 'missing',
+        fileKeys: file ? Object.keys(file) : []
+      });
+
+      return { 
+        valid: false, 
+        error: `Error interno validando archivo: ${error?.message || 'Error desconocido'}` 
+      };
     }
-
-    const category = this.getFileCategory(mimetype);
-
-    if (category === 'unknown') {
-      return { valid: false, error: `Tipo de archivo no permitido: ${mimetype}` };
-    }
-
-    const maxSize = this.getMaxSize(category);
-    if (size > maxSize) {
-      return { valid: false, error: `Archivo demasiado grande. Máximo: ${this.formatFileSize(maxSize)}` };
-    }
-
-    return { valid: true, category };
   }
 
   /**
