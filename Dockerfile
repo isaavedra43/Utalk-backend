@@ -1,4 +1,4 @@
-# Usar imagen oficial de Node.js (actualizada a versión 20)
+# Usar imagen oficial de Node.js 20
 FROM node:20-alpine
 
 # Establecer directorio de trabajo
@@ -10,24 +10,23 @@ COPY package*.json ./
 # Instalar dependencias de producción
 RUN npm ci --only=production --no-audit --no-fund
 
-# Copiar código fuente (excluir archivos innecesarios)
+# Copiar código fuente
 COPY . .
-RUN rm -rf node_modules/.cache && \
-    rm -rf .git && \
-    rm -rf tests && \
-    rm -rf scripts && \
-    rm -rf docs && \
-    rm -rf LOGSDOC
 
 # Crear directorio de uploads
 RUN mkdir -p uploads
 
-# Exponer puerto (usar 3001 que es el que usa la app)
+# Exponer puerto
 EXPOSE 3001
 
 # Usuario no root para seguridad
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Cambiar permisos
+RUN chown -R nodejs:nodejs /app
+
+# Cambiar a usuario no root
 USER nodejs
 
 # Comando de inicio
