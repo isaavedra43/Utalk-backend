@@ -57,7 +57,7 @@ async function checkConversationParticipants(conversationId) {
     return participants.length > 0 && hasDefaultViewers;
     
   } catch (error) {
-    console.error('❌ Error verificando conversación:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error verificando conversación:', error.message);
     return false;
   }
 }
@@ -105,7 +105,7 @@ async function listRecentConversations(limit = 10) {
     return conversations;
     
   } catch (error) {
-    console.error('❌ Error listando conversaciones:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error listando conversaciones:', error.message);
     return [];
   }
 }
@@ -129,7 +129,7 @@ function checkDefaultViewersConfig() {
  */
 async function runTest() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBA DE PARTICIPANTES' });
-  console.log('=' .repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
   
   try {
     // 1. Verificar configuración
@@ -186,7 +186,7 @@ async function runTest() {
     }
     
   } catch (error) {
-    console.error('\n❌ ERROR EN LA PRUEBA:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR EN LA PRUEBA:', error.message);
     process.exit(1);
   }
 }

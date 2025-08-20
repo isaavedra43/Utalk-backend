@@ -16,7 +16,7 @@ const logger = require('../src/utils/logger');
 
 async function syncAllConversationsWithContacts() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Iniciando sincronización masiva de conversaciones con contactos...' });
-  console.log('⏰ Fecha y hora:', new Date().toISOString());
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⏰ Fecha y hora:', new Date().toISOString());
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   try {
@@ -47,8 +47,8 @@ async function syncAllConversationsWithContacts() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   3. Monitorear logs para nuevas conversaciones' });
 
   } catch (error) {
-    console.error('❌ ERROR EN SINCRONIZACIÓN:', error.message);
-    console.error('Stack:', error.stack);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ ERROR EN SINCRONIZACIÓN:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack);
     process.exit(1);
   }
 }
@@ -61,6 +61,6 @@ syncAllConversationsWithContacts()
     process.exit(0);
   })
   .catch((error) => {
-    console.error('💥 Error fatal:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '💥 Error fatal:', error);
     process.exit(1);
   }); 

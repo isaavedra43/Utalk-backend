@@ -49,7 +49,7 @@ async function testDashboardButtons() {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Railway export:', railwayResponse.status === 200 ? 'OK' : 'ERROR' });
     } catch (error) {
       if (error.response?.status === 500 && error.response?.data?.message?.includes('RAILWAY_TOKEN')) {
-        console.log('✅ Railway export: Error esperado (sin credenciales)');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Railway export: Error esperado (sin credenciales)');
       } else {
         logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Railway export: Error inesperado:', error.message });
       }
@@ -58,12 +58,12 @@ async function testDashboardButtons() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 Todas las pruebas completadas!' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Para probar los botones en el navegador:' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   1. Ve a: http://localhost:3001/logs' });
-    console.log('   2. Abre la consola del navegador (F12)');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   2. Abre la consola del navegador (F12)');
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   3. Haz clic en los botones y verifica que funcionen' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   4. Revisa los mensajes en la consola' });
     
   } catch (error) {
-    console.error('❌ Error en las pruebas:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en las pruebas:', error.message);
     
     if (error.code === 'ECONNREFUSED') {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n💡 El servidor no está corriendo. Ejecuta: npm start' });

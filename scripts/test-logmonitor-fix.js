@@ -67,7 +67,7 @@ try {
     timelineLength: metrics.timeline.length
   } });
 } catch (error) {
-  console.error('❌ Error en getRateLimitMetrics:', error.message);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en getRateLimitMetrics:', error.message);
 }
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 Probando búsqueda de logs...' });
@@ -76,7 +76,7 @@ try {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Búsqueda ejecutada exitosamente' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Resultados de búsqueda:', searchResults.length });
 } catch (error) {
-  console.error('❌ Error en búsqueda:', error.message);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en búsqueda:', error.message);
 }
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 Probando filtros...' });
@@ -85,7 +85,7 @@ try {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Filtros ejecutados exitosamente' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Logs filtrados:', filteredLogs.length });
 } catch (error) {
-  console.error('❌ Error en filtros:', error.message);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en filtros:', error.message);
 }
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 Probando exportación CSV...' });
@@ -94,7 +94,7 @@ try {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Exportación CSV ejecutada exitosamente' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Tamaño del CSV:', csvExport.data.length, 'caracteres' });
 } catch (error) {
-  console.error('❌ Error en exportación CSV:', error.message);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en exportación CSV:', error.message);
 }
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 Todas las pruebas completadas exitosamente!' });

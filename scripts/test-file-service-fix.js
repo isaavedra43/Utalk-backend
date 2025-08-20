@@ -5,7 +5,7 @@ async function testFileServiceFix() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando correcciones del FileService...\n' });
 
   // Test 1: Simular el error original que estaba ocurriendo
-  console.log('1. Simulando el error original "Cannot read properties of undefined (reading \'error\')"...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Simulando el error original "Cannot read properties of undefined (reading \'error\')"...');
   
   // Simular un objeto result que es undefined
   const result = undefined;
@@ -77,7 +77,7 @@ async function testFileServiceFix() {
   }
 
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 Todas las correcciones de manejo de errores funcionan correctamente.' });
-  console.log('✅ El error "Cannot read properties of undefined (reading \'error\')" ya no debería ocurrir.');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El error "Cannot read properties of undefined (reading \'error\')" ya no debería ocurrir.');
 }
 
 // Ejecutar pruebas

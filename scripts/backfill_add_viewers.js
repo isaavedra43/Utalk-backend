@@ -48,7 +48,7 @@ const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '300', 10);
       } catch (e) {
         errored++;
         // No PII
-        console.error(JSON.stringify({ event: 'backfill.error', id: doc.id, msg: e.message }));
+        logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({ event: 'backfill.error', id: doc.id, msg: e.message }));
       }
     }
 
@@ -57,6 +57,6 @@ const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '300', 10);
     cursor = snap.docs[snap.docs.length - 1];
   }
 
-  console.log(JSON.stringify({ event: 'backfill.viewers.done', DRY_RUN, BATCH_SIZE, touched, unchanged, errored, batches }));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({ event: 'backfill.viewers.done', DRY_RUN, BATCH_SIZE, touched, unchanged, errored, batches }));
   process.exit(0);
-})().catch(err => { console.error(err); process.exit(1); }); 
+})().catch(err => { logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: err); process.exit(1); }); 

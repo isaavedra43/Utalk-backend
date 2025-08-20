@@ -35,7 +35,7 @@ function createTestSocket() {
  */
 async function testRealtimeFix() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 PROBANDO SOLUCIÓN DE TIEMPO REAL' });
-  console.log('=' .repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
   
   return new Promise((resolve) => {
     const socket = createTestSocket();

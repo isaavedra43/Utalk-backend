@@ -127,7 +127,7 @@ const webhookData = {
 };
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de prueba:' });
-console.log(JSON.stringify(webhookData, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(webhookData, null, 2));
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular la lógica de detección de tipo de mensaje
@@ -138,7 +138,7 @@ let specialData = null;
 if (parseInt(webhookData.NumMedia || '0') > 0) {
   messageType = 'media';
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Mensaje multimedia detectado' });
-  console.log('- NumMedia:', parseInt(webhookData.NumMedia));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- NumMedia:', parseInt(webhookData.NumMedia));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaUrl0:', webhookData.MediaUrl0 });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaContentType0:', webhookData.MediaContentType0 });
 }
@@ -199,7 +199,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 
 const mediaResult = simulateProcessWebhookMedia(webhookData);
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado del procesamiento de media:' });
-console.log(JSON.stringify(mediaResult, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(mediaResult, null, 2));
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular la creación del mensaje
@@ -224,7 +224,7 @@ if (messageType === 'media' && mediaResult.urls.length > 0) {
 }
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Mensaje final:' });
-console.log(JSON.stringify({
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
   id: 'simulated-message-id',
   conversationId: messageData.conversationId,
   type: messageData.type,

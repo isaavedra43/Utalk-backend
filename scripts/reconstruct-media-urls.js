@@ -9,7 +9,7 @@ async function reconstructMediaUrls() {
     const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
     
     if (!accountSid) {
-      console.error('❌ TWILIO_ACCOUNT_SID no configurado');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ TWILIO_ACCOUNT_SID no configurado');
       return;
     }
     
@@ -87,7 +87,7 @@ async function reconstructMediaUrls() {
     }
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error:', error);
   }
 }
 
@@ -96,6 +96,6 @@ reconstructMediaUrls().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Reconstrucción completada' });
   process.exit(0);
 }).catch(error => {
-  console.error('❌ Error fatal:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error fatal:', error);
   process.exit(1);
 }); 

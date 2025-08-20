@@ -43,7 +43,7 @@ async function quickTest() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Fecha:', result.exportedAt });
     
   } catch (error) {
-    console.error('❌ Error en la prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en la prueba:', error.message);
     
     if (error.message.includes('RAILWAY_TOKEN')) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n💡 SOLUCIÓN: Configura las variables de Railway' });

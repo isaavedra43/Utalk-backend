@@ -154,7 +154,7 @@ async function testWhatsAppLimits() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en prueba de límites:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de límites:', error.message);
     return false;
   }
 }
@@ -236,7 +236,7 @@ async function testWhatsAppConversion() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en prueba de conversión:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de conversión:', error.message);
     return false;
   }
 }
@@ -348,7 +348,7 @@ async function testStickerSupport() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en prueba de stickers:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de stickers:', error.message);
     return false;
   }
 }
@@ -432,7 +432,7 @@ async function testCompleteWhatsAppIntegration() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en integración completa:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en integración completa:', error.message);
     return false;
   }
 }
@@ -514,7 +514,7 @@ async function testErrorHandlingAndEdgeCases() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en manejo de errores:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en manejo de errores:', error.message);
     return false;
   }
 }
@@ -537,7 +537,7 @@ async function runAllTests() {
   
   for (const test of tests) {
     logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
-    console.log('─'.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '─'.repeat(50));
     
     const startTime = Date.now();
     const result = await test.fn();
@@ -591,7 +591,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch(error => {
-      console.error('❌ Error crítico en las pruebas:', error);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error crítico en las pruebas:', error);
       process.exit(1);
     });
 }

@@ -27,7 +27,7 @@ async function testMediaProcessing() {
 
   try {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de prueba:' });
-    console.log(JSON.stringify(webhookData, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(webhookData, null, 2));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
     // Probar procesamiento de media
@@ -35,7 +35,7 @@ async function testMediaProcessing() {
     const mediaResult = await MessageService.processWebhookMedia(webhookData);
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado del procesamiento de media:' });
-    console.log(JSON.stringify(mediaResult, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(mediaResult, null, 2));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
     // Probar procesamiento completo del webhook
@@ -43,7 +43,7 @@ async function testMediaProcessing() {
     const webhookResult = await MessageService.processWebhook(webhookData, 'test-request-id');
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado del procesamiento de webhook:' });
-    console.log(JSON.stringify({
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
       success: webhookResult.success,
       messageId: webhookResult.message?.id,
       conversationId: webhookResult.message?.conversationId,
@@ -54,8 +54,8 @@ async function testMediaProcessing() {
     }, null, 2));
 
   } catch (error) {
-    console.error('❌ Error en la prueba:', error.message);
-    console.error('Stack:', error.stack);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en la prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack);
   }
 }
 
@@ -64,6 +64,6 @@ testMediaProcessing().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Prueba completada' });
   process.exit(0);
 }).catch((error) => {
-  console.error('\n💥 Error fatal:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n💥 Error fatal:', error);
   process.exit(1);
 }); 

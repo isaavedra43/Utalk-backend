@@ -53,7 +53,7 @@ async function testTrackFileUsage() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', trackingData.fileId });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Action:', trackingData.action });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - User ID:', trackingData.userId });
-    console.log('  - User Agent:', trackingData.userAgent.substring(0, 50) + '...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - User Agent:', trackingData.userAgent.substring(0, 50) + '...');
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - IP:', trackingData.ip });
 
     // Simular registro de uso
@@ -88,7 +88,7 @@ async function testTrackFileUsage() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'trackFileUsage' };
   }
 }
@@ -149,7 +149,7 @@ async function testGetFileUsageStats() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'getFileUsageStats' };
   }
 }
@@ -213,7 +213,7 @@ async function testGetGlobalUsageMetrics() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'getGlobalUsageMetrics' };
   }
 }
@@ -282,7 +282,7 @@ async function testRecordFileAction() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'recordFileAction' };
   }
 }
@@ -343,7 +343,7 @@ async function testAnalyticsController() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'AnalyticsController' };
   }
 }
@@ -396,7 +396,7 @@ async function testAnalyticsRoutes() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'AnalyticsRoutes' };
   }
 }
@@ -467,7 +467,7 @@ async function testCompleteTracking() {
     };
 
   } catch (error) {
-    console.error('❌ Error en tracking completo:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en tracking completo:', error.message);
     return { success: false, error: error.message, testCase: 'completeTracking' };
   }
 }
@@ -495,7 +495,7 @@ async function testFase8Analytics() {
     const totalTests = results.length;
 
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 8 COMPLETADAS' });
-    console.log('=' .repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
     logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
@@ -569,7 +569,7 @@ async function testFase8Analytics() {
     };
 
   } catch (error) {
-    console.error('\n❌ Error en pruebas de Fase 8:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en pruebas de Fase 8:', error.message);
     throw error;
   }
 }
@@ -583,7 +583,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Script de prueba falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Script de prueba falló');
     process.exit(1);
   }
 }

@@ -89,7 +89,7 @@ async function testListFilesByConversation() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -137,7 +137,7 @@ async function testGetFileInfo() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -175,7 +175,7 @@ async function testDeleteFile() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -184,7 +184,7 @@ async function testDeleteFile() {
  * Simular el endpoint POST /api/media/upload (mejorado)
  */
 async function testUploadFile() {
-  console.log('\n🔄 Prueba 4: POST /api/media/upload (MEJORADO)');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 4: POST /api/media/upload (MEJORADO)');
   
   try {
     // Simular archivo subido
@@ -214,13 +214,13 @@ async function testUploadFile() {
       }
     };
 
-    console.log('✅ Archivo subido exitosamente (FASE 4)');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo subido exitosamente (FASE 4)');
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', uploadResult.attachments[0].id });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Nombre:', uploadResult.attachments[0].name });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño:', uploadResult.attachments[0].size, 'bytes' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Compatible con WhatsApp:', uploadResult.attachments[0].whatsappCompatible });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tiene preview:', !!uploadResult.attachments[0].previewUrl });
-    console.log('  - Tags:', uploadResult.attachments[0].tags.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tags:', uploadResult.attachments[0].tags.join(', '));
 
     return {
       success: true,
@@ -228,7 +228,7 @@ async function testUploadFile() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -278,7 +278,7 @@ async function testGetFilePreview() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Formato:', previewResult.preview.format });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño original:', previewResult.originalFile.size, 'bytes' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño preview:', previewResult.preview.size, 'bytes' });
-    console.log('  - Compresión:', Math.round((1 - previewResult.preview.size / previewResult.originalFile.size) * 100) + '%');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Compresión:', Math.round((1 - previewResult.preview.size / previewResult.originalFile.size) * 100) + '%');
 
     return {
       success: true,
@@ -286,7 +286,7 @@ async function testGetFilePreview() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -366,7 +366,7 @@ async function testValidations() {
     };
 
   } catch (error) {
-    console.error('❌ Error en validaciones:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en validaciones:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -393,7 +393,7 @@ async function testFase4Endpoints() {
     const totalTests = results.length;
 
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 4 COMPLETADAS' });
-    console.log('=' .repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
     logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
@@ -407,7 +407,7 @@ async function testFase4Endpoints() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ GET /api/media/files/:conversationId - Listar archivos de conversación' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ GET /api/media/file/:fileId - Obtener archivo específico' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ DELETE /api/media/file/:fileId - Eliminar archivo' });
-    console.log('4. ✅ POST /api/media/upload - Subir archivo (mejorado)');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ POST /api/media/upload - Subir archivo (mejorado)');
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. ✅ GET /api/media/preview/:fileId - Obtener preview de archivo' });
 
     // Mostrar mejoras implementadas
@@ -428,7 +428,7 @@ async function testFase4Endpoints() {
     };
 
   } catch (error) {
-    console.error('\n❌ Error en pruebas de Fase 4:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en pruebas de Fase 4:', error.message);
     throw error;
   }
 }
@@ -442,7 +442,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Script de prueba falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Script de prueba falló');
     process.exit(1);
   }
 }

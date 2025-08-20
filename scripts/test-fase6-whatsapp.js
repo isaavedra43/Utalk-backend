@@ -74,7 +74,7 @@ async function testSendFileToWhatsApp() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'sendFileToWhatsApp' };
   }
 }
@@ -164,7 +164,7 @@ async function testHandleWhatsAppFileReceived() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'handleWhatsAppFileReceived' };
   }
 }
@@ -210,7 +210,7 @@ async function testDownloadFileFromUrl() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'downloadFileFromUrl' };
   }
 }
@@ -254,7 +254,7 @@ async function testFindConversationByPhone() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'findConversationByPhone' };
   }
 }
@@ -300,7 +300,7 @@ async function testProcessSingleAttachment() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo procesado exitosamente' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', processedFile.id });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL:', processedFile.url });
-    console.log('  - Tags:', processedFile.tags.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tags:', processedFile.tags.join(', '));
 
     return {
       success: true,
@@ -310,7 +310,7 @@ async function testProcessSingleAttachment() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message, testCase: 'processSingleAttachment' };
   }
 }
@@ -384,7 +384,7 @@ async function testErrorCases() {
     };
 
   } catch (error) {
-    console.error('❌ Error en casos de error:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en casos de error:', error.message);
     return { success: false, error: error.message, testCase: 'errorCases' };
   }
 }
@@ -436,7 +436,7 @@ async function testCompleteIntegration() {
     };
 
   } catch (error) {
-    console.error('❌ Error en integración completa:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en integración completa:', error.message);
     return { success: false, error: error.message, testCase: 'completeIntegration' };
   }
 }
@@ -464,7 +464,7 @@ async function testFase6WhatsApp() {
     const totalTests = results.length;
 
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 6 COMPLETADAS' });
-    console.log('=' .repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
     logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
@@ -518,7 +518,7 @@ async function testFase6WhatsApp() {
     };
 
   } catch (error) {
-    console.error('\n❌ Error en pruebas de Fase 6:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en pruebas de Fase 6:', error.message);
     throw error;
   }
 }
@@ -532,7 +532,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Script de prueba falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Script de prueba falló');
     process.exit(1);
   }
 }

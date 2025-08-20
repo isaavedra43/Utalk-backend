@@ -37,13 +37,13 @@ async function testContactSerialization() {
 
     // Probar método toJSON()
     const contactJSON = contact.toJSON();
-    console.log('✅ Contact.toJSON() ejecutado correctamente');
-    console.log('📋 Resultado:', JSON.stringify(contactJSON, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Contact.toJSON() ejecutado correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Resultado:', JSON.stringify(contactJSON, null, 2));
 
     // Probar prepareForFirestore
     const firestoreData = prepareForFirestore(contactJSON);
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ prepareForFirestore ejecutado correctamente' });
-    console.log('📋 Datos para Firestore:', JSON.stringify(firestoreData, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos para Firestore:', JSON.stringify(firestoreData, null, 2));
 
     // Verificar que no hay métodos o prototipos personalizados
     const hasCustomPrototype = Object.getPrototypeOf(firestoreData) !== Object.prototype;
@@ -55,7 +55,7 @@ async function testContactSerialization() {
         JSON.stringify(firestoreData);
         return true;
       } catch (error) {
-        console.error('❌ Error serializando:', error.message);
+        logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error serializando:', error.message);
         return false;
       }
     })();
@@ -69,8 +69,8 @@ async function testContactSerialization() {
     }
 
   } catch (error) {
-    console.error('❌ Error en la prueba:', error.message);
-    console.error('Stack:', error.stack);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en la prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack);
   }
 }
 

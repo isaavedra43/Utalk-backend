@@ -17,7 +17,7 @@ const webhookData = {
 };
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de entrada:' });
-console.log(JSON.stringify(webhookData, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(webhookData, null, 2));
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular el método processIncomingMessage paso a paso
@@ -63,7 +63,7 @@ async function simulateProcessIncomingMessage(webhookData) {
 
   if (parseInt(numMedia) > 0) {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3. 📎 Procesando medios...' });
-    console.log('- numMedia > 0:', parseInt(numMedia) > 0);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- numMedia > 0:', parseInt(numMedia) > 0);
     
     // Simular processWebhookMedia
     const mediaInfo = {
@@ -142,7 +142,7 @@ async function simulateProcessIncomingMessage(webhookData) {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaData?.url:', mediaData?.url });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrlAssigned:', messageData.mediaUrl });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- messageType:', messageType });
-  console.log('- numMedia:', parseInt(numMedia) || 0);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- numMedia:', parseInt(numMedia) || 0);
 
   return {
     message: messageData,
@@ -153,7 +153,7 @@ async function simulateProcessIncomingMessage(webhookData) {
 // Ejecutar la simulación
 simulateProcessIncomingMessage(webhookData).then((result) => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resultado final:' });
-  console.log(JSON.stringify({
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
     success: result.success,
     messageId: result.message.id,
     conversationId: result.message.conversationId,
@@ -174,5 +174,5 @@ simulateProcessIncomingMessage(webhookData).then((result) => {
 
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Simulación completada' });
 }).catch((error) => {
-  console.error('❌ Error en la simulación:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en la simulación:', error);
 }); 

@@ -11,8 +11,8 @@ async function fixMediaUrlsInProduction() {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     
     if (!accountSid || !authToken) {
-      console.error('❌ Credenciales de Twilio no configuradas');
-      console.error('Asegúrate de que TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN estén configurados');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Credenciales de Twilio no configuradas');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Asegúrate de que TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN estén configurados');
       return;
     }
     
@@ -72,7 +72,7 @@ async function fixMediaUrlsInProduction() {
             logger.info('No se encontraron media para ${twilioSid}', { category: 'AUTO_MIGRATED' });
           }
         } catch (error) {
-          console.error(`❌ Error procesando ${twilioSid}:`, error.message);
+          logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: `❌ Error procesando ${twilioSid}:`, error.message);
         }
       }
     }
@@ -82,7 +82,7 @@ async function fixMediaUrlsInProduction() {
     logger.info('- Mensajes arreglados: ${totalMessagesFixed}', { category: 'AUTO_MIGRATED' });
     
   } catch (error) {
-    console.error('❌ Error en fixMediaUrlsInProduction:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en fixMediaUrlsInProduction:', error);
   }
 }
 
@@ -91,6 +91,6 @@ fixMediaUrlsInProduction().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Script completado' });
   process.exit(0);
 }).catch((error) => {
-  console.error('❌ Error:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error:', error);
   process.exit(1);
 }); 

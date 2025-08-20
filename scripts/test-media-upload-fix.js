@@ -10,34 +10,34 @@
 
 const MediaUploadController = require('../src/controllers/MediaUploadController');
 
-console.log('🧪 TESTING: MediaUploadController Fix');
-console.log('=====================================');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 TESTING: MediaUploadController Fix');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=====================================');
 
 try {
   // 1. Verificar que se puede importar
-  console.log('✅ 1. Importación exitosa');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 1. Importación exitosa');
   
   // 2. Verificar que es una clase
-  console.log('✅ 2. Es una clase:', typeof MediaUploadController === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 2. Es una clase:', typeof MediaUploadController === 'function');
   
   // 3. Verificar que se puede instanciar
   const controller = new MediaUploadController();
-  console.log('✅ 3. Instanciación exitosa');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 3. Instanciación exitosa');
   
   // 4. Verificar métodos principales
-  console.log('✅ 4. Métodos disponibles:');
-  console.log('   - uploadMedia:', typeof controller.uploadMedia === 'function');
-  console.log('   - uploadImage:', typeof controller.uploadImage === 'function');
-  console.log('   - uploadVideo:', typeof controller.uploadVideo === 'function');
-  console.log('   - uploadAudio:', typeof controller.uploadAudio === 'function');
-  console.log('   - uploadDocument:', typeof controller.uploadDocument === 'function');
-  console.log('   - isWhatsAppCompatible:', typeof controller.isWhatsAppCompatible === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 4. Métodos disponibles:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadMedia:', typeof controller.uploadMedia === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadImage:', typeof controller.uploadImage === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadVideo:', typeof controller.uploadVideo === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadAudio:', typeof controller.uploadAudio === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadDocument:', typeof controller.uploadDocument === 'function');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - isWhatsAppCompatible:', typeof controller.isWhatsAppCompatible === 'function');
   
   // 5. Verificar configuración
-  console.log('✅ 5. Configuración:');
-  console.log('   - Rate limit configurado:', !!controller.uploadLimit);
-  console.log('   - Multer configurado:', !!controller.multerConfig);
-  console.log('   - FileService instanciado:', !!controller.fileService);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 5. Configuración:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Rate limit configurado:', !!controller.uploadLimit);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Multer configurado:', !!controller.multerConfig);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - FileService instanciado:', !!controller.fileService);
   
   // 6. Probar método isWhatsAppCompatible
   const testFile = {
@@ -47,13 +47,13 @@ try {
   };
   
   const isCompatible = controller.isWhatsAppCompatible(testFile);
-  console.log('✅ 6. isWhatsAppCompatible test:', isCompatible);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 6. isWhatsAppCompatible test:', isCompatible);
   
-  console.log('\n🎉 TODAS LAS PRUEBAS PASARON EXITOSAMENTE!');
-  console.log('🚀 MediaUploadController está listo para producción');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 TODAS LAS PRUEBAS PASARON EXITOSAMENTE!');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 MediaUploadController está listo para producción');
   
 } catch (error) {
-  console.error('❌ ERROR EN PRUEBA:', error.message);
-  console.error('Stack:', error.stack);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ ERROR EN PRUEBA:', error.message);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack);
   process.exit(1);
 } 

@@ -289,7 +289,7 @@ async function runAllTests() {
       const result = await test();
       if (result) passedTests++;
     } catch (error) {
-      console.error(`❌ Error en test: ${error.message}`);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: `❌ Error en test: ${error.message}`);
     }
   }
   

@@ -13,7 +13,7 @@ const TEST_TOKEN = process.env.TEST_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC
 
 async function testErrorHandling() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE MANEJO DE ERRORES' });
-  console.log('=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(60));
   
   const api = axios.create({
     baseURL: BACKEND_URL,
@@ -101,7 +101,7 @@ async function testErrorHandling() {
         const { status, data } = error.response;
         
         logger.info('Status: ${status}', { category: 'AUTO_MIGRATED' });
-        console.log(`📦 Response:`, JSON.stringify(data, null, 2));
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `📦 Response:`, JSON.stringify(data, null, 2));
         
         // Verificar que el error es el esperado
         if (status === test.expectedStatus) {
@@ -125,7 +125,7 @@ async function testErrorHandling() {
     }
   }
 
-  console.log('\n' + '=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '=' .repeat(60));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN DE PRUEBAS:' });
   logger.info('Pruebas exitosas: ${passedTests}', { category: 'AUTO_MIGRATED' });
   logger.info('❌ Pruebas fallidas: ${failedTests}', { category: 'AUTO_MIGRATED' });
@@ -140,7 +140,7 @@ async function testErrorHandling() {
 
 async function testRobustness() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🛡️ PROBANDO ROBUSTEZ DEL SISTEMA' });
-  console.log('=' .repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
   
   const api = axios.create({
     baseURL: BACKEND_URL,
@@ -182,7 +182,7 @@ async function testRobustness() {
 
       if (testCase.shouldWork) {
         logger.info('ÉXITO: Funcionó como se esperaba', { category: 'AUTO_MIGRATED' });
-        console.log(`📦 Datos:`, JSON.stringify(response.data, null, 2));
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `📦 Datos:`, JSON.stringify(response.data, null, 2));
       } else {
         logger.info('❌ FALLO: Debería haber fallado pero funcionó', { category: 'AUTO_MIGRATED' });
       }

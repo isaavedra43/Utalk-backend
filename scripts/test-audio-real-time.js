@@ -91,7 +91,7 @@ async function testAudioStreaming() {
       format: 'mp3'
     });
     
-    console.log('✅ Chunks de audio generados:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Chunks de audio generados:', {
       totalChunks: chunks.length,
       averageChunkSize: Math.round(chunks.reduce((sum, chunk) => sum + chunk.size, 0) / chunks.length),
       totalSize: chunks.reduce((sum, chunk) => sum + chunk.size, 0)
@@ -100,7 +100,7 @@ async function testAudioStreaming() {
     return true;
     
   } catch (error) {
-    console.error('❌ Error en prueba de streaming:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de streaming:', error.message);
     return false;
   }
 }
@@ -117,7 +117,7 @@ async function testAudioRecording() {
     // Simular socket para pruebas
     const mockSocket = {
       emit: (event, data) => {
-        console.log(`📡 Socket emit: ${event}`, {
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `📡 Socket emit: ${event}`, {
           recordingId: data.recordingId?.substring(0, 20) + '...',
           conversationId: data.conversationId?.substring(0, 20) + '...',
           progress: data.progress,
@@ -157,7 +157,7 @@ async function testAudioRecording() {
         removeNoise: true
       });
       
-      console.log('✅ Audio grabado procesado:', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Audio grabado procesado:', {
         originalSize: testBuffer.length,
         processedSize: processedAudio.length,
         compressionRatio: ((testBuffer.length - processedAudio.length) / testBuffer.length * 100).toFixed(1) + '%'
@@ -170,7 +170,7 @@ async function testAudioRecording() {
         format: 'mp3'
       });
       
-      console.log('✅ Audio grabado guardado:', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Audio grabado guardado:', {
         recordingId: savedAudio.recordingId,
         storagePath: savedAudio.storagePath,
         url: savedAudio.url?.substring(0, 50) + '...'
@@ -190,7 +190,7 @@ async function testAudioRecording() {
     return true;
     
   } catch (error) {
-    console.error('❌ Error en prueba de grabación:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de grabación:', error.message);
     return false;
   }
 }
@@ -213,7 +213,7 @@ async function testAudioWebSocketEvents() {
           tenantId: 'test-tenant'
         },
         emit: (event, data) => {
-          console.log(`📡 WebSocket emit: ${event}`, {
+          logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `📡 WebSocket emit: ${event}`, {
             fileId: data.fileId?.substring(0, 20) + '...',
             conversationId: data.conversationId?.substring(0, 20) + '...',
             currentTime: data.currentTime,
@@ -279,7 +279,7 @@ async function testAudioWebSocketEvents() {
       }, 6000);
       
     } catch (error) {
-      console.error('❌ Error en prueba de WebSocket:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de WebSocket:', error.message);
       resolve(false);
     }
   });
@@ -296,7 +296,7 @@ async function testCompleteAudioIntegration() {
     
     // Crear audio de prueba
     const testBuffer = createTestAudioBuffer(10);
-    console.log('✅ Audio de prueba creado (10 segundos)');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Audio de prueba creado (10 segundos)');
     
     // Optimizar para streaming
     const optimizedAudio = await audioProcessor.optimizeForWebStreaming(testBuffer, {
@@ -315,7 +315,7 @@ async function testCompleteAudioIntegration() {
       format: 'mp3'
     });
     
-    console.log('✅ Chunks de streaming generados:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Chunks de streaming generados:', {
       totalChunks: streamingChunks.length,
       totalDuration: streamingChunks.length * 2 + ' segundos',
       averageChunkSize: Math.round(streamingChunks.reduce((sum, chunk) => sum + chunk.size, 0) / streamingChunks.length)
@@ -336,7 +336,7 @@ async function testCompleteAudioIntegration() {
     return true;
     
   } catch (error) {
-    console.error('❌ Error en integración completa:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en integración completa:', error.message);
     return false;
   }
 }
@@ -401,7 +401,7 @@ async function testAudioFormatsAndCompatibility() {
     return true;
     
   } catch (error) {
-    console.error('❌ Error en validación de formatos:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en validación de formatos:', error.message);
     return false;
   }
 }
@@ -448,7 +448,7 @@ async function testAudioPerformance() {
       });
       const chunkingTime = Date.now() - chunkingStart;
       
-      console.log(`  Chunks generados en ${chunkingTime}ms:`, {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `  Chunks generados en ${chunkingTime}ms:`, {
         totalChunks: chunks.length,
         averageChunkSize: Math.round(chunks.reduce((sum, chunk) => sum + chunk.size, 0) / chunks.length)
       });
@@ -464,7 +464,7 @@ async function testAudioPerformance() {
     return true;
     
   } catch (error) {
-    console.error('❌ Error en prueba de rendimiento:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de rendimiento:', error.message);
     return false;
   }
 }
@@ -488,7 +488,7 @@ async function runAllTests() {
   
   for (const test of tests) {
     logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
-    console.log('─'.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '─'.repeat(50));
     
     const startTime = Date.now();
     const result = await test.fn();
@@ -542,7 +542,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch(error => {
-      console.error('❌ Error crítico en las pruebas:', error);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error crítico en las pruebas:', error);
       process.exit(1);
     });
 }

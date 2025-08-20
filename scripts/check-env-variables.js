@@ -131,19 +131,19 @@ function checkVariables() {
   
   if (missingCritical.length > 0) {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  ❌ PROBLEMA CRÍTICO: La aplicación NO puede funcionar sin las variables críticas.' });
-    console.log('     Variables faltantes:', missingCritical.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Variables faltantes:', missingCritical.join(', '));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Solución: Configura estas variables en tu archivo .env' });
   }
   
   if (missingImportant.length > 0) {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  ⚠️  FUNCIONALIDAD LIMITADA: Sin las variables importantes, algunas características no funcionarán.' });
-    console.log('     Variables faltantes:', missingImportant.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Variables faltantes:', missingImportant.join(', '));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Recomendación: Configura estas variables para funcionalidad completa' });
   }
   
   if (missingOptional.length > 0) {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  🔵 CARACTERÍSTICAS AVANZADAS: Las variables opcionales habilitan características adicionales.' });
-    console.log('     Variables faltantes:', missingOptional.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Variables faltantes:', missingOptional.join(', '));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Nota: Estas son opcionales y no afectan el funcionamiento básico' });
   }
   

@@ -132,9 +132,9 @@ function testListenerReRegistration() {
   
   // Definir handlers que deberían estar registrados
   const requiredHandlers = {
-    'sync-state': (data) => console.log('sync-state handler:', data),
-    'new-message': (data) => console.log('new-message handler:', data),
-    'typing': (data) => console.log('typing handler:', data)
+    'sync-state': (data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'sync-state handler:', data),
+    'new-message': (data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'new-message handler:', data),
+    'typing': (data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'typing handler:', data)
   };
   
   // Simular que algunos listeners se perdieron
@@ -237,7 +237,7 @@ async function runAllTests() {
       const result = test();
       if (result) passedTests++;
     } catch (error) {
-      console.error(`❌ Error en test: ${error.message}`);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: `❌ Error en test: ${error.message}`);
     }
   }
   

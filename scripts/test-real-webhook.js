@@ -138,7 +138,7 @@ app.post('/webhook/test', async (req, res) => {
     }
     
   } catch (error) {
-    console.error('❌ Error procesando webhook:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error procesando webhook:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -153,7 +153,7 @@ app.listen(PORT, () => {
   logger.info('� Endpoint: POST http://localhost:${PORT}/webhook/test', { category: 'AUTO_MIGRATED' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Para probar, envía un POST con:' });
-  console.log(JSON.stringify({
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
     MessageSid: 'MMe60968c44ac4bb71105ebc3d1c4da65f',
     From: '+5214773790184',
     To: '+5214793176502',

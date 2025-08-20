@@ -7,9 +7,9 @@ app.use(express.json());
 
 app.post('/debug-webhook', (req, res) => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 WEBHOOK RECIBIDO:' });
-  console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('📦 Body:', JSON.stringify(req.body, null, 2));
-  console.log('🔗 Query params:', JSON.stringify(req.query, null, 2));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Headers:', JSON.stringify(req.headers, null, 2));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📦 Body:', JSON.stringify(req.body, null, 2));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔗 Query params:', JSON.stringify(req.query, null, 2));
   
   // Verificar específicamente los campos de media
   const mediaFields = {};

@@ -22,7 +22,7 @@ async function testRailwayExport() {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Información del archivo:' });
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Total de logs:', localResponse.data.totalLogs || 'N/A' });
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Fecha de exportación:', localResponse.data.exportedAt || 'N/A' });
-      console.log('   - Filtros aplicados:', JSON.stringify(localResponse.data.filters || {}, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Filtros aplicados:', JSON.stringify(localResponse.data.filters || {}, null, 2));
     }
     
     // Probar exportación CSV
@@ -34,16 +34,16 @@ async function testRailwayExport() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta CSV:', csvResponse.status });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Tamaño del CSV:', csvResponse.data.length, 'caracteres' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Primeras líneas del CSV:' });
-    console.log(csvResponse.data.split('\n').slice(0, 5).join('\n'));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: csvResponse.data.split('\n').slice(0, 5).join('\n'));
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡Todas las pruebas pasaron exitosamente!' });
     
   } catch (error) {
-    console.error('❌ Error en las pruebas:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en las pruebas:', error.message);
     
     if (error.response) {
-      console.error('📊 Status:', error.response.status);
-      console.error('📋 Datos:', error.response.data);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', error.response.status);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos:', error.response.data);
     }
     
     // Verificar si el problema es de configuración

@@ -1,7 +1,7 @@
 const logger = require('../../src/utils/logger');
 
 function describe(name, obj) {
-  console.log(name, {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: name, {
     isObject: !!obj && typeof obj === 'object',
     keys: obj ? Object.keys(obj) : null,
     types: obj ? Object.fromEntries(Object.keys(obj).slice(0, 10).map(k => [k, typeof obj[k]])) : null,
@@ -23,17 +23,17 @@ if (logger?.child) {
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n=== PRUEBA DE INVOCACIÓN ===' });
 try {
   logger.info('Test message', { test: true });
-  console.log('✅ logger.info() funciona');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ logger.info() funciona');
 } catch (error) {
-  console.log('❌ logger.info() falla:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ logger.info() falla:', error.message);
 }
 
 if (logger?.child) {
   try {
     const child = logger.child({ requestId: 'test' });
     child.info('Child test message');
-    console.log('✅ logger.child().info() funciona');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ logger.child().info() funciona');
   } catch (error) {
-    console.log('❌ logger.child().info() falla:', error.message);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ logger.child().info() falla:', error.message);
   }
 } 

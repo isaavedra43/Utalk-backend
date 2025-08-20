@@ -108,7 +108,7 @@ async function testPerformanceOptimization() {
     return results.every(r => r.result === 'success');
     
   } catch (error) {
-    console.error('❌ Error en prueba de optimización:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de optimización:', error.message);
     return false;
   }
 }
@@ -158,7 +158,7 @@ async function testCacheSystem() {
     return cacheEffective;
     
   } catch (error) {
-    console.error('❌ Error en prueba de cache:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de cache:', error.message);
     return false;
   }
 }
@@ -228,7 +228,7 @@ async function testMonitoringSystem() {
     return monitoringWorking;
     
   } catch (error) {
-    console.error('❌ Error en prueba de monitoreo:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de monitoreo:', error.message);
     return false;
   }
 }
@@ -282,7 +282,7 @@ async function testAlertsAndThresholds() {
     return alertsWorking;
     
   } catch (error) {
-    console.error('❌ Error en prueba de alertas:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de alertas:', error.message);
     return false;
   }
 }
@@ -336,7 +336,7 @@ async function testPerformanceMetrics() {
     return metricsWorking;
     
   } catch (error) {
-    console.error('❌ Error en prueba de métricas:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de métricas:', error.message);
     return false;
   }
 }
@@ -395,7 +395,7 @@ async function testLoadTesting() {
     return loadTestPassed;
     
   } catch (error) {
-    console.error('❌ Error en test de carga:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en test de carga:', error.message);
     return false;
   }
 }
@@ -439,7 +439,7 @@ async function testCleanupAndMaintenance() {
     return metricsReset;
     
   } catch (error) {
-    console.error('❌ Error en prueba de limpieza:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de limpieza:', error.message);
     return false;
   }
 }
@@ -464,7 +464,7 @@ async function runAllTests() {
   
   for (const test of tests) {
     logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
-    console.log('─'.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '─'.repeat(50));
     
     const startTime = Date.now();
     const result = await test.fn();
@@ -518,7 +518,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch(error => {
-      console.error('❌ Error crítico en las pruebas:', error);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error crítico en las pruebas:', error);
       process.exit(1);
     });
 }

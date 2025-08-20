@@ -99,7 +99,7 @@ if (!isAdequate) {
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ CONFIGURACIONES CORREGIDAS EN EL CÓDIGO:' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ JWT_EXPIRES_IN aumentado de 15m a 24h' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ clockTolerance aumentado de 30s a 60s en auth middleware' });
-console.log('3. ✅ clockTolerance consistente entre auth y WebSocket (60s)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ clockTolerance consistente entre auth y WebSocket (60s)');
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ Manejo de errores mejorado en WebSocket authentication' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
@@ -116,5 +116,5 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Con
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 CORRECCIÓN COMPLETADA' });
-console.log('📅 Fecha:', new Date().toISOString());
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📅 Fecha:', new Date().toISOString());
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Estado: Listo para reiniciar el servidor' }); 

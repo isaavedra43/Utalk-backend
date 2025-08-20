@@ -7,7 +7,7 @@ async function debugMediaUrl() {
     
     // Verificar que firestore esté disponible
     if (!firestore) {
-      console.error('❌ Firestore no está disponible');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Firestore no está disponible');
       return;
     }
     
@@ -76,7 +76,7 @@ async function debugMediaUrl() {
     }
     
   } catch (error) {
-    console.error('❌ Error en debug:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en debug:', error);
   }
 }
 
@@ -85,6 +85,6 @@ debugMediaUrl().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Debug completado' });
   process.exit(0);
 }).catch(error => {
-  console.error('❌ Error fatal:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error fatal:', error);
   process.exit(1);
 }); 

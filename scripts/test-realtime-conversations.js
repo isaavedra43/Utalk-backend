@@ -46,7 +46,7 @@ async function getAuthToken() {
       throw new Error('No se pudo obtener el token de acceso');
     }
   } catch (error) {
-    console.error('❌ Error obteniendo token:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error obteniendo token:', error.message);
     throw error;
   }
 }
@@ -222,7 +222,7 @@ async function testExistingConversations() {
       throw new Error('No se pudieron obtener las conversaciones');
     }
   } catch (error) {
-    console.error('❌ Error obteniendo conversaciones:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error obteniendo conversaciones:', error.message);
     throw error;
   }
 }
@@ -280,7 +280,7 @@ async function testJoinAllConversations() {
       }, 15000);
     });
   } catch (error) {
-    console.error('❌ Error en prueba de unirse a todas:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de unirse a todas:', error.message);
     throw error;
   }
 }
@@ -290,7 +290,7 @@ async function testJoinAllConversations() {
  */
 async function runTests() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBAS DE TIEMPO REAL EN CONVERSACIONES' });
-  console.log('=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(60));
   
   try {
     // Obtener token de autenticación
@@ -312,7 +312,7 @@ async function runTests() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  conversación en la lista cuando se conecta al WebSocket.' });
     
   } catch (error) {
-    console.error('\n❌ ERROR EN LAS PRUEBAS:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR EN LAS PRUEBAS:', error.message);
     process.exit(1);
   }
 }

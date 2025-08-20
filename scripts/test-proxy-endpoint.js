@@ -22,7 +22,7 @@ async function testProxyEndpoint() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta recibida:' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Status:', response.status });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Status Text:', response.statusText });
-    console.log('- Headers:', Object.keys(response.headers));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Headers:', Object.keys(response.headers));
     
     if (response.status === 200) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 ¡El endpoint funciona correctamente!' });
@@ -40,7 +40,7 @@ async function testProxyEndpoint() {
     }
     
   } catch (error) {
-    console.error('❌ Error en la petición:');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en la petición:');
     if (error.response) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Status:', error.response.status });
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Data:', error.response.data });

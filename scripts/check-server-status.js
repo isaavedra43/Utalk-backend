@@ -43,10 +43,10 @@ logger.info('Verificando estado del servidor...', { category: 'SERVER_STATUS_CHE
         timestamp: dashboardResponse.data.data?.timestamp
       } });
     } catch (dashboardError) {
-      console.error('❌ Dashboard falló:');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Dashboard falló:');
       if (dashboardError.response) {
-        console.error('📊 Status:', dashboardError.response.status);
-        console.error('📊 Error details:', dashboardError.response.data);
+        logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', dashboardError.response.status);
+        logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Error details:', dashboardError.response.data);
         
         // Verificar si el error es el mismo que antes
         if (dashboardError.response.data?.details?.includes('log.message.includes is not a function')) {
@@ -55,17 +55,17 @@ logger.info('Verificando estado del servidor...', { category: 'SERVER_STATUS_CHE
           logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 El error ha cambiado - posible progreso en el fix' });
         }
       } else {
-        console.error('📡 Error de red:', dashboardError.message);
+        logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📡 Error de red:', dashboardError.message);
       }
     }
 
   } catch (error) {
-    console.error('❌ Error general del servidor:');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error general del servidor:');
     if (error.response) {
-      console.error('📊 Status:', error.response.status);
-      console.error('📊 Data:', error.response.data);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', error.response.status);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Data:', error.response.data);
     } else {
-      console.error('📡 Error:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📡 Error:', error.message);
     }
   }
 }

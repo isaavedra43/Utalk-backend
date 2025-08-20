@@ -9,7 +9,7 @@ async function checkTwilioWebhookConfig() {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     
     if (!accountSid || !authToken) {
-      console.error('❌ Credenciales de Twilio no configuradas');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Credenciales de Twilio no configuradas');
       return;
     }
     
@@ -19,7 +19,7 @@ async function checkTwilioWebhookConfig() {
     try {
       const webhookConfig = await client.messaging.v1.webhooks().fetch();
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Configuración actual del webhook:' });
-      console.log(JSON.stringify(webhookConfig, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(webhookConfig, null, 2));
     } catch (error) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ No se pudo obtener la configuración del webhook:', error.message });
     }
@@ -42,7 +42,7 @@ async function checkTwilioWebhookConfig() {
         }
       }
     } catch (error) {
-      console.error('❌ Error obteniendo números de teléfono:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error obteniendo números de teléfono:', error.message);
     }
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 Para corregir el problema:' });
@@ -53,7 +53,7 @@ async function checkTwilioWebhookConfig() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. Guarda la configuración' });
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error:', error);
   }
 }
 
@@ -62,6 +62,6 @@ checkTwilioWebhookConfig().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Verificación completada' });
   process.exit(0);
 }).catch(error => {
-  console.error('❌ Error fatal:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error fatal:', error);
   process.exit(1);
 }); 

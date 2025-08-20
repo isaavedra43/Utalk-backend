@@ -28,18 +28,18 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: curlCo
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos del webhook:' });
-console.log(JSON.stringify(webhookData, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(webhookData, null, 2));
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Ejecutar el comando curl
 exec(curlCommand, (error, stdout, stderr) => {
   if (error) {
-    console.error('❌ Error ejecutando curl:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error ejecutando curl:', error.message);
     return;
   }
   
   if (stderr) {
-    console.error('⚠️ Stderr:', stderr);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Stderr:', stderr);
   }
   
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta del webhook:' });

@@ -177,9 +177,9 @@ async function testAllSolutions() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   // Test 1: Solución 1 - Bypass completo
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 1: SOLUCIÓN 1 - BYPASS COMPLETO' });
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   try {
     const result1 = await MediaProcessingSolutions.solution1(mediaUrl, messageSid, index);
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 1: PASÓ' });
@@ -190,9 +190,9 @@ async function testAllSolutions() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   // Test 2: Solución 2 - Sistema de fallback
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 2: SOLUCIÓN 2 - SISTEMA DE FALLBACK' });
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   try {
     const result2 = await MediaProcessingSolutions.solution2(mediaUrl, messageSid, index);
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 2: PASÓ' });
@@ -203,9 +203,9 @@ async function testAllSolutions() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   // Test 3: Solución 3 - Procesamiento asíncrono
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 3: SOLUCIÓN 3 - PROCESAMIENTO ASÍNCRONO' });
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   try {
     const result3 = await MediaProcessingSolutions.solution3(mediaUrl, messageSid, index);
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 3: PASÓ' });
@@ -214,9 +214,9 @@ async function testAllSolutions() {
   }
 
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN DE SOLUCIONES' });
-  console.log('='.repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 1: BYPASS COMPLETO' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Ventajas: Simple, rápido, no depende de FileService' });
@@ -250,7 +250,7 @@ if (require.main === module) {
       process.exit(0);
     })
     .catch((error) => {
-      console.error('\n❌ ERROR EN PRUEBAS:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR EN PRUEBAS:', error.message);
       process.exit(1);
     });
 }

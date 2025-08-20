@@ -104,7 +104,7 @@ async function fixProductionMediaUrls() {
     logger.info('Total de mensajes arreglados: ${fixed}', { category: 'AUTO_MIGRATED' });
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error:', error);
   }
 }
 
@@ -113,6 +113,6 @@ fixProductionMediaUrls().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Corrección completada' });
   process.exit(0);
 }).catch(error => {
-  console.error('❌ Error fatal:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error fatal:', error);
   process.exit(1);
 }); 

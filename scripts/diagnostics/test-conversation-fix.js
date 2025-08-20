@@ -11,7 +11,7 @@ const { safeFirestoreToJSON, analyzeFirestoreDocument } = require('../../src/uti
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Iniciando tests de conversión segura de Firestore...\n' });
 
 // Test 1: Objeto plano (como devuelve ConversationService.getConversationById)
-console.log('📋 Test 1: Objeto plano (caso normal)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 1: Objeto plano (caso normal)');
 const plainObject = {
   id: 'conv_+5214773790184_+5214793176502',
   customerPhone: '+5214773790184',
@@ -27,7 +27,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Resul
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 1 PASÓ\n' });
 
 // Test 2: null
-console.log('📋 Test 2: null (caso de error)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 2: null (caso de error)');
 const nullObject = null;
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Objeto de entrada:', nullObject });
@@ -38,7 +38,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Resul
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 2 PASÓ\n' });
 
 // Test 3: undefined
-console.log('📋 Test 3: undefined (caso de error)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 3: undefined (caso de error)');
 const undefinedObject = undefined;
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Objeto de entrada:', undefinedObject });
@@ -49,7 +49,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Resul
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 3 PASÓ\n' });
 
 // Test 4: Objeto con método toJSON (simulando documento de Firestore)
-console.log('📋 Test 4: Objeto con método toJSON (documento Firestore)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 4: Objeto con método toJSON (documento Firestore)');
 const firestoreDoc = {
   id: 'conv_+5214773790184_+5214793176502',
   data: () => ({
@@ -72,7 +72,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Resul
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 4 PASÓ\n' });
 
 // Test 5: String (caso inválido)
-console.log('📋 Test 5: String (caso inválido)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 5: String (caso inválido)');
 const stringObject = 'conv_+5214773790184_+5214793176502';
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Objeto de entrada:', stringObject });
@@ -96,8 +96,8 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ T
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 TODOS LOS TESTS PASARON EXITOSAMENTE!' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 La solución para el error toJSON está funcionando correctamente.' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resumen de casos manejados:' });
-console.log('   ✅ Objetos planos (caso normal)');
-console.log('   ✅ Documentos de Firestore con toJSON()');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Objetos planos (caso normal)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Documentos de Firestore con toJSON()');
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Valores null y undefined' });
-console.log('   ✅ Tipos inválidos (string, array)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Tipos inválidos (string, array)');
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🚀 El endpoint /api/conversations/:id debería funcionar correctamente ahora.' }); 

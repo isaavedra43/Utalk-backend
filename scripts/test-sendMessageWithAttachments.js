@@ -165,7 +165,7 @@ async function simulateSendMessageWithAttachments(conversationId, content, attac
       });
     }
 
-    console.log('✅ Eventos WebSocket simulados', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos WebSocket simulados', {
       eventCount: events.length,
       events: events.map(e => e.event)
     });
@@ -185,7 +185,7 @@ async function simulateSendMessageWithAttachments(conversationId, content, attac
     };
 
   } catch (error) {
-    console.error('❌ Error simulando envío de mensaje con archivos adjuntos', {
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error simulando envío de mensaje con archivos adjuntos', {
       error: error.message
     });
     throw error;
@@ -306,7 +306,7 @@ async function testSendMessageWithAttachments() {
     try {
       // Intentar enviar sin archivos
       await simulateSendMessageWithAttachments(conversationId, content, []);
-      console.log('⚠️ Prueba 4: No se detectó error esperado (sin archivos)');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Prueba 4: No se detectó error esperado (sin archivos)');
     } catch (error) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Prueba 4: Error detectado correctamente', {
         error: error.message
@@ -319,7 +319,7 @@ async function testSendMessageWithAttachments() {
     try {
       // Intentar enviar sin conversationId
       await simulateSendMessageWithAttachments('', content, [imageAttachment]);
-      console.log('⚠️ Prueba 5: No se detectó error esperado (sin conversationId)');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Prueba 5: No se detectó error esperado (sin conversationId)');
     } catch (error) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Prueba 5: Error detectado correctamente', {
         error: error.message
@@ -348,14 +348,14 @@ async function testSendMessageWithAttachments() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Tipo:', result3.message.type });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Estado:', result3.message.status });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Archivos adjuntos:', result3.metadata.attachmentCount });
-    console.log('Tipos de archivo:', result3.metadata.fileTypes.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Tipos de archivo:', result3.metadata.fileTypes.join(', '));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Tamaño total:', result3.metadata.totalSize, 'bytes' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Twilio SID:', result3.metadata.twilioSid });
 
     return summary;
 
   } catch (error) {
-    console.error('\n❌ Error en la prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en la prueba:', error.message);
     throw error;
   }
 }
@@ -369,7 +369,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Prueba completada exitosamente' });
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Prueba falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Prueba falló');
     process.exit(1);
   }
 }

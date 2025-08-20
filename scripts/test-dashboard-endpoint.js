@@ -58,17 +58,17 @@ async function testDashboardEndpoint() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El fix del LogMonitorService fue exitoso' });
 
   } catch (error) {
-    console.error('❌ Error al probar el endpoint:');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error al probar el endpoint:');
     
     if (error.response) {
-      console.error('📊 Status:', error.response.status);
-      console.error('📊 Status Text:', error.response.statusText);
-      console.error('📊 Headers:', error.response.headers);
-      console.error('📊 Data:', error.response.data);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', error.response.status);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Status Text:', error.response.statusText);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Headers:', error.response.headers);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📊 Data:', error.response.data);
     } else if (error.request) {
-      console.error('📡 Error de red:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '📡 Error de red:', error.message);
     } else {
-      console.error('🔧 Error:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '🔧 Error:', error.message);
     }
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ El endpoint aún tiene problemas' });

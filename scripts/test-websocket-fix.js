@@ -69,7 +69,7 @@ function verifyJWTWorkspaceId(token) {
       tenantId: decoded.tenantId
     };
   } catch (error) {
-    console.error('❌ Error verificando JWT:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error verificando JWT:', error.message);
     return null;
   }
 }
@@ -104,7 +104,7 @@ function simulateSocketAuthMiddleware(socket, token) {
 
     return true;
   } catch (error) {
-    console.error('❌ Error en middleware de autenticación:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en middleware de autenticación:', error.message);
     return false;
   }
 }
@@ -154,13 +154,13 @@ async function runTests() {
   // Test 1: Generar JWT con workspaceId
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 1: Generar JWT con workspaceId' });
   const testToken = generateTestJWT();
-  console.log('✅ JWT generado:', testToken.substring(0, 50) + '...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ JWT generado:', testToken.substring(0, 50) + '...\n');
 
   // Test 2: Verificar JWT
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 2: Verificar JWT' });
   const jwtVerification = verifyJWTWorkspaceId(testToken);
   if (!jwtVerification || !jwtVerification.hasWorkspaceId) {
-    console.error('❌ Test 2 falló: JWT no contiene workspaceId');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 2 falló: JWT no contiene workspaceId');
     return;
   }
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 2 pasado\n' });
@@ -170,13 +170,13 @@ async function runTests() {
   const mockSocket = {};
   const authResult = simulateSocketAuthMiddleware(mockSocket, testToken);
   if (!authResult) {
-    console.error('❌ Test 3 falló: Error en autenticación');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 3 falló: Error en autenticación');
     return;
   }
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 3 pasado\n' });
 
   // Test 4: Simular broadcast sin workspaceId (debe obtenerlo del socket)
-  console.log('📋 Test 4: Simular broadcast sin workspaceId (debe obtenerlo del socket)');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 4: Simular broadcast sin workspaceId (debe obtenerlo del socket)');
   const broadcastResult = simulateBroadcastToConversation({
     conversationId: 'test-conversation',
     event: 'new-message',
@@ -185,7 +185,7 @@ async function runTests() {
   });
   
   if (!broadcastResult) {
-    console.error('❌ Test 4 falló: Broadcast falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 4 falló: Broadcast falló');
     return;
   }
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 4 pasado\n' });
@@ -201,7 +201,7 @@ async function runTests() {
   });
   
   if (!broadcastResult2) {
-    console.error('❌ Test 5 falló: Broadcast con workspaceId explícito falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 5 falló: Broadcast con workspaceId explícito falló');
     return;
   }
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 5 pasado\n' });

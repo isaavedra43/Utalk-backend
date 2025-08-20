@@ -176,10 +176,10 @@ const mockFileModel = {
 
 // Mock de logger
 const mockLogger = {
-  info: (message, data) => console.log(`ℹ️ ${message}`, data || ''),
-  error: (message, data) => console.log(`❌ ${message}`, data || ''),
-  warn: (message, data) => console.log(`⚠️ ${message}`, data || ''),
-  debug: (message, data) => console.log(`🔍 ${message}`, data || '')
+  info: (message, data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `ℹ️ ${message}`, data || ''),
+  error: (message, data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `❌ ${message}`, data || ''),
+  warn: (message, data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `⚠️ ${message}`, data || ''),
+  debug: (message, data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `🔍 ${message}`, data || '')
 };
 
 // Mock de módulos antes de importar
@@ -335,8 +335,8 @@ async function testSimpleDatabaseIntegration() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ INTEGRACIÓN CON BASE DE DATOS FUNCIONANDO CORRECTAMENTE' });
 
   } catch (error) {
-    console.error('\n❌ Error en pruebas simplificadas:', error.message);
-    console.error('Stack:', error.stack?.split('\n').slice(0, 3));
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en pruebas simplificadas:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack?.split('\n').slice(0, 3));
     throw error;
   }
 }
@@ -349,7 +349,7 @@ async function main() {
     await testSimpleDatabaseIntegration();
     process.exit(0);
   } catch (error) {
-    console.error('❌ Script de prueba simplificado falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Script de prueba simplificado falló');
     process.exit(1);
   }
 }

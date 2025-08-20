@@ -310,7 +310,7 @@ async function testErrorHandling() {
  */
 async function runAllTests() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBAS DE EVENTOS WEBSOCKET DE ARCHIVOS' });
-  console.log('=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(60));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Configuración de prueba:' });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Server URL:', TEST_CONFIG.serverUrl });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Test Conversation ID:', TEST_CONFIG.testConversationId });
@@ -333,11 +333,11 @@ async function runAllTests() {
       const result = await test.fn();
       if (result) passed++;
     } catch (error) {
-      console.error(`❌ Error ejecutando ${test.name}:`, error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: `❌ Error ejecutando ${test.name}:`, error.message);
     }
   }
 
-  console.log('\n' + '=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '=' .repeat(60));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN FINAL DE PRUEBAS WEBSOCKET' });
   logger.info('Pruebas exitosas: ${passed}/${total}', { category: 'AUTO_MIGRATED' });
   logger.info('❌ Pruebas fallidas: ${total - passed}', { category: 'AUTO_MIGRATED' });
@@ -359,7 +359,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch(error => {
-      console.error('💥 Error crítico en pruebas WebSocket:', error);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '💥 Error crítico en pruebas WebSocket:', error);
       process.exit(1);
     });
 }

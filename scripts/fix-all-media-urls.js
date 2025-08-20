@@ -8,7 +8,7 @@ async function fixAllMediaUrls() {
     const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
     
     if (!accountSid) {
-      console.error('❌ TWILIO_ACCOUNT_SID no configurado');
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ TWILIO_ACCOUNT_SID no configurado');
       return;
     }
     
@@ -73,7 +73,7 @@ async function fixAllMediaUrls() {
               logger.info('No se encontraron media para ${twilioSid}', { category: 'AUTO_MIGRATED' });
             }
           } catch (error) {
-            console.error(`❌ Error procesando ${twilioSid}:`, error.message);
+            logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: `❌ Error procesando ${twilioSid}:`, error.message);
           }
         }
       }
@@ -85,7 +85,7 @@ async function fixAllMediaUrls() {
     logger.info('- Conversaciones procesadas: ${conversationsSnapshot.docs.length}', { category: 'AUTO_MIGRATED' });
     
   } catch (error) {
-    console.error('❌ Error en fixAllMediaUrls:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en fixAllMediaUrls:', error);
   }
 }
 
@@ -94,6 +94,6 @@ fixAllMediaUrls().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Script completado' });
   process.exit(0);
 }).catch((error) => {
-  console.error('❌ Error:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error:', error);
   process.exit(1);
 }); 

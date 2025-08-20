@@ -81,7 +81,7 @@ function simulateToJSON(message) {
         logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaSid:', mediaSid });
       }
     } catch (error) {
-      console.warn('⚠️ Error generando URL pública:', error.message);
+      logger.warn('Console warn migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Error generando URL pública:', error.message);
     }
   }
 
@@ -106,7 +106,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=====================================' });
 const twilioResult = simulateToJSON(messageWithTwilioMedia);
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resultado final:' });
-console.log(JSON.stringify({
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
   id: twilioResult.id,
   type: twilioResult.type,
   mediaUrl: twilioResult.mediaUrl,
@@ -117,7 +117,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n�
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=========================================' });
 const firebaseResult = simulateToJSON(messageWithFirebaseMedia);
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resultado final:' });
-console.log(JSON.stringify({
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
   id: firebaseResult.id,
   type: firebaseResult.type,
   mediaUrl: firebaseResult.mediaUrl,

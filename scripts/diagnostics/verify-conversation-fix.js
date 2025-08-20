@@ -28,7 +28,7 @@ filesToCheck.forEach(file => {
 });
 
 // Verificar que no hay más llamadas a toJSON() problemáticas en ConversationController
-console.log('\n📋 Verificando llamadas a toJSON() en ConversationController:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Verificando llamadas a toJSON() en ConversationController:');
 const conversationControllerPath = 'src/controllers/ConversationController.js';
 if (fs.existsSync(conversationControllerPath)) {
   const content = fs.readFileSync(conversationControllerPath, 'utf8');
@@ -41,9 +41,9 @@ if (fs.existsSync(conversationControllerPath)) {
   logger.info('Llamadas a safeFirestoreToJSON(): ${safeFirestoreCalls ? safeFirestoreCalls.length : 0}', { category: 'AUTO_MIGRATED' });
   
   if (toJSONCalls && toJSONCalls.length > 0) {
-    console.log('   ⚠️  Aún hay llamadas a toJSON() - verificar si son seguras');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ⚠️  Aún hay llamadas a toJSON() - verificar si son seguras');
   } else {
-    console.log('   ✅ Todas las llamadas a toJSON() han sido reemplazadas');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Todas las llamadas a toJSON() han sido reemplazadas');
   }
 }
 
@@ -90,8 +90,8 @@ if (fs.existsSync(conversationControllerPath)) {
 }
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 RESUMEN DE IMPLEMENTACIÓN:' });
-console.log('   ✅ ConversationController.getConversation() - SOLUCIONADO');
-console.log('   ✅ ConversationService.getConversationById() - MEJORADO');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ ConversationController.getConversation() - SOLUCIONADO');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ ConversationService.getConversationById() - MEJORADO');
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Utilidades de Firestore seguras - IMPLEMENTADAS' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Logging y debugging - MEJORADO' });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Manejo de errores - ROBUSTO' });

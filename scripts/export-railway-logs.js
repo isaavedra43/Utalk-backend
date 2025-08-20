@@ -77,7 +77,7 @@ class RailwayLogExporter {
 
       return response.data.data?.project?.service?.logs || { edges: [], pageInfo: {} };
     } catch (error) {
-      console.error('❌ Error obteniendo logs:', error.response?.data || error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error obteniendo logs:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -225,7 +225,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 Exportación completada exitosamente!' });
     
   } catch (error) {
-    console.error('❌ Error en la exportación:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en la exportación:', error.message);
     process.exit(1);
   }
 }

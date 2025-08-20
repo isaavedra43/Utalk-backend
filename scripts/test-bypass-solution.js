@@ -156,9 +156,9 @@ async function testBypassSolution() {
 
   try {
     // Test 1: Procesar media individual
-    console.log('='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 1: PROCESAMIENTO DE MEDIA INDIVIDUAL' });
-    console.log('='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
     
     const result1 = await BypassSolutionTest.processIndividualWebhookMedia(
       webhookData.MediaUrl0,
@@ -170,9 +170,9 @@ async function testBypassSolution() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado:', result1 });
 
     // Test 2: Procesar múltiples media
-    console.log('\n' + '='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '='.repeat(50));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 2: PROCESAMIENTO DE MÚLTIPLES MEDIA' });
-    console.log('='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
     
     const result2 = await BypassSolutionTest.processWebhookMedia(webhookData);
     
@@ -180,9 +180,9 @@ async function testBypassSolution() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado:', result2 });
 
     // Test 3: Verificar que no hay errores de FileService
-    console.log('\n' + '='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '='.repeat(50));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 3: VERIFICACIÓN DE SIN ERRORES FILESERVICE' });
-    console.log('='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
     
     let hasFileServiceError = false;
     try {
@@ -197,9 +197,9 @@ async function testBypassSolution() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 3: PASÓ' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   FileService errors:', hasFileServiceError ? 'SÍ' : 'NO' });
 
-    console.log('\n' + '='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '='.repeat(50));
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 TODAS LAS PRUEBAS PASARON' });
-    console.log('='.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '='.repeat(50));
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ SOLUCIÓN BYPASS IMPLEMENTADA CORRECTAMENTE' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 RESUMEN:' });
@@ -215,7 +215,7 @@ async function testBypassSolution() {
 
   } catch (error) {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR EN PRUEBAS:', error.message });
-    console.log('Stack:', error.stack?.split('\n').slice(0, 3));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack?.split('\n').slice(0, 3));
   }
 }
 
@@ -227,7 +227,7 @@ if (require.main === module) {
       process.exit(0);
     })
     .catch((error) => {
-      console.error('\n❌ ERROR GENERAL:', error.message);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR GENERAL:', error.message);
       process.exit(1);
     });
 }

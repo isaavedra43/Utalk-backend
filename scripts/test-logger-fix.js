@@ -22,7 +22,7 @@ try {
 }
 
 // Test 2: Error con referencias circulares (como MaxRetriesPerRequestError)
-console.log('📋 Test 2: Error con referencias circulares (simulando MaxRetriesPerRequestError)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 2: Error con referencias circulares (simulando MaxRetriesPerRequestError)');
 const circularError = new Error('Test error');
 circularError.previousErrors = [circularError]; // Referencia circular
 

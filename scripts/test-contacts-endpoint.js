@@ -16,7 +16,7 @@ const TEST_TOKEN = process.env.TEST_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC
 
 async function testContactsEndpoint() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DEL ENDPOINT DE CONTACTOS' });
-  console.log('=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(60));
   
   try {
     // Configurar axios con headers
@@ -37,10 +37,10 @@ async function testContactsEndpoint() {
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ RESPUESTA EXITOSA:' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', response.status });
-    console.log('📋 Headers:', JSON.stringify(response.headers, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Headers:', JSON.stringify(response.headers, null, 2));
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📦 DATOS DEL CLIENTE:' });
-    console.log(JSON.stringify(response.data, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(response.data, null, 2));
     
     // Verificar estructura de respuesta
     if (response.data.success && response.data.data) {
@@ -72,8 +72,8 @@ async function testContactsEndpoint() {
     
     if (error.response) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', error.response.status });
-      console.log('📋 Headers:', JSON.stringify(error.response.headers, null, 2));
-      console.log('📦 Data:', JSON.stringify(error.response.data, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Headers:', JSON.stringify(error.response.headers, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📦 Data:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🌐 Error de red:', error.message });
     } else {
@@ -81,7 +81,7 @@ async function testContactsEndpoint() {
     }
   }
   
-  console.log('\n' + '=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '=' .repeat(60));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏁 PRUEBA COMPLETADA' });
 }
 

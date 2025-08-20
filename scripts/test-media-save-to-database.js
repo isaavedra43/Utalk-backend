@@ -26,7 +26,7 @@ const messageData = {
 };
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos del mensaje a guardar:' });
-console.log(JSON.stringify(messageData, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(messageData, null, 2));
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular el proceso de guardado
@@ -58,7 +58,7 @@ const messageFirestoreData = {
 };
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Datos preparados para Firestore:' });
-console.log(JSON.stringify(messageFirestoreData, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(messageFirestoreData, null, 2));
 
 // 3. Verificar que mediaUrl se preservó
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3. ✅ Verificación de mediaUrl en datos de Firestore:' });
@@ -85,10 +85,10 @@ const mockMessage = {
 };
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Objeto Message creado:' });
-console.log(JSON.stringify(mockMessage, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(mockMessage, null, 2));
 
 // 5. Simular toJSON()
-console.log('\n5. 🔄 Simulación de toJSON():');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n5. 🔄 Simulación de toJSON():');
 const toJSONResult = {
   id: mockMessage.id,
   conversationId: mockMessage.conversationId,
@@ -113,8 +113,8 @@ const toJSONResult = {
   updatedAt: mockMessage.updatedAt.toISOString()
 };
 
-console.log('✅ Resultado de toJSON():');
-console.log(JSON.stringify(toJSONResult, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado de toJSON():');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(toJSONResult, null, 2));
 
 // 6. Verificación final
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n6. ✅ Verificación final:' });

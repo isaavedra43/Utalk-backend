@@ -17,7 +17,7 @@ const TEST_DATA = {
 
 async function testMediaProxy() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DEL ENDPOINT PROXY DE MEDIA' });
-  console.log('=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(60));
   
   try {
     // 1. Probar endpoint sin autenticación (debería fallar)
@@ -31,7 +31,7 @@ async function testMediaProxy() {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Status:', response.status });
     } catch (error) {
       if (error.response?.status === 401) {
-        console.log('✅ Correcto: Falló con 401 (sin autenticación)');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Correcto: Falló con 401 (sin autenticación)');
       } else {
         logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Falló con error diferente:', error.response?.status || error.message });
       }
@@ -101,7 +101,7 @@ async function testMediaProxy() {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ ERROR: Debería haber fallado con parámetros inválidos' });
     } catch (error) {
       if (error.response?.status === 400) {
-        console.log('✅ Correcto: Falló con 400 (parámetros inválidos)');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Correcto: Falló con 400 (parámetros inválidos)');
       } else {
         logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Falló con error diferente:', error.response?.status || error.message });
       }
@@ -120,7 +120,7 @@ async function testMediaProxy() {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ ERROR: Debería haber fallado sin parámetros' });
     } catch (error) {
       if (error.response?.status === 400) {
-        console.log('✅ Correcto: Falló con 400 (parámetros faltantes)');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Correcto: Falló con 400 (parámetros faltantes)');
       } else {
         logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Falló con error diferente:', error.response?.status || error.message });
       }
@@ -130,7 +130,7 @@ async function testMediaProxy() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error general en la prueba:', error.message });
   }
 
-  console.log('\n' + '=' .repeat(60));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '=' .repeat(60));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏁 PRUEBA COMPLETADA' });
 }
 

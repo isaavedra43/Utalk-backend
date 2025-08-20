@@ -10,7 +10,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   re
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 try {
   req.logger?.info('test');
-  console.log('   ✅ No lanza error (retorna undefined)');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ No lanza error (retorna undefined)');
 } catch (error) {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ❌ Lanza error:', error.message });
 }
@@ -22,7 +22,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   re
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 try {
   req.logger?.info('test');
-  console.log('   ✅ No lanza error (retorna undefined)');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ No lanza error (retorna undefined)');
 } catch (error) {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ❌ Lanza error:', error.message });
 }
@@ -34,7 +34,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   re
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 try {
   req.logger?.info('test');
-  console.log('   ✅ No lanza error (retorna undefined)');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ No lanza error (retorna undefined)');
 } catch (error) {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ❌ Lanza error:', error.message });
 }
@@ -46,13 +46,13 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   re
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 try {
   req.logger?.info('test');
-  console.log('   ✅ No lanza error (retorna undefined)');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ No lanza error (retorna undefined)');
 } catch (error) {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ❌ Lanza error:', error.message });
 }
 
 // Caso 5: req.logger es un objeto con info como función
-console.log('\n5. req.logger = { info: function() {} }');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n5. req.logger = { info: function() {} }');
 req = { logger: { info: function() { logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'info called' }); } } };
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger?.info:', req.logger?.info });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
@@ -64,7 +64,7 @@ try {
 }
 
 // Caso 6: req.logger es el logger real
-console.log('\n6. req.logger = logger (real)');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n6. req.logger = logger (real)');
 req = { logger: logger };
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger?.info:', req.logger?.info });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
@@ -76,7 +76,7 @@ try {
 }
 
 // Caso 7: req.logger es un child logger
-console.log('\n7. req.logger = logger.child()');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n7. req.logger = logger.child()');
 req = { logger: logger.child({ test: true }) };
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger?.info:', req.logger?.info });
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });

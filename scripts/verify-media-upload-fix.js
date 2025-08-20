@@ -63,7 +63,7 @@ function checkFile(filePath, description, checks) {
   logger.info('� Archivo: ${filePath}', { category: 'AUTO_MIGRATED' });
   
   if (!fs.existsSync(filePath)) {
-    console.error(`❌ Archivo no encontrado: ${filePath}`);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: `❌ Archivo no encontrado: ${filePath}`);
     return false;
   }
 
@@ -115,7 +115,7 @@ function showRelevantCode() {
     
     if (routeLines.length > 0) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Configuración de la ruta /upload:' });
-      routeLines.forEach(line => console.log(`  ${line}`));
+      routeLines.forEach(line => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `  ${line}`));
     }
   }
 }
@@ -123,8 +123,8 @@ function showRelevantCode() {
 // Función principal
 function runVerification() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 VERIFICANDO CORRECCIÓN DE SUBIDA DE MEDIA' });
-  console.log('⏰ Timestamp:', new Date().toISOString());
-  console.log('📍 Directorio:', process.cwd());
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⏰ Timestamp:', new Date().toISOString());
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📍 Directorio:', process.cwd());
   
   let totalChecks = 0;
   let passedChecks = 0;
@@ -152,7 +152,7 @@ function runVerification() {
   
   if (failedFiles.length > 0) {
     logger.info('\n Archivos con problemas:', { category: 'AUTO_MIGRATED' });
-    failedFiles.forEach(file => console.log(`  - ${file}`));
+    failedFiles.forEach(file => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `  - ${file}`));
   }
 
   // Mostrar código relevante

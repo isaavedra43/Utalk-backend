@@ -67,7 +67,7 @@ async function saveFileToDatabase(fileData) {
     };
 
     // Simular guardado en Firestore
-    console.log('✅ Archivo guardado exitosamente en base de datos', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo guardado exitosamente en base de datos', {
       fileId,
       conversationId,
       category,
@@ -76,7 +76,7 @@ async function saveFileToDatabase(fileData) {
 
     return fileRecord;
   } catch (error) {
-    console.error('❌ Error guardando archivo en base de datos', {
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error guardando archivo en base de datos', {
       error: error.message,
       fileData: { fileId: fileData.fileId, conversationId: fileData.conversationId }
     });
@@ -188,11 +188,11 @@ async function testSaveFileToDatabase() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Conversación:', savedFile.conversationId });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Usuario:', savedFile.uploadedBy });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'URL:', savedFile.url });
-    console.log('Tags:', savedFile.tags.join(', '));
-    console.log('Metadata:', JSON.stringify(savedFile.metadata, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Tags:', savedFile.tags.join(', '));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Metadata:', JSON.stringify(savedFile.metadata, null, 2));
 
   } catch (error) {
-    console.error('\n❌ Error en la prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en la prueba:', error.message);
     throw error;
   }
 }
@@ -206,7 +206,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Prueba completada exitosamente' });
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Prueba falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Prueba falló');
     process.exit(1);
   }
 }

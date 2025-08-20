@@ -18,7 +18,7 @@ const TEST_CONVERSATION_ID = process.env.TEST_CONVERSATION_ID || 'conv_test_123'
 
 async function testTwilioMediaProcessing() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DE PROCESAMIENTO DE MEDIOS DE TWILIO' });
-  console.log('=' .repeat(70));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(70));
   
   try {
     // Configurar axios con headers
@@ -47,10 +47,10 @@ async function testTwilioMediaProcessing() {
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ RESPUESTA EXITOSA:' });
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', response.status });
-    console.log('📋 Headers:', JSON.stringify(response.headers, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Headers:', JSON.stringify(response.headers, null, 2));
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📦 DATOS DEL MEDIO PROCESADO:' });
-    console.log(JSON.stringify(response.data, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(response.data, null, 2));
     
     // Verificar estructura de respuesta
     if (response.data.success && response.data.data) {
@@ -82,8 +82,8 @@ async function testTwilioMediaProcessing() {
     
     if (error.response) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', error.response.status });
-      console.log('📋 Headers:', JSON.stringify(error.response.headers, null, 2));
-      console.log('📦 Data:', JSON.stringify(error.response.data, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Headers:', JSON.stringify(error.response.headers, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📦 Data:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🌐 Error de red:', error.message });
     } else {
@@ -91,13 +91,13 @@ async function testTwilioMediaProcessing() {
     }
   }
   
-  console.log('\n' + '=' .repeat(70));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '=' .repeat(70));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏁 PRUEBA COMPLETADA' });
 }
 
 async function testMediaInfo() {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 PROBANDO OBTENCIÓN DE INFORMACIÓN DE MEDIO' });
-  console.log('=' .repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
   
   try {
     const api = axios.create({
@@ -116,20 +116,20 @@ async function testMediaInfo() {
     const response = await api.get(`/api/media/twilio/info?mediaUrl=${encodeURIComponent(TEST_MEDIA_URL)}`);
     
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ INFORMACIÓN DEL MEDIO:' });
-    console.log(JSON.stringify(response.data, null, 2));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(response.data, null, 2));
     
   } catch (error) {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR OBTENIENDO INFORMACIÓN:' });
     
     if (error.response) {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', error.response.status });
-      console.log('📦 Data:', JSON.stringify(error.response.data, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📦 Data:', JSON.stringify(error.response.data, null, 2));
     } else {
       logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💻 Error:', error.message });
     }
   }
   
-  console.log('\n' + '=' .repeat(50));
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' + '=' .repeat(50));
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏁 PRUEBA DE INFORMACIÓN COMPLETADA' });
 }
 

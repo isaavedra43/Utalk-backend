@@ -101,7 +101,7 @@ async function testImagePreview() {
       }
     );
     
-    console.log('✅ Preview de imagen generado:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Preview de imagen generado:', {
       thumbnailSize: `${imagePreview.thumbnail.size / 1024}KB`,
       previewSize: `${imagePreview.preview.size / 1024}KB`,
       originalSize: `${imagePreview.original.size / 1024}KB`,
@@ -135,7 +135,7 @@ async function testImagePreview() {
     }
     
   } catch (error) {
-    console.error('❌ Error en prueba de preview de imágenes:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de preview de imágenes:', error.message);
     return false;
   }
 }
@@ -208,7 +208,7 @@ async function testDocumentPreview() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en prueba de preview de documentos:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de preview de documentos:', error.message);
     return false;
   }
 }
@@ -268,7 +268,7 @@ async function testVideoPreview() {
       return true;
       
     } catch (videoError) {
-      console.log('⚠️ Error en preview de video (esperado para video simulado):', videoError.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Error en preview de video (esperado para video simulado):', videoError.message);
       
       // Probar preview completo con manejo de errores
       try {
@@ -299,7 +299,7 @@ async function testVideoPreview() {
     }
     
   } catch (error) {
-    console.error('❌ Error en prueba de preview de videos:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de preview de videos:', error.message);
     return false;
   }
 }
@@ -426,7 +426,7 @@ async function testCompletePreviewIntegration() {
     return passedTests === totalTests;
     
   } catch (error) {
-    console.error('❌ Error en integración completa:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en integración completa:', error.message);
     return false;
   }
 }
@@ -479,7 +479,7 @@ async function testOptimizationAndLazyLoading() {
     
     const previewTime = Date.now() - previewStartTime;
     
-    console.log('✅ Preview completo generado:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Preview completo generado:', {
       time: `${previewTime}ms`,
       thumbnailSize: `${fullPreview.thumbnail.size / 1024}KB`,
       previewSize: `${fullPreview.preview.size / 1024}KB`,
@@ -498,7 +498,7 @@ async function testOptimizationAndLazyLoading() {
     }
     
   } catch (error) {
-    console.error('❌ Error en prueba de optimización:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba de optimización:', error.message);
     return false;
   }
 }
@@ -521,7 +521,7 @@ async function runAllTests() {
   
   for (const test of tests) {
     logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
-    console.log('─'.repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '─'.repeat(50));
     
     const startTime = Date.now();
     const result = await test.fn();
@@ -575,7 +575,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch(error => {
-      console.error('❌ Error crítico en las pruebas:', error);
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error crítico en las pruebas:', error);
       process.exit(1);
     });
 }

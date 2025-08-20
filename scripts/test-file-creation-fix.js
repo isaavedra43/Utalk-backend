@@ -92,7 +92,7 @@ class MockFile {
       }
     } catch (dateError) {
       // 🔧 CORRECCIÓN CRÍTICA: Manejar errores de fecha
-      console.error('⚠️ Error procesando fecha para índice:', {
+      logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Error procesando fecha para índice:', {
         error: dateError.message,
         uploadedAt: file.uploadedAt,
         uploadedAtType: typeof file.uploadedAt
@@ -164,7 +164,7 @@ try {
   };
 
   const file = await MockFile.create(fileData);
-  console.log('✅ Archivo creado exitosamente (sin uploadedAt):', {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo creado exitosamente (sin uploadedAt):', {
     id: file.id,
     uploadedAt: file.uploadedAt,
     uploadedAtType: typeof file.uploadedAt
@@ -196,7 +196,7 @@ try {
   };
 
   const file = await MockFile.create(fileData);
-  console.log('✅ Archivo creado exitosamente (uploadedAt undefined):', {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo creado exitosamente (uploadedAt undefined):', {
     id: file.id,
     uploadedAt: file.uploadedAt,
     uploadedAtType: typeof file.uploadedAt

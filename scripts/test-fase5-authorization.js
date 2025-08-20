@@ -88,7 +88,7 @@ async function testFileAuthorizationMiddleware() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -139,7 +139,7 @@ async function testConversationFileAuthorizationMiddleware() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -198,7 +198,7 @@ async function testFileDeleteAuthorizationMiddleware() {
     };
 
   } catch (error) {
-    console.error('❌ Error en prueba:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en prueba:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -280,7 +280,7 @@ async function testAccessDeniedCases() {
     };
 
   } catch (error) {
-    console.error('❌ Error en casos de acceso denegado:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en casos de acceso denegado:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -365,7 +365,7 @@ async function testAccessAllowedCases() {
     };
 
   } catch (error) {
-    console.error('❌ Error en casos de acceso permitido:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en casos de acceso permitido:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -424,7 +424,7 @@ async function testLoggingAndAudit() {
     };
 
   } catch (error) {
-    console.error('❌ Error en logging y auditoría:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en logging y auditoría:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -451,7 +451,7 @@ async function testFase5Authorization() {
     const totalTests = results.length;
 
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 5 COMPLETADAS' });
-    console.log('=' .repeat(50));
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=' .repeat(50));
     logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
@@ -493,7 +493,7 @@ async function testFase5Authorization() {
     };
 
   } catch (error) {
-    console.error('\n❌ Error en pruebas de Fase 5:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Error en pruebas de Fase 5:', error.message);
     throw error;
   }
 }
@@ -507,7 +507,7 @@ async function main() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Script de prueba falló');
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Script de prueba falló');
     process.exit(1);
   }
 }

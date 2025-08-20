@@ -36,7 +36,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   re
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 
 // Simular lo que haría correlation.js
-console.log('\n2. Después de correlation.js (simulado):');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n2. Después de correlation.js (simulado):');
 if (req.logger?.child) {
   req.logger = req.logger.child({ requestId: req.requestId, traceId: req.traceId });
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger asignado con child' });
@@ -50,7 +50,7 @@ logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   re
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 
 // Simular el call site problemático
-console.log('\n3. Intentando req.logger?.info():');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3. Intentando req.logger?.info():');
 try {
   req.logger?.info({
     event: 'conversations_list_start',
@@ -68,9 +68,9 @@ try {
       page: 1
     }
   });
-  console.log('   ✅ req.logger?.info() funcionó');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ req.logger?.info() funcionó');
 } catch (error) {
-  console.log('   ❌ req.logger?.info() falló:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ❌ req.logger?.info() falló:', error.message);
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Stack:', error.stack });
 }
 
@@ -82,7 +82,7 @@ try {
     requestId: req.requestId,
     traceId: req.traceId
   });
-  console.log('   ✅ logger.info() directo funciona');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ logger.info() directo funciona');
 } catch (error) {
-  console.log('   ❌ logger.info() directo falla:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ❌ logger.info() directo falla:', error.message);
 } 

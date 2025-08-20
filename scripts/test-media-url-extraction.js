@@ -14,7 +14,7 @@ const webhookData = {
 };
 
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de entrada:' });
-console.log(JSON.stringify(webhookData, null, 2));
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify(webhookData, null, 2));
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular el método processWebhookMedia simplificado
@@ -25,7 +25,7 @@ function simulateProcessWebhookMedia(webhookData) {
 
   const numMedia = parseInt(webhookData.NumMedia || '0');
 
-  console.log('🔍 Procesando media del webhook:', {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Procesando media del webhook:', {
     numMedia,
     webhookKeys: Object.keys(webhookData).filter(key => key.startsWith('Media'))
   });
@@ -130,7 +130,7 @@ if (messageType === 'media' && parseInt(webhookData.NumMedia || '0') > 0) {
 
 // 4. Resultado final
 logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Mensaje final:' });
-console.log(JSON.stringify({
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: JSON.stringify({
   id: 'simulated-message-id',
   conversationId: messageData.conversationId,
   type: messageData.type,

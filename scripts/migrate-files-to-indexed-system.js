@@ -20,7 +20,7 @@ async function migrateFilesToIndexedSystem() {
   const log = (message, data = {}) => {
     const timestamp = new Date().toISOString();
     if (Object.keys(data).length > 0) {
-      console.log(`[${timestamp}] ${message}`, JSON.stringify(data, null, 2));
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `[${timestamp}] ${message}`, JSON.stringify(data, null, 2));
     } else {
       logger.info('[${timestamp}] ${message}', { category: 'AUTO_MIGRATED' });
     }
@@ -86,7 +86,7 @@ async function migrateFilesToIndexedSystem() {
     }
 
   } catch (error) {
-    console.error('💥 Error durante la migración:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '💥 Error durante la migración:', error.message);
     process.exit(1);
   }
 }
@@ -256,7 +256,7 @@ async function cleanupOrphanedFiles() {
     logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Limpieza de archivos huérfanos completada' });
 
   } catch (error) {
-    console.error('❌ Error en limpieza de archivos huérfanos:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en limpieza de archivos huérfanos:', error.message);
   }
 }
 
@@ -311,7 +311,7 @@ async function verifySystemIntegrity() {
     }
 
   } catch (error) {
-    console.error('❌ Error verificando integridad:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error verificando integridad:', error.message);
   }
 }
 
@@ -367,7 +367,7 @@ async function generateMigrationReport() {
     }
 
   } catch (error) {
-    console.error('❌ Error generando reporte:', error.message);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error generando reporte:', error.message);
   }
 }
 

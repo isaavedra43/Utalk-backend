@@ -64,7 +64,7 @@ async function reconstructMediaUrlsFromSids() {
     logger.info('- Mensajes arreglados: ${totalMessagesFixed}', { category: 'AUTO_MIGRATED' });
     
   } catch (error) {
-    console.error('❌ Error en reconstructMediaUrlsFromSids:', error);
+    logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en reconstructMediaUrlsFromSids:', error);
   }
 }
 
@@ -73,6 +73,6 @@ reconstructMediaUrlsFromSids().then(() => {
   logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Script completado' });
   process.exit(0);
 }).catch((error) => {
-  console.error('❌ Error:', error);
+  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ Error:', error);
   process.exit(1);
 }); 

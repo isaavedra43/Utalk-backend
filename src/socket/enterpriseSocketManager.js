@@ -1225,22 +1225,34 @@ class EnterpriseSocketManager {
    * Limpia entradas antiguas del rate limiting para optimizar memoria
    */
   cleanupOldRateLimitEntries() {
-    const now = Date.now();
-    const maxAge = 30 * 60 * 1000; // 30 minutos
-    let cleanedCount = 0;
-
-    for (const [key, timestamp] of this.rateLimitTracker.entries()) {
-      if (now - timestamp > maxAge) {
-        this.rateLimitTracker.delete(key);
-        cleanedCount++;
-      }
+    // 🔧 CORRECCIÓN CRÍTICA: Verificar que rateLimitTracker existe y es válido
+    if (!this.rateLimitTracker || typeof this.rateLimitTracker.cleanup !== 'function') {
+      logger.warn('Rate limit tracker no disponible o no es un ManagedMap válido', {
+        category: 'SOCKET_RATE_LIMIT_CLEANUP_WARNING',
+        trackerType: typeof this.rateLimitTracker,
+        hasCleanup: this.rateLimitTracker?.cleanup ? 'yes' : 'no'
+      });
+      return;
     }
 
-    if (cleanedCount > 0) {
-      logger.info('Rate limit entries cleaned up', {
-        category: 'SOCKET_RATE_LIMIT_CLEANUP',
-        cleanedCount,
-        remainingEntries: this.rateLimitTracker.size
+    // Usar el método cleanup del ManagedMap en lugar de iterar manualmente
+    try {
+      const beforeSize = this.rateLimitTracker.size || 0;
+      this.rateLimitTracker.cleanup();
+      const afterSize = this.rateLimitTracker.size || 0;
+      const cleanedCount = beforeSize - afterSize;
+
+      if (cleanedCount > 0) {
+        logger.info('Rate limit entries cleaned up', {
+          category: 'SOCKET_RATE_LIMIT_CLEANUP',
+          cleanedCount,
+          remainingEntries: afterSize
+        });
+      }
+    } catch (error) {
+      logger.error('Error cleaning up rate limit entries', {
+        category: 'SOCKET_RATE_LIMIT_CLEANUP_ERROR',
+        error: error.message
       });
     }
   }
@@ -2608,21 +2620,34 @@ class EnterpriseSocketManager {
    * Limpia entradas de rate limiting específicas del usuario
    */
   cleanupUserRateLimitEntries(userEmail) {
-    let cleanedCount = 0;
-    const userPrefix = `${userEmail}:`;
-
-    for (const key of this.rateLimitTracker.keys()) {
-      if (key.startsWith(userPrefix)) {
-        this.rateLimitTracker.delete(key);
-        cleanedCount++;
-      }
+    // 🔧 CORRECCIÓN: Verificar que rateLimitTracker existe y es válido
+    if (!this.rateLimitTracker || typeof this.rateLimitTracker.cleanup !== 'function') {
+      logger.warn('Rate limit tracker no disponible para cleanup de usuario', {
+        category: 'SOCKET_USER_RATE_LIMIT_CLEANUP_WARNING',
+        userEmail: userEmail?.substring(0, 20) + '...'
+      });
+      return;
     }
 
-    if (cleanedCount > 0) {
-      logger.debug('User rate limit entries cleaned', {
-        category: 'SOCKET_USER_RATE_LIMIT_CLEANUP',
-        email: userEmail.substring(0, 20) + '...',
-        cleanedCount
+    // Usar el método cleanup del ManagedMap que maneja TTL automáticamente
+    try {
+      const beforeSize = this.rateLimitTracker.size || 0;
+      this.rateLimitTracker.cleanup();
+      const afterSize = this.rateLimitTracker.size || 0;
+      const cleanedCount = beforeSize - afterSize;
+
+      if (cleanedCount > 0) {
+        logger.debug('User rate limit entries cleaned', {
+          category: 'SOCKET_USER_RATE_LIMIT_CLEANUP',
+          email: userEmail?.substring(0, 20) + '...',
+          cleanedCount
+        });
+      }
+    } catch (error) {
+      logger.error('Error cleaning user rate limit entries', {
+        category: 'SOCKET_USER_RATE_LIMIT_CLEANUP_ERROR',
+        error: error.message,
+        userEmail: userEmail?.substring(0, 20) + '...'
       });
     }
   }
@@ -3646,19 +3671,18 @@ class EnterpriseSocketManager {
       }
 
       // 4. 🔧 AGGRESSIVE RATE LIMIT CLEANUP
-      this.cleanupOldRateLimitEntries();
+      // Ya se llama más abajo, no duplicar
       
       // Count cleaned rate limit entries
-      const rateLimitSizeBefore = this.rateLimitTracker.size;
+      const rateLimitSizeBefore = this.rateLimitTracker?.size || 0;
       this.cleanupOldRateLimitEntries();
-      cleanedRateLimit = rateLimitSizeBefore - this.rateLimitTracker.size;
+      const rateLimitSizeAfter = this.rateLimitTracker?.size || 0;
+      cleanedRateLimit = rateLimitSizeBefore - rateLimitSizeAfter;
 
       // 5. 🔧 TYPING USERS CLEANUP (stale typing states)
       const now = Date.now();
-      for (const [conversationId, typingSet] of this.typingUsers.entries()) {
-        if (!typingSet || typingSet.size === 0) {
-          this.typingUsers.delete(conversationId);
-        }
+      if (this.typingUsers && typeof this.typingUsers.cleanup === 'function') {
+        this.typingUsers.cleanup();
       }
 
       // 6. 🔧 MEMORY PRESSURE CHECK
@@ -3741,15 +3765,11 @@ class EnterpriseSocketManager {
     }
 
     // 2. Clear all rate limiting entries older than 5 minutes
-    const now = Date.now();
-    const aggressiveMaxAge = 5 * 60 * 1000; // 5 minutes
-    let cleanedCount = 0;
-
-    for (const [key, timestamp] of this.rateLimitTracker.entries()) {
-      if (now - timestamp > aggressiveMaxAge) {
-        this.rateLimitTracker.delete(key);
-        cleanedCount++;
-      }
+    if (this.rateLimitTracker && typeof this.rateLimitTracker.cleanup === 'function') {
+      const beforeSize = this.rateLimitTracker.size || 0;
+      this.rateLimitTracker.cleanup();
+      const afterSize = this.rateLimitTracker.size || 0;
+      const cleanedCount = beforeSize - afterSize;
     }
 
     // DESACTIVADO: Log de cleanup de rate limit
@@ -3905,17 +3925,35 @@ class EnterpriseSocketManager {
    */
   getConnectedUsers() {
     try {
+      // 🔧 CORRECCIÓN: Verificar que connectedUsers existe y es válido
+      if (!this.connectedUsers || typeof this.connectedUsers.get !== 'function') {
+        logger.warn('Connected users map no disponible', {
+          category: 'SOCKET_GET_USERS_WARNING',
+          connectedUsersType: typeof this.connectedUsers
+        });
+        return [];
+      }
+
       const users = [];
       
-      for (const [email, session] of this.connectedUsers.entries()) {
-        users.push({
-          email: email.substring(0, 20) + '...',
-          role: session.role,
-          connectedAt: new Date(session.connectedAt).toISOString(),
-          lastActivity: new Date(session.lastActivity).toISOString(),
-          status: session.status || 'online',
-          conversationsCount: session.conversations?.size || 0
-        });
+      // 🔧 CORRECCIÓN: Usar método seguro para iterar ManagedMap
+      if (this.connectedUsers && typeof this.connectedUsers.get === 'function') {
+        // Obtener todas las claves del mapa
+        const keys = Array.from(this.connectedUsers.map.keys());
+        
+        for (const email of keys) {
+          const session = this.connectedUsers.get(email);
+          if (session) {
+            users.push({
+              email: email.substring(0, 20) + '...',
+              role: session.role,
+              connectedAt: new Date(session.connectedAt).toISOString(),
+              lastActivity: new Date(session.lastActivity).toISOString(),
+              status: session.status || 'online',
+              conversationsCount: session.conversations?.size || 0
+            });
+          }
+        }
       }
       
       return users;
