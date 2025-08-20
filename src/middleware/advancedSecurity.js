@@ -131,9 +131,12 @@ class AdvancedSecurity {
         throw new Error('REDIS_URL no es una cadena válida');
       }
       
-      // 🔧 SOLUCIÓN RAILWAY: Configuración correcta para Railway Redis
+      // 🔧 SOLUCIÓN OFICIAL RAILWAY: Usar family=0 para dual stack lookup
+      // Según docs.railway.com: "add ?family=0 to enable dual stack lookup"
       if (redisUrl) {
-        const redisClient = new Redis(redisUrl, {
+        const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
+        
+        const redisClient = new Redis(redisUrlWithFamily, {
           maxRetriesPerRequest: 1, // Reducir retries para Railway
           retryDelayOnFailover: 50, // Reducir delay
           enableReadyCheck: false, // Deshabilitar para Railway

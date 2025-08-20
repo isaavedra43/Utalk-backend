@@ -110,21 +110,18 @@ class CampaignQueueService {
         return;
       }
       
-      // 🔧 SOLUCIÓN RAILWAY: Configuración correcta para Railway Redis
-      // Railway usa IPv6 por defecto, pero no necesitamos family=0
-      this.redis = new Redis(redisUrl, {
+      // 🔧 SOLUCIÓN OFICIAL RAILWAY: Usar family=0 para dual stack lookup
+      // Según docs.railway.com: "add ?family=0 to enable dual stack lookup"
+      const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
+      
+      this.redis = new Redis(redisUrlWithFamily, {
         maxRetriesPerRequest: 1, // Reducir retries para Railway
         retryDelayOnFailover: 50, // Reducir delay
         enableReadyCheck: false, // Deshabilitar para Railway
         lazyConnect: false, // Conectar inmediatamente
         connectTimeout: 10000, // 10 segundos timeout
         commandTimeout: 5000, // 5 segundos timeout
-        showFriendlyErrorStack: process.env.NODE_ENV === 'development',
-        // 🔧 SOLUCIÓN RAILWAY: Configuración adicional para Railway
-        family: 4, // Forzar IPv4 para Railway
-        retryDelayOnClusterDown: 300,
-        maxRetriesPerRequest: 1,
-        retryDelayOnFailover: 50
+        showFriendlyErrorStack: process.env.NODE_ENV === 'development'
       });
 
       // 🔧 SOLUCIÓN RAILWAY: Configuración de colas optimizada para Railway
