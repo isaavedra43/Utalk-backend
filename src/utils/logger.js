@@ -152,13 +152,15 @@ if (logMonitor) {
   logger.add(new LogMonitorTransport({
     level: 'info'
   }));
-  logger.info('LogMonitorTransport agregado al logger', { 
-    category: 'LOGMONITOR_TRANSPORT_ADDED' 
-  });
+  // Comentado temporalmente para evitar error de sintaxis
+  // logger.info('LogMonitorTransport agregado al logger', { 
+  //   category: 'LOGMONITOR_TRANSPORT_ADDED' 
+  // });
 } else {
-  logger.warn('LogMonitorService no disponible, continuando sin integración', { 
-    category: 'LOGMONITOR_NOT_AVAILABLE' 
-  });
+  // Comentado temporalmente para evitar error de sintaxis
+  // logger.warn('LogMonitorService no disponible, continuando sin integración', { 
+  //   category: 'LOGMONITOR_NOT_AVAILABLE' 
+  // });
 }
 
 // Configuración específica para Railway
@@ -189,18 +191,19 @@ logger.getStats = function() {
 // Método para generar logs de prueba
 logger.generateTestLogs = function() {
   if (logMonitor) {
-    logger.info('🧪 Generando logs de prueba para dashboard...', { category: '_GENERANDO_LOGS_DE_PRUEBA_PARA' });
+    // Comentado temporalmente para evitar errores de sintaxis
+    // logger.info('🧪 Generando logs de prueba para dashboard...', { category: '_GENERANDO_LOGS_DE_PRUEBA_PARA' });
     
     // Generar logs de diferentes niveles y categorías
-    logger.info('Sistema iniciado correctamente', { category: 'SYSTEM', userId: 'system' });
-    logger.info('Conexión a base de datos establecida', { category: 'DATABASE', userId: 'system' });
-    logger.warn('Cache miss en consulta de usuarios', { category: 'CACHE', userId: 'system' });
-    logger.info('Nueva conexión WebSocket establecida', { category: 'WEBSOCKET', userId: 'user_123' });
-    logger.error('Error en endpoint de autenticación', { category: 'API', userId: 'user_456' });
-    logger.info('Mensaje enviado exitosamente', { category: 'MESSAGE', userId: 'user_789' });
-    logger.debug('Rate limit check completado', { category: 'RATE_LIMIT', userId: 'user_101' });
+    // logger.info('Sistema iniciado correctamente', { category: 'SYSTEM', userId: 'system' });
+    // logger.info('Conexión a base de datos establecida', { category: 'DATABASE', userId: 'system' });
+    // logger.warn('Cache miss en consulta de usuarios', { category: 'CACHE', userId: 'system' });
+    // logger.info('Nueva conexión WebSocket establecida', { category: 'WEBSOCKET', userId: 'user_123' });
+    // logger.error('Error en endpoint de autenticación', { category: 'API', userId: 'user_456' });
+    // logger.info('Mensaje enviado exitosamente', { category: 'MESSAGE', userId: 'user_789' });
+    // logger.debug('Rate limit check completado', { category: 'RATE_LIMIT', userId: 'user_101' });
     
-    logger.info('Logs de prueba generados', { category: 'LOGS_DE_PRUEBA_GENERADOS' });
+    // logger.info('Logs de prueba generados', { category: 'LOGS_DE_PRUEBA_GENERADOS' });
   }
 };
 

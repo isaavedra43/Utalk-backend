@@ -1,4 +1,5 @@
-const logger = require('../utils/logger');
+// Importación circular removida temporalmente
+// const logger = require('../utils/logger');
 /**
  * 📊 LOG MONITOR SERVICE - DASHBOARD INTERNO
  * 
@@ -25,7 +26,7 @@ class LogMonitorService {
       this.cleanupOldLogs();
     }, 5 * 60 * 1000);
     
-    logger.info('LogMonitorService inicializado', { category: 'LOGMONITORSERVICE_INICIALIZADO' });
+    // logger.info('LogMonitorService inicializado', { category: 'LOGMONITORSERVICE_INICIALIZADO' });
   }
 
   /**
