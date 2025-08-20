@@ -1,5 +1,5 @@
 /**
- * 🚀 SERVIDOR CONSOLIDADO UTALK BACKEND
+ * 🚀 SERVIDOR CONSOLIDADO UTALK BACKEND - OPTIMIZADO
  * 
  * Características implementadas:
  * - Gestión de memoria adaptativa
@@ -12,12 +12,15 @@
  * - Health Checks enterprise
  * - Graceful shutdown
  * 
- * @version 4.1.0 ENTERPRISE RESTORED
+ * @version 4.2.0 OPTIMIZED STARTUP
  * @author Backend Team
  */
 
 // Cargar variables de entorno
 require('dotenv').config();
+
+// 🔧 OPTIMIZACIÓN: Cargar optimizador de inicio PRIMERO
+require('./config/startupOptimizer');
 
 // Validar configuración de entorno
 const { validateEnvironment, isEnvironmentValid } = require('./config/envValidator');
@@ -33,7 +36,7 @@ const logger = require('./utils/logger');
 const { cacheService } = require('./services/CacheService');
 const { enhancedErrorHandler } = require('./middleware/enhancedErrorHandler');
 const { rateLimitManager } = require('./middleware/persistentRateLimit');
-const { getHealthCheckService } = require('./services/HealthCheckService'); // Ahora importa la nueva versión
+const { getHealthCheckService } = require('./services/HealthCheckService');
 
 // Middleware personalizado
 const { authMiddleware } = require('./middleware/auth');
@@ -59,8 +62,8 @@ const logRoutes = require('./routes/logs');
 // Servicios
 // SocketManager se importa dinámicamente en initializeSocketIO()
 
-// Importar servicios de colas
-const campaignQueueService = require('./services/CampaignQueueService');
+// Importar servicios de colas - LAZY LOADING
+let campaignQueueService = null;
 
 class ConsolidatedServer {
   constructor() {
@@ -153,11 +156,16 @@ class ConsolidatedServer {
   }
 
   /**
-   * 🚀 INICIALIZACIÓN ORQUESTADA DEL SERVIDOR
+   * 🚀 INICIALIZACIÓN ORQUESTADA DEL SERVIDOR - OPTIMIZADA
    * Método requerido por el entrypoint. Crea el servidor HTTP,
    * configura middlewares, rutas, servicios y health checks.
    */
   async initialize() {
+    logger.info('🚀 Iniciando servidor optimizado...', {
+      category: 'SERVER_INIT',
+      startTime: this.startTime
+    });
+
     // 1) Validar entorno
     this.validateEnvironmentVariables();
 
@@ -175,14 +183,22 @@ class ConsolidatedServer {
       this.server = (require('http')).createServer(this.app);
     }
 
-    // 6) Inicializar servicios (Socket, Health, Colas, etc.)
-    await this.initializeServices();
-
-    // 7) Arrancar servidor HTTP
+    // 6) Arrancar servidor HTTP PRIMERO (crítico para Railway)
     await this.startServer();
+
+    // 7) Inicializar servicios en segundo plano (NO BLOQUEANTE)
+    this.initializeServicesBackground();
 
     // 8) Iniciar monitoreo de salud
     await this.startHealthMonitoring();
+
+    const startupTime = Date.now() - this.startTime;
+    logger.info('🎉 Servidor iniciado exitosamente', {
+      category: 'SERVER_STARTED',
+      startupTime: `${startupTime}ms`,
+      port: this.PORT,
+      environment: process.env.NODE_ENV || 'development'
+    });
 
     return true;
   }
@@ -278,40 +294,47 @@ class ConsolidatedServer {
   }
 
   /**
-   * 🚀 INICIALIZAR SERVICIOS
+   * 🚀 INICIALIZAR SERVICIOS EN SEGUNDO PLANO (NO BLOQUEANTE)
    */
-  async initializeServices() {
-    try {
-      logger.info('Inicializando servicios del servidor', {
-        category: 'SERVICE_INIT'
-      });
-      
-      // Inicializar servicios de colas
-      await this.initializeQueueServices();
-      
-      // Inicializar otros servicios existentes
-      await this.initializeSocketIO();
-      await this.initializeHealthChecks();
-      
-      logger.info('Todos los servicios inicializados correctamente', {
-        category: 'SERVICE_INIT',
-        status: 'success'
-      });
-    } catch (error) {
-      logger.error('Error inicializando servicios', {
-        category: 'SERVICE_INIT_ERROR',
-        error: error.message,
-        stack: error.stack
-      });
-      // No fallar la aplicación si algunos servicios no están disponibles
-    }
+  initializeServicesBackground() {
+    // Inicializar servicios de forma asíncrona sin bloquear el servidor
+    setImmediate(async () => {
+      try {
+        logger.info('🔄 Inicializando servicios en segundo plano...', {
+          category: 'SERVICE_INIT_BACKGROUND'
+        });
+        
+        // Inicializar servicios de colas (lazy loading)
+        await this.initializeQueueServices();
+        
+        // Inicializar otros servicios existentes
+        await this.initializeSocketIO();
+        await this.initializeHealthChecks();
+        
+        logger.info('✅ Todos los servicios inicializados correctamente', {
+          category: 'SERVICE_INIT_BACKGROUND_SUCCESS'
+        });
+      } catch (error) {
+        logger.error('Error inicializando servicios en segundo plano', {
+          category: 'SERVICE_INIT_BACKGROUND_ERROR',
+          error: error.message,
+          stack: error.stack
+        });
+        // No fallar la aplicación si algunos servicios no están disponibles
+      }
+    });
   }
 
   /**
-   * 🗄️ INICIALIZAR SERVICIOS DE COLAS
+   * 🗄️ INICIALIZAR SERVICIOS DE COLAS - LAZY LOADING
    */
   async initializeQueueServices() {
     try {
+      // Lazy loading del servicio de colas
+      if (!campaignQueueService) {
+        campaignQueueService = require('./services/CampaignQueueService');
+      }
+      
       await campaignQueueService.initialize();
       logger.info('Servicios de colas inicializados correctamente', {
         category: 'QUEUE_SERVICE_INIT'
@@ -468,8 +491,6 @@ class ConsolidatedServer {
       environment: process.env.NODE_ENV || 'development'
     });
   }
-
-
 
   /**
    * 🛣️ CONFIGURAR RUTAS

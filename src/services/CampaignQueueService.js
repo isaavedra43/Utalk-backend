@@ -56,7 +56,7 @@ class CampaignQueueService {
   }
 
   /**
-   * 🚀 INICIALIZAR SERVICIO DE COLAS
+   * 🚀 INICIALIZAR SERVICIO DE COLAS - OPTIMIZADO
    */
   async initialize() {
     try {
@@ -114,24 +114,32 @@ class CampaignQueueService {
       // Según docs.railway.com: "add ?family=0 to enable dual stack lookup"
       const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
       
+      // 🔧 OPTIMIZACIÓN: Configuración más agresiva para Railway
       this.redis = new Redis(redisUrlWithFamily, {
-        maxRetriesPerRequest: 1, // Reducir retries para Railway
-        retryDelayOnFailover: 50, // Reducir delay
+        maxRetriesPerRequest: 0, // Sin retries para Railway
+        retryDelayOnFailover: 10, // Delay mínimo
         enableReadyCheck: false, // Deshabilitar para Railway
         lazyConnect: false, // Conectar inmediatamente
-        connectTimeout: 10000, // 10 segundos timeout
-        commandTimeout: 5000, // 5 segundos timeout
-        showFriendlyErrorStack: process.env.NODE_ENV === 'development'
+        connectTimeout: 5000, // 5 segundos timeout (reducido)
+        commandTimeout: 3000, // 3 segundos timeout (reducido)
+        showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+        // 🔧 NUEVO: Configuración específica para Railway
+        family: 0, // Dual stack
+        keepAlive: 30000, // Keep alive más corto
+        maxLoadingTimeout: 5000 // Timeout de carga reducido
       });
 
-      // 🔧 SOLUCIÓN RAILWAY: Configurar Bull para crear sus propios clientes con family=0
+      // 🔧 OPTIMIZACIÓN: Configuración de Bull más agresiva
       const makeBullClientByType = (type) => {
         // Para subscriber y bclient, Bull no permite enableReadyCheck ni maxRetriesPerRequest
         const baseOptions = {
           lazyConnect: false,
-          connectTimeout: 10000,
-          commandTimeout: 5000,
-          showFriendlyErrorStack: process.env.NODE_ENV === 'development'
+          connectTimeout: 5000, // Reducido
+          commandTimeout: 3000, // Reducido
+          showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+          family: 0, // Dual stack
+          keepAlive: 30000, // Keep alive más corto
+          maxLoadingTimeout: 5000 // Timeout de carga reducido
         };
 
         if (type === 'subscriber' || type === 'bclient') {
@@ -141,8 +149,8 @@ class CampaignQueueService {
         // Para el client normal sí aplicamos los timeouts y retries reducidos
         return new Redis(redisUrlWithFamily, {
           ...baseOptions,
-          maxRetriesPerRequest: 1,
-          retryDelayOnFailover: 50,
+          maxRetriesPerRequest: 0, // Sin retries
+          retryDelayOnFailover: 10, // Delay mínimo
           enableReadyCheck: false
         });
       };
@@ -154,16 +162,22 @@ class CampaignQueueService {
         port: Number(redisURL.port || '6379'),
         username: redisURL.username || 'default',
         password: redisURL.password,
-        family: 0 // habilita dual stack en ioredis
+        family: 0, // habilita dual stack en ioredis
+        // 🔧 OPTIMIZACIÓN: Configuración más agresiva
+        connectTimeout: 5000,
+        commandTimeout: 3000,
+        keepAlive: 30000,
+        maxLoadingTimeout: 5000
       };
 
+      // 🔧 OPTIMIZACIÓN: Configuración de colas más agresiva
       this.campaignQueue = new Queue('campaign-processing', {
         redis: redisConfig,
         defaultJobOptions: {
-          removeOnComplete: 50,
-          removeOnFail: 25,
-          attempts: 2,
-          backoff: { type: 'exponential', delay: 1000 }
+          removeOnComplete: 25, // Reducido
+          removeOnFail: 10, // Reducido
+          attempts: 1, // Solo 1 intento
+          backoff: { type: 'exponential', delay: 500 } // Delay reducido
         }
       });
 
@@ -171,25 +185,33 @@ class CampaignQueueService {
       this.processingQueue = new Queue('message-processing', {
         redis: redisConfig,
         defaultJobOptions: {
-          removeOnComplete: 500,
-          removeOnFail: 50,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 500 }
+          removeOnComplete: 100, // Reducido
+          removeOnFail: 25, // Reducido
+          attempts: 2, // Solo 2 intentos
+          backoff: { type: 'exponential', delay: 250 } // Delay reducido
         }
       });
 
-      // Configurar workers
-      await this.setupWorkers();
-      
-      // Configurar monitoreo
-      await this.setupMonitoring();
+      // 🔧 OPTIMIZACIÓN: Configurar workers de forma asíncrona
+      setImmediate(async () => {
+        try {
+          await this.setupWorkers();
+          await this.setupMonitoring();
+        } catch (error) {
+          logger.error('Error configurando workers de cola', {
+            category: 'QUEUE_WORKERS_ERROR',
+            error: error.message
+          });
+        }
+      });
       
       this.isInitialized = true;
       
       logger.info('✅ Campaign Queue Service inicializado exitosamente', {
         redisConnected: true,
         queuesCreated: ['campaign-processing', 'message-processing'],
-        twilioLimits: this.twilioLimits
+        twilioLimits: this.twilioLimits,
+        optimizationLevel: 'RAILWAY_OPTIMIZED'
       });
 
     } catch (error) {
@@ -202,7 +224,7 @@ class CampaignQueueService {
       });
       
       // 🔧 SOLUCIÓN RAILWAY: No fallar completamente si Redis no está disponible
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND') || error.message.includes('timeout')) {
         logger.warn('⚠️ Redis no disponible en Railway, deshabilitando Campaign Queue Service', {
           category: 'QUEUE_SERVICE_DISABLED',
           reason: 'Redis connection failed',

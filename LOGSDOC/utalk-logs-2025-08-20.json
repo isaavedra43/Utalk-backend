@@ -1,0 +1,1925 @@
+{
+  "exportDate": "2025-08-20T18:17:26.716Z",
+  "totalLogs": 175,
+  "logs": [
+    {
+      "timestamp": "2025-08-20T18:16:51.069Z",
+      "level": "info",
+      "message": "[2025-08-20T18:16:51.069Z] [INFO] [SYSTEM] Iniciando aplicación UTALK | Data: {\n  \"version\": \"1.0.0\",\n  \"environment\": \"development\",\n  \"debug\": true,\n  \"timestamp\": \"2025-08-20T18:16:51.069Z\"\n}"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:51.077Z",
+      "level": "info",
+      "message": "🔐 useAuth - No hay tokens en localStorage"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:51.078Z",
+      "level": "info",
+      "message": "🔐 useAuth - No hay tokens en localStorage"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:52.901Z",
+      "level": "info",
+      "message": "[2025-08-20T18:16:52.901Z] [INFO] [AUTH] Iniciando login con backend | Data: {\n  \"email\": \"admin@company.com\"\n}"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:52.903Z",
+      "level": "info",
+      "message": "🔐 useAuth - No hay tokens en localStorage"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.428Z",
+      "level": "info",
+      "message": "[2025-08-20T18:16:53.428Z] [INFO] [AUTH] Respuesta del backend recibida | Data: {\n  \"status\": 200,\n  \"hasData\": true,\n  \"responseKeys\": [\n    \"success\",\n    \"message\",\n    \"timestamp\",\n    \"data\"\n  ],\n  \"fullResponse\": {\n    \"success\": true,\n    \"message\": \"Login exitoso\",\n    \"timestamp\": \"2025-08-20T18:16:53.549Z\",\n    \"data\": {\n      \"success\": true,\n      \"message\": \"Login exitoso\",\n      \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTcxMzgxMywiZXhwIjoxNzU1NzE0NzEzLCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.Bbtj8fG2vRsVeLldB6YkjbSyYKgxhC8YuOKSdOXz75U\",\n      \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoicmVmcmVzaCIsInVzZXJFbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImZhbWlseUlkIjoiOWZmMjgyOTYtY2VmZC00ZGUyLWEyZjItMDYwMjU3NjExNzY4IiwiZGV2aWNlSWQiOiIzMDg0ZDE4NS1iNWVkLTQxZDMtOTVhOC1mYWYxOTczNWM1ZWMiLCJpYXQiOjE3NTU3MTM4MTMsImV4cCI6MTc1NjMxODYxMywiYXVkIjoidXRhbGstYXBpIiwiaXNzIjoidXRhbGstYmFja2VuZCJ9.SrErUGCqBAd8HOF_Q4VEfR_Z33Yw8I3CIDrAgZvzguc\",\n      \"expiresIn\": \"15m\",\n      \"refreshExpiresIn\": \"7d\",\n      \"user\": {\n        \"id\": \"admin@company.com\",\n        \"email\": \"admin@company.com\",\n        \"name\": \"Administrador del Sistema\",\n        \"phone\": null,\n        \"role\": \"admin\",\n        \"permissions\": [\n          \"users.read\",\n          \"users.write\",\n          \"users.delete\",\n          \"conversations.read\",\n          \"conversations.write\",\n          \"conversations.delete\",\n          \"messages.read\",\n          \"messages.write\",\n          \"campaigns.read\",\n          \"campaigns.write\",\n          \"campaigns.delete\",\n          \"dashboard.read\",\n          \"settings.read\",\n          \"settings.write\",\n          \"crm.read\",\n          \"crm.write\"\n        ],\n        \"department\": \"admin\",\n        \"isActive\": true,\n        \"settings\": {\n          \"notifications\": true,\n          \"language\": \"es\",\n          \"timezone\": \"America/Mexico_City\"\n        },\n        \"lastLoginAt\": {\n          \"_seconds\": 1752719278,\n          \"_nanoseconds\": 484000000\n        },\n        \"createdAt\": {\n          \"_seconds\": 1755713813,\n          \"_nanoseconds\": 209000000\n        },\n        \"updatedAt\": {\n          \"_seconds\": 1753925658,\n          \"_nanoseconds\": 131000000\n        },\n        \"performance\": null\n      },\n      \"deviceInfo\": {\n        \"deviceId\": \"3084d185-b5ed-41d3-95a8-faf19735c5ec\",\n        \"deviceType\": \"web\",\n        \"loginAt\": \"2025-08-20T18:16:53.363Z\"\n      }\n    }\n  }\n}"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.430Z",
+      "level": "info",
+      "message": "✅ Login exitoso, navegando al chat..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.437Z",
+      "level": "info",
+      "message": "🔌 Iniciando conexión de socket..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.437Z",
+      "level": "info",
+      "message": "🔌 Configurando socket con URL: wss://utalk-backend-production.up.railway.app",
+      "data": [
+        "🔌 Configurando socket con URL:",
+        "wss://utalk-backend-production.up.railway.app"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.437Z",
+      "level": "info",
+      "message": "🔌 Token disponible: Sí",
+      "data": [
+        "🔌 Token disponible:",
+        "Sí"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.437Z",
+      "level": "info",
+      "message": "🔌 Configuración de entorno: {\n  \"WS_URL\": \"wss://utalk-backend-production.up.railway.app\",\n  \"BACKEND_URL\": \"https://utalk-backend-production.up.railway.app\",\n  \"DEV_MODE\": true\n}",
+      "data": [
+        "🔌 Configuración de entorno:",
+        {
+          "WS_URL": "wss://utalk-backend-production.up.railway.app",
+          "BACKEND_URL": "https://utalk-backend-production.up.railway.app",
+          "DEV_MODE": true
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.438Z",
+      "level": "info",
+      "message": "🔌 Información del usuario para socket: {\n  \"workspaceId\": \"default_workspace\",\n  \"tenantId\": \"default_tenant\",\n  \"userId\": \"admin@company.com\",\n  \"email\": \"admin@company.com\"\n}",
+      "data": [
+        "🔌 Información del usuario para socket:",
+        {
+          "workspaceId": "default_workspace",
+          "tenantId": "default_tenant",
+          "userId": "admin@company.com",
+          "email": "admin@company.com"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.438Z",
+      "level": "info",
+      "message": "🔌 Conectando socket explícitamente..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.439Z",
+      "level": "info",
+      "message": "🔌 Socket creado, conexión iniciada automáticamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.439Z",
+      "level": "info",
+      "message": "🔌 Ya hay una conexión en progreso, saltando..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.442Z",
+      "level": "info",
+      "message": "🔄 Intento de reconexión 1/5 en 1000ms"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.529Z",
+      "level": "info",
+      "message": "✅ Login exitoso {\n  \"tiempoTotal\": \"2470ms\",\n  \"timestamp\": \"2025-08-20T18:16:53.529Z\"\n}",
+      "data": [
+        "✅ Login exitoso",
+        {
+          "tiempoTotal": "2470ms",
+          "timestamp": "2025-08-20T18:16:53.529Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.750Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió: {\n  \"selectedConversationId\": null\n}",
+      "data": [
+        "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió:",
+        {
+          "selectedConversationId": null
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.750Z",
+      "level": "info",
+      "message": "🧹 [DEBUG] No hay conversación seleccionada, limpiando perfil..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.752Z",
+      "level": "info",
+      "message": "🔌 useConversationSync - Cleanup por desconexión..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.752Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió: {\n  \"selectedConversationId\": null\n}",
+      "data": [
+        "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió:",
+        {
+          "selectedConversationId": null
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.752Z",
+      "level": "info",
+      "message": "🧹 [DEBUG] No hay conversación seleccionada, limpiando perfil..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.752Z",
+      "level": "info",
+      "message": "🔌 useConversationSync - Cleanup por desconexión..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.772Z",
+      "level": "info",
+      "message": "✅ WebSocket: Conectado exitosamente {\n  \"socketId\": \"hrEJa1bN_hq4x4IxAAAT\",\n  \"url\": \"wss://utalk-backend-production.up.railway.app\",\n  \"timestamp\": \"2025-08-20T18:16:53.772Z\",\n  \"workspaceId\": \"default_workspace\",\n  \"tenantId\": \"default_tenant\",\n  \"userId\": \"admin@company.com\"\n}",
+      "data": [
+        "✅ WebSocket: Conectado exitosamente",
+        {
+          "socketId": "hrEJa1bN_hq4x4IxAAAT",
+          "url": "wss://utalk-backend-production.up.railway.app",
+          "timestamp": "2025-08-20T18:16:53.772Z",
+          "workspaceId": "default_workspace",
+          "tenantId": "default_tenant",
+          "userId": "admin@company.com"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.772Z",
+      "level": "info",
+      "message": "✅ Socket conectado exitosamente: {\n  \"socketId\": \"hrEJa1bN_hq4x4IxAAAT\",\n  \"timestamp\": \"2025-08-20T18:16:53.772Z\",\n  \"reconnectAttempts\": 0\n}",
+      "data": [
+        "✅ Socket conectado exitosamente:",
+        {
+          "socketId": "hrEJa1bN_hq4x4IxAAAT",
+          "timestamp": "2025-08-20T18:16:53.772Z",
+          "reconnectAttempts": 0
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.774Z",
+      "level": "info",
+      "message": "✅ WebSocket conectado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.776Z",
+      "level": "info",
+      "message": "✅ WebSocket conectado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Cache miss en store, creando nueva petición..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "🔄 Cargando perfil del cliente: conv_+5214773790184_+5214793176502",
+      "data": [
+        "🔄 Cargando perfil del cliente:",
+        "conv_+5214773790184_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] Iniciando getCompleteClientProfile: conv_+5214773790184_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Cache miss, haciendo petición a API..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "🔄 [RETRY] Intento 1 para getCompleteClientProfile: conv_+5214773790184_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.953Z",
+      "level": "info",
+      "message": "📡 [DEBUG] Haciendo petición a: /api/conversations/conv_+5214773790184_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 13,\n  \"finalUnreadCount\": 13,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 13,
+          "finalUnreadCount": 13,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Cache miss en store, creando nueva petición..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 Cargando perfil del cliente: conv_+5214777270766_+5214793176502",
+      "data": [
+        "🔄 Cargando perfil del cliente:",
+        "conv_+5214777270766_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] Iniciando getCompleteClientProfile: conv_+5214777270766_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Cache miss, haciendo petición a API..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 [RETRY] Intento 1 para getCompleteClientProfile: conv_+5214777270766_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "📡 [DEBUG] Haciendo petición a: /api/conversations/conv_+5214777270766_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 4,\n  \"finalUnreadCount\": 4,\n  \"prevUnreadCount\": 4,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 4,
+          "finalUnreadCount": 4,
+          "prevUnreadCount": 4,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Cache miss en store, creando nueva petición..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 Cargando perfil del cliente: conv_+5214775211021_+5214793176502",
+      "data": [
+        "🔄 Cargando perfil del cliente:",
+        "conv_+5214775211021_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] Iniciando getCompleteClientProfile: conv_+5214775211021_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Cache miss, haciendo petición a API..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 [RETRY] Intento 1 para getCompleteClientProfile: conv_+5214775211021_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "📡 [DEBUG] Haciendo petición a: /api/conversations/conv_+5214775211021_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 21,\n  \"finalUnreadCount\": 21,\n  \"prevUnreadCount\": 21,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 21,
+          "finalUnreadCount": 21,
+          "prevUnreadCount": 21,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 13,\n  \"finalUnreadCount\": 13,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 13,
+          "finalUnreadCount": 13,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 4,\n  \"finalUnreadCount\": 4,\n  \"prevUnreadCount\": 4,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 4,
+          "finalUnreadCount": 4,
+          "prevUnreadCount": 4,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 21,\n  \"finalUnreadCount\": 21,\n  \"prevUnreadCount\": 21,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 21,
+          "finalUnreadCount": 21,
+          "prevUnreadCount": 21,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 useChat - Cambio de conversación detectado: {\n  \"anterior\": null,\n  \"nueva\": \"\"\n}",
+      "data": [
+        "🔄 useChat - Cambio de conversación detectado:",
+        {
+          "anterior": null,
+          "nueva": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.954Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 13,\n  \"finalUnreadCount\": 13,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 13,
+          "finalUnreadCount": 13,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 4,\n  \"finalUnreadCount\": 4,\n  \"prevUnreadCount\": 4,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 4,
+          "finalUnreadCount": 4,
+          "prevUnreadCount": 4,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 21,\n  \"finalUnreadCount\": 21,\n  \"prevUnreadCount\": 21,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 21,
+          "finalUnreadCount": 21,
+          "prevUnreadCount": 21,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 13,\n  \"finalUnreadCount\": 13,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 13,
+          "finalUnreadCount": 13,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 4,\n  \"finalUnreadCount\": 4,\n  \"prevUnreadCount\": 4,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 4,
+          "finalUnreadCount": 4,
+          "prevUnreadCount": 4,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔄 Petición ya en curso, esperando resultado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.955Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 21,\n  \"finalUnreadCount\": 21,\n  \"prevUnreadCount\": 21,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 21,
+          "finalUnreadCount": 21,
+          "prevUnreadCount": 21,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.962Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 13,\n  \"serverUnreadCount\": 13,\n  \"finalUnreadCount\": 13,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 13,
+          "serverUnreadCount": 13,
+          "finalUnreadCount": 13,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.962Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"storeUnreadCount\": 4,\n  \"serverUnreadCount\": 4,\n  \"finalUnreadCount\": 4,\n  \"prevUnreadCount\": 4,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "storeUnreadCount": 4,
+          "serverUnreadCount": 4,
+          "finalUnreadCount": 4,
+          "prevUnreadCount": 4,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.962Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"storeUnreadCount\": 21,\n  \"serverUnreadCount\": 21,\n  \"finalUnreadCount\": 21,\n  \"prevUnreadCount\": 21,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "storeUnreadCount": 21,
+          "serverUnreadCount": 21,
+          "finalUnreadCount": 21,
+          "prevUnreadCount": 21,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.962Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 13,\n  \"serverUnreadCount\": 13,\n  \"finalUnreadCount\": 13,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 13,
+          "serverUnreadCount": 13,
+          "finalUnreadCount": 13,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.962Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"storeUnreadCount\": 4,\n  \"serverUnreadCount\": 4,\n  \"finalUnreadCount\": 4,\n  \"prevUnreadCount\": 4,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "storeUnreadCount": 4,
+          "serverUnreadCount": 4,
+          "finalUnreadCount": 4,
+          "prevUnreadCount": 4,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:53.962Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"storeUnreadCount\": 21,\n  \"serverUnreadCount\": 21,\n  \"finalUnreadCount\": 21,\n  \"prevUnreadCount\": 21,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "storeUnreadCount": 21,
+          "serverUnreadCount": 21,
+          "finalUnreadCount": 21,
+          "prevUnreadCount": 21,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.209Z",
+      "level": "info",
+      "message": "📡 [DEBUG] Respuesta recibida: status=200, success=true, hasData=true"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.209Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Datos de conversación obtenidos: {\n  \"contactName\": \"Israel Saavedra\",\n  \"customerPhone\": \"+5214777270766\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"open\",\n  \"unreadCount\": 4,\n  \"lastMessageAt\": {\n    \"_seconds\": 1755712962,\n    \"_nanoseconds\": 781000000\n  },\n  \"createdAt\": {\n    \"_seconds\": 1755544852,\n    \"_nanoseconds\": 860000000\n  }\n}",
+      "data": [
+        "✅ [DEBUG] Datos de conversación obtenidos:",
+        {
+          "contactName": "Israel Saavedra",
+          "customerPhone": "+5214777270766",
+          "channel": "whatsapp",
+          "status": "open",
+          "unreadCount": 4,
+          "lastMessageAt": {
+            "_seconds": 1755712962,
+            "_nanoseconds": 781000000
+          },
+          "createdAt": {
+            "_seconds": 1755544852,
+            "_nanoseconds": 860000000
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.209Z",
+      "level": "info",
+      "message": "🔧 [DEBUG] Formateando perfil del cliente..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.209Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Perfil formateado exitosamente: {\n  \"name\": \"Israel Saavedra\",\n  \"phone\": \"+5214777270766\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"open\"\n}",
+      "data": [
+        "✅ [DEBUG] Perfil formateado exitosamente:",
+        {
+          "name": "Israel Saavedra",
+          "phone": "+5214777270766",
+          "channel": "whatsapp",
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.210Z",
+      "level": "info",
+      "message": "✅ [RETRY] Éxito en intento 1 para getCompleteClientProfile: conv_+5214777270766_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.210Z",
+      "level": "info",
+      "message": "💾 [DEBUG] Perfil guardado en cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.210Z",
+      "level": "info",
+      "message": "📊 [DEBUG] Resultado de clientProfileService: {\n  \"conversationId\": \"conv_+5214777270766_+5214793176502\",\n  \"hasProfile\": true,\n  \"profileName\": \"Israel Saavedra\",\n  \"profilePhone\": \"+5214777270766\"\n}",
+      "data": [
+        "📊 [DEBUG] Resultado de clientProfileService:",
+        {
+          "conversationId": "conv_+5214777270766_+5214793176502",
+          "hasProfile": true,
+          "profileName": "Israel Saavedra",
+          "profilePhone": "+5214777270766"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.210Z",
+      "level": "info",
+      "message": "✅ Perfil cargado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.210Z",
+      "level": "info",
+      "message": "🧹 [DEBUG] Limpieza completada para: conv_+5214777270766_+5214793176502",
+      "data": [
+        "🧹 [DEBUG] Limpieza completada para:",
+        "conv_+5214777270766_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "📡 [DEBUG] Respuesta recibida: status=200, success=true, hasData=true"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Datos de conversación obtenidos: {\n  \"contactName\": \"Isra\",\n  \"customerPhone\": \"+5214773790184\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"open\",\n  \"unreadCount\": 13,\n  \"lastMessageAt\": {\n    \"_seconds\": 1755712972,\n    \"_nanoseconds\": 772000000\n  },\n  \"createdAt\": {\n    \"_seconds\": 1755546558,\n    \"_nanoseconds\": 866000000\n  }\n}",
+      "data": [
+        "✅ [DEBUG] Datos de conversación obtenidos:",
+        {
+          "contactName": "Isra",
+          "customerPhone": "+5214773790184",
+          "channel": "whatsapp",
+          "status": "open",
+          "unreadCount": 13,
+          "lastMessageAt": {
+            "_seconds": 1755712972,
+            "_nanoseconds": 772000000
+          },
+          "createdAt": {
+            "_seconds": 1755546558,
+            "_nanoseconds": 866000000
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "🔧 [DEBUG] Formateando perfil del cliente..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Perfil formateado exitosamente: {\n  \"name\": \"Isra\",\n  \"phone\": \"+5214773790184\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"open\"\n}",
+      "data": [
+        "✅ [DEBUG] Perfil formateado exitosamente:",
+        {
+          "name": "Isra",
+          "phone": "+5214773790184",
+          "channel": "whatsapp",
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "✅ [RETRY] Éxito en intento 1 para getCompleteClientProfile: conv_+5214773790184_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "💾 [DEBUG] Perfil guardado en cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.217Z",
+      "level": "info",
+      "message": "📊 [DEBUG] Resultado de clientProfileService: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"hasProfile\": true,\n  \"profileName\": \"Isra\",\n  \"profilePhone\": \"+5214773790184\"\n}",
+      "data": [
+        "📊 [DEBUG] Resultado de clientProfileService:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "hasProfile": true,
+          "profileName": "Isra",
+          "profilePhone": "+5214773790184"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.218Z",
+      "level": "info",
+      "message": "✅ Perfil cargado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.218Z",
+      "level": "info",
+      "message": "🧹 [DEBUG] Limpieza completada para: conv_+5214773790184_+5214793176502",
+      "data": [
+        "🧹 [DEBUG] Limpieza completada para:",
+        "conv_+5214773790184_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "📡 [DEBUG] Respuesta recibida: status=200, success=true, hasData=true"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Datos de conversación obtenidos: {\n  \"contactName\": \"AV\",\n  \"customerPhone\": \"+5214775211021\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"open\",\n  \"unreadCount\": 21,\n  \"lastMessageAt\": {\n    \"_seconds\": 1755547480,\n    \"_nanoseconds\": 729000000\n  },\n  \"createdAt\": {\n    \"_seconds\": 1755547340,\n    \"_nanoseconds\": 328000000\n  }\n}",
+      "data": [
+        "✅ [DEBUG] Datos de conversación obtenidos:",
+        {
+          "contactName": "AV",
+          "customerPhone": "+5214775211021",
+          "channel": "whatsapp",
+          "status": "open",
+          "unreadCount": 21,
+          "lastMessageAt": {
+            "_seconds": 1755547480,
+            "_nanoseconds": 729000000
+          },
+          "createdAt": {
+            "_seconds": 1755547340,
+            "_nanoseconds": 328000000
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "🔧 [DEBUG] Formateando perfil del cliente..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Perfil formateado exitosamente: {\n  \"name\": \"AV\",\n  \"phone\": \"+5214775211021\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"open\"\n}",
+      "data": [
+        "✅ [DEBUG] Perfil formateado exitosamente:",
+        {
+          "name": "AV",
+          "phone": "+5214775211021",
+          "channel": "whatsapp",
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "✅ [RETRY] Éxito en intento 1 para getCompleteClientProfile: conv_+5214775211021_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "💾 [DEBUG] Perfil guardado en cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "📊 [DEBUG] Resultado de clientProfileService: {\n  \"conversationId\": \"conv_+5214775211021_+5214793176502\",\n  \"hasProfile\": true,\n  \"profileName\": \"AV\",\n  \"profilePhone\": \"+5214775211021\"\n}",
+      "data": [
+        "📊 [DEBUG] Resultado de clientProfileService:",
+        {
+          "conversationId": "conv_+5214775211021_+5214793176502",
+          "hasProfile": true,
+          "profileName": "AV",
+          "profilePhone": "+5214775211021"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "✅ Perfil cargado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.247Z",
+      "level": "info",
+      "message": "🧹 [DEBUG] Limpieza completada para: conv_+5214775211021_+5214793176502",
+      "data": [
+        "🧹 [DEBUG] Limpieza completada para:",
+        "conv_+5214775211021_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.276Z",
+      "level": "info",
+      "message": "✅ Estado sincronizado desde servidor (versión undefined)"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.276Z",
+      "level": "info",
+      "message": "🔌 useConversationSync - Estado sincronizado: {\n  \"conversations\": [\n    {\n      \"id\": \"conv_+5214773790184_+5214793176502\",\n      \"status\": \"open\",\n      \"customerPhone\": \"+5214773790184\",\n      \"assignedTo\": null,\n      \"lastMessage\": {\n        \"id\": \"SM70bbd808798a2c5c1c4933a4269fd49b\",\n        \"type\": \"text\",\n        \"sender\": \"agent:admin@company.com\",\n        \"direction\": \"outbound\",\n        \"messageId\": \"579fc401-fd05-47de-bcc7-556341f6b5e8\",\n        \"content\": \"PRUEBA 1\",\n        \"timestamp\": {\n          \"_seconds\": 1755712972,\n          \"_nanoseconds\": 772000000\n        }\n      },\n      \"lastMessageAt\": {\n        \"_seconds\": 1755712972,\n        \"_nanoseconds\": 772000000\n      },\n      \"unreadCount\": 13,\n      \"messageCount\": 20,\n      \"participants\": [\n        \"+5214773790184\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214773790184\"\n      ],\n      \"createdAt\": {\n        \"_seconds\": 1755546558,\n        \"_nanoseconds\": 866000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755712972,\n        \"_nanoseconds\": 975000000\n      }\n    },\n    {\n      \"id\": \"conv_+5214777270766_+5214793176502\",\n      \"status\": \"open\",\n      \"customerPhone\": \"+5214777270766\",\n      \"assignedTo\": null,\n      \"lastMessage\": {\n        \"id\": \"MM79696223c7f84cf18d12f476e93da5a0\",\n        \"type\": \"image\",\n        \"sender\": \"agent:admin@company.com\",\n        \"messageId\": \"4bd8c880-29ee-466a-964c-c7fa580e620d\",\n        \"content\": \"PRUEBA 1\",\n        \"direction\": \"outbound\",\n        \"timestamp\": {\n          \"_seconds\": 1755712962,\n          \"_nanoseconds\": 781000000\n        }\n      },\n      \"lastMessageAt\": {\n        \"_seconds\": 1755712962,\n        \"_nanoseconds\": 781000000\n      },\n      \"unreadCount\": 4,\n      \"messageCount\": 6,\n      \"participants\": [\n        \"+5214777270766\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214777270766\"\n      ],\n      \"createdAt\": {\n        \"_seconds\": 1755544852,\n        \"_nanoseconds\": 860000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755712962,\n        \"_nanoseconds\": 958000000\n      }\n    },\n    {\n      \"id\": \"conv_+5214775211021_+5214793176502\",\n      \"status\": \"open\",\n      \"customerPhone\": \"+5214775211021\",\n      \"assignedTo\": null,\n      \"lastMessage\": {\n        \"id\": \"MM26999c163631b72e84ab82e3c40133ed\",\n        \"content\": \"\",\n        \"timestamp\": \"2025-08-18T20:04:40.480Z\",\n        \"sender\": \"customer\",\n        \"type\": \"image\"\n      },\n      \"lastMessageAt\": {\n        \"_seconds\": 1755547480,\n        \"_nanoseconds\": 729000000\n      },\n      \"unreadCount\": 21,\n      \"messageCount\": 21,\n      \"participants\": [\n        \"+5214775211021\",\n        \"admin@company.com\"\n      ],\n      \"createdAt\": {\n        \"_seconds\": 1755547340,\n        \"_nanoseconds\": 328000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755547480,\n        \"_nanoseconds\": 729000000\n      }\n    }\n  ],\n  \"unreadCounts\": {\n    \"conv_+5214773790184_+5214793176502\": 10\n  },\n  \"onlineUsers\": {},\n  \"serverTime\": \"2025-08-20T18:16:54.399Z\",\n  \"syncId\": \"initial_1755713814399\"\n}",
+      "data": [
+        "🔌 useConversationSync - Estado sincronizado:",
+        {
+          "conversations": [
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "id": "SM70bbd808798a2c5c1c4933a4269fd49b",
+                "type": "text",
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "579fc401-fd05-47de-bcc7-556341f6b5e8",
+                "content": "PRUEBA 1",
+                "timestamp": {
+                  "_seconds": 1755712972,
+                  "_nanoseconds": 772000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755712972,
+                "_nanoseconds": 772000000
+              },
+              "unreadCount": 13,
+              "messageCount": 20,
+              "participants": [
+                "+5214773790184",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1755546558,
+                "_nanoseconds": 866000000
+              },
+              "updatedAt": {
+                "_seconds": 1755712972,
+                "_nanoseconds": 975000000
+              }
+            },
+            {
+              "id": "conv_+5214777270766_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214777270766",
+              "assignedTo": null,
+              "lastMessage": {
+                "id": "MM79696223c7f84cf18d12f476e93da5a0",
+                "type": "image",
+                "sender": "agent:admin@company.com",
+                "messageId": "4bd8c880-29ee-466a-964c-c7fa580e620d",
+                "content": "PRUEBA 1",
+                "direction": "outbound",
+                "timestamp": {
+                  "_seconds": 1755712962,
+                  "_nanoseconds": 781000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755712962,
+                "_nanoseconds": 781000000
+              },
+              "unreadCount": 4,
+              "messageCount": 6,
+              "participants": [
+                "+5214777270766",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214777270766"
+              ],
+              "createdAt": {
+                "_seconds": 1755544852,
+                "_nanoseconds": 860000000
+              },
+              "updatedAt": {
+                "_seconds": 1755712962,
+                "_nanoseconds": 958000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "id": "MM26999c163631b72e84ab82e3c40133ed",
+                "content": "",
+                "timestamp": "2025-08-18T20:04:40.480Z",
+                "sender": "customer",
+                "type": "image"
+              },
+              "lastMessageAt": {
+                "_seconds": 1755547480,
+                "_nanoseconds": 729000000
+              },
+              "unreadCount": 21,
+              "messageCount": 21,
+              "participants": [
+                "+5214775211021",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755547340,
+                "_nanoseconds": 328000000
+              },
+              "updatedAt": {
+                "_seconds": 1755547480,
+                "_nanoseconds": 729000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_+5214773790184_+5214793176502": 10
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-20T18:16:54.399Z",
+          "syncId": "initial_1755713814399"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.443Z",
+      "level": "info",
+      "message": "🔌 Socket ya conectado, saltando..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.459Z",
+      "level": "info",
+      "message": "✅ WebSocket conectado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.469Z",
+      "level": "info",
+      "message": "✅ WebSocket conectado exitosamente"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:54.776Z",
+      "level": "info",
+      "message": "🔄 Estado sincronizado con servidor"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.130Z",
+      "level": "info",
+      "message": "✅ Estado sincronizado desde servidor (versión undefined)"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.130Z",
+      "level": "info",
+      "message": "🔌 useConversationSync - Estado sincronizado: {\n  \"conversations\": [\n    {\n      \"id\": \"conv_+5214773790184_+5214793176502\",\n      \"status\": \"open\",\n      \"customerPhone\": \"+5214773790184\",\n      \"assignedTo\": null,\n      \"lastMessage\": {\n        \"id\": \"SM70bbd808798a2c5c1c4933a4269fd49b\",\n        \"type\": \"text\",\n        \"sender\": \"agent:admin@company.com\",\n        \"direction\": \"outbound\",\n        \"messageId\": \"579fc401-fd05-47de-bcc7-556341f6b5e8\",\n        \"content\": \"PRUEBA 1\",\n        \"timestamp\": {\n          \"_seconds\": 1755712972,\n          \"_nanoseconds\": 772000000\n        }\n      },\n      \"lastMessageAt\": {\n        \"_seconds\": 1755712972,\n        \"_nanoseconds\": 772000000\n      },\n      \"unreadCount\": 13,\n      \"messageCount\": 20,\n      \"participants\": [\n        \"+5214773790184\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214773790184\"\n      ],\n      \"createdAt\": {\n        \"_seconds\": 1755546558,\n        \"_nanoseconds\": 866000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755712972,\n        \"_nanoseconds\": 975000000\n      }\n    },\n    {\n      \"id\": \"conv_+5214777270766_+5214793176502\",\n      \"status\": \"open\",\n      \"customerPhone\": \"+5214777270766\",\n      \"assignedTo\": null,\n      \"lastMessage\": {\n        \"id\": \"MM79696223c7f84cf18d12f476e93da5a0\",\n        \"type\": \"image\",\n        \"sender\": \"agent:admin@company.com\",\n        \"messageId\": \"4bd8c880-29ee-466a-964c-c7fa580e620d\",\n        \"content\": \"PRUEBA 1\",\n        \"direction\": \"outbound\",\n        \"timestamp\": {\n          \"_seconds\": 1755712962,\n          \"_nanoseconds\": 781000000\n        }\n      },\n      \"lastMessageAt\": {\n        \"_seconds\": 1755712962,\n        \"_nanoseconds\": 781000000\n      },\n      \"unreadCount\": 4,\n      \"messageCount\": 6,\n      \"participants\": [\n        \"+5214777270766\",\n        \"admin@company.com\",\n        \"agent:admin@company.com\",\n        \"whatsapp:+5214777270766\"\n      ],\n      \"createdAt\": {\n        \"_seconds\": 1755544852,\n        \"_nanoseconds\": 860000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755712962,\n        \"_nanoseconds\": 958000000\n      }\n    },\n    {\n      \"id\": \"conv_+5214775211021_+5214793176502\",\n      \"status\": \"open\",\n      \"customerPhone\": \"+5214775211021\",\n      \"assignedTo\": null,\n      \"lastMessage\": {\n        \"id\": \"MM26999c163631b72e84ab82e3c40133ed\",\n        \"content\": \"\",\n        \"timestamp\": \"2025-08-18T20:04:40.480Z\",\n        \"sender\": \"customer\",\n        \"type\": \"image\"\n      },\n      \"lastMessageAt\": {\n        \"_seconds\": 1755547480,\n        \"_nanoseconds\": 729000000\n      },\n      \"unreadCount\": 21,\n      \"messageCount\": 21,\n      \"participants\": [\n        \"+5214775211021\",\n        \"admin@company.com\"\n      ],\n      \"createdAt\": {\n        \"_seconds\": 1755547340,\n        \"_nanoseconds\": 328000000\n      },\n      \"updatedAt\": {\n        \"_seconds\": 1755547480,\n        \"_nanoseconds\": 729000000\n      }\n    }\n  ],\n  \"unreadCounts\": {\n    \"conv_+5214773790184_+5214793176502\": 10\n  },\n  \"onlineUsers\": {},\n  \"serverTime\": \"2025-08-20T18:16:55.255Z\",\n  \"syncId\": 1755713815255\n}",
+      "data": [
+        "🔌 useConversationSync - Estado sincronizado:",
+        {
+          "conversations": [
+            {
+              "id": "conv_+5214773790184_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214773790184",
+              "assignedTo": null,
+              "lastMessage": {
+                "id": "SM70bbd808798a2c5c1c4933a4269fd49b",
+                "type": "text",
+                "sender": "agent:admin@company.com",
+                "direction": "outbound",
+                "messageId": "579fc401-fd05-47de-bcc7-556341f6b5e8",
+                "content": "PRUEBA 1",
+                "timestamp": {
+                  "_seconds": 1755712972,
+                  "_nanoseconds": 772000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755712972,
+                "_nanoseconds": 772000000
+              },
+              "unreadCount": 13,
+              "messageCount": 20,
+              "participants": [
+                "+5214773790184",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214773790184"
+              ],
+              "createdAt": {
+                "_seconds": 1755546558,
+                "_nanoseconds": 866000000
+              },
+              "updatedAt": {
+                "_seconds": 1755712972,
+                "_nanoseconds": 975000000
+              }
+            },
+            {
+              "id": "conv_+5214777270766_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214777270766",
+              "assignedTo": null,
+              "lastMessage": {
+                "id": "MM79696223c7f84cf18d12f476e93da5a0",
+                "type": "image",
+                "sender": "agent:admin@company.com",
+                "messageId": "4bd8c880-29ee-466a-964c-c7fa580e620d",
+                "content": "PRUEBA 1",
+                "direction": "outbound",
+                "timestamp": {
+                  "_seconds": 1755712962,
+                  "_nanoseconds": 781000000
+                }
+              },
+              "lastMessageAt": {
+                "_seconds": 1755712962,
+                "_nanoseconds": 781000000
+              },
+              "unreadCount": 4,
+              "messageCount": 6,
+              "participants": [
+                "+5214777270766",
+                "admin@company.com",
+                "agent:admin@company.com",
+                "whatsapp:+5214777270766"
+              ],
+              "createdAt": {
+                "_seconds": 1755544852,
+                "_nanoseconds": 860000000
+              },
+              "updatedAt": {
+                "_seconds": 1755712962,
+                "_nanoseconds": 958000000
+              }
+            },
+            {
+              "id": "conv_+5214775211021_+5214793176502",
+              "status": "open",
+              "customerPhone": "+5214775211021",
+              "assignedTo": null,
+              "lastMessage": {
+                "id": "MM26999c163631b72e84ab82e3c40133ed",
+                "content": "",
+                "timestamp": "2025-08-18T20:04:40.480Z",
+                "sender": "customer",
+                "type": "image"
+              },
+              "lastMessageAt": {
+                "_seconds": 1755547480,
+                "_nanoseconds": 729000000
+              },
+              "unreadCount": 21,
+              "messageCount": 21,
+              "participants": [
+                "+5214775211021",
+                "admin@company.com"
+              ],
+              "createdAt": {
+                "_seconds": 1755547340,
+                "_nanoseconds": 328000000
+              },
+              "updatedAt": {
+                "_seconds": 1755547480,
+                "_nanoseconds": 729000000
+              }
+            }
+          ],
+          "unreadCounts": {
+            "conv_+5214773790184_+5214793176502": 10
+          },
+          "onlineUsers": {},
+          "serverTime": "2025-08-20T18:16:55.255Z",
+          "syncId": 1755713815255
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.667Z",
+      "level": "info",
+      "message": "�� ID de conversación codificado correctamente en URL | Data: {\n  \"originalId\": \"conv_+5214773790184_+5214793176502\",\n  \"decodedId\": \"conv_+5214773790184_+5214793176502\",\n  \"sanitizedId\": \"conv_+5214773790184_+5214793176502\",\n  \"encodedId\": \"conv_%2B5214773790184_%2B5214793176502\",\n  \"method\": \"encodeConversationIdForUrl\"\n}",
+      "data": [
+        "�� ID de conversación codificado correctamente en URL | Data:",
+        {
+          "originalId": "conv_+5214773790184_+5214793176502",
+          "decodedId": "conv_+5214773790184_+5214793176502",
+          "sanitizedId": "conv_+5214773790184_+5214793176502",
+          "encodedId": "conv_%2B5214773790184_%2B5214793176502",
+          "method": "encodeConversationIdForUrl"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.667Z",
+      "level": "info",
+      "message": "✅ useConversationActions - Conversación seleccionada: conv_+5214773790184_+5214793176502",
+      "data": [
+        "✅ useConversationActions - Conversación seleccionada:",
+        "conv_+5214773790184_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.686Z",
+      "level": "info",
+      "message": "🔄 useChat - Cambio de conversación detectado: {\n  \"anterior\": \"\",\n  \"nueva\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔄 useChat - Cambio de conversación detectado:",
+        {
+          "anterior": "",
+          "nueva": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.686Z",
+      "level": "info",
+      "message": "🎧 useChat - Configurando listeners para conversación: conv_+5214773790184_+5214793176502",
+      "data": [
+        "🎧 useChat - Configurando listeners para conversación:",
+        "conv_+5214773790184_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.686Z",
+      "level": "info",
+      "message": "�� ID de conversación codificado correctamente en URL | Data: {\n  \"originalId\": \"conv_+5214773790184_+5214793176502\",\n  \"decodedId\": \"conv_+5214773790184_+5214793176502\",\n  \"sanitizedId\": \"conv_+5214773790184_+5214793176502\",\n  \"encodedId\": \"conv_%2B5214773790184_%2B5214793176502\",\n  \"method\": \"encodeConversationIdForUrl\"\n}",
+      "data": [
+        "�� ID de conversación codificado correctamente en URL | Data:",
+        {
+          "originalId": "conv_+5214773790184_+5214793176502",
+          "decodedId": "conv_+5214773790184_+5214793176502",
+          "sanitizedId": "conv_+5214773790184_+5214793176502",
+          "encodedId": "conv_%2B5214773790184_%2B5214793176502",
+          "method": "encodeConversationIdForUrl"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.687Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió: {\n  \"selectedConversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió:",
+        {
+          "selectedConversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.687Z",
+      "level": "info",
+      "message": "📞 [DEBUG] Llamando a loadClientProfile..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.687Z",
+      "level": "info",
+      "message": "📞 [DEBUG] Llamando a getProfile..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.687Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.687Z",
+      "level": "info",
+      "message": "✅ Usando perfil desde cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.687Z",
+      "level": "info",
+      "message": "�� ID de conversación codificado correctamente en URL | Data: {\n  \"originalId\": \"conv_+5214773790184_+5214793176502\",\n  \"decodedId\": \"conv_+5214773790184_+5214793176502\",\n  \"sanitizedId\": \"conv_+5214773790184_+5214793176502\",\n  \"encodedId\": \"conv_%2B5214773790184_%2B5214793176502\",\n  \"method\": \"encodeConversationIdForUrl\"\n}",
+      "data": [
+        "�� ID de conversación codificado correctamente en URL | Data:",
+        {
+          "originalId": "conv_+5214773790184_+5214793176502",
+          "decodedId": "conv_+5214773790184_+5214793176502",
+          "sanitizedId": "conv_+5214773790184_+5214793176502",
+          "encodedId": "conv_%2B5214773790184_%2B5214793176502",
+          "method": "encodeConversationIdForUrl"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 0,\n  \"finalUnreadCount\": 0,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 0,
+          "finalUnreadCount": 0,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 0,\n  \"finalUnreadCount\": 0,\n  \"prevUnreadCount\": 13,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 0,
+          "finalUnreadCount": 0,
+          "prevUnreadCount": 13,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió: {\n  \"selectedConversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió:",
+        {
+          "selectedConversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "📞 [DEBUG] Llamando a loadClientProfile..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] Ya cargando perfil, saltando..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "📊 [DEBUG] Resultado de getProfile: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"hasProfile\": true,\n  \"profileName\": \"Isra\",\n  \"profilePhone\": \"+5214773790184\",\n  \"profileChannel\": \"whatsapp\"\n}",
+      "data": [
+        "📊 [DEBUG] Resultado de getProfile:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "hasProfile": true,
+          "profileName": "Isra",
+          "profilePhone": "+5214773790184",
+          "profileChannel": "whatsapp"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Perfil obtenido, actualizando estado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.701Z",
+      "level": "info",
+      "message": "🏁 [DEBUG] Finalizando carga..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 0,\n  \"finalUnreadCount\": 0,\n  \"prevUnreadCount\": 0,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 0,
+          "finalUnreadCount": 0,
+          "prevUnreadCount": 0,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "🔍 ConversationItem Debug: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"storeUnreadCount\": 0,\n  \"serverUnreadCount\": 0,\n  \"finalUnreadCount\": 0,\n  \"prevUnreadCount\": 0,\n  \"hasNewMessage\": false\n}",
+      "data": [
+        "🔍 ConversationItem Debug:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "storeUnreadCount": 0,
+          "serverUnreadCount": 0,
+          "finalUnreadCount": 0,
+          "prevUnreadCount": 0,
+          "hasNewMessage": false
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió: {\n  \"selectedConversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔄 [DEBUG] useEffect RightSidebar - selectedConversationId cambió:",
+        {
+          "selectedConversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "📞 [DEBUG] Llamando a loadClientProfile..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "📞 [DEBUG] Llamando a getProfile..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "✅ Usando perfil desde cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "📊 [DEBUG] Resultado de getProfile: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"hasProfile\": true,\n  \"profileName\": \"Isra\",\n  \"profilePhone\": \"+5214773790184\",\n  \"profileChannel\": \"whatsapp\"\n}",
+      "data": [
+        "📊 [DEBUG] Resultado de getProfile:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "hasProfile": true,
+          "profileName": "Isra",
+          "profilePhone": "+5214773790184",
+          "profileChannel": "whatsapp"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "✅ [DEBUG] Perfil obtenido, actualizando estado..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.704Z",
+      "level": "info",
+      "message": "🏁 [DEBUG] Finalizando carga..."
+    },
+    {
+      "timestamp": "2025-08-20T18:16:55.719Z",
+      "level": "info",
+      "message": "�� ID de conversación codificado correctamente en URL | Data: {\n  \"originalId\": \"conv_+5214773790184_+5214793176502\",\n  \"decodedId\": \"conv_+5214773790184_+5214793176502\",\n  \"sanitizedId\": \"conv_+5214773790184_+5214793176502\",\n  \"encodedId\": \"conv_%2B5214773790184_%2B5214793176502\",\n  \"method\": \"encodeConversationIdForUrl\"\n}",
+      "data": [
+        "�� ID de conversación codificado correctamente en URL | Data:",
+        {
+          "originalId": "conv_+5214773790184_+5214793176502",
+          "decodedId": "conv_+5214773790184_+5214793176502",
+          "sanitizedId": "conv_+5214773790184_+5214793176502",
+          "encodedId": "conv_%2B5214773790184_%2B5214793176502",
+          "method": "encodeConversationIdForUrl"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.687Z",
+      "level": "info",
+      "message": "🔗 useChat - Uniéndose a conversación: conv_+5214773790184_+5214793176502",
+      "data": [
+        "🔗 useChat - Uniéndose a conversación:",
+        "conv_+5214773790184_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.688Z",
+      "level": "info",
+      "message": "🔍 ID de Conversación joinConversation: {\n  \"id\": \"conv_+5214773790184_+5214793176502\",\n  \"isValid\": true,\n  \"phones\": {\n    \"phone1\": \"+5214773790184\",\n    \"phone2\": \"+5214793176502\"\n  },\n  \"length\": 34\n}",
+      "data": [
+        "🔍 ID de Conversación joinConversation:",
+        {
+          "id": "conv_+5214773790184_+5214793176502",
+          "isValid": true,
+          "phones": {
+            "phone1": "+5214773790184",
+            "phone2": "+5214793176502"
+          },
+          "length": 34
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.688Z",
+      "level": "info",
+      "message": "🔗 Room ID generado (formato simplificado): {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"roomId\": \"conversation:conv_+5214773790184_+5214793176502\",\n  \"userId\": \"admin@company.com\"\n}",
+      "data": [
+        "🔗 Room ID generado (formato simplificado):",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "roomId": "conversation:conv_+5214773790184_+5214793176502",
+          "userId": "admin@company.com"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.688Z",
+      "level": "info",
+      "message": "🔗 join-conversation - Room ID generado: conversation:conv_+5214773790184_+5214793176502",
+      "data": [
+        "🔗 join-conversation - Room ID generado:",
+        "conversation:conv_+5214773790184_+5214793176502"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.688Z",
+      "level": "info",
+      "message": "🔗 Uniendo a conversación: conv_+5214773790184_+5214793176502"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.688Z",
+      "level": "info",
+      "message": "�� ID de conversación codificado correctamente en URL | Data: {\n  \"originalId\": \"conv_+5214773790184_+5214793176502\",\n  \"decodedId\": \"conv_+5214773790184_+5214793176502\",\n  \"sanitizedId\": \"conv_+5214773790184_+5214793176502\",\n  \"encodedId\": \"conv_%2B5214773790184_%2B5214793176502\",\n  \"method\": \"encodeConversationIdForUrl\"\n}",
+      "data": [
+        "�� ID de conversación codificado correctamente en URL | Data:",
+        {
+          "originalId": "conv_+5214773790184_+5214793176502",
+          "decodedId": "conv_+5214773790184_+5214793176502",
+          "sanitizedId": "conv_+5214773790184_+5214793176502",
+          "encodedId": "conv_%2B5214773790184_%2B5214793176502",
+          "method": "encodeConversationIdForUrl"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.688Z",
+      "level": "info",
+      "message": "🔍 ID de Conversación loadMessages: {\n  \"id\": \"conv_+5214773790184_+5214793176502\",\n  \"isValid\": true,\n  \"phones\": {\n    \"phone1\": \"+5214773790184\",\n    \"phone2\": \"+5214793176502\"\n  },\n  \"length\": 34\n}",
+      "data": [
+        "🔍 ID de Conversación loadMessages:",
+        {
+          "id": "conv_+5214773790184_+5214793176502",
+          "isValid": true,
+          "phones": {
+            "phone1": "+5214773790184",
+            "phone2": "+5214793176502"
+          },
+          "length": 34
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:56.836Z",
+      "level": "info",
+      "message": "🔌 useConversationSync - Usuario se unió a conversación: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\",\n  \"roomId\": \"ws:default_workspace:ten:default_tenant:conv:conv_+5214773790184_+5214793176502\",\n  \"onlineUsers\": [\n    \"admin@company.com\"\n  ],\n  \"success\": true,\n  \"timestamp\": \"2025-08-20T18:16:56.958Z\"\n}",
+      "data": [
+        "🔌 useConversationSync - Usuario se unió a conversación:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502",
+          "roomId": "ws:default_workspace:ten:default_tenant:conv:conv_+5214773790184_+5214793176502",
+          "onlineUsers": [
+            "admin@company.com"
+          ],
+          "success": true,
+          "timestamp": "2025-08-20T18:16:56.958Z"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.083Z",
+      "level": "info",
+      "message": "🔍 ID de Conversación loadConversation: {\n  \"id\": \"conv_+5214773790184_+5214793176502\",\n  \"isValid\": true,\n  \"phones\": {\n    \"phone1\": \"+5214773790184\",\n    \"phone2\": \"+5214793176502\"\n  },\n  \"length\": 34\n}",
+      "data": [
+        "🔍 ID de Conversación loadConversation:",
+        {
+          "id": "conv_+5214773790184_+5214793176502",
+          "isValid": true,
+          "phones": {
+            "phone1": "+5214773790184",
+            "phone2": "+5214793176502"
+          },
+          "length": 34
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.083Z",
+      "level": "info",
+      "message": "�� ID de conversación codificado correctamente en URL | Data: {\n  \"originalId\": \"conv_+5214773790184_+5214793176502\",\n  \"decodedId\": \"conv_+5214773790184_+5214793176502\",\n  \"sanitizedId\": \"conv_+5214773790184_+5214793176502\",\n  \"encodedId\": \"conv_%2B5214773790184_%2B5214793176502\",\n  \"method\": \"encodeConversationIdForUrl\"\n}",
+      "data": [
+        "�� ID de conversación codificado correctamente en URL | Data:",
+        {
+          "originalId": "conv_+5214773790184_+5214793176502",
+          "decodedId": "conv_+5214773790184_+5214793176502",
+          "sanitizedId": "conv_+5214773790184_+5214793176502",
+          "encodedId": "conv_%2B5214773790184_%2B5214793176502",
+          "method": "encodeConversationIdForUrl"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.083Z",
+      "level": "info",
+      "message": "🔍 ID de Conversación getConversation: {\n  \"id\": \"conv_+5214773790184_+5214793176502\",\n  \"isValid\": true,\n  \"phones\": {\n    \"phone1\": \"+5214773790184\",\n    \"phone2\": \"+5214793176502\"\n  },\n  \"length\": 34\n}",
+      "data": [
+        "🔍 ID de Conversación getConversation:",
+        {
+          "id": "conv_+5214773790184_+5214793176502",
+          "isValid": true,
+          "phones": {
+            "phone1": "+5214773790184",
+            "phone2": "+5214793176502"
+          },
+          "length": 34
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.088Z",
+      "level": "info",
+      "message": "✅ useChat - Mensajes cargados exitosamente, estableciendo isJoined como true"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.110Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.110Z",
+      "level": "info",
+      "message": "✅ Usando perfil desde cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.111Z",
+      "level": "info",
+      "message": "👁️ Marcando mensajes como leídos: [\n  \"SM70bbd808798a2c5c1c4933a4269fd49b\",\n  \"SMb38540a632c6922f98d0a5b6a65a8c1d\",\n  \"SM189cfbd8444670b2f60d538a91788349\",\n  \"SMdf4e407e4e0ad2a8b1b79df834882aad\",\n  \"SM26aac1f4f03e722f49fb1fb5f15a2d0c\",\n  \"SM6e1499b397000b3dc526fdf54c0dad97\",\n  \"SM9d4392a313eaa5b75725ad77f40b053c\",\n  \"SM89b193dcee1eeb79f393737f1616d5fb\",\n  \"SMd4e0266fb45fbbcaa6d51a64b662399d\",\n  \"SM84836cede6871ff80cd5d19d224234b7\"\n]",
+      "data": [
+        "👁️ Marcando mensajes como leídos:",
+        [
+          "SM70bbd808798a2c5c1c4933a4269fd49b",
+          "SMb38540a632c6922f98d0a5b6a65a8c1d",
+          "SM189cfbd8444670b2f60d538a91788349",
+          "SMdf4e407e4e0ad2a8b1b79df834882aad",
+          "SM26aac1f4f03e722f49fb1fb5f15a2d0c",
+          "SM6e1499b397000b3dc526fdf54c0dad97",
+          "SM9d4392a313eaa5b75725ad77f40b053c",
+          "SM89b193dcee1eeb79f393737f1616d5fb",
+          "SMd4e0266fb45fbbcaa6d51a64b662399d",
+          "SM84836cede6871ff80cd5d19d224234b7"
+        ]
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.111Z",
+      "level": "info",
+      "message": "✅ Mensajes marcados como leídos: conv_+5214773790184_+5214793176502 - 10 mensajes"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.111Z",
+      "level": "info",
+      "message": "🔍 [DEBUG] useClientProfileStore.getProfile iniciado: {\n  \"conversationId\": \"conv_+5214773790184_+5214793176502\"\n}",
+      "data": [
+        "🔍 [DEBUG] useClientProfileStore.getProfile iniciado:",
+        {
+          "conversationId": "conv_+5214773790184_+5214793176502"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.111Z",
+      "level": "info",
+      "message": "✅ Usando perfil desde cache"
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.321Z",
+      "level": "info",
+      "message": "✅ useChat - Conversación cargada: {}",
+      "data": [
+        "✅ useChat - Conversación cargada:",
+        {}
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:16:57.335Z",
+      "level": "info",
+      "message": "✅ useChat - Mensajes cargados, estableciendo isJoined como true"
+    },
+    {
+      "timestamp": "2025-08-20T18:17:00.931Z",
+      "level": "info",
+      "message": "📁 Archivo seleccionado: Captura de pantalla 2025-08-20 a las 12.07.36 p. m..png Tamaño: 1387049 Tipo: image/png",
+      "data": [
+        "📁 Archivo seleccionado:",
+        "Captura de pantalla 2025-08-20 a las 12.07.36 p. m..png",
+        "Tamaño:",
+        1387049,
+        "Tipo:",
+        "image/png"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:17:00.932Z",
+      "level": "info",
+      "message": "🚀 Subiendo archivo: Captura de pantalla 2025-08-20 a las 12.07.36 p. m..png",
+      "data": [
+        "🚀 Subiendo archivo:",
+        "Captura de pantalla 2025-08-20 a las 12.07.36 p. m..png"
+      ]
+    },
+    {
+      "timestamp": "2025-08-20T18:17:01.788Z",
+      "level": "error",
+      "message": "[2025-08-20T18:17:01.788Z] [ERROR] [API] API Error: POST /api/media/upload | Data: {\n  \"status\": 500,\n  \"data\": {\n    \"success\": false,\n    \"error\": {\n      \"type\": \"UPLOAD_FAILED\",\n      \"code\": \"Error subiendo archivo\",\n      \"message\": \"Intenta nuevamente o contacta soporte si el problema persiste\",\n      \"timestamp\": \"2025-08-20T18:17:01.787Z\",\n      \"details\": {\n        \"originalError\": \"Cannot read properties of undefined (reading 'error')\"\n      }\n    }\n  },\n  \"message\": \"Request failed with status code 500\"\n} | Error: Request failed with status code 500 | Stack: AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1585:7)"
+    },
+    {
+      "timestamp": "2025-08-20T18:17:01.788Z",
+      "level": "error",
+      "message": "[2025-08-20T18:17:01.788Z] [ERROR] [API] Error en respuesta de API | Data: {\n  \"method\": \"POST\",\n  \"url\": \"/api/media/upload\",\n  \"status\": 500,\n  \"statusText\": \"\",\n  \"errorData\": {\n    \"success\": false,\n    \"error\": {\n      \"type\": \"UPLOAD_FAILED\",\n      \"code\": \"Error subiendo archivo\",\n      \"message\": \"Intenta nuevamente o contacta soporte si el problema persiste\",\n      \"timestamp\": \"2025-08-20T18:17:01.787Z\",\n      \"details\": {\n        \"originalError\": \"Cannot read properties of undefined (reading 'error')\"\n      }\n    }\n  },\n  \"isNetworkError\": false,\n  \"isTimeout\": false\n} | Error: Request failed with status code 500 | Stack: AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1585:7)"
+    },
+    {
+      "timestamp": "2025-08-20T18:17:01.789Z",
+      "level": "error",
+      "message": "❌ Error subiendo archivo: {\n  \"message\": \"Request failed with status code 500\",\n  \"name\": \"AxiosError\",\n  \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:2143:41)\\n    at async Object.uploadFile (http://localhost:5173/src/services/fileUpload.ts:10:22)\\n    at async uploadAndSend (http://localhost:5173/src/components/chat/MessageInput.tsx:401:44)\",\n  \"config\": {\n    \"transitional\": {\n      \"silentJSONParsing\": true,\n      \"forcedJSONParsing\": true,\n      \"clarifyTimeoutError\": false\n    },\n    \"adapter\": [\n      \"xhr\",\n      \"http\",\n      \"fetch\"\n    ],\n    \"transformRequest\": [\n      null\n    ],\n    \"transformResponse\": [\n      null\n    ],\n    \"timeout\": 30000,\n    \"xsrfCookieName\": \"XSRF-TOKEN\",\n    \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n    \"maxContentLength\": -1,\n    \"maxBodyLength\": -1,\n    \"env\": {},\n    \"headers\": {\n      \"Accept\": \"application/json, text/plain, */*\",\n      \"Content-Type\": \"multipart/form-data\",\n      \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTcxMzgxMywiZXhwIjoxNzU1NzE0NzEzLCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.Bbtj8fG2vRsVeLldB6YkjbSyYKgxhC8YuOKSdOXz75U\"\n    },\n    \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n    \"method\": \"post\",\n    \"url\": \"/api/media/upload\",\n    \"data\": {},\n    \"allowAbsoluteUrls\": true\n  },\n  \"code\": \"ERR_BAD_RESPONSE\",\n  \"status\": 500\n}",
+      "data": [
+        "❌ Error subiendo archivo:",
+        {
+          "message": "Request failed with status code 500",
+          "name": "AxiosError",
+          "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=7d7b32e1:2143:41)\n    at async Object.uploadFile (http://localhost:5173/src/services/fileUpload.ts:10:22)\n    at async uploadAndSend (http://localhost:5173/src/components/chat/MessageInput.tsx:401:44)",
+          "config": {
+            "transitional": {
+              "silentJSONParsing": true,
+              "forcedJSONParsing": true,
+              "clarifyTimeoutError": false
+            },
+            "adapter": [
+              "xhr",
+              "http",
+              "fetch"
+            ],
+            "transformRequest": [
+              null
+            ],
+            "transformResponse": [
+              null
+            ],
+            "timeout": 30000,
+            "xsrfCookieName": "XSRF-TOKEN",
+            "xsrfHeaderName": "X-XSRF-TOKEN",
+            "maxContentLength": -1,
+            "maxBodyLength": -1,
+            "env": {},
+            "headers": {
+              "Accept": "application/json, text/plain, */*",
+              "Content-Type": "multipart/form-data",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTcxMzgxMywiZXhwIjoxNzU1NzE0NzEzLCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.Bbtj8fG2vRsVeLldB6YkjbSyYKgxhC8YuOKSdOXz75U"
+            },
+            "baseURL": "https://utalk-backend-production.up.railway.app",
+            "method": "post",
+            "url": "/api/media/upload",
+            "data": {},
+            "allowAbsoluteUrls": true
+          },
+          "code": "ERR_BAD_RESPONSE",
+          "status": 500
+        }
+      ]
+    }
+  ]
+}
