@@ -60,8 +60,11 @@ class CampaignQueueService {
    */
   async initialize() {
     try {
-      // Configurar Redis
-      this.redis = new Redis(process.env.REDIS_URL || process.env.REDISCLOUD_URL, {
+      // 🔧 SOLUCIÓN: Configurar Redis con family=0 para Railway IPv6
+      const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
+      
+      this.redis = new Redis(redisUrlWithFamily, {
         maxRetriesPerRequest: 3,
         retryDelayOnFailover: 100,
         enableReadyCheck: true,

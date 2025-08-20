@@ -30,9 +30,12 @@ class PersistentRateLimitManager {
    */
   async initialize() {
     try {
-      // Intentar conectar Redis si está disponible
+      // 🔧 SOLUCIÓN: Intentar conectar Redis con family=0 para Railway IPv6
       if (process.env.REDIS_URL && process.env.ENABLE_REDIS !== 'false') {
-        this.redis = new Redis(process.env.REDIS_URL, {
+        const redisUrl = process.env.REDIS_URL;
+        const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
+        
+        this.redis = new Redis(redisUrlWithFamily, {
           retryDelayOnFailover: 100,
           maxRetriesPerRequest: 3,
           lazyConnect: true,

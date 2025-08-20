@@ -110,11 +110,13 @@ class AdvancedSecurity {
       const RedisStore = require('rate-limit-redis');
       const redis = require('redis');
       
+      // 🔧 SOLUCIÓN: Configurar Redis con family=0 para Railway IPv6
       const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
       
       if (redisUrl) {
         const redisClient = redis.createClient({
-          url: redisUrl,
+          url: redisUrlWithFamily,
           socket: {
             connectTimeout: 5000,
             commandTimeout: 3000,
