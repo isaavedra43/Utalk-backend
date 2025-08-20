@@ -147,8 +147,18 @@ class CampaignQueueService {
         });
       };
 
+      // 🔧 Bull crea internamente client/bclient/subscriber con sus propias opciones seguras
+      const redisURL = new URL(redisUrlWithFamily);
+      const redisConfig = {
+        host: redisURL.hostname,
+        port: Number(redisURL.port || '6379'),
+        username: redisURL.username || 'default',
+        password: redisURL.password,
+        family: 0 // habilita dual stack en ioredis
+      };
+
       this.campaignQueue = new Queue('campaign-processing', {
-        createClient: (type) => makeBullClientByType(type),
+        redis: redisConfig,
         defaultJobOptions: {
           removeOnComplete: 50,
           removeOnFail: 25,
@@ -157,9 +167,9 @@ class CampaignQueueService {
         }
       });
 
-      // 🔧 SOLUCIÓN RAILWAY: Configuración de cola de mensajes con createClient
+      // 🔧 Configurar otra cola usando la config nativa de Bull
       this.processingQueue = new Queue('message-processing', {
-        createClient: (type) => makeBullClientByType(type),
+        redis: redisConfig,
         defaultJobOptions: {
           removeOnComplete: 500,
           removeOnFail: 50,
