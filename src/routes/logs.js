@@ -40,83 +40,22 @@ router.get('/test', (req, res) => {
  * @desc Generar logs de prueba para el dashboard
  * @access Public
  */
-router.post('/generate-test', (req, res) => {
+router.post('/generate-test', async (req, res) => {
   try {
-    logger.info('🧪 GENERATE_TEST_LOGS: Generando logs de prueba...', { category: '_GENERATE_TEST_LOGS_GENERANDO_' });
-    
-    const logger = require('../utils/logger');
-    
-    // Generar logs de diferentes niveles y categorías
-    logger.info('Sistema iniciado correctamente', { category: 'SYSTEM', userId: 'system' });
-    logger.info('Conexión a base de datos establecida', { category: 'DATABASE', userId: 'system' });
-    logger.warn('Cache miss en consulta de usuarios', { category: 'CACHE', userId: 'system' });
-    logger.info('Nueva conexión WebSocket establecida', { category: 'WEBSOCKET', userId: 'user_123' });
-    logger.error('Error en endpoint de autenticación', { category: 'API', userId: 'user_456' });
-    logger.info('Mensaje enviado exitosamente', { category: 'MESSAGE', userId: 'user_789' });
-    logger.debug('Rate limit check completado', { category: 'RATE_LIMIT', userId: 'user_101' });
-    
-    // Generar logs adicionales con diferentes timestamps
-    setTimeout(() => {
-      logger.info('Procesamiento de mensaje completado', { category: 'MESSAGE', userId: 'user_202' });
-    }, 1000);
-    
-    setTimeout(() => {
-      logger.warn('Tiempo de respuesta lento detectado', { category: 'PERFORMANCE', userId: 'system' });
-    }, 2000);
-    
-    setTimeout(() => {
-      logger.error('Error de conexión a servicio externo', { category: 'EXTERNAL_SERVICE', userId: 'system' });
-    }, 3000);
+    const { logMonitor } = require('../services/LogMonitorService');
+    LogDashboardController.generateTestLogs(logMonitor);
     
     res.json({
       success: true,
       message: 'Logs de prueba generados exitosamente',
-      timestamp: new Date().toISOString(),
-      logsGenerated: 9
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('❌ Error generando logs de prueba:', { category: '_ERROR_GENERANDO_LOGS_DE_PRUEB', data: error });
     res.status(500).json({
       success: false,
-      error: 'GENERATE_TEST_ERROR',
-      message: 'Error generando logs de prueba',
-      details: error.message
+      error: 'GENERATE_ERROR',
+      message: 'Error generando logs de prueba'
     });
-  }
-});
-
-/**
- * 🖥️ GET DASHBOARD HTML
- * @route GET /logs
- * @desc Dashboard visual de logs
- * @access Public (sin autenticación para debugging)
- */
-router.get('/dashboard-html', 
-  LogDashboardController.getDashboardHTML
-);
-
-/**
- * 📜 GET DASHBOARD JAVASCRIPT
- * @route GET /api/logs/dashboard.js
- * @desc Archivo JavaScript del dashboard
- * @access Public
- */
-router.get('/dashboard.js', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-  
-  try {
-    const jsPath = path.join(__dirname, '..', 'controllers', 'dashboard.js');
-    const jsContent = fs.readFileSync(jsPath, 'utf8');
-    
-    res.set({
-      'Content-Type': 'application/javascript',
-      'Cache-Control': 'no-cache'
-    });
-    res.send(jsContent);
-  } catch (error) {
-    logger.error('❌ Error sirviendo dashboard.js:', { category: '_ERROR_SIRVIENDO_DASHBOARD_JS_', data: error });
-    res.status(500).send('// Error cargando dashboard JavaScript');
   }
 });
 
@@ -143,8 +82,8 @@ router.get('/',
 /**
  * 🔍 SEARCH LOGS
  * @route GET /api/logs/search
- * @desc Buscar en logs
- * @access Public (sin autenticación para debugging)
+ * @desc Buscar logs
+ * @access Public
  */
 router.get('/search',
   LogDashboardController.searchLogs
@@ -154,76 +93,17 @@ router.get('/search',
  * 📤 EXPORT LOGS
  * @route GET /api/logs/export
  * @desc Exportar logs en JSON o CSV
- * @access Public (sin autenticación para debugging)
+ * @access Public
  */
 router.get('/export',
   LogDashboardController.exportLogs
 );
 
 /**
- * 🚀 EXPORT RAILWAY LOGS
- * @route GET /api/logs/export-railway
- * @desc Exportar logs directamente de Railway usando su API
- * @access Public (sin autenticación para debugging)
- */
-router.get('/export-railway',
-  LogDashboardController.exportRailwayLogs
-);
-
-/**
- * 🧪 TEST EXPORT
- * @route GET /api/logs/test-export
- * @desc Endpoint de prueba para exportación
- * @access Public
- */
-router.get('/test-export', (req, res) => {
-  try {
-    logger.info('🧪 TEST_EXPORT: Probando exportación...', { category: '_TEST_EXPORT_PROBANDO_EXPORTAC' });
-    
-    const testData = [
-      { timestamp: new Date().toISOString(), level: 'info', message: 'Test log 1' },
-      { timestamp: new Date().toISOString(), level: 'warn', message: 'Test log 2' },
-      { timestamp: new Date().toISOString(), level: 'error', message: 'Test log 3' }
-    ];
-    
-    const format = req.query.format || 'json';
-    let data, contentType, filename;
-    
-    if (format === 'json') {
-      data = JSON.stringify(testData, null, 2);
-      contentType = 'application/json';
-      filename = 'test-logs.json';
-    } else {
-      data = 'timestamp,level,message\n' + testData.map(log => 
-        `"${log.timestamp}","${log.level}","${log.message}"`
-      ).join('\n');
-      contentType = 'text/csv';
-      filename = 'test-logs.csv';
-    }
-    
-    res.set({
-      'Content-Type': contentType,
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Cache-Control': 'no-cache'
-    });
-    
-    logger.info('🧪 TEST_EXPORT: Enviando archivo de prueba:', { category: '_TEST_EXPORT_ENVIANDO_ARCHIVO_', data: filename });
-    res.send(data);
-  } catch (error) {
-    logger.error('❌ Error en test-export:', { category: '_ERROR_EN_TEST_EXPORT_', data: error });
-    res.status(500).json({
-      success: false,
-      error: 'TEST_EXPORT_ERROR',
-      message: 'Error en exportación de prueba'
-    });
-  }
-});
-
-/**
  * 🗑️ CLEAR LOGS
  * @route POST /api/logs/clear
  * @desc Limpiar todos los logs
- * @access Public (sin autenticación para debugging)
+ * @access Public
  */
 router.post('/clear',
   LogDashboardController.clearLogs
@@ -232,11 +112,407 @@ router.post('/clear',
 /**
  * 📈 GET RATE LIMIT METRICS
  * @route GET /api/logs/rate-limit-metrics
- * @desc Métricas específicas de rate limit
- * @access Public (sin autenticación para debugging)
+ * @desc Métricas de rate limiting
+ * @access Public
  */
 router.get('/rate-limit-metrics',
   LogDashboardController.getRateLimitMetrics
 );
+
+/**
+ * 🖥️ GET DASHBOARD HTML
+ * @route GET /logs
+ * @desc Dashboard HTML completo
+ * @access Public
+ */
+router.get('/html',
+  LogDashboardController.getDashboardHTML
+);
+
+/**
+ * 🚀 EXPORT RAILWAY LOGS
+ * @route GET /api/logs/export-railway
+ * @desc Exportar logs de Railway
+ * @access Public
+ */
+router.get('/export-railway',
+  LogDashboardController.exportRailwayLogs
+);
+
+/**
+ * 🧪 TEST EXPORT
+ * @route GET /api/logs/test-export
+ * @desc Test de exportación
+ * @access Public
+ */
+router.get('/test-export', (req, res) => {
+  const testData = [
+    { timestamp: new Date().toISOString(), level: 'info', message: 'Test log 1' },
+    { timestamp: new Date().toISOString(), level: 'warn', message: 'Test log 2' },
+    { timestamp: new Date().toISOString(), level: 'error', message: 'Test log 3' }
+  ];
+  
+  const format = req.query.format || 'json';
+  let data, contentType, filename;
+  
+  if (format === 'json') {
+    data = JSON.stringify(testData, null, 2);
+    contentType = 'application/json';
+    filename = 'test-logs.json';
+  } else {
+    data = 'timestamp,level,message\n' +
+           testData.map(log => `${log.timestamp},${log.level},${log.message}`).join('\n');
+    contentType = 'text/csv';
+    filename = 'test-logs.csv';
+  }
+  
+  res.set({
+    'Content-Type': contentType,
+    'Content-Disposition': `attachment; filename="${filename}"`
+  });
+  
+  res.send(data);
+});
+
+/**
+ * 📜 DASHBOARD JAVASCRIPT
+ * @route GET /api/logs/dashboard.js
+ * @desc JavaScript para el dashboard
+ * @access Public
+ */
+router.get('/dashboard.js', (req, res) => {
+  const js = `
+// 📊 LOG DASHBOARD JAVASCRIPT
+// Maneja todas las funcionalidades del dashboard
+
+class LogDashboard {
+  constructor() {
+    this.autoRefreshInterval = null;
+    this.init();
+  }
+
+  init() {
+    this.bindEvents();
+    this.loadInitialData();
+    this.setupAutoRefresh();
+  }
+
+  bindEvents() {
+    // Botones de acción
+    document.getElementById('btnUpdate')?.addEventListener('click', () => this.updateDashboard());
+    document.getElementById('btnExportJSON')?.addEventListener('click', () => this.exportLogs('json'));
+    document.getElementById('btnExportCSV')?.addEventListener('click', () => this.exportLogs('csv'));
+    document.getElementById('btnExportRailwayJSON')?.addEventListener('click', () => this.exportRailwayLogs('json'));
+    document.getElementById('btnExportRailwayCSV')?.addEventListener('click', () => this.exportRailwayLogs('csv'));
+    document.getElementById('btnTestExport')?.addEventListener('click', () => this.testExport());
+    document.getElementById('btnClear')?.addEventListener('click', () => this.clearLogs());
+    document.getElementById('btnGenerate')?.addEventListener('click', () => this.generateTestLogs());
+
+    // Filtros
+    document.getElementById('levelFilter')?.addEventListener('change', () => this.applyFilters());
+    document.getElementById('categoryFilter')?.addEventListener('change', () => this.applyFilters());
+    document.getElementById('timeRangeFilter')?.addEventListener('change', () => this.applyFilters());
+    document.getElementById('searchFilter')?.addEventListener('input', () => this.applyFilters());
+
+    // Auto-refresh
+    document.getElementById('autoRefresh')?.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        this.startAutoRefresh();
+      } else {
+        this.stopAutoRefresh();
+      }
+    });
+  }
+
+  async loadInitialData() {
+    try {
+      await this.updateDashboard();
+      await this.updateLogs();
+    } catch (error) {
+      this.showToast('Error cargando datos iniciales', 'error');
+    }
+  }
+
+  async updateDashboard() {
+    try {
+      const response = await fetch('/api/logs/dashboard');
+      const data = await response.json();
+      
+      if (data.success) {
+        this.updateStats(data.data.stats);
+        this.showToast('Dashboard actualizado', 'success');
+      } else {
+        throw new Error(data.message || 'Error actualizando dashboard');
+      }
+    } catch (error) {
+      this.showToast('Error actualizando dashboard: ' + error.message, 'error');
+    }
+  }
+
+  async updateLogs() {
+    try {
+      const filters = this.getFilters();
+      const queryString = new URLSearchParams(filters).toString();
+      const response = await fetch('/api/logs?' + queryString);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.updateLogsList(data.data.logs);
+        this.updateLogsCount(data.data.logs.length);
+      } else {
+        throw new Error(data.message || 'Error obteniendo logs');
+      }
+    } catch (error) {
+      this.showToast('Error obteniendo logs: ' + error.message, 'error');
+    }
+  }
+
+  async exportLogs(format) {
+    try {
+      const filters = this.getFilters();
+      filters.format = format;
+      const queryString = new URLSearchParams(filters).toString();
+      
+      const response = await fetch('/api/logs/export?' + queryString);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = response.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'logs.' + format;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        this.showToast('Logs exportados exitosamente', 'success');
+      } else {
+        throw new Error('Error en la exportación');
+      }
+    } catch (error) {
+      this.showToast('Error exportando logs: ' + error.message, 'error');
+    }
+  }
+
+  async exportRailwayLogs(format) {
+    try {
+      const filters = this.getFilters();
+      filters.format = format;
+      const queryString = new URLSearchParams(filters).toString();
+      
+      const response = await fetch('/api/logs/export-railway?' + queryString);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = response.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'railway-logs.' + format;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        this.showToast('Logs de Railway exportados exitosamente', 'success');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error exportando logs de Railway');
+      }
+    } catch (error) {
+      this.showToast('Error exportando logs de Railway: ' + error.message, 'error');
+    }
+  }
+
+  async testExport() {
+    try {
+      const format = document.getElementById('levelFilter')?.value === 'error' ? 'csv' : 'json';
+      const response = await fetch('/api/logs/test-export?format=' + format);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'test-logs.' + format;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        this.showToast('Test de exportación exitoso', 'success');
+      } else {
+        throw new Error('Error en test de exportación');
+      }
+    } catch (error) {
+      this.showToast('Error en test de exportación: ' + error.message, 'error');
+    }
+  }
+
+  async clearLogs() {
+    if (!confirm('¿Estás seguro de que quieres limpiar todos los logs?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/logs/clear', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.success) {
+        this.showToast(data.data.message, 'success');
+        await this.updateDashboard();
+        await this.updateLogs();
+      } else {
+        throw new Error(data.message || 'Error limpiando logs');
+      }
+    } catch (error) {
+      this.showToast('Error limpiando logs: ' + error.message, 'error');
+    }
+  }
+
+  async generateTestLogs() {
+    try {
+      const response = await fetch('/api/logs/generate-test', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.success) {
+        this.showToast('Logs de prueba generados exitosamente', 'success');
+        await this.updateDashboard();
+        await this.updateLogs();
+      } else {
+        throw new Error(data.message || 'Error generando logs de prueba');
+      }
+    } catch (error) {
+      this.showToast('Error generando logs de prueba: ' + error.message, 'error');
+    }
+  }
+
+  getFilters() {
+    return {
+      level: document.getElementById('levelFilter')?.value || 'all',
+      category: document.getElementById('categoryFilter')?.value || 'all',
+      timeRange: document.getElementById('timeRangeFilter')?.value || '1h',
+      search: document.getElementById('searchFilter')?.value || ''
+    };
+  }
+
+  applyFilters() {
+    this.updateLogs();
+  }
+
+  updateStats(stats) {
+    const statsGrid = document.getElementById('statsGrid');
+    if (!statsGrid) return;
+
+    statsGrid.innerHTML = \`
+      <div class="stat-card">
+        <h3>📊 Total Logs</h3>
+        <p>\${stats.total}</p>
+      </div>
+      <div class="stat-card">
+        <h3>⏰ Última Hora</h3>
+        <p>\${stats.lastHour}</p>
+      </div>
+      <div class="stat-card">
+        <h3>📅 Últimas 24h</h3>
+        <p>\${stats.last24Hours}</p>
+      </div>
+      <div class="stat-card">
+        <h3>🚨 Errores</h3>
+        <p>\${stats.byLevel?.error || 0}</p>
+      </div>
+      <div class="stat-card">
+        <h3>⚠️ Warnings</h3>
+        <p>\${stats.byLevel?.warn || 0}</p>
+      </div>
+      <div class="stat-card">
+        <h3>ℹ️ Info</h3>
+        <p>\${stats.byLevel?.info || 0}</p>
+      </div>
+    \`;
+  }
+
+  updateLogsList(logs) {
+    const logsList = document.getElementById('logsList');
+    if (!logsList) return;
+
+    if (logs.length === 0) {
+      logsList.innerHTML = '<div class="log-entry"><div class="log-message">(sin logs)</div></div>';
+      return;
+    }
+
+    logsList.innerHTML = logs.map(log => \`
+      <div class="log-entry">
+        <div class="log-timestamp">\${new Date(log.timestamp).toLocaleString()}</div>
+        <div class="log-level \${log.level}">\${String(log.level || '').toUpperCase()}</div>
+        <div class="log-category">\${log.category || 'N/A'}</div>
+        <div class="log-message">\${typeof log.message === 'object' ? JSON.stringify(log.message) : (log.message || '')}</div>
+        <div class="log-user">\${log.userId || 'system'}</div>
+      </div>
+    \`).join('');
+  }
+
+  updateLogsCount(count) {
+    const logsCount = document.getElementById('logsCount');
+    if (logsCount) {
+      logsCount.textContent = count + ' logs';
+    }
+  }
+
+  setupAutoRefresh() {
+    const autoRefreshCheckbox = document.getElementById('autoRefresh');
+    if (autoRefreshCheckbox && autoRefreshCheckbox.checked) {
+      this.startAutoRefresh();
+    }
+  }
+
+  startAutoRefresh() {
+    this.stopAutoRefresh();
+    this.autoRefreshInterval = setInterval(() => {
+      this.updateDashboard();
+      this.updateLogs();
+    }, 5000);
+  }
+
+  stopAutoRefresh() {
+    if (this.autoRefreshInterval) {
+      clearInterval(this.autoRefreshInterval);
+      this.autoRefreshInterval = null;
+    }
+  }
+
+  showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.remove();
+    }, 3000);
+  }
+}
+
+// Inicializar dashboard cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+  window.logDashboard = new LogDashboard();
+});
+
+// También inicializar si ya está cargado
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    window.logDashboard = new LogDashboard();
+  });
+} else {
+  window.logDashboard = new LogDashboard();
+}
+  `;
+
+  res.set({
+    'Content-Type': 'application/javascript',
+    'Cache-Control': 'no-store'
+  });
+  res.send(js);
+});
 
 module.exports = router; 

@@ -1,5 +1,3 @@
-// Importación circular removida temporalmente
-// const logger = require('../utils/logger');
 /**
  * 📊 LOG MONITOR SERVICE - DASHBOARD INTERNO
  * 
@@ -9,6 +7,20 @@
  * @version 1.0.0
  * @author Backend Team
  */
+
+// Importar logger de forma segura para evitar importación circular
+let logger;
+try {
+  logger = require('../utils/logger');
+} catch (error) {
+  // Fallback si logger no está disponible
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.log
+  };
+}
 
 class LogMonitorService {
   constructor() {
@@ -26,7 +38,7 @@ class LogMonitorService {
       this.cleanupOldLogs();
     }, 5 * 60 * 1000);
     
-    // logger.info('LogMonitorService inicializado', { category: 'LOGMONITORSERVICE_INICIALIZADO' });
+    logger.info('LogMonitorService inicializado', { category: 'LOGMONITORSERVICE_INICIALIZADO' });
   }
 
   /**
@@ -173,6 +185,10 @@ class LogMonitorService {
   clearLogs() {
     const count = this.logs.length;
     this.logs = [];
+    logger.info('LogMonitorService: Logs limpiados', {
+      category: 'LOG_MONITOR_CLEAR',
+      clearedCount: count
+    });
     return count;
   }
 
@@ -229,11 +245,11 @@ class LogMonitorService {
     
     const cleanedCount = initialCount - this.logs.length;
     if (cleanedCount > 0) {
-      // logger.info('LogMonitorService: Limpiados logs antiguos', {
-      //   category: 'LOG_MONITOR_CLEANUP',
-      //   cleanedCount,
-      //   retentionDays: this.retentionDays
-      // });
+      logger.info('LogMonitorService: Limpiados logs antiguos', {
+        category: 'LOG_MONITOR_CLEANUP',
+        cleanedCount,
+        retentionDays: 7
+      });
     }
   }
 

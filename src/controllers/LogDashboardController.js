@@ -10,12 +10,39 @@
 
 const fs = require('fs');
 
+// Importar logger de forma segura
+let logger;
+try {
+  logger = require('../utils/logger');
+} catch (error) {
+  // Fallback si logger no está disponible
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.log
+  };
+}
+
+// Importar LogMonitorService de forma segura
 let logMonitor;
 try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
   logMonitor = monitor;
+  
+  if (!logMonitor) {
+    throw new Error('LogMonitor no está disponible');
+  }
+  
+  logger.info('✅ LogMonitorService importado correctamente', { 
+    category: 'LOG_DASHBOARD_INIT' 
+  });
 } catch (error) {
-  logger.error('❌ Error importando LogMonitorService:', error.message);
+  logger.error('❌ Error importando LogMonitorService:', { 
+    category: 'LOG_DASHBOARD_ERROR',
+    error: error.message 
+  });
+  
   // Crear un mock del logMonitor para evitar errores
   logMonitor = {
     getStats: () => ({ 
@@ -106,10 +133,46 @@ try {
         { timestamp: new Date(Date.now() - 60000).toISOString(), count: 0 }
       ]
     }),
-    addLog: () => {},
-    clearLogs: () => 0,
-    exportLogs: () => ({ format: 'json', data: '[]', filename: 'logs.json' }),
-    searchLogs: () => [],
+    addLog: (level, category, message, data = {}) => {
+      logger.info(`Mock Log: ${level.toUpperCase()} [${category}] ${message}`, {
+        category: 'MOCK_LOG',
+        data
+      });
+    },
+    clearLogs: () => {
+      logger.info('Mock: Limpiando logs', { category: 'MOCK_CLEAR' });
+      return 5; // Simular 5 logs limpiados
+    },
+    exportLogs: (format = 'json', filters = {}) => {
+      const mockData = [
+        {
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          category: 'SYSTEM',
+          message: 'Mock log para exportación',
+          userId: 'system'
+        }
+      ];
+      
+      if (format === 'csv') {
+        return {
+          format: 'csv',
+          data: 'timestamp,level,category,message,userId\n' + 
+                `${mockData[0].timestamp},${mockData[0].level},${mockData[0].category},${mockData[0].message},${mockData[0].userId}`,
+          filename: `mock-logs-${new Date().toISOString().split('T')[0]}.csv`
+        };
+      } else {
+        return {
+          format: 'json',
+          data: JSON.stringify(mockData, null, 2),
+          filename: `mock-logs-${new Date().toISOString().split('T')[0]}.json`
+        };
+      }
+    },
+    searchLogs: (query, options = {}) => {
+      logger.info(`Mock: Buscando logs con query "${query}"`, { category: 'MOCK_SEARCH' });
+      return [];
+    },
     getTimelineData: (logs, startTime) => {
       return [
         { timestamp: new Date(Date.now() - 300000).toISOString(), count: 1 },
@@ -120,9 +183,11 @@ try {
       ];
     }
   };
+  
+  logger.warn('⚠️ Usando LogMonitor mock - funcionalidad limitada', { 
+    category: 'LOG_DASHBOARD_MOCK' 
+  });
 }
-
-const logger = require('../utils/logger');
 
 class LogDashboardController {
   /**
