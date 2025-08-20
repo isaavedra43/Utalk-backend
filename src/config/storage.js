@@ -15,7 +15,17 @@ class StorageConfig {
       if (!admin.apps.length) {
         throw new Error('Firebase Admin SDK no inicializado');
       }
-      return admin.storage().bucket();
+      const explicitBucket = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucket = explicitBucket ? admin.storage().bucket(explicitBucket) : admin.storage().bucket();
+      // Validación liviana (no bloqueante)
+      bucket.getFiles({ maxResults: 1 }).catch(err => {
+        logger.warn('⚠️ Validación de bucket falló (posible bucket inexistente o permisos)', {
+          error: err.message,
+          explicitBucket
+        });
+      });
+      logger.info('StorageConfig: usando bucket', { bucketName: bucket.name, explicitBucketConfigured: !!explicitBucket });
+      return bucket;
     } catch (error) {
       logger.warn('Firebase Storage no disponible:', error.message);
       return {

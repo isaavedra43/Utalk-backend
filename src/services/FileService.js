@@ -193,68 +193,48 @@ class FileService {
         throw new Error('Firebase Storage no está disponible');
       }
 
-      // 🔧 OBTENER BUCKET CON VALIDACIONES
+      // 🔧 OBTENER BUCKET EXPLÍCITO SI ESTÁ DEFINIDO EN ENV
+      const explicitBucket = process.env.FIREBASE_STORAGE_BUCKET;
       let bucket;
       try {
-        bucket = admin.storage().bucket();
+        bucket = explicitBucket
+          ? admin.storage().bucket(explicitBucket)
+          : admin.storage().bucket();
       } catch (storageError) {
         logger.error('❌ Error creando instancia de Storage', {
-          error: storageError?.message || 'Error desconocido',
-          stack: storageError?.stack?.split('\n').slice(0, 3) || [],
-          hasStorage: !!admin.storage
+          error: storageError.message,
+          explicitBucket
         });
-        throw new Error(`Error accediendo a Firebase Storage: ${storageError?.message || 'Error desconocido'}`);
+        throw storageError;
       }
 
       if (!bucket) {
         logger.error('❌ Bucket de Firebase Storage es nulo', {
-          bucket,
-          bucketType: typeof bucket
+          explicitBucket
         });
-        throw new Error('No se pudo obtener el bucket de Firebase Storage');
+        throw new Error('No se pudo obtener instancia de bucket de Firebase Storage');
       }
 
-      // 🔧 VALIDAR MÉTODOS CRÍTICOS DEL BUCKET
-      const requiredMethods = ['file', 'upload', 'getFiles'];
-      const missingMethods = requiredMethods.filter(method => typeof bucket[method] !== 'function');
-      
-      if (missingMethods.length > 0) {
-        logger.error('❌ Bucket carece de métodos requeridos', {
-          missingMethods,
-          availableMethods: Object.getOwnPropertyNames(bucket),
-          bucketType: typeof bucket
+      // ⚠️ Validar existencia del bucket (llamada liviana)
+      bucket.getFiles({ maxResults: 1 }).catch(err => {
+        logger.warn('⚠️ Validación de bucket falló (posible bucket inexistente o permisos)', {
+          error: err.message,
+          explicitBucket
         });
-        throw new Error(`Bucket de Firebase Storage no tiene métodos requeridos: ${missingMethods.join(', ')}`);
-      }
+      });
 
-      logger.debug('✅ Bucket de Firebase Storage obtenido correctamente', {
-        hasBucket: !!bucket,
-        bucketName: bucket.name || 'unknown',
-        availableMethods: requiredMethods.filter(method => typeof bucket[method] === 'function')
+      // Información de bucket
+      logger.debug('✅ Bucket de Firebase Storage obtenido', {
+        bucketName: bucket.name,
+        explicitBucketConfigured: !!explicitBucket
       });
 
       return bucket;
-
     } catch (error) {
       logger.error('❌ Error crítico obteniendo bucket de Firebase Storage', {
-        error: error?.message || 'Error desconocido',
-        stack: error?.stack?.split('\n').slice(0, 5) || [],
-        errorType: error?.constructor?.name || 'Unknown',
-        hasAdmin: !!admin,
-        appsLength: admin?.apps?.length || 0,
-        initializationStatus: this.initializationStatus,
-        dependencies: {
-          admin: !!admin,
-          adminApps: !!(admin && admin.apps),
-          adminStorage: !!(admin && admin.storage)
-        }
+        error: error.message
       });
-      
-      // 🔧 PROPAGEAR ERROR CON CONTEXTO ADICIONAL
-      const enhancedError = new Error(`Error obteniendo bucket de Firebase Storage: ${error?.message || 'Error desconocido'}`);
-      enhancedError.originalError = error;
-      enhancedError.initializationStatus = this.initializationStatus;
-      throw enhancedError;
+      throw error;
     }
   }
 

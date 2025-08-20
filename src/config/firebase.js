@@ -145,7 +145,7 @@ async function initializeFirebaseAsync() {
       app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: serviceAccount.project_id,
-        storageBucket: `${serviceAccount.project_id}.appspot.com`
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.appspot.com`
       });
     } else {
       app = admin.app();
@@ -166,7 +166,8 @@ async function initializeFirebaseAsync() {
       projectId: serviceAccount.project_id,
       firestoreAvailable: !!firestore,
       storageAvailable: !!storage,
-      appName: app.name
+      appName: app.name,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.appspot.com`
     });
 
     // Test async de Firestore (SILENCIOSO) - NO BLOQUEANTE
