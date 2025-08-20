@@ -92,6 +92,25 @@ class ConsolidatedServer {
       });
     });
 
+    // 🏥 RUTA DE HEALTH CHECK PARA RAILWAY
+    this.app.get('/health', (req, res) => {
+      logger.info('Health check solicitado desde Railway', { 
+        category: 'HEALTH_CHECK',
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+      
+      res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'unknown',
+        version: '1.0.0',
+        memoryUsage: process.memoryUsage(),
+        server: 'utalk-backend'
+      });
+    });
+
     // ✅ CRÍTICO: Railway debe inyectar PORT - Debugging intensivo
     logger.info('Verificando configuración de puerto Railway', {
       category: 'RAILWAY_CONFIG',
