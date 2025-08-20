@@ -1654,30 +1654,21 @@ class MessageController {
       // 🔄 FASE 7: Emitir eventos WebSocket en tiempo real
       if (result.success) {
         try {
-          const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-          const socketManager = new EnterpriseSocketManager();
-          
-          // Emitir evento de archivo recibido
-          await socketManager.emitFileReceived({
-            fileId: result.fileId,
-            conversationId: result.conversationId,
-            fileName: 'archivo_whatsapp',
-            fileType: 'application/octet-stream',
-            fileSize: 0, // Se actualizará con el tamaño real
-            source: 'whatsapp',
-            receivedBy: From
-          });
-
-          logger.info('✅ Eventos WebSocket de archivo recibido emitidos', {
-            fileId: result.fileId,
-            conversationId: result.conversationId
-          });
-        } catch (socketError) {
-          logger.warn('⚠️ Error emitiendo eventos WebSocket de archivo recibido', {
-            error: socketError.message,
-            fileId: result.fileId
-          });
-          // No fallar la respuesta por error de WebSocket
+          const socketIndex = require('../socket');
+          const socketManager = socketIndex.getSocketManager();
+          if (socketManager?.emitFileReceived) {
+            await socketManager.emitFileReceived({
+              fileId: result.fileId,
+              conversationId: result.conversationId,
+              fileName: 'archivo_whatsapp',
+              fileType: 'application/octet-stream',
+              fileSize: 0, // Se actualizará con el tamaño real
+              source: 'whatsapp',
+              receivedBy: From
+            });
+          }
+        } catch (_) {
+          // no-op
         }
       }
 
