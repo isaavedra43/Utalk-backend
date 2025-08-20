@@ -103,15 +103,23 @@ class FileService {
     } catch (error) {
       // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe antes de acceder a sus propiedades
       const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
       
-      logger.error('Error obteniendo bucket de Firebase Storage:', {
+      logger.error('❌ Error obteniendo bucket de Firebase Storage:', {
         error: errorMessage,
-        stack: error && error.stack ? error.stack.split('\n').slice(0, 3) : [],
+        stack: errorStack,
         adminAppsLength: admin.apps.length,
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
       
-      throw new Error('Firebase Storage no disponible: ' + errorMessage);
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Firebase Storage no disponible: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -138,8 +146,24 @@ class FileService {
       
       return attachments;
     } catch (error) {
-      logger.error('Error obteniendo attachments por IDs:', error);
-      throw error;
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
+      logger.error('❌ Error obteniendo attachments por IDs:', {
+        attachmentIds,
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
+      });
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error obteniendo attachments por IDs: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -299,12 +323,25 @@ class FileService {
       const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
       const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
       
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información adicional para debugging
       logger.error('❌ Error subiendo archivo con indexación', {
         originalName: fileData.originalName,
+        mimetype: fileData.mimetype,
+        size: fileData.size,
+        conversationId: fileData.conversationId,
+        uploadedBy: fileData.uploadedBy,
         error: errorMessage,
-        stack: errorStack
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error subiendo archivo: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -355,11 +392,24 @@ class FileService {
       return file.toJSON();
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error buscando archivo por ID', {
         fileId,
-        error: error.message
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error buscando archivo por ID: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -397,11 +447,24 @@ class FileService {
       return files.map(file => file.toJSON());
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error listando archivos por conversación', {
         conversationId,
-        error: error.message
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error listando archivos por conversación: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -439,11 +502,24 @@ class FileService {
       return files.map(file => file.toJSON());
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error listando archivos por usuario', {
         userId,
-        error: error.message
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error listando archivos por usuario: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -478,11 +554,24 @@ class FileService {
       return files.map(file => file.toJSON());
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error listando archivos por categoría', {
         category,
-        error: error.message
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error listando archivos por categoría: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -520,11 +609,24 @@ class FileService {
       return files.map(file => file.toJSON());
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error listando archivos por fecha', {
         date,
-        error: error.message
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error listando archivos por fecha: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -862,12 +964,29 @@ class FileService {
 
       return result;
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error en processFileByCategory', {
         category,
         fileId,
-        error: error.message
+        conversationId,
+        mimetype,
+        originalName,
+        bufferSize: buffer ? buffer.length : 0,
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error procesando archivo de categoría ${category}: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -916,8 +1035,28 @@ class FileService {
 
       return result;
     } catch (error) {
-      logger.error('Error procesando audio:', error);
-      throw error;
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
+      logger.error('❌ Error procesando audio:', {
+        fileId,
+        conversationId,
+        mimetype,
+        originalName,
+        bufferSize: buffer ? buffer.length : 0,
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
+      });
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error procesando audio: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -972,8 +1111,28 @@ class FileService {
 
       return result;
     } catch (error) {
-      logger.error('Error procesando imagen:', error);
-      throw error;
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
+      logger.error('❌ Error procesando imagen:', {
+        fileId,
+        conversationId,
+        mimetype,
+        originalName,
+        bufferSize: buffer ? buffer.length : 0,
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
+      });
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error procesando imagen: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -1020,8 +1179,29 @@ class FileService {
 
       return result;
     } catch (error) {
-      logger.error('Error procesando archivo genérico:', error);
-      throw error;
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
+      logger.error('❌ Error procesando archivo genérico:', {
+        fileId,
+        conversationId,
+        category,
+        mimetype,
+        originalName,
+        bufferSize: buffer ? buffer.length : 0,
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
+      });
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error procesando archivo genérico: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
@@ -3728,11 +3908,27 @@ class FileService {
         throw createError;
       }
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Loggear información detallada del error
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error guardando archivo en base de datos', {
-        error: error.message,
-        fileData: { fileId: fileData.fileId, conversationId: fileData.conversationId }
+        fileId: fileData.fileId,
+        conversationId: fileData.conversationId,
+        originalName: fileData.originalName,
+        category: fileData.category,
+        error: errorMessage,
+        stack: errorStack,
+        errorType: error ? error.constructor.name : 'Unknown',
+        hasError: !!error,
+        hasMessage: !!(error && error.message),
+        hasStack: !!(error && error.stack)
       });
-      throw error;
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Lanzar error con mensaje descriptivo
+      const descriptiveError = new Error(`Error guardando archivo en base de datos: ${errorMessage}`);
+      descriptiveError.originalError = error;
+      throw descriptiveError;
     }
   }
 
