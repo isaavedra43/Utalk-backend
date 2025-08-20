@@ -60,6 +60,11 @@ class ManagedMap {
       }, 60 * 1000); // Cada minuto
     }
   }
+
+  // 🔧 AGREGADO: Getter para size para compatibilidad con Map estándar
+  get size() {
+    return this.map.size;
+  }
   
   set(key, value, ttlMs = null) {
     const expiresAt = ttlMs ? Date.now() + ttlMs : Date.now() + this.config.defaultTTL;
@@ -103,7 +108,7 @@ class ManagedMap {
     if (deleted) this.stats.deletes++;
     return deleted;
   }
-  
+
   clear() {
     this.map.clear();
     this.ttl.clear();
@@ -164,6 +169,38 @@ class ManagedMap {
       ...this.stats,
       hitRate: this.stats.hits / Math.max(1, this.stats.hits + this.stats.misses)
     };
+  }
+
+  // 🔧 AGREGADO: Método entries() para compatibilidad con Map estándar
+  entries() {
+    return this.map.entries();
+  }
+
+  // 🔧 AGREGADO: Método keys() para compatibilidad con Map estándar
+  keys() {
+    return this.map.keys();
+  }
+
+  // 🔧 AGREGADO: Método values() para compatibilidad con Map estándar
+  values() {
+    return this.map.values();
+  }
+
+  // 🔧 AGREGADO: Método has() para compatibilidad con Map estándar
+  has(key) {
+    const value = this.get(key);
+    return value !== null;
+  }
+
+  // 🔧 AGREGADO: Método forEach() para compatibilidad con Map estándar
+  forEach(callback, thisArg) {
+    return this.map.forEach((value, key) => {
+      // Verificar si el valor no ha expirado antes de llamar al callback
+      const expiresAt = this.ttl.get(key);
+      if (!expiresAt || Date.now() <= expiresAt) {
+        callback.call(thisArg, value, key, this);
+      }
+    });
   }
   
   destroy() {
