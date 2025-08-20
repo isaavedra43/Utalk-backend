@@ -1,5 +1,5 @@
-# Usar imagen oficial de Node.js
-FROM node:18-alpine
+# Usar imagen oficial de Node.js (actualizada a versión 20)
+FROM node:20-alpine
 
 # Establecer directorio de trabajo
 WORKDIR /app
@@ -7,12 +7,17 @@ WORKDIR /app
 # Copiar archivos de dependencias
 COPY package*.json ./
 
-# Instalar dependencias (evitar errores de lockfile en CI)
-# Preferimos npm ci, pero caemos a npm install si detecta desincronización
-RUN npm ci --omit=dev || npm install --omit=dev
+# Instalar dependencias de producción
+RUN npm ci --only=production --no-audit --no-fund
 
-# Copiar código fuente
+# Copiar código fuente (excluir archivos innecesarios)
 COPY . .
+RUN rm -rf node_modules/.cache && \
+    rm -rf .git && \
+    rm -rf tests && \
+    rm -rf scripts && \
+    rm -rf docs && \
+    rm -rf LOGSDOC
 
 # Crear directorio de uploads
 RUN mkdir -p uploads
