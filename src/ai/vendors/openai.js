@@ -1,4 +1,3 @@
-const logger = require('../utils/logger');
 /**
  * 🤖 WRAPPER OPENAI PROVIDER
  * 
@@ -13,7 +12,7 @@ let OpenAI;
 try {
   OpenAI = require('openai');
 } catch (error) {
-  logger.warn('⚠️ Módulo OpenAI no disponible. Usando stub temporal.', { category: '_M_DULO_OPENAI_NO_DISPONIBLE_U' });
+  // logger.warn('⚠️ Módulo OpenAI no disponible. Usando stub temporal.', { category: '_M_DULO_OPENAI_NO_DISPONIBLE_U' });
   OpenAI = null;
 }
 

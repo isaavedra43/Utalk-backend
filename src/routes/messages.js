@@ -9,8 +9,9 @@ const Joi = require('joi');
 const { validateId, validateConversationId } = require('../middleware/validation');
 
 // Validadores específicos para mensajes
-const messageValidators = {
 const logger = require('../utils/logger');
+
+const messageValidators = {
   validateCreateInConversation: validateRequest({
     body: Joi.object({
       content: Joi.string().min(1).max(4096).required(),
