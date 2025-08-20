@@ -9,7 +9,8 @@
     "backfill:viewers": "node scripts/backfill_add_viewers.js",
     "test:firebase": "node scripts/test-firebase-production.js",
     "test:startup": "node scripts/test-startup-optimization.js",
-    "test:socket": "node scripts/test-socket-firebase-fix.js"
+    "test:socket": "node scripts/test-socket-firebase-fix.js",
+    "diagnose": "node scripts/diagnose-deployment.js"
   },
   "keywords": [
     "api",
