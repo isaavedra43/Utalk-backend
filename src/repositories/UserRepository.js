@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const logger = require('../utils/logger');
-const { memoryManager } = require('../utils/memoryManager');
+const { cacheService } = require('../services/CacheService');
 const performanceMetrics = require('../services/PerformanceMetricsService');
 
 /**
@@ -26,7 +26,7 @@ class UserRepository {
 
     try {
       // Intentar obtener del caché primero
-      const cachedUser = memoryManager.get('userCache', cacheKey);
+      const cachedUser = cacheService.get(cacheKey);
       if (cachedUser) {
         const cacheTime = Date.now() - startTime;
         
@@ -47,7 +47,7 @@ class UserRepository {
       
       // Guardar en caché si el usuario existe
       if (user) {
-        memoryManager.set('userCache', cacheKey, user, cacheTTL);
+        cacheService.set(cacheKey, user, cacheTTL / 1000); // Convertir a segundos
         
         // Registrar métrica de caché set
         performanceMetrics.recordCache('userCache', 'set', true, false);
@@ -138,7 +138,7 @@ class UserRepository {
   static invalidateUserCache(email) {
     if (email) {
       const cacheKey = `user:email:${email}`;
-      memoryManager.delete('userCache', cacheKey);
+      cacheService.delete(cacheKey);
       logger.debug('UserRepository.invalidateUserCache', {
         category: 'REPOSITORY_CACHE_INVALIDATE',
         email: email?.substring(0, 10) + '...',
@@ -151,7 +151,7 @@ class UserRepository {
    * Limpiar todo el caché de usuarios
    */
   static clearUserCache() {
-    memoryManager.clear('userCache');
+    cacheService.clear();
     logger.info('UserRepository.clearUserCache', {
       category: 'REPOSITORY_CACHE_CLEAR'
     });

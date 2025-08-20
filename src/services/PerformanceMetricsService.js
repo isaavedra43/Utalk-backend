@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { memoryManager } = require('../utils/memoryManager');
+const { cacheService } = require('./CacheService');
 
 /**
  * PerformanceMetricsService - Monitoreo de rendimiento

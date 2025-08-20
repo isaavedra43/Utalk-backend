@@ -30,7 +30,7 @@ const { createServer } = require('http');
 
 // Configuración
 const logger = require('./utils/logger');
-const { memoryManager } = require('./utils/memoryManager');
+const { cacheService } = require('./services/CacheService');
 const { enhancedErrorHandler } = require('./middleware/enhancedErrorHandler');
 const { rateLimitManager } = require('./middleware/persistentRateLimit');
 const { getHealthCheckService } = require('./services/HealthCheckService'); // Ahora importa la nueva versión
@@ -334,7 +334,7 @@ class ConsolidatedServer {
     });
 
     // Configurar alertas de memoria
-    memoryManager.on('critical-alert', (alert) => {
+    cacheService.on('critical-alert', (alert) => {
       logger.error('ALERTA CRÍTICA DE MEMORIA EN SERVIDOR', {
         category: 'MEMORY_CRITICAL_ALERT',
         alert,
@@ -358,7 +358,7 @@ class ConsolidatedServer {
       }
     });
 
-    memoryManager.on('warning-alert', (alert) => {
+    cacheService.on('warning-alert', (alert) => {
       logger.warn('Advertencia de memoria en servidor', { 
         category: 'MEMORY_WARNING_ALERT',
         alert 
@@ -764,16 +764,20 @@ class ConsolidatedServer {
         logger.info('✅ Health service detenido', { category: 'SHUTDOWN_HEALTH_STOPPED' });
       }
 
-      // 5. Limpiar memory manager
-      if (memoryManager) {
+      // 5. Limpiar cache service
+      if (cacheService) {
         try {
-          logger.info('✅ Memory manager cleanup iniciado', {
-            category: 'SHUTDOWN_MEMORY_CLEANUP'
+          logger.info('✅ Cache service cleanup iniciado', {
+            category: 'SHUTDOWN_CACHE_CLEANUP'
           });
-        } catch (memoryError) {
-          logger.error('Error en memory manager cleanup', {
-            category: 'SHUTDOWN_MEMORY_ERROR',
-            error: memoryError.message
+          await cacheService.shutdown();
+          logger.info('✅ Cache service cerrado exitosamente', {
+            category: 'SHUTDOWN_CACHE_CLOSED'
+          });
+        } catch (cacheError) {
+          logger.error('Error cerrando cache service', {
+            category: 'SHUTDOWN_CACHE_ERROR',
+            error: cacheError.message
           });
         }
       }

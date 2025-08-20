@@ -25,7 +25,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 // Los modelos se inyectan como dependencias para romper ciclos
-const { memoryManager } = require('../utils/memoryManager');
+const { cacheService } = require('../services/CacheService');
 const logger = require('../utils/logger');
 const ErrorWrapper = require('../utils/errorWrapper');
 const { getAccessTokenConfig } = require('../config/jwt');
@@ -274,7 +274,7 @@ class EnterpriseSocketManager {
     });
 
     // Connected users with full session data
-    this.connectedUsers = memoryManager.createManagedMap('socket_connectedUsers', {
+    this.connectedUsers = cacheService.createManagedMap('socket_connectedUsers', {
       maxEntries: 100000,
       defaultTTL: 4 * 60 * 60 * 1000, // 4 hours
       onEviction: (email, session, reason) => {
@@ -290,7 +290,7 @@ class EnterpriseSocketManager {
     });
 
     // User conversations mapping
-    this.userConversations = memoryManager.createManagedMap('socket_userConversations', {
+    this.userConversations = cacheService.createManagedMap('socket_userConversations', {
       maxEntries: 100000,
       defaultTTL: 2 * 60 * 60 * 1000, // 2 hours
       onEviction: (email, conversationSet, reason) => {
@@ -299,7 +299,7 @@ class EnterpriseSocketManager {
     });
 
     // Conversation users mapping
-    this.conversationUsers = memoryManager.createManagedMap('socket_conversationUsers', {
+    this.conversationUsers = cacheService.createManagedMap('socket_conversationUsers', {
       maxEntries: 50000,
       defaultTTL: 2 * 60 * 60 * 1000, // 2 hours
       onEviction: (conversationId, userSet, reason) => {
@@ -308,7 +308,7 @@ class EnterpriseSocketManager {
     });
 
     // User role cache
-    this.userRoleCache = memoryManager.createManagedMap('socket_userRoles', {
+    this.userRoleCache = cacheService.createManagedMap('socket_userRoles', {
       maxEntries: 200000,
       defaultTTL: 6 * 60 * 60 * 1000, // 6 hours
       onEviction: (email, role, reason) => {
@@ -317,7 +317,7 @@ class EnterpriseSocketManager {
     });
 
     // Rate limiting tracker
-    this.rateLimitTracker = memoryManager.createManagedMap('socket_rateLimits', {
+    this.rateLimitTracker = cacheService.createManagedMap('socket_rateLimits', {
       maxEntries: 1000000,
       defaultTTL: 30 * 60 * 1000, // 30 minutes
       onEviction: (key, timestamp, reason) => {
@@ -326,7 +326,7 @@ class EnterpriseSocketManager {
     });
 
     // Typing users tracker
-    this.typingUsers = memoryManager.createManagedMap('socket_typingUsers', {
+    this.typingUsers = cacheService.createManagedMap('socket_typingUsers', {
       maxEntries: 10000,
       defaultTTL: 30 * 1000, // 30 seconds
       onEviction: (conversationId, typingSet, reason) => {
@@ -335,7 +335,7 @@ class EnterpriseSocketManager {
     });
 
     // Event listeners tracker (para cleanup automático)
-    this.eventListeners = memoryManager.createManagedMap('socket_eventListeners', {
+    this.eventListeners = cacheService.createManagedMap('socket_eventListeners', {
       maxEntries: 100000,
       defaultTTL: 8 * 60 * 60 * 1000, // 8 hours
       onEviction: (socketId, listenersMap, reason) => {

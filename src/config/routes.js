@@ -1,6 +1,6 @@
 const logger = require('../utils/logger');
 const { getHealthCheckService } = require('../services/HealthCheckService');
-const { memoryManager } = require('../utils/memoryManager');
+const { cacheService } = require('../services/CacheService');
 
 // Rutas
 const authRoutes = require('../routes/auth');
@@ -32,7 +32,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
         server: 'running',
         timestamp: new Date().toISOString(),
         services: {
-          memoryManager: !!memoryManager,
+          memoryManager: !!cacheService,
           healthService: !!healthService,
           rateLimiting: 'disabled',
           socketManager: !!socketManager
@@ -73,7 +73,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
             platform: process.platform,
             nodeVersion: process.version
           },
-          memoryManager: memoryManager ? memoryManager.getStats() : null,
+          memoryManager: cacheService ? cacheService.getStats() : null,
           socket: socketManager ? socketManager.getDetailedStats() : null,
           rateLimiting: {},
           healthService: healthService ? healthService.getDetailedMetrics() : null,
