@@ -30,9 +30,28 @@ class PersistentRateLimitManager {
    */
   async initialize() {
     try {
+      // Debug: Log para verificar qué valores están llegando
+      logger.info('🔍 Debug Rate Limit Redis configuration:', {
+        category: 'RATE_LIMIT_REDIS_DEBUG',
+        redisUrl: process.env.REDIS_URL ? 'SET' : 'NOT_SET',
+        enableRedis: process.env.ENABLE_REDIS,
+        hasRedisUrl: !!process.env.REDIS_URL
+      });
+      
       // 🔧 SOLUCIÓN: Intentar conectar Redis con family=0 para Railway IPv6
       if (process.env.REDIS_URL && process.env.ENABLE_REDIS !== 'false') {
         const redisUrl = process.env.REDIS_URL;
+        
+        // Verificar que redisUrl sea una cadena válida antes de usar .includes()
+        if (typeof redisUrl !== 'string') {
+          logger.error('❌ REDIS_URL no es una cadena válida en Rate Limit', {
+            category: 'RATE_LIMIT_REDIS_CONFIG_ERROR',
+            redisUrlType: typeof redisUrl,
+            redisUrlValue: redisUrl
+          });
+          throw new Error('REDIS_URL no es una cadena válida');
+        }
+        
         const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
         
         this.redis = new Redis(redisUrlWithFamily, {

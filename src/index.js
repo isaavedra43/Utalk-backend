@@ -98,8 +98,8 @@ class ConsolidatedServer {
       railwayPorts
     });
     
-    // Usar PORT de Railway o fallback a 3001
-    this.PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+    // Usar PORT de Railway o fallback a 3000
+    this.PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
     
     // ⚠️ CRÍTICO: Log si Railway no inyecta PORT
     if (!process.env.PORT) {

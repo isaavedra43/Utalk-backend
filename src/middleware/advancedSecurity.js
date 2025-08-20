@@ -108,26 +108,37 @@ class AdvancedSecurity {
     try {
       // Intentar usar Redis si está disponible
       const RedisStore = require('rate-limit-redis');
-      const redis = require('redis');
+      const Redis = require('ioredis');
+      
+      // Debug: Log para verificar qué valores están llegando
+      logger.info('🔍 Debug Advanced Security Redis configuration:', {
+        category: 'ADVANCED_SECURITY_REDIS_DEBUG',
+        redisUrl: (process.env.REDIS_URL || process.env.REDISCLOUD_URL) ? 'SET' : 'NOT_SET',
+        enableRedis: process.env.ENABLE_REDIS,
+        hasRedisUrl: !!(process.env.REDIS_URL || process.env.REDISCLOUD_URL)
+      });
       
       // 🔧 SOLUCIÓN: Configurar Redis con family=0 para Railway IPv6
       const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      
+      // Verificar que redisUrl sea una cadena válida antes de usar .includes()
+      if (typeof redisUrl !== 'string') {
+        logger.error('❌ REDIS_URL no es una cadena válida en Advanced Security', {
+          category: 'ADVANCED_SECURITY_REDIS_CONFIG_ERROR',
+          redisUrlType: typeof redisUrl,
+          redisUrlValue: redisUrl
+        });
+        throw new Error('REDIS_URL no es una cadena válida');
+      }
+      
       const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
       
       if (redisUrl) {
-        const redisClient = redis.createClient({
-          url: redisUrlWithFamily,
-          socket: {
-            connectTimeout: 5000,
-            commandTimeout: 3000,
-            reconnectStrategy: (retries) => {
-              if (retries > 3) {
-                logger.error('Redis: Máximo número de reintentos alcanzado');
-                return false;
-              }
-              return Math.min(retries * 100, 3000);
-            }
-          }
+        const redisClient = new Redis(redisUrlWithFamily, {
+          maxRetriesPerRequest: 3,
+          retryDelayOnFailover: 100,
+          lazyConnect: true,
+          showFriendlyErrorStack: process.env.NODE_ENV === 'development'
         });
 
         redisClient.on('error', (err) => {
@@ -136,7 +147,7 @@ class AdvancedSecurity {
         });
 
         rateLimitStore = new RedisStore({ 
-          sendCommand: (...args) => redisClient.sendCommand(args),
+          sendCommand: (...args) => redisClient.call(...args),
           prefix: 'adaptive_rate_limit:'
         });
         

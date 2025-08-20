@@ -62,6 +62,38 @@ class CampaignQueueService {
     try {
       // 🔧 SOLUCIÓN: Configurar Redis con family=0 para Railway IPv6
       const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      
+      // Debug: Log para verificar qué valores están llegando
+      logger.info('🔍 Debug Redis configuration:', {
+        category: 'REDIS_DEBUG',
+        redisUrl: redisUrl ? 'SET' : 'NOT_SET',
+        enableRedis: process.env.ENABLE_REDIS,
+        hasRedisUrl: !!redisUrl
+      });
+      
+      // Verificar si Redis está habilitado
+      if (!redisUrl || process.env.ENABLE_REDIS === 'false') {
+        logger.warn('⚠️ Campaign Queue Service deshabilitado (Redis no configurado)', {
+          category: 'QUEUE_SERVICE_DISABLED',
+          reason: 'Redis no configurado o deshabilitado',
+          redisUrl: redisUrl ? 'EXISTS' : 'MISSING',
+          enableRedis: process.env.ENABLE_REDIS
+        });
+        this.isInitialized = true;
+        return;
+      }
+      
+      // Verificar que redisUrl sea una cadena válida antes de usar .includes()
+      if (typeof redisUrl !== 'string') {
+        logger.error('❌ REDIS_URL no es una cadena válida', {
+          category: 'REDIS_CONFIG_ERROR',
+          redisUrlType: typeof redisUrl,
+          redisUrlValue: redisUrl
+        });
+        this.isInitialized = true;
+        return;
+      }
+      
       const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
       
       this.redis = new Redis(redisUrlWithFamily, {
