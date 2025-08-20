@@ -11,6 +11,68 @@ let isInitializing = false;
 let initializationPromise = null;
 
 /**
+ * 🔥 INICIALIZACIÓN SINCRÓNICA EN PRODUCCIÓN PARA EVITAR firestore=null
+ */
+(function initializeNowIfPossible() {
+  try {
+    const hasKey = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const isProd = process.env.NODE_ENV === 'production';
+
+    if (!hasKey) {
+      if (isProd) {
+        logger.error('FIREBASE - Falta FIREBASE_SERVICE_ACCOUNT_KEY en producción');
+      } else {
+        logger.warn('🔥 FIREBASE - Modo desarrollo sin credenciales. No se inicializa.');
+      }
+      return;
+    }
+
+    // Evitar repetir
+    if (firestore && storage) return;
+
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    const requiredFields = ['project_id', 'private_key', 'client_email'];
+    const missingFields = requiredFields.filter(f => !serviceAccount[f]);
+    if (missingFields.length) {
+      throw new Error(`Campos faltantes en service account: ${missingFields.join(', ')}`);
+    }
+
+    let app;
+    if (!admin.apps.length) {
+      app = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+        storageBucket: `${serviceAccount.project_id}.appspot.com`
+      });
+    } else {
+      app = admin.app();
+    }
+
+    firestore = admin.firestore();
+    storage = admin.storage();
+
+    firestore.settings({
+      timestampsInSnapshots: true,
+      ignoreUndefinedProperties: true
+    });
+
+    logger.info('🔥 FIREBASE - Inicializado de forma inmediata (sync)', {
+      category: 'FIREBASE_SYNC_INIT',
+      projectId: serviceAccount.project_id,
+      appName: app.name,
+      firestoreAvailable: !!firestore,
+      storageAvailable: !!storage
+    });
+  } catch (error) {
+    logger.error('🔥 FIREBASE - Error en inicialización inmediata', {
+      category: 'FIREBASE_SYNC_INIT_ERROR',
+      error: error.message
+    });
+    // No lanzar aquí: el inicializador asíncrono intentará nuevamente
+  }
+})();
+
+/**
  * 🔥 INICIALIZAR FIREBASE DE FORMA ASÍNCRONA
  */
 async function initializeFirebase() {
@@ -90,8 +152,8 @@ async function initializeFirebaseAsync() {
     }
 
     // Inicializar servicios
-    firestore = admin.firestore();
-    storage = admin.storage();
+    firestore = firestore || admin.firestore();
+    storage = storage || admin.storage();
 
     // Configurar Firestore settings
     firestore.settings({
@@ -142,27 +204,6 @@ async function initializeFirebaseAsync() {
       severity: 'CRITICAL',
       requiresAttention: true,
       impact: 'Aplicación no puede continuar sin Firebase'
-    });
-
-    // Análisis específico del error
-    const errorAnalysis = {
-      isServiceAccountIssue: error.message.includes('FIREBASE_SERVICE_ACCOUNT_KEY'),
-      isJSONParseIssue: error.message.includes('JSON'),
-      isMissingFieldsIssue: error.message.includes('Campos faltantes'),
-      isCredentialIssue: error.message.includes('credential'),
-      isNetworkIssue: error.message.includes('network') || error.message.includes('timeout')
-    };
-
-    logger.error('FIREBASE - Análisis detallado del error', {
-      category: 'FIREBASE_ERROR_ANALYSIS',
-      ...errorAnalysis,
-      recommendations: {
-        serviceAccount: errorAnalysis.isServiceAccountIssue ? 'Configurar FIREBASE_SERVICE_ACCOUNT_KEY' : null,
-        jsonFormat: errorAnalysis.isJSONParseIssue ? 'Verificar formato JSON válido' : null,
-        missingFields: errorAnalysis.isMissingFieldsIssue ? 'Verificar service account completo' : null,
-        credentials: errorAnalysis.isCredentialIssue ? 'Regenerar service account desde Firebase Console' : null,
-        network: errorAnalysis.isNetworkIssue ? 'Verificar conectividad a Firebase' : null
-      }
     });
 
     // Firebase es crítico, no podemos crear mocks útiles

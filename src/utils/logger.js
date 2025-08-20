@@ -123,6 +123,8 @@ class LogMonitorTransport extends winston.Transport {
     super(opts);
     this.logMonitor = logMonitor;
     this.name = 'LogMonitorTransport';
+    // Asegurar un logger interno siempre disponible para debug
+    this.internalLogger = console;
   }
 
   log(info, callback) {
@@ -158,11 +160,11 @@ class LogMonitorTransport extends winston.Transport {
         // Debug: confirmar que se está capturando
         if (process.env.NODE_ENV === 'development') {
           // Log interno del monitor (no usar console.log)
-      this.internalLogger.info('LogMonitor: Capturado log', {
-        level,
-        category,
-        message: message.substring(0, 100) // Limitar longitud
-      });
+          this.internalLogger.info('LogMonitor: Capturado log', {
+            level,
+            category,
+            message: message.substring(0, 100) // Limitar longitud
+          });
         }
       }
     } catch (error) {

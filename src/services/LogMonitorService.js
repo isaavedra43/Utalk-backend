@@ -10,17 +10,13 @@
 
 // Importar logger de forma segura para evitar importación circular
 let logger;
-try {
-  logger = require('../utils/logger');
-} catch (error) {
-  // Fallback si logger no está disponible
-  logger = {
-    info: console.log,
-    error: console.error,
-    warn: console.warn,
-    debug: console.log
-  };
-}
+// Usar un logger interno basado en consola para evitar ciclos de importación
+logger = {
+  info: (...args) => console.log(...args),
+  error: (...args) => console.error(...args),
+  warn: (...args) => console.warn(...args),
+  debug: (...args) => console.debug(...args)
+};
 
 class LogMonitorService {
   constructor() {
