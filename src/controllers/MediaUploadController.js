@@ -305,24 +305,27 @@ class MediaUploadController {
 
       // 🔄 FASE 7: EMITIR EVENTO WEBSOCKET DE ARCHIVO SUBIDO
       try {
-        const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-        const socketManager = new EnterpriseSocketManager();
-        
-        await socketManager.emitFileUploaded({
-          fileId: result.id,
-          conversationId: conversationId || 'general',
-          fileName: result.originalName,
-          fileType: result.mimetype,
-          fileSize: result.size,
-          uploadedBy: userEmail,
-          previewUrl: previewUrl,
-          whatsappCompatible: isWhatsAppCompatible
-        });
+        const socketIndex = require('../socket');
+        const socketManager = socketIndex.getSocketManager();
+        if (socketManager?.emitFileUploaded) {
+          await socketManager.emitFileUploaded({
+            fileId: result.id,
+            conversationId: conversationId || 'general',
+            fileName: result.originalName,
+            fileType: result.mimetype,
+            fileSize: result.size,
+            uploadedBy: userEmail,
+            previewUrl: previewUrl,
+            whatsappCompatible: isWhatsAppCompatible
+          });
 
-        logger.info('✅ Evento WebSocket de archivo subido emitido', {
-          fileId: result.id,
-          conversationId: conversationId || 'general'
-        });
+          logger.info('✅ Evento WebSocket de archivo subido emitido', {
+            fileId: result.id,
+            conversationId: conversationId || 'general'
+          });
+        } else {
+          logger.warn('⚠️ SocketManager no disponible, omitiendo emisión de evento', { category: 'SOCKET_MANAGER_UNAVAILABLE' });
+        }
       } catch (socketError) {
         logger.warn('⚠️ Error emitiendo evento WebSocket de archivo subido', {
           error: socketError.message,

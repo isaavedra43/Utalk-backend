@@ -469,31 +469,29 @@ class MessageController {
 
           // 🆕 EMITIR EVENTOS WEBSOCKET PARA CADA ARCHIVO PROCESADO
           try {
-            const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-            const socketManager = new EnterpriseSocketManager();
-            
-            for (const attachment of processedAttachments) {
-              // Emitir evento de archivo listo
-              socketManager.emitFileReady({
-                fileId: attachment.id,
-                conversationId: conversation.id,
-                fileUrl: attachment.url,
-                metadata: attachment.metadata || {},
-                readyBy: req.user.email
-              });
+            const socketIndex = require('../socket');
+            const socketManager = socketIndex.getSocketManager();
+            if (socketManager?.emitFileReady) {
+              for (const attachment of processedAttachments) {
+                socketManager.emitFileReady({
+                  fileId: attachment.id,
+                  conversationId: conversation.id,
+                  fileUrl: attachment.url,
+                  metadata: attachment.metadata || {},
+                  readyBy: req.user.email
+                });
 
-              logger.debug('✅ Evento WebSocket de archivo listo emitido', {
-                fileId: attachment.id,
-                conversationId: conversation.id,
-                type: attachment.type
-              });
+                logger.debug('✅ Evento WebSocket de archivo listo emitido', {
+                  fileId: attachment.id,
+                  conversationId: conversation.id,
+                  type: attachment.type
+                });
+              }
+            } else {
+              logger.warn('⚠️ SocketManager no disponible, omitiendo eventos de archivo listo', { category: 'SOCKET_MANAGER_UNAVAILABLE' });
             }
-          } catch (socketError) {
-            logger.warn('⚠️ Error emitiendo eventos WebSocket de archivos', {
-              error: socketError.message,
-              conversationId: conversation.id
-            });
-            // No fallar la respuesta por error de WebSocket
+          } catch (_) {
+            // no-op
           }
           }
         } catch (fileError) {

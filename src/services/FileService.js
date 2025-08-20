@@ -620,6 +620,24 @@ class FileService {
         processTime: `${processTime}ms`
       });
 
+      // 🔄 FASE 7: EMITIR EVENTO WEBSOCKET DE ARCHIVO SUBIDO
+      try {
+        const socketIndex = require('../socket');
+        const socketManager = socketIndex.getSocketManager();
+        if (socketManager?.emitFileUploaded) {
+          await socketManager.emitFileUploaded({
+            fileId: fileId,
+            conversationId: conversationId || 'general',
+            fileName: originalName,
+            fileType: mimetype,
+            fileSize: size,
+            uploadedBy: uploadedBy
+          });
+        }
+      } catch (socketError) {
+        // No bloquear por socket
+      }
+
       return result;
 
     } catch (error) {
