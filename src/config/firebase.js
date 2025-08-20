@@ -54,12 +54,17 @@ try {
     throw new Error(`Campos faltantes en service account: ${missingFields.join(', ')}`);
   }
 
-  // Inicializar Firebase Admin SDK
-  const app = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: serviceAccount.project_id,
-    storageBucket: `${serviceAccount.project_id}.appspot.com`
-  });
+  // Inicializar Firebase Admin SDK (solo si no está ya inicializado)
+  let app;
+  if (!admin.apps.length) {
+    app = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id,
+      storageBucket: `${serviceAccount.project_id}.appspot.com`
+    });
+  } else {
+    app = admin.app();
+  }
 
   // Inicializar servicios
   firestore = admin.firestore();

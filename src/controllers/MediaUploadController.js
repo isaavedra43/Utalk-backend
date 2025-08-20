@@ -247,8 +247,13 @@ class MediaUploadController {
       }, 'Archivo subido exitosamente');
 
     } catch (error) {
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe antes de acceder a sus propiedades
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      const errorStack = error && error.stack ? error.stack.split('\n').slice(0, 3) : [];
+      
       logger.error('❌ Error subiendo archivo (FASE 4):', {
-        error: error.message,
+        error: errorMessage,
+        stack: errorStack,
         userEmail: req.user?.email,
         fileSize: req.file?.size,
         mimetype: req.file?.mimetype
@@ -259,7 +264,7 @@ class MediaUploadController {
         'Error subiendo archivo',
         'Intenta nuevamente o contacta soporte si el problema persiste',
         500,
-        { originalError: error.message }
+        { originalError: errorMessage }
       ));
     }
   }

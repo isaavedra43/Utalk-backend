@@ -86,17 +86,32 @@ class FileService {
    */
   getBucket() {
     try {
+      // Verificar si Firebase está inicializado
       if (!admin.apps.length) {
+        logger.error('Firebase Admin SDK no inicializado');
         throw new Error('Firebase Admin SDK no inicializado');
       }
+
+      // Obtener bucket de forma segura
       const bucket = admin.storage().bucket();
       if (!bucket) {
+        logger.error('Bucket de Firebase Storage no disponible');
         throw new Error('Bucket de Firebase Storage no disponible');
       }
+
       return bucket;
     } catch (error) {
-      logger.error('Error obteniendo bucket de Firebase Storage:', error);
-      throw new Error('Firebase Storage no disponible: ' + error.message);
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que error existe antes de acceder a sus propiedades
+      const errorMessage = error && typeof error.message === 'string' ? error.message : 'Error desconocido';
+      
+      logger.error('Error obteniendo bucket de Firebase Storage:', {
+        error: errorMessage,
+        stack: error && error.stack ? error.stack.split('\n').slice(0, 3) : [],
+        adminAppsLength: admin.apps.length,
+        environment: process.env.NODE_ENV
+      });
+      
+      throw new Error('Firebase Storage no disponible: ' + errorMessage);
     }
   }
 
