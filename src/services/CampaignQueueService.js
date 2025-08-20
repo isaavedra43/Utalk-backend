@@ -60,8 +60,24 @@ class CampaignQueueService {
    */
   async initialize() {
     try {
-      // 🔧 SOLUCIÓN: Configurar Redis con family=0 para Railway IPv6
-      const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      // 🔧 SOLUCIÓN RAILWAY: Usar la URL correcta de Redis
+      let redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+      
+      // Debug: Log para verificar qué URL está llegando
+      logger.info('🔍 Debug Redis URL configuration:', {
+        category: 'REDIS_URL_DEBUG',
+        redisUrl: redisUrl ? redisUrl.substring(0, 20) + '...' : 'NOT_SET',
+        enableRedis: process.env.ENABLE_REDIS,
+        isRailway: process.env.RAILWAY_ENVIRONMENT === 'true'
+      });
+      
+      // 🔧 SOLUCIÓN RAILWAY: Si la URL contiene 'railway.internal', usar la URL completa
+      if (redisUrl && redisUrl.includes('railway.internal')) {
+        logger.warn('⚠️ Detectada URL interna de Railway, verificando configuración', {
+          category: 'RAILWAY_REDIS_CONFIG',
+          redisUrl: redisUrl.substring(0, 30) + '...'
+        });
+      }
       
       // Debug: Log para verificar qué valores están llegando
       logger.info('🔍 Debug Redis configuration:', {
@@ -103,7 +119,12 @@ class CampaignQueueService {
         lazyConnect: false, // Conectar inmediatamente
         connectTimeout: 10000, // 10 segundos timeout
         commandTimeout: 5000, // 5 segundos timeout
-        showFriendlyErrorStack: process.env.NODE_ENV === 'development'
+        showFriendlyErrorStack: process.env.NODE_ENV === 'development',
+        // 🔧 SOLUCIÓN RAILWAY: Configuración adicional para Railway
+        family: 4, // Forzar IPv4 para Railway
+        retryDelayOnClusterDown: 300,
+        maxRetriesPerRequest: 1,
+        retryDelayOnFailover: 50
       });
 
       // 🔧 SOLUCIÓN RAILWAY: Configuración de colas optimizada para Railway
