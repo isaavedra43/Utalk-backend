@@ -44,14 +44,9 @@ class FileService {
     try {
       // Validar Firebase Admin SDK
       if (!admin || !admin.apps) {
-        logger.error('❌ Firebase Admin SDK no disponible', {
-          hasAdmin: !!admin,
-          hasApps: !!(admin && admin.apps)
-        });
+        console.error('❌ Firebase Admin SDK no disponible');
       } else if (admin.apps.length === 0) {
-        logger.warn('⚠️ Firebase Admin SDK no inicializado', {
-          appsLength: admin.apps.length
-        });
+        console.warn('⚠️ Firebase Admin SDK no inicializado');
       } else {
         this.initializationStatus.firebaseConfigured = true;
         
@@ -59,14 +54,12 @@ class FileService {
         try {
           if (firestore) {
             this.initializationStatus.firestoreAvailable = true;
-            logger.debug('✅ Firestore disponible');
+            console.log('✅ Firestore disponible');
           } else {
-            logger.warn('⚠️ Firestore no disponible');
+            console.warn('⚠️ Firestore no disponible');
           }
         } catch (firestoreError) {
-          logger.warn('⚠️ Error verificando Firestore', {
-            error: firestoreError?.message || 'Error desconocido'
-          });
+          console.warn('⚠️ Error verificando Firestore:', firestoreError?.message || 'Error desconocido');
         }
 
         // Validar Storage
@@ -74,34 +67,26 @@ class FileService {
           const bucket = admin.storage().bucket();
           if (bucket) {
             this.initializationStatus.storageAvailable = true;
-            logger.debug('✅ Firebase Storage disponible');
+            console.log('✅ Firebase Storage disponible');
           }
         } catch (storageError) {
-          logger.warn('⚠️ Error verificando Firebase Storage', {
-            error: storageError?.message || 'Error desconocido'
-          });
+          console.warn('⚠️ Error verificando Firebase Storage:', storageError?.message || 'Error desconocido');
         }
       }
 
       // Validar dependencias críticas
       if (!sharp) {
-        logger.error('❌ Sharp no disponible para procesamiento de imágenes');
+        console.error('❌ Sharp no disponible para procesamiento de imágenes');
       }
 
       if (!uuidv4) {
-        logger.error('❌ UUID v4 no disponible para generación de IDs');
+        console.error('❌ UUID v4 no disponible para generación de IDs');
       }
 
-      logger.info('🔧 FileService inicializado', {
-        initializationStatus: this.initializationStatus,
-        timestamp: new Date().toISOString()
-      });
+      console.log('🔧 FileService inicializado');
 
     } catch (initError) {
-      logger.error('❌ Error crítico inicializando FileService', {
-        error: initError?.message || 'Error desconocido',
-        stack: initError?.stack?.split('\n').slice(0, 3) || []
-      });
+      console.error('❌ Error crítico inicializando FileService:', initError?.message || 'Error desconocido');
     }
 
     // Configuración de tipos de archivo permitidos
