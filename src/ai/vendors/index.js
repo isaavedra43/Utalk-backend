@@ -9,6 +9,7 @@
  */
 
 const openaiProvider = require('./openai');
+const llmStudioProvider = require('./llmStudio');
 const logger = require('../../utils/logger');
 
 /**
@@ -21,6 +22,13 @@ const PROVIDERS = {
     defaultModel: 'gpt-4o-mini',
     models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
     enabled: true
+  },
+  llm_studio: {
+    name: 'LLM Studio Local',
+    module: llmStudioProvider,
+    defaultModel: 'gpt-oss-20b',
+    models: ['gpt-oss-20b', 'llama-3.1-8b', 'mistral-7b', 'codellama-7b'],
+    enabled: process.env.LLM_STUDIO_ENABLED === 'true'
   },
   anthropic: {
     name: 'Anthropic',
@@ -76,6 +84,11 @@ function getProvider(providerName = 'openai') {
 async function generateWithProvider(providerName, params) {
   const provider = getProvider(providerName);
   
+  // Si es LLM Studio, usar función específica
+  if (providerName === 'llm_studio' && provider.module) {
+    return await provider.module.generateWithLLMStudio(params);
+  }
+  
   logger.info('🤖 Usando proveedor para generación', {
     provider: provider.name,
     model: params.model || provider.defaultModel,
@@ -94,7 +107,18 @@ async function checkAllProvidersHealth() {
   for (const [name, provider] of Object.entries(PROVIDERS)) {
     if (provider.enabled && provider.module) {
       try {
-        healthResults[name] = await provider.module.checkProviderHealth();
+        if (name === 'llm_studio' && provider.module.checkLLMStudioHealth) {
+          healthResults[name] = await provider.module.checkLLMStudioHealth();
+        } else if (provider.module.checkProviderHealth) {
+          healthResults[name] = await provider.module.checkProviderHealth();
+        } else {
+          healthResults[name] = {
+            ok: false,
+            provider: name,
+            error: 'NO_HEALTH_CHECK',
+            message: 'Método de health check no disponible'
+          };
+        }
       } catch (error) {
         healthResults[name] = {
           ok: false,
@@ -132,8 +156,12 @@ function getAllProvidersStats() {
   const stats = {};
   
   for (const [name, provider] of Object.entries(PROVIDERS)) {
-    if (provider.enabled && provider.module && provider.module.getProviderStats) {
-      stats[name] = provider.module.getProviderStats();
+    if (provider.enabled && provider.module) {
+      if (name === 'llm_studio' && provider.module.getLLMStudioStats) {
+        stats[name] = provider.module.getLLMStudioStats();
+      } else if (provider.module.getProviderStats) {
+        stats[name] = provider.module.getProviderStats();
+      }
     }
   }
   
