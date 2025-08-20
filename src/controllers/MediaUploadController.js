@@ -1743,21 +1743,65 @@ class MediaUploadController {
         userEmail
       });
 
-      // Hacer petición a Twilio con autenticación básica
+      // 🔧 SOLUCIÓN: Configuración mejorada con timeout extendido y retry
       const axios = require('axios');
-      const response = await axios({
-        method: 'GET',
-        url: twilioUrl,
-        auth: {
-          username: accountSid,
-          password: authToken
-        },
-        responseType: 'stream',
-        timeout: 30000, // 30 segundos
-        headers: {
-          'User-Agent': 'Utalk-Backend/1.0'
+      
+      // Función con retry automático para errores de red
+      const makeTwilioRequest = async (attempt = 1, maxRetries = 3) => {
+        try {
+          logger.info(`🔄 PROXY TWILIO MEDIA - Intento ${attempt}/${maxRetries}`, {
+            requestId,
+            messageSid,
+            mediaSid,
+            userEmail,
+            attempt,
+            maxRetries
+          });
+
+          const response = await axios({
+            method: 'GET',
+            url: twilioUrl,
+            auth: {
+              username: accountSid,
+              password: authToken
+            },
+            responseType: 'stream',
+            timeout: 120000, // 🔧 Aumentado a 2 minutos
+            maxContentLength: 16 * 1024 * 1024, // 🔧 16MB máximo para WhatsApp
+            headers: {
+              'User-Agent': 'Utalk-Backend/1.0'
+            }
+          });
+
+          return response;
+        } catch (error) {
+          // 🔧 Detectar errores específicos que merecen retry
+          const isRetryableError = 
+            error.code === 'ECONNABORTED' || 
+            error.code === 'ETIMEDOUT' ||
+            error.code === 'ECONNRESET' ||
+            error.code === 'ENOTFOUND' ||
+            (error.response && error.response.status >= 500);
+
+          if (isRetryableError && attempt < maxRetries) {
+            const delay = 1000 * attempt; // Backoff exponencial
+            logger.warn(`⚠️ PROXY TWILIO MEDIA - Retry en ${delay}ms`, {
+              requestId,
+              attempt,
+              maxRetries,
+              error: error.message,
+              errorCode: error.code
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return makeTwilioRequest(attempt + 1, maxRetries);
+          }
+          
+          throw error;
         }
-      });
+      };
+
+      const response = await makeTwilioRequest();
 
       logger.info('✅ PROXY TWILIO MEDIA - Respuesta exitosa de Twilio', {
         requestId,
@@ -1793,36 +1837,73 @@ class MediaUploadController {
         });
       });
 
-      // Manejo de errores en el stream
+      // 🔧 SOLUCIÓN: Manejo mejorado de errores en el stream
       response.data.on('error', (error) => {
+        const latencyMs = Date.now() - startTime;
+        const isAbortedError = error.message.includes('aborted') || error.code === 'ECONNABORTED';
+        
         logger.error('❌ PROXY TWILIO MEDIA - Error en stream', {
           requestId,
           error: error.message,
+          errorCode: error.code,
+          isAbortedError,
           userEmail,
-          latencyMs: Date.now() - startTime
+          latencyMs,
+          headersSent: res.headersSent,
+          contentType: response.headers['content-type'],
+          contentLength: response.headers['content-length']
         });
         
+        // 🔧 Manejo específico para errores "aborted"
+        if (isAbortedError) {
+          logger.warn('⚠️ PROXY TWILIO MEDIA - Cliente abortó la conexión', {
+            requestId,
+            userEmail,
+            latencyMs,
+            possibleCauses: [
+              'Usuario navegó a otra página',
+              'Timeout del navegador',
+              'Conexión inestable',
+              'Archivo muy grande'
+            ]
+          });
+        }
+        
         if (!res.headersSent) {
+          const errorMessage = isAbortedError 
+            ? 'La descarga fue cancelada por el cliente'
+            : 'Error en la transferencia de datos';
+            
           ResponseHandler.error(res, new ApiError(
-            'STREAM_ERROR',
-            'Error en la transferencia de datos',
-            'Ocurrió un error al transferir el archivo',
-            500
+            isAbortedError ? 'CLIENT_ABORTED' : 'STREAM_ERROR',
+            errorMessage,
+            isAbortedError 
+              ? 'El usuario canceló la descarga o la conexión se perdió'
+              : 'Ocurrió un error al transferir el archivo',
+            isAbortedError ? 499 : 500 // 499 = Client Closed Request
           ));
         }
       });
 
     } catch (error) {
       const latencyMs = Date.now() - startTime;
+      const isAbortedError = error.message.includes('aborted') || error.code === 'ECONNABORTED';
       
       logger.error('❌ PROXY TWILIO MEDIA - Error crítico', {
         requestId,
         error: error.message,
-        stack: error.stack,
+        errorCode: error.code,
+        isAbortedError,
+        stack: error.stack?.split('\n').slice(0, 5), // Solo primeras 5 líneas
         userEmail: req.user?.email,
         messageSid: req.query.messageSid,
         mediaSid: req.query.mediaSid,
-        latencyMs
+        latencyMs,
+        userAgent: req.headers['user-agent']?.substring(0, 100),
+        ip: req.ip,
+        hasResponse: !!error.response,
+        responseStatus: error.response?.status,
+        responseData: error.response?.data ? 'present' : 'none'
       });
 
       // Manejar errores específicos de Twilio
