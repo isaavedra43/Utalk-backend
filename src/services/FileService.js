@@ -87,6 +87,7 @@ class FileService {
 
     } catch (initError) {
       console.error('❌ Error crítico inicializando FileService:', initError?.message || 'Error desconocido');
+      // 🔧 CORRECCIÓN: No lanzar error, continuar con inicialización básica
     }
 
     // Configuración de tipos de archivo permitidos
@@ -118,8 +119,14 @@ class FileService {
       cleanupInterval: 5 * 60 * 1000 // 5 minutos
     };
     
-    // Iniciar limpieza automática de cache
-    this.startCacheCleanup();
+    // 🔧 CORRECCIÓN: Iniciar limpieza automática de cache solo si el método existe
+    try {
+      if (typeof this.startCacheCleanup === 'function') {
+        this.startCacheCleanup();
+      }
+    } catch (cacheError) {
+      console.warn('⚠️ Error iniciando limpieza de cache:', cacheError?.message || 'Error desconocido');
+    }
     
     // Métricas de rendimiento
     this.performanceMetrics = {

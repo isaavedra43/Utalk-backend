@@ -20,7 +20,10 @@ const STATIC_WHITELIST = [
   ...FRONTEND_ENV,                 // e.g. https://utalk-frontend-glt2-git-main-...vercel.app, https://utalk-frontend-glt2.vercel.app
   process.env.FRONTEND_URL_2,
   process.env.FRONTEND_URL_3,
-  'http://localhost:5173'
+  'http://localhost:5173',
+  // 🔧 CORRECCIÓN: Agregar dominio del backend para peticiones internas
+  'https://utalk-backend-production.up.railway.app',
+  'http://utalk-backend-production.up.railway.app'
 ].filter(Boolean);
 
 // Patrones permitidos (subdominios dinámicos) — minimizar a lo necesario
