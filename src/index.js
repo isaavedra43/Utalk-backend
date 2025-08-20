@@ -805,11 +805,9 @@ class ConsolidatedServer {
   }
 }
 
-// Crear e inicializar servidor
-const server = new ConsolidatedServer();
-
 // Solo inicializar si no estamos en test
 if (require.main === module) {
+  const server = new ConsolidatedServer();
   server.initialize().catch((error) => {
     logger.error('💥 Fallo catastrófico iniciando servidor:', {
       category: 'CATASTROPHIC_FAILURE',
@@ -821,4 +819,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = server;
+module.exports = { ConsolidatedServer };
