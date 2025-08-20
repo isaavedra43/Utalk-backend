@@ -2,7 +2,7 @@ const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
-const ResponseHandler = require('../utils/responseHandler');
+const { ResponseHandler } = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 const { v4: uuidv4 } = require('uuid');
 const { getAccessTokenConfig, getRefreshTokenConfig, validateJwtConfig } = require('../config/jwt');
@@ -203,7 +203,7 @@ class AuthController {
         if (req.logger && typeof req.logger.error === 'function') {
           req.logger.error('JWT_SECRET no configurado');
         }
-        const ResponseHandler = require('../utils/responseHandler');
+        const { ResponseHandler } = require('../utils/responseHandler');
         return ResponseHandler.error(res, {
           type: 'CONFIGURATION_ERROR',
           code: 'JWT_SECRET_MISSING',
@@ -350,7 +350,7 @@ class AuthController {
         });
       }
       
-      const ResponseHandler = require('../utils/responseHandler');
+      const { ResponseHandler } = require('../utils/responseHandler');
       return ResponseHandler.error(res, {
         type: 'INTERNAL_SERVER_ERROR',
         code: 'LOGIN_FAILED',
@@ -373,7 +373,7 @@ class AuthController {
           ip: req.ip
         });
 
-        const ResponseHandler = require('../utils/responseHandler');
+        const { ResponseHandler } = require('../utils/responseHandler');
         return ResponseHandler.validationError(res, 'Refresh token requerido');
       }
 
@@ -392,7 +392,7 @@ class AuthController {
           ip: req.ip
         });
 
-        const ResponseHandler = require('../utils/responseHandler');
+        const { ResponseHandler } = require('../utils/responseHandler');
         return ResponseHandler.authenticationError(res, 'El refresh token no existe o ha sido invalidado');
       }
 

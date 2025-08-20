@@ -145,7 +145,8 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
           return res.status(400).json({ error: 'messageSid y mediaSid son requeridos' });
         }
         const MediaUploadController = require('../controllers/MediaUploadController');
-        return await MediaUploadController.proxyTwilioMedia(req, res);
+        const mediaUploadController = new MediaUploadController();
+        return await mediaUploadController.proxyTwilioMedia(req, res);
       } catch (error) {
         logger.error('Error en proxy público de media', { category: 'MEDIA_PROXY_ERROR', error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Error interno del servidor', message: error.message });
