@@ -147,11 +147,7 @@ class AuthController {
           });
         }
 
-        return res.status(401).json({ 
-          error: 'Contraseña incorrecta',
-          message: 'Email o contraseña incorrectos',
-          code: 'INVALID_PASSWORD'
-        });
+        return ResponseHandler.authenticationError(res, 'Email o contraseña incorrectos');
       }
       logger.debug('Contraseña validada exitosamente', {
         category: 'AUTH_PASSWORD_SUCCESS'
@@ -329,7 +325,7 @@ class AuthController {
         role: user.role,
         deviceId: deviceInfo.deviceId
       });
-      return res.status(200).json(response);
+      return ResponseHandler.success(res, response, 'Login exitoso');
 
     } catch (error) {
       const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Error desconocido';
@@ -407,11 +403,7 @@ class AuthController {
           ip: req.ip
         });
 
-        return res.status(401).json({
-          error: 'Refresh token inválido',
-          message: 'El refresh token ha expirado o ha sido invalidado',
-          code: 'REFRESH_TOKEN_INVALID',
-        });
+        return ResponseHandler.authenticationError(res, 'El refresh token ha expirado o ha sido invalidado');
       }
 
       // 🔍 VERIFICAR JWT DEL REFRESH TOKEN
@@ -444,11 +436,7 @@ class AuthController {
           ip: req.ip
         });
 
-        return res.status(401).json({
-          error: 'Usuario no válido',
-          message: 'El usuario asociado al refresh token no existe o está inactivo',
-          code: 'USER_INVALID',
-        });
+        return ResponseHandler.authenticationError(res, 'El usuario asociado al refresh token no existe o está inactivo');
       }
 
       // 🔄 GENERAR NUEVO ACCESS TOKEN
@@ -519,7 +507,7 @@ class AuthController {
         response.tokenRotated = true;
       }
 
-      res.json(response);
+      return ResponseHandler.success(res, response, 'Token renovado exitosamente');
 
     } catch (error) {
       req.logger.error('💥 Error crítico en refresh token', {
@@ -664,7 +652,7 @@ class AuthController {
           error: error.message
         });
       }
-      return res.status(200).json({ success: true, message: 'Logout exitoso' });
+      return ResponseHandler.logoutSuccess(res);
     }
   }
 
@@ -941,11 +929,7 @@ class AuthController {
       
       if (!user) {
         logger.warn('⚠️ Usuario no encontrado en Firestore', { email });
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-          message: 'El usuario no existe en la base de datos',
-          code: 'USER_NOT_FOUND',
-        });
+        return ResponseHandler.notFoundError(res, 'El usuario no existe en la base de datos');
       }
 
       logger.info('Perfil obtenido correctamente', {
@@ -954,10 +938,7 @@ class AuthController {
         role: user.role,
       });
 
-      res.json({
-        success: true,
-        user: user.toJSON(),
-      });
+      return ResponseHandler.success(res, { user: user.toJSON() }, 'Perfil obtenido correctamente');
     } catch (error) {
       logger.error('Error obteniendo perfil', {
         error: error.message,
@@ -1040,26 +1021,15 @@ class AuthController {
       const { currentPassword, newPassword } = req.body;
 
       if (!email) {
-        return res.status(401).json({
-          error: 'Usuario no autenticado',
-          code: 'MISSING_EMAIL',
-        });
+        return ResponseHandler.authenticationError(res, 'Usuario no autenticado');
       }
 
       if (!currentPassword || !newPassword) {
-        return res.status(400).json({
-          error: 'Datos requeridos',
-          message: 'Contraseña actual y nueva contraseña son requeridas',
-          code: 'MISSING_PASSWORDS',
-        });
+        return ResponseHandler.validationError(res, 'Contraseña actual y nueva contraseña son requeridas');
       }
 
       if (newPassword.length < 8) {
-        return res.status(400).json({
-          error: 'Contraseña débil',
-          message: 'La nueva contraseña debe tener al menos 8 caracteres',
-          code: 'WEAK_PASSWORD',
-        });
+        return ResponseHandler.validationError(res, 'La nueva contraseña debe tener al menos 8 caracteres');
       }
 
       logger.info('🔑 Cambio de contraseña solicitado', { email });
@@ -1070,11 +1040,7 @@ class AuthController {
       if (!isCurrentPasswordValid) {
         logger.warn('Cambio de contraseña fallido: Contraseña actual incorrecta', { email });
         
-        return res.status(401).json({
-          error: 'Contraseña actual incorrecta',
-          message: 'La contraseña actual no es válida',
-          code: 'INVALID_CURRENT_PASSWORD',
-        });
+        return ResponseHandler.authenticationError(res, 'La contraseña actual no es válida');
       }
 
       // Obtener usuario y actualizar contraseña
@@ -1089,11 +1055,7 @@ class AuthController {
         invalidatedTokens: invalidatedCount
       });
 
-      res.json({
-        success: true,
-        message: 'Contraseña cambiada exitosamente. Todos los dispositivos han sido desconectados.',
-        invalidatedTokens: invalidatedCount
-      });
+      return ResponseHandler.success(res, { invalidatedTokens: invalidatedCount }, 'Contraseña cambiada exitosamente. Todos los dispositivos han sido desconectados.');
     } catch (error) {
       logger.error('Error cambiando contraseña', {
         error: error.message,
@@ -1125,19 +1087,11 @@ class AuthController {
           adminRole: req.user?.role,
         });
 
-        return res.status(403).json({
-          error: 'Permisos insuficientes',
-          message: 'Solo los administradores pueden crear usuarios',
-          code: 'INSUFFICIENT_PERMISSIONS',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden crear usuarios');
       }
 
       if (!email || !password || !name) {
-        return res.status(400).json({
-          error: 'Datos requeridos',
-          message: 'Email, contraseña y nombre son requeridos',
-          code: 'MISSING_REQUIRED_FIELDS',
-        });
+        return ResponseHandler.validationError(res, 'Email, contraseña y nombre son requeridos');
       }
 
       // Crear usuario en Firestore
@@ -1219,11 +1173,7 @@ class AuthController {
         count: sessions.length
       });
 
-      res.json({
-        success: true,
-        sessions,
-        count: sessions.length
-      });
+      return ResponseHandler.success(res, { sessions, count: sessions.length }, 'Sesiones activas obtenidas');
     } catch (error) {
       logger.error('Error obteniendo sesiones activas', {
         error: error.message,
@@ -1242,10 +1192,7 @@ class AuthController {
       const { sessionId } = req.params;
 
       if (!email) {
-        return res.status(401).json({
-          error: 'Usuario no autenticado',
-          code: 'MISSING_EMAIL',
-        });
+        return ResponseHandler.authenticationError(res, 'Usuario no autenticado');
       }
 
       logger.info('🚫 Cerrando sesión específica', { 
@@ -1256,17 +1203,11 @@ class AuthController {
       const token = await RefreshToken.getById(sessionId);
       
       if (!token) {
-        return res.status(404).json({
-          error: 'Sesión no encontrada',
-          code: 'SESSION_NOT_FOUND',
-        });
+        return ResponseHandler.notFoundError(res, 'Sesión no encontrada');
       }
 
       if (token.userEmail !== email) {
-        return res.status(403).json({
-          error: 'No tienes permisos para cerrar esta sesión',
-          code: 'INSUFFICIENT_PERMISSIONS',
-        });
+        return ResponseHandler.authorizationError(res, 'No tienes permisos para cerrar esta sesión');
       }
 
       await token.invalidate();
@@ -1276,10 +1217,7 @@ class AuthController {
         sessionId
       });
 
-      res.json({
-        success: true,
-        message: 'Sesión cerrada exitosamente'
-      });
+      return ResponseHandler.success(res, null, 'Sesión cerrada exitosamente');
     } catch (error) {
       logger.error('Error cerrando sesión', {
         error: error.message,

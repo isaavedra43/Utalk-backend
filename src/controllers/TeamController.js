@@ -5,6 +5,7 @@ const Contact = require('../models/Contact');
 const Campaign = require('../models/Campaign');
 const { firestore } = require('../config/firebase');
 const moment = require('moment');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 class TeamController {
   /**
@@ -54,14 +55,14 @@ class TeamController {
         filters: { role, status, search },
       });
 
-      res.json({
+      return ResponseHandler.success(res, {
         users: usersWithKPIs,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
           total: usersWithKPIs.length,
         },
-      });
+      }, 'Miembros del equipo listados correctamente');
     } catch (error) {
       logger.error('Error al listar miembros del equipo:', error);
       next(error);
@@ -77,19 +78,13 @@ class TeamController {
 
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden invitar miembros',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden invitar miembros');
       }
 
       // Verificar que el usuario no existe ya
       const existingUser = await User.getByEmail(email);
       if (existingUser) {
-        return res.status(400).json({
-          error: 'Usuario ya existe',
-          message: `Ya existe un usuario con el email ${email}`,
-        });
+        return ResponseHandler.conflictError(res, `Ya existe un usuario con el email ${email}`);
       }
 
       // CREAR usuario directamente en Firestore (EMAIL-FIRST)
@@ -114,11 +109,10 @@ class TeamController {
         invitedBy: req.user.email,
       });
 
-      res.status(201).json({
-        message: 'Miembro invitado exitosamente',
+      return ResponseHandler.created(res, {
         user: user.toJSON(),
         temporaryPassword: 'Se ha enviado por email', // En producción no devolver la contraseña
-      });
+      }, 'Miembro invitado exitosamente');
     } catch (error) {
       logger.error('Error al invitar miembro:', error);
       next(error);
@@ -134,29 +128,23 @@ class TeamController {
       const user = await User.getByEmail(id);
 
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-          message: `No se encontró un miembro con ID ${id}`,
-        });
+        return ResponseHandler.notFoundError(res, `No se encontró un miembro con ID ${id}`);
       }
 
       // Los usuarios pueden ver su propia información, los admins pueden ver todo
       if (req.user.role !== 'admin' && req.user.email !== id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para ver este miembro',
-        });
+        return ResponseHandler.authorizationError(res, 'No tienes permisos para ver este miembro');
       }
 
       // Obtener KPIs detallados
       const kpis = await this.getUserKPIs(user.email, '30d');
 
-      res.json({
+      return ResponseHandler.success(res, {
         user: {
           ...user.toJSON(),
           kpis,
         },
-      });
+      }, 'Miembro obtenido correctamente');
     } catch (error) {
       logger.error('Error al obtener miembro:', error);
       next(error);
@@ -173,26 +161,17 @@ class TeamController {
 
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden actualizar miembros',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden actualizar miembros');
       }
 
       const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-          message: `No se encontró un miembro con ID ${id}`,
-        });
+        return ResponseHandler.notFoundError(res, `No se encontró un miembro con ID ${id}`);
       }
 
       // No permitir que se modifique el propio rol de admin
       if (req.user.email === id && role && role !== 'admin') {
-        return res.status(400).json({
-          error: 'Operación no permitida',
-          message: 'No puedes cambiar tu propio rol de administrador',
-        });
+        return ResponseHandler.validationError(res, 'No puedes cambiar tu propio rol de administrador');
       }
 
       const updates = {
@@ -208,10 +187,7 @@ class TeamController {
         updates,
       });
 
-      res.json({
-        message: 'Miembro actualizado exitosamente',
-        user: user.toJSON(),
-      });
+      return ResponseHandler.updated(res, user.toJSON(), 'Miembro actualizado exitosamente');
     } catch (error) {
       logger.error('Error al actualizar miembro:', error);
       next(error);
@@ -235,18 +211,12 @@ class TeamController {
 
       const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-          message: `No se encontró un miembro con ID ${id}`,
-        });
+        return ResponseHandler.notFoundError(res, `No se encontró un miembro con ID ${id}`);
       }
 
       // No permitir que se elimine a sí mismo
       if (req.user.email === id) {
-        return res.status(400).json({
-          error: 'Operación no permitida',
-          message: 'No puedes eliminarte a ti mismo',
-        });
+        return ResponseHandler.validationError(res, 'No puedes eliminarte a ti mismo');
       }
 
       // Soft delete del usuario
@@ -259,9 +229,7 @@ class TeamController {
         deletedBy: req.user.email,
       });
 
-      res.json({
-        message: 'Miembro eliminado exitosamente',
-      });
+      return ResponseHandler.deleted(res, 'Miembro eliminado exitosamente');
     } catch (error) {
       logger.error('Error al eliminar miembro:', error);
       next(error);
@@ -277,17 +245,12 @@ class TeamController {
 
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden activar miembros',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden activar miembros');
       }
 
       const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-        });
+        return ResponseHandler.notFoundError(res, 'Usuario no encontrado');
       }
 
       await user.setActive(true);
@@ -297,10 +260,7 @@ class TeamController {
         activatedBy: req.user.email,
       });
 
-      res.json({
-        message: 'Miembro activado exitosamente',
-        user: user.toJSON(),
-      });
+      return ResponseHandler.updated(res, user.toJSON(), 'Miembro activado exitosamente');
     } catch (error) {
       logger.error('Error al activar miembro:', error);
       next(error);
@@ -316,17 +276,12 @@ class TeamController {
 
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden desactivar miembros',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden desactivar miembros');
       }
 
       const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-        });
+        return ResponseHandler.notFoundError(res, 'Usuario no encontrado');
       }
 
       // No permitir desactivarse a sí mismo
@@ -344,10 +299,7 @@ class TeamController {
         deactivatedBy: req.user.email,
       });
 
-      res.json({
-        message: 'Miembro desactivado exitosamente',
-        user: user.toJSON(),
-      });
+      return ResponseHandler.updated(res, user.toJSON(), 'Miembro desactivado exitosamente');
     } catch (error) {
       logger.error('Error al desactivar miembro:', error);
       next(error);
@@ -364,22 +316,17 @@ class TeamController {
 
       const user = await User.getByEmail(id) // id es ahora email;
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-        });
+        return ResponseHandler.notFoundError(res, 'Usuario no encontrado');
       }
 
       // Los usuarios pueden ver sus propios KPIs, los admins pueden ver todos
       if (req.user.role !== 'admin' && req.user.email !== id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para ver los KPIs de este miembro',
-        });
+        return ResponseHandler.authorizationError(res, 'No tienes permisos para ver los KPIs de este miembro');
       }
 
       const kpis = await this.getUserKPIs(user.email, period);
 
-      res.json({
+      return ResponseHandler.success(res, {
         user: {
           id: user.email,
           name: user.name,
@@ -388,7 +335,7 @@ class TeamController {
         },
         period,
         kpis,
-      });
+      }, 'KPIs obtenidos correctamente');
     } catch (error) {
       logger.error('Error al obtener KPIs:', error);
       next(error);
@@ -404,17 +351,12 @@ class TeamController {
 
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden resetear contraseñas',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden resetear contraseñas');
       }
 
       const user = await User.getByEmail(id); // id es ahora email
       if (!user) {
-        return res.status(404).json({
-          error: 'Usuario no encontrado',
-        });
+        return ResponseHandler.notFoundError(res, 'Usuario no encontrado');
       }
 
       // Generar nueva contraseña temporal
@@ -433,10 +375,9 @@ class TeamController {
         resetBy: req.user.email,
       });
 
-      res.json({
-        message: 'Contraseña reseteada exitosamente',
+      return ResponseHandler.success(res, {
         temporaryPassword: 'Se ha enviado por email', // En producción no devolver la contraseña
-      });
+      }, 'Contraseña reseteada exitosamente');
     } catch (error) {
       logger.error('Error al resetear contraseña:', error);
       next(error);
