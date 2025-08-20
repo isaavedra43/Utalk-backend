@@ -52,12 +52,14 @@ class PersistentRateLimitManager {
           throw new Error('REDIS_URL no es una cadena válida');
         }
         
-        const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
-        
-        this.redis = new Redis(redisUrlWithFamily, {
-          retryDelayOnFailover: 100,
-          maxRetriesPerRequest: 3,
-          lazyConnect: true,
+        // 🔧 SOLUCIÓN RAILWAY: Configuración correcta para Railway Redis
+        this.redis = new Redis(redisUrl, {
+          maxRetriesPerRequest: 1, // Reducir retries para Railway
+          retryDelayOnFailover: 50, // Reducir delay
+          enableReadyCheck: false, // Deshabilitar para Railway
+          lazyConnect: false, // Conectar inmediatamente
+          connectTimeout: 10000, // 10 segundos timeout
+          commandTimeout: 5000, // 5 segundos timeout
           showFriendlyErrorStack: process.env.NODE_ENV === 'development'
         });
 
@@ -70,9 +72,26 @@ class PersistentRateLimitManager {
             url: process.env.REDIS_URL.replace(/\/\/.*@/, '//***@')
           });
         } catch (error) {
-          this.redis.disconnect();
-          this.redis = null;
-          throw error;
+          logger.error('❌ Error conectando a Redis en Rate Limit', {
+            error: error.message,
+            category: 'RATE_LIMIT_REDIS_CONNECTION_ERROR',
+            isRailway: process.env.RAILWAY_ENVIRONMENT === 'true'
+          });
+          
+          // 🔧 SOLUCIÓN RAILWAY: Fallback a memoria si Redis falla
+          if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+            logger.warn('⚠️ Redis no disponible en Railway, usando fallback a memoria', {
+              category: 'RATE_LIMIT_FALLBACK',
+              reason: 'Redis connection failed',
+              error: error.message
+            });
+            this.usingRedis = false;
+            this.redis = null;
+          } else {
+            this.redis.disconnect();
+            this.redis = null;
+            throw error;
+          }
         }
       } else {
         throw new Error('Redis no configurado o deshabilitado');

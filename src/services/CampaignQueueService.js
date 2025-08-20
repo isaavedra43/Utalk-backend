@@ -94,39 +94,42 @@ class CampaignQueueService {
         return;
       }
       
-      const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
-      
-      this.redis = new Redis(redisUrlWithFamily, {
-        maxRetriesPerRequest: 3,
-        retryDelayOnFailover: 100,
-        enableReadyCheck: true,
-        lazyConnect: true
+      // 🔧 SOLUCIÓN RAILWAY: Configuración correcta para Railway Redis
+      // Railway usa IPv6 por defecto, pero no necesitamos family=0
+      this.redis = new Redis(redisUrl, {
+        maxRetriesPerRequest: 1, // Reducir retries para Railway
+        retryDelayOnFailover: 50, // Reducir delay
+        enableReadyCheck: false, // Deshabilitar para Railway
+        lazyConnect: false, // Conectar inmediatamente
+        connectTimeout: 10000, // 10 segundos timeout
+        commandTimeout: 5000, // 5 segundos timeout
+        showFriendlyErrorStack: process.env.NODE_ENV === 'development'
       });
 
-      // Crear cola principal de campañas
+      // 🔧 SOLUCIÓN RAILWAY: Configuración de colas optimizada para Railway
       this.campaignQueue = new Queue('campaign-processing', {
         redis: this.redis,
         defaultJobOptions: {
-          removeOnComplete: 100,
-          removeOnFail: 50,
-          attempts: 3,
+          removeOnComplete: 50, // Reducir para Railway
+          removeOnFail: 25, // Reducir para Railway
+          attempts: 2, // Reducir intentos para Railway
           backoff: {
             type: 'exponential',
-            delay: 2000
+            delay: 1000 // Reducir delay para Railway
           }
         }
       });
 
-      // Crear cola de procesamiento de mensajes
+      // 🔧 SOLUCIÓN RAILWAY: Configuración de cola de mensajes optimizada
       this.processingQueue = new Queue('message-processing', {
         redis: this.redis,
         defaultJobOptions: {
-          removeOnComplete: 1000,
-          removeOnFail: 100,
-          attempts: 5,
+          removeOnComplete: 500, // Reducir para Railway
+          removeOnFail: 50, // Reducir para Railway
+          attempts: 3, // Reducir intentos para Railway
           backoff: {
             type: 'exponential',
-            delay: 1000
+            delay: 500 // Reducir delay para Railway
           }
         }
       });
@@ -148,8 +151,23 @@ class CampaignQueueService {
     } catch (error) {
       logger.error('❌ Error inicializando Campaign Queue Service', {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        category: 'QUEUE_SERVICE_ERROR',
+        isRailway: process.env.RAILWAY_ENVIRONMENT === 'true',
+        redisUrl: process.env.REDIS_URL ? 'SET' : 'NOT_SET'
       });
+      
+      // 🔧 SOLUCIÓN RAILWAY: No fallar completamente si Redis no está disponible
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+        logger.warn('⚠️ Redis no disponible en Railway, deshabilitando Campaign Queue Service', {
+          category: 'QUEUE_SERVICE_DISABLED',
+          reason: 'Redis connection failed',
+          error: error.message
+        });
+        this.isInitialized = true; // Marcar como inicializado para no fallar
+        return;
+      }
+      
       throw error;
     }
   }

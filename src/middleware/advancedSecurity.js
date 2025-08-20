@@ -131,18 +131,34 @@ class AdvancedSecurity {
         throw new Error('REDIS_URL no es una cadena válida');
       }
       
-      const redisUrlWithFamily = redisUrl.includes('?family=0') ? redisUrl : `${redisUrl}?family=0`;
-      
+      // 🔧 SOLUCIÓN RAILWAY: Configuración correcta para Railway Redis
       if (redisUrl) {
-        const redisClient = new Redis(redisUrlWithFamily, {
-          maxRetriesPerRequest: 3,
-          retryDelayOnFailover: 100,
-          lazyConnect: true,
+        const redisClient = new Redis(redisUrl, {
+          maxRetriesPerRequest: 1, // Reducir retries para Railway
+          retryDelayOnFailover: 50, // Reducir delay
+          enableReadyCheck: false, // Deshabilitar para Railway
+          lazyConnect: false, // Conectar inmediatamente
+          connectTimeout: 10000, // 10 segundos timeout
+          commandTimeout: 5000, // 5 segundos timeout
           showFriendlyErrorStack: process.env.NODE_ENV === 'development'
         });
 
         redisClient.on('error', (err) => {
-          logger.error('Redis error:', err);
+          logger.error('Redis error en Advanced Security:', {
+            error: err.message,
+            category: 'ADVANCED_SECURITY_REDIS_ERROR',
+            isRailway: process.env.RAILWAY_ENVIRONMENT === 'true'
+          });
+          
+          // 🔧 SOLUCIÓN RAILWAY: Fallback a memoria si Redis falla
+          if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
+            logger.warn('⚠️ Redis no disponible en Railway, usando fallback a memoria en Advanced Security', {
+              category: 'ADVANCED_SECURITY_FALLBACK',
+              reason: 'Redis connection failed',
+              error: err.message
+            });
+          }
+          
           this.rateLimitStore = new Map(); // Fallback a memoria
         });
 
