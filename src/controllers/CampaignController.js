@@ -4,6 +4,7 @@ const { getMessageService } = require('../services/MessageService');
 const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
 const campaignQueueService = require('../services/CampaignQueueService');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 /**
  * Calcular fechas de inicio y fin basadas en un período
@@ -73,14 +74,14 @@ class CampaignController {
         filters: { status, search },
       });
 
-      res.json({
+      return ResponseHandler.success(res, {
         campaigns: campaigns.map(campaign => campaign.toJSON()),
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
           total: campaigns.length,
         },
-      });
+      }, 'Campañas listadas correctamente');
     } catch (error) {
       logger.error('Error al listar campañas:', error);
       next(error);
@@ -105,10 +106,7 @@ class CampaignController {
         createdBy: req.user.id,
       });
 
-      res.status(201).json({
-        message: 'Campaña creada exitosamente',
-        campaign: campaign.toJSON(),
-      });
+      return ResponseHandler.created(res, campaign.toJSON(), 'Campaña creada exitosamente');
     } catch (error) {
       logger.error('Error al crear campaña:', error);
       next(error);
@@ -124,23 +122,15 @@ class CampaignController {
       const campaign = await Campaign.getById(id);
 
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-          message: `No se encontró una campaña con ID ${id}`,
-        });
+        return ResponseHandler.notFoundError(res, `No se encontró una campaña con ID ${id}`);
       }
 
       // Verificar permisos (solo admin o creador)
       if (req.user.role !== 'admin' && campaign.internalProperties.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para ver esta campaña',
-        });
+        return ResponseHandler.authorizationError(res, 'No tienes permisos para ver esta campaña');
       }
 
-      res.json({
-        campaign: campaign.toJSON(),
-      });
+      return ResponseHandler.success(res, { campaign: campaign.toJSON() }, 'Campaña obtenida correctamente');
     } catch (error) {
       logger.error('Error al obtener campaña:', error);
       next(error);
@@ -157,26 +147,17 @@ class CampaignController {
 
       const campaign = await Campaign.getById(id);
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-          message: `No se encontró una campaña con ID ${id}`,
-        });
+        return ResponseHandler.notFoundError(res, `No se encontró una campaña con ID ${id}`);
       }
 
       // Verificar permisos
       if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para modificar esta campaña',
-        });
+        return ResponseHandler.authorizationError(res, 'No tienes permisos para modificar esta campaña');
       }
 
       // Verificar si la campaña puede ser editada
       if (!campaign.canBeEdited()) {
-        return res.status(400).json({
-          error: 'Campaña no editable',
-          message: `No se puede editar una campaña en estado ${campaign.status}`,
-        });
+        return ResponseHandler.validationError(res, `No se puede editar una campaña en estado ${campaign.status}`);
       }
 
       // Validar contactos si se están actualizando
@@ -188,10 +169,7 @@ class CampaignController {
         const validContacts = contactChecks.filter(contact => contact !== null);
 
         if (validContacts.length !== updates.contacts.length) {
-          return res.status(400).json({
-            error: 'Contactos inválidos',
-            message: 'Algunos contactos especificados no existen',
-          });
+          return ResponseHandler.validationError(res, 'Algunos contactos especificados no existen');
         }
 
         updates.estimatedReach = validContacts.length;
@@ -224,18 +202,12 @@ class CampaignController {
 
       const campaign = await Campaign.getById(id);
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-          message: `No se encontró una campaña con ID ${id}`,
-        });
+        return ResponseHandler.notFoundError(res, `No se encontró una campaña con ID ${id}`);
       }
 
       // Solo admins pueden eliminar campañas
       if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'Solo los administradores pueden eliminar campañas',
-        });
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden eliminar campañas');
       }
 
       await campaign.delete();
@@ -245,9 +217,7 @@ class CampaignController {
         deletedBy: req.user.id,
       });
 
-      res.json({
-        message: 'Campaña eliminada exitosamente',
-      });
+      return ResponseHandler.deleted(res, 'Campaña eliminada exitosamente');
     } catch (error) {
       logger.error('Error al eliminar campaña:', error);
       next(error);
@@ -263,25 +233,17 @@ class CampaignController {
 
       const campaign = await Campaign.getById(id);
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-        });
+        return ResponseHandler.notFoundError(res, 'Campaña no encontrada');
       }
 
       // Verificar permisos
       if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-          message: 'No tienes permisos para enviar esta campaña',
-        });
+        return ResponseHandler.authorizationError(res, 'No tienes permisos para enviar esta campaña');
       }
 
       // Verificar si la campaña puede ser enviada
       if (!campaign.canBeSent()) {
-        return res.status(400).json({
-          error: 'Campaña no puede ser enviada',
-          message: 'La campaña debe estar en estado draft, scheduled o paused y tener contactos válidos',
-        });
+        return ResponseHandler.validationError(res, 'La campaña debe estar en estado draft, scheduled o paused y tener contactos válidos');
       }
 
       // Encolar campaña para procesamiento asíncrono
@@ -297,13 +259,12 @@ class CampaignController {
         sentBy: req.user.id,
       });
 
-      res.json({
-        message: 'Campaña encolada exitosamente para envío',
+      return ResponseHandler.success(res, {
         jobId: queueResult.jobId,
         estimatedContacts: queueResult.estimatedContacts,
         estimatedTime: queueResult.estimatedTime,
         campaign: campaign.toJSON(),
-      });
+      }, 'Campaña encolada exitosamente para envío');
     } catch (error) {
       logger.error('Error al encolar campaña:', error);
       next(error);
@@ -319,23 +280,16 @@ class CampaignController {
 
       const campaign = await Campaign.getById(id);
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-        });
+        return ResponseHandler.notFoundError(res, 'Campaña no encontrada');
       }
 
       // Verificar permisos
       if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-        });
+        return ResponseHandler.authorizationError(res, 'Sin permisos');
       }
 
       if (!['scheduled', 'sending'].includes(campaign.status)) {
-        return res.status(400).json({
-          error: 'No se puede pausar',
-          message: 'Solo se pueden pausar campañas programadas o en envío',
-        });
+        return ResponseHandler.validationError(res, 'Solo se pueden pausar campañas programadas o en envío');
       }
 
       await campaign.pause();
@@ -345,10 +299,7 @@ class CampaignController {
         pausedBy: req.user.id,
       });
 
-      res.json({
-        message: 'Campaña pausada exitosamente',
-        campaign: campaign.toJSON(),
-      });
+      return ResponseHandler.updated(res, campaign.toJSON(), 'Campaña pausada exitosamente');
     } catch (error) {
       logger.error('Error al pausar campaña:', error);
       next(error);
@@ -364,23 +315,16 @@ class CampaignController {
 
       const campaign = await Campaign.getById(id);
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-        });
+        return ResponseHandler.notFoundError(res, 'Campaña no encontrada');
       }
 
       // Verificar permisos
       if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-        });
+        return ResponseHandler.authorizationError(res, 'Sin permisos');
       }
 
       if (campaign.status !== 'paused') {
-        return res.status(400).json({
-          error: 'No se puede reanudar',
-          message: 'Solo se pueden reanudar campañas pausadas',
-        });
+        return ResponseHandler.validationError(res, 'Solo se pueden reanudar campañas pausadas');
       }
 
       await campaign.resume();
@@ -390,10 +334,7 @@ class CampaignController {
         resumedBy: req.user.id,
       });
 
-      res.json({
-        message: 'Campaña reanudada exitosamente',
-        campaign: campaign.toJSON(),
-      });
+      return ResponseHandler.updated(res, campaign.toJSON(), 'Campaña reanudada exitosamente');
     } catch (error) {
       logger.error('Error al reanudar campaña:', error);
       next(error);
@@ -410,16 +351,12 @@ class CampaignController {
 
       const campaign = await Campaign.getById(id);
       if (!campaign) {
-        return res.status(404).json({
-          error: 'Campaña no encontrada',
-        });
+        return ResponseHandler.notFoundError(res, 'Campaña no encontrada');
       }
 
       // Verificar permisos
       if (req.user.role !== 'admin' && campaign.createdBy !== req.user.id) {
-        return res.status(403).json({
-          error: 'Sin permisos',
-        });
+        return ResponseHandler.authorizationError(res, 'Sin permisos');
       }
 
       const campaignWithDetails = await campaign.getWithContactDetails();
@@ -543,7 +480,7 @@ class CampaignController {
         period
       });
 
-      res.json(stats);
+      return ResponseHandler.success(res, stats, 'Estadísticas de campañas generadas exitosamente');
 
     } catch (error) {
       logger.error('Error al obtener estadísticas de campañas:', error);
@@ -936,9 +873,7 @@ class CampaignController {
       });
 
       // Respuesta
-      res.json({
-        success: true,
-        message: stopMessage,
+      return ResponseHandler.success(res, {
         campaign: {
           id: campaign.id,
           name: campaign.name,
@@ -949,7 +884,7 @@ class CampaignController {
           messagesSent: campaign.messagesSent || 0,
           messagesRemaining: campaign.contactsTargeted - (campaign.messagesSent || 0)
         }
-      });
+      }, stopMessage);
 
     } catch (error) {
       logger.error('Error al detener campaña:', error);
@@ -991,10 +926,7 @@ class CampaignController {
 
       const status = await campaignQueueService.getCampaignStatus(campaignId);
 
-      res.json({
-        success: true,
-        status
-      });
+      return ResponseHandler.success(res, { status }, 'Estado de campaña obtenido correctamente');
     } catch (error) {
       logger.error('Error obteniendo estado de campaña en cola:', error);
       next(error);
@@ -1010,11 +942,7 @@ class CampaignController {
 
       const result = await campaignQueueService.pauseCampaign(campaignId);
 
-      res.json({
-        success: true,
-        message: 'Campaña pausada exitosamente',
-        result
-      });
+      return ResponseHandler.success(res, { result }, 'Campaña pausada exitosamente');
     } catch (error) {
       logger.error('Error pausando campaña en cola:', error);
       next(error);
@@ -1030,11 +958,7 @@ class CampaignController {
 
       const result = await campaignQueueService.resumeCampaign(campaignId);
 
-      res.json({
-        success: true,
-        message: 'Campaña reanudada exitosamente',
-        result
-      });
+      return ResponseHandler.success(res, { result }, 'Campaña reanudada exitosamente');
     } catch (error) {
       logger.error('Error reanudando campaña en cola:', error);
       next(error);
@@ -1050,11 +974,7 @@ class CampaignController {
 
       const result = await campaignQueueService.stopCampaign(campaignId);
 
-      res.json({
-        success: true,
-        message: 'Campaña detenida exitosamente',
-        result
-      });
+      return ResponseHandler.success(res, { result }, 'Campaña detenida exitosamente');
     } catch (error) {
       logger.error('Error deteniendo campaña en cola:', error);
       next(error);

@@ -28,6 +28,7 @@ const cacheService = require('../services/CacheService');
 const batchService = require('../services/BatchService');
 const shardingService = require('../services/ShardingService');
 const campaignQueueService = require('../services/CampaignQueueService');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 class EnterpriseDashboardController {
   // Cache TTL configuration
@@ -120,7 +121,7 @@ class EnterpriseDashboardController {
         // Log removido para reducir ruido en producción
       }
 
-      res.json(metrics);
+      return ResponseHandler.success(res, metrics, 'Métricas del dashboard obtenidas correctamente');
     } catch (error) {
       logger.error('Error al obtener métricas del dashboard:', error);
       next(error);
@@ -146,11 +147,11 @@ class EnterpriseDashboardController {
         await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
       }
 
-      res.json({
+      return ResponseHandler.success(res, {
         period: { start: startDate, end: endDate },
         stats,
         cached: !!stats
-      });
+      }, 'Estadísticas de mensajes obtenidas correctamente');
     } catch (error) {
       logger.error('Error al obtener estadísticas de mensajes:', error);
       next(error);
@@ -176,11 +177,11 @@ class EnterpriseDashboardController {
         await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
       }
 
-      res.json({
+      return ResponseHandler.success(res, {
         period: { start: startDate, end: endDate },
         stats,
         cached: !!stats
-      });
+      }, 'Estadísticas de contactos obtenidas correctamente');
     } catch (error) {
       logger.error('Error al obtener estadísticas de contactos:', error);
       next(error);
@@ -206,11 +207,11 @@ class EnterpriseDashboardController {
         await cacheService.set(cacheKey, stats, this.CACHE_TTL.STATS);
       }
 
-      res.json({
+      return ResponseHandler.success(res, {
         period: { start: startDate, end: endDate },
         stats,
         cached: !!stats
-      });
+      }, 'Estadísticas de campañas obtenidas correctamente');
     } catch (error) {
       logger.error('Error al obtener estadísticas de campañas:', error);
       next(error);
@@ -235,7 +236,7 @@ class EnterpriseDashboardController {
         await cacheService.set(cacheKey, activity, this.CACHE_TTL.ACTIVITY);
       }
 
-      res.json({
+      return ResponseHandler.success(res, {
         activity,
         pagination: {
           limit: parseInt(limit),
@@ -243,7 +244,7 @@ class EnterpriseDashboardController {
           hasMore: activity.length === parseInt(limit)
         },
         cached: !!activity
-      });
+      }, 'Actividad reciente obtenida correctamente');
     } catch (error) {
       logger.error('Error al obtener actividad reciente:', error);
       next(error);

@@ -1641,18 +1641,12 @@ class MessageController {
 
       if (!MediaUrl0) {
         logger.warn('⚠️ Webhook sin MediaUrl0', { requestId: req.requestId });
-        return res.status(400).json({
-          success: false,
-          error: 'MediaUrl0 es requerido para archivos de WhatsApp'
-        });
+        return ResponseHandler.validationError(res, 'MediaUrl0 es requerido para archivos de WhatsApp');
       }
 
       if (!From) {
         logger.warn('⚠️ Webhook sin From', { requestId: req.requestId });
-        return res.status(400).json({
-          success: false,
-          error: 'From es requerido para archivos de WhatsApp'
-        });
+        return ResponseHandler.validationError(res, 'From es requerido para archivos de WhatsApp');
       }
 
       // Usar MessageService para procesar el archivo
@@ -1705,11 +1699,12 @@ class MessageController {
         stack: error.stack?.split('\n').slice(0, 3)
       });
 
-      return res.status(500).json({
-        success: false,
-        error: 'Error interno procesando archivo de WhatsApp',
+      return ResponseHandler.error(res, {
+        type: 'INTERNAL_SERVER_ERROR',
+        code: 'WHATSAPP_FILE_PROCESSING_ERROR',
+        message: 'Error interno procesando archivo de WhatsApp',
         requestId: req.requestId
-      });
+      }, 500);
     }
   }
 
