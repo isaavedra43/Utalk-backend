@@ -31,7 +31,7 @@ let authToken = null;
  */
 async function getAuthToken() {
   try {
-    console.log('🔐 Obteniendo token de autenticación...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔐 Obteniendo token de autenticación...' });
     
     const response = await axios.post(`${TEST_CONFIG.backendUrl}/api/auth/login`, {
       email: TEST_CONFIG.testUser.email,
@@ -40,7 +40,7 @@ async function getAuthToken() {
 
     if (response.data.success && response.data.data.accessToken) {
       authToken = response.data.data.accessToken;
-      console.log('✅ Token obtenido exitosamente');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Token obtenido exitosamente' });
       return authToken;
     } else {
       throw new Error('No se pudo obtener el token de acceso');
@@ -74,23 +74,23 @@ function createTestSocket() {
  * Prueba 1: Conexión WebSocket
  */
 async function testConnection() {
-  console.log('\n🧪 PRUEBA 1: Conexión WebSocket');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 1: Conexión WebSocket' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ WebSocket conectado exitosamente');
-      console.log('  - Socket ID:', socket.id);
-      console.log('  - URL:', TEST_CONFIG.wsUrl);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ WebSocket conectado exitosamente' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Socket ID:', socket.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL:', TEST_CONFIG.wsUrl });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('🔌 WebSocket desconectado:', reason);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔌 WebSocket desconectado:', reason });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error de WebSocket:', error);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error de WebSocket:', error });
     });
 
     setTimeout(() => {
@@ -104,13 +104,13 @@ async function testConnection() {
  * Prueba 2: Unirse a conversación existente
  */
 async function testJoinConversation() {
-  console.log('\n🧪 PRUEBA 2: Unirse a conversación existente');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 2: Unirse a conversación existente' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ Conectado, uniéndose a conversación...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, uniéndose a conversación...' });
       
       socket.emit('join-conversation', {
         conversationId: TEST_CONFIG.testConversationId
@@ -118,14 +118,14 @@ async function testJoinConversation() {
     });
 
     socket.on('conversation-joined', (data) => {
-      console.log('✅ Unido a conversación exitosamente');
-      console.log('  - Conversation ID:', data.conversationId);
-      console.log('  - Room ID:', data.roomId);
-      console.log('  - Online Users:', data.onlineUsers);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Unido a conversación exitosamente' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', data.conversationId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Room ID:', data.roomId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Online Users:', data.onlineUsers });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error uniéndose a conversación:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error uniéndose a conversación:', error.message });
     });
 
     setTimeout(() => {
@@ -139,13 +139,13 @@ async function testJoinConversation() {
  * Prueba 3: Escuchar eventos de nuevas conversaciones
  */
 async function testNewConversationEvents() {
-  console.log('\n🧪 PRUEBA 3: Escuchar eventos de nuevas conversaciones');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 3: Escuchar eventos de nuevas conversaciones' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ Conectado, escuchando eventos de conversaciones...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, escuchando eventos de conversaciones...' });
       
       // Unirse a conversación existente para estar en el workspace
       socket.emit('join-conversation', {
@@ -154,33 +154,33 @@ async function testNewConversationEvents() {
     });
 
     socket.on('conversation-joined', (data) => {
-      console.log('✅ Unido a conversación base');
-      console.log('🔍 Ahora escuchando eventos de nuevas conversaciones...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Unido a conversación base' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Ahora escuchando eventos de nuevas conversaciones...' });
     });
 
     // Escuchar eventos de nuevas conversaciones
     socket.on('conversation-event', (data) => {
-      console.log('🎉 EVENTO DE NUEVA CONVERSACIÓN RECIBIDO:');
-      console.log('  - Conversation ID:', data.conversationId);
-      console.log('  - Last Message:', data.lastMessage);
-      console.log('  - Updated At:', data.updatedAt);
-      console.log('  - Unread Count:', data.unreadCount);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 EVENTO DE NUEVA CONVERSACIÓN RECIBIDO:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', data.conversationId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Last Message:', data.lastMessage });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Updated At:', data.updatedAt });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Unread Count:', data.unreadCount });
     });
 
     socket.on('new-message', (data) => {
-      console.log('📨 NUEVO MENSAJE RECIBIDO:');
-      console.log('  - Conversation ID:', data.conversationId);
-      console.log('  - Message ID:', data.message?.id);
-      console.log('  - Content:', data.message?.content);
-      console.log('  - Sender:', data.message?.sender);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📨 NUEVO MENSAJE RECIBIDO:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', data.conversationId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Message ID:', data.message?.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Content:', data.message?.content });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Sender:', data.message?.sender });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error en eventos:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en eventos:', error.message });
     });
 
-    console.log('⏰ Esperando 30 segundos para eventos...');
-    console.log('💡 Envía un mensaje de WhatsApp durante este tiempo para probar');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⏰ Esperando 30 segundos para eventos...' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💡 Envía un mensaje de WhatsApp durante este tiempo para probar' });
     
     setTimeout(() => {
       socket.disconnect();
@@ -193,7 +193,7 @@ async function testNewConversationEvents() {
  * Prueba 4: Verificar conversaciones existentes
  */
 async function testExistingConversations() {
-  console.log('\n🧪 PRUEBA 4: Verificar conversaciones existentes');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 4: Verificar conversaciones existentes' });
   
   try {
     const response = await axios.get(`${TEST_CONFIG.backendUrl}/api/conversations`, {
@@ -208,13 +208,13 @@ async function testExistingConversations() {
 
     if (response.data.success) {
       const conversations = response.data.data.conversations || [];
-      console.log(`✅ Encontradas ${conversations.length} conversaciones:`);
+      logger.info('Encontradas ${conversations.length} conversaciones:', { category: 'AUTO_MIGRATED' });
       
       conversations.forEach((conv, index) => {
-        console.log(`  ${index + 1}. ${conv.id}`);
-        console.log(`     - Status: ${conv.status}`);
-        console.log(`     - Last Message: ${conv.lastMessage?.content || 'N/A'}`);
-        console.log(`     - Message Count: ${conv.messageCount || 0}`);
+        logger.info('${index + 1}. ${conv.id}', { category: 'AUTO_MIGRATED' });
+        logger.info('- Status: ${conv.status}', { category: 'AUTO_MIGRATED' });
+        logger.info('- Last Message: ${conv.lastMessage?.content || 'N/A'}', { category: 'AUTO_MIGRATED' });
+        logger.info('- Message Count: ${conv.messageCount || 0}', { category: 'AUTO_MIGRATED' });
       });
 
       return conversations;
@@ -231,7 +231,7 @@ async function testExistingConversations() {
  * Prueba 5: Unirse a todas las conversaciones
  */
 async function testJoinAllConversations() {
-  console.log('\n🧪 PRUEBA 5: Unirse a todas las conversaciones');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 5: Unirse a todas las conversaciones' });
   
   try {
     const conversations = await testExistingConversations();
@@ -240,12 +240,12 @@ async function testJoinAllConversations() {
       const socket = createTestSocket();
       
       socket.on('connect', () => {
-        console.log('✅ Conectado, uniéndose a todas las conversaciones...');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, uniéndose a todas las conversaciones...' });
         
         // Unirse a todas las conversaciones
         conversations.forEach((conv, index) => {
           setTimeout(() => {
-            console.log(`🔗 Uniéndose a conversación ${index + 1}: ${conv.id}`);
+            logger.info('� Uniéndose a conversación ${index + 1}: ${conv.id}', { category: 'AUTO_MIGRATED' });
             socket.emit('join-conversation', {
               conversationId: conv.id
             });
@@ -254,24 +254,24 @@ async function testJoinAllConversations() {
       });
 
       socket.on('conversation-joined', (data) => {
-        console.log(`✅ Unido a: ${data.conversationId}`);
+        logger.info('Unido a: ${data.conversationId}', { category: 'AUTO_MIGRATED' });
       });
 
       socket.on('error', (error) => {
-        console.log('❌ Error uniéndose:', error.message);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error uniéndose:', error.message });
       });
 
       // Escuchar eventos de nuevas conversaciones
       socket.on('conversation-event', (data) => {
-        console.log('🎉 NUEVA CONVERSACIÓN DETECTADA:');
-        console.log('  - ID:', data.conversationId);
-        console.log('  - Last Message:', data.lastMessage);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 NUEVA CONVERSACIÓN DETECTADA:' });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - ID:', data.conversationId });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Last Message:', data.lastMessage });
       });
 
       socket.on('new-message', (data) => {
-        console.log('📨 NUEVO MENSAJE:');
-        console.log('  - Conversation:', data.conversationId);
-        console.log('  - Content:', data.message?.content);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📨 NUEVO MENSAJE:' });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation:', data.conversationId });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Content:', data.message?.content });
       });
 
       setTimeout(() => {
@@ -289,7 +289,7 @@ async function testJoinAllConversations() {
  * Función principal
  */
 async function runTests() {
-  console.log('🚀 INICIANDO PRUEBAS DE TIEMPO REAL EN CONVERSACIONES');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBAS DE TIEMPO REAL EN CONVERSACIONES' });
   console.log('=' .repeat(60));
   
   try {
@@ -302,14 +302,14 @@ async function runTests() {
     await testNewConversationEvents();
     await testJoinAllConversations();
     
-    console.log('\n✅ TODAS LAS PRUEBAS COMPLETADAS');
-    console.log('\n📋 RESUMEN:');
-    console.log('- Si no recibiste eventos de nuevas conversaciones,');
-    console.log('  el problema está en que el frontend no se une automáticamente');
-    console.log('  a todas las conversaciones cuando carga la lista.');
-    console.log('\n🔧 SOLUCIÓN:');
-    console.log('- El frontend debe emitir join-conversation para cada');
-    console.log('  conversación en la lista cuando se conecta al WebSocket.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ TODAS LAS PRUEBAS COMPLETADAS' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 RESUMEN:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Si no recibiste eventos de nuevas conversaciones,' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  el problema está en que el frontend no se une automáticamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  a todas las conversaciones cuando carga la lista.' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 SOLUCIÓN:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- El frontend debe emitir join-conversation para cada' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  conversación en la lista cuando se conecta al WebSocket.' });
     
   } catch (error) {
     console.error('\n❌ ERROR EN LAS PRUEBAS:', error.message);

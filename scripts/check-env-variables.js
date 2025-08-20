@@ -84,83 +84,83 @@ const OPTIONAL_VARS = [
 ];
 
 function checkVariables() {
-  console.log('🔍 VERIFICANDO VARIABLES DE ENTORNO\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 VERIFICANDO VARIABLES DE ENTORNO\n' });
   
   // Verificar variables críticas
-  console.log('🔴 VARIABLES CRÍTICAS:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔴 VARIABLES CRÍTICAS:' });
   const missingCritical = [];
   CRITICAL_VARS.forEach(varName => {
     if (process.env[varName]) {
-      console.log(`  ✅ ${varName} = ${varName.includes('SECRET') ? '***SET***' : process.env[varName]}`);
+      logger.info('${varName} = ${varName.includes('SECRET') ? '***SET***' : process.env[varName]}', { category: 'AUTO_MIGRATED' });
     } else {
-      console.log(`  ❌ ${varName} = NO CONFIGURADA`);
+      logger.info('❌ ${varName} = NO CONFIGURADA', { category: 'AUTO_MIGRATED' });
       missingCritical.push(varName);
     }
   });
   
-  console.log('\n🟡 VARIABLES IMPORTANTES:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🟡 VARIABLES IMPORTANTES:' });
   const missingImportant = [];
   IMPORTANT_VARS.forEach(varName => {
     if (process.env[varName]) {
-      console.log(`  ✅ ${varName} = ${varName.includes('KEY') || varName.includes('TOKEN') || varName.includes('SECRET') ? '***SET***' : process.env[varName]}`);
+      logger.info('${varName} = ${varName.includes('KEY') || varName.includes('TOKEN') || varName.includes('SECRET') ? '***SET***' : process.env[varName]}', { category: 'AUTO_MIGRATED' });
     } else {
-      console.log(`  ⚠️  ${varName} = NO CONFIGURADA`);
+      logger.info('${varName} = NO CONFIGURADA', { category: 'AUTO_MIGRATED' });
       missingImportant.push(varName);
     }
   });
   
-  console.log('\n🟢 VARIABLES OPCIONALES:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🟢 VARIABLES OPCIONALES:' });
   const missingOptional = [];
   OPTIONAL_VARS.forEach(varName => {
     if (process.env[varName]) {
-      console.log(`  ✅ ${varName} = ${varName.includes('KEY') || varName.includes('TOKEN') || varName.includes('SECRET') ? '***SET***' : process.env[varName]}`);
+      logger.info('${varName} = ${varName.includes('KEY') || varName.includes('TOKEN') || varName.includes('SECRET') ? '***SET***' : process.env[varName]}', { category: 'AUTO_MIGRATED' });
     } else {
-      console.log(`  🔵 ${varName} = NO CONFIGURADA (opcional)`);
+      logger.info('� ${varName} = NO CONFIGURADA (opcional)', { category: 'AUTO_MIGRATED' });
       missingOptional.push(varName);
     }
   });
   
   // Resumen
-  console.log('\n📊 RESUMEN:');
-  console.log(`  🔴 Críticas faltantes: ${missingCritical.length}`);
-  console.log(`  🟡 Importantes faltantes: ${missingImportant.length}`);
-  console.log(`  🟢 Opcionales faltantes: ${missingOptional.length}`);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 RESUMEN:' });
+  logger.info('� Críticas faltantes: ${missingCritical.length}', { category: 'AUTO_MIGRATED' });
+  logger.info('� Importantes faltantes: ${missingImportant.length}', { category: 'AUTO_MIGRATED' });
+  logger.info('� Opcionales faltantes: ${missingOptional.length}', { category: 'AUTO_MIGRATED' });
   
   // Recomendaciones
-  console.log('\n💡 RECOMENDACIONES:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n💡 RECOMENDACIONES:' });
   
   if (missingCritical.length > 0) {
-    console.log('  ❌ PROBLEMA CRÍTICO: La aplicación NO puede funcionar sin las variables críticas.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  ❌ PROBLEMA CRÍTICO: La aplicación NO puede funcionar sin las variables críticas.' });
     console.log('     Variables faltantes:', missingCritical.join(', '));
-    console.log('     Solución: Configura estas variables en tu archivo .env');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Solución: Configura estas variables en tu archivo .env' });
   }
   
   if (missingImportant.length > 0) {
-    console.log('  ⚠️  FUNCIONALIDAD LIMITADA: Sin las variables importantes, algunas características no funcionarán.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  ⚠️  FUNCIONALIDAD LIMITADA: Sin las variables importantes, algunas características no funcionarán.' });
     console.log('     Variables faltantes:', missingImportant.join(', '));
-    console.log('     Recomendación: Configura estas variables para funcionalidad completa');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Recomendación: Configura estas variables para funcionalidad completa' });
   }
   
   if (missingOptional.length > 0) {
-    console.log('  🔵 CARACTERÍSTICAS AVANZADAS: Las variables opcionales habilitan características adicionales.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  🔵 CARACTERÍSTICAS AVANZADAS: Las variables opcionales habilitan características adicionales.' });
     console.log('     Variables faltantes:', missingOptional.join(', '));
-    console.log('     Nota: Estas son opcionales y no afectan el funcionamiento básico');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '     Nota: Estas son opcionales y no afectan el funcionamiento básico' });
   }
   
   // Verificar si existe archivo .env
   const envPath = path.join(process.cwd(), '.env');
   if (fs.existsSync(envPath)) {
-    console.log('\n✅ Archivo .env encontrado');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Archivo .env encontrado' });
   } else {
-    console.log('\n❌ Archivo .env NO encontrado');
-    console.log('   Solución: Copia env.example como .env y configura las variables');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ Archivo .env NO encontrado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Solución: Copia env.example como .env y configura las variables' });
   }
   
   // Estado general
   if (missingCritical.length === 0) {
-    console.log('\n🎉 ESTADO: La aplicación puede iniciar correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ESTADO: La aplicación puede iniciar correctamente' });
   } else {
-    console.log('\n🚨 ESTADO: La aplicación NO puede iniciar - faltan variables críticas');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🚨 ESTADO: La aplicación NO puede iniciar - faltan variables críticas' });
   }
 }
 

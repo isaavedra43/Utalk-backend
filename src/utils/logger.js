@@ -157,7 +157,12 @@ class LogMonitorTransport extends winston.Transport {
         
         // Debug: confirmar que se está capturando
         if (process.env.NODE_ENV === 'development') {
-          console.log(`📊 LogMonitor: Capturado log [${level}] ${category}: ${message}`);
+          // Log interno del monitor (no usar console.log)
+      this.internalLogger.info('LogMonitor: Capturado log', {
+        level,
+        category,
+        message: message.substring(0, 100) // Limitar longitud
+      });
         }
       }
     } catch (error) {
@@ -245,7 +250,11 @@ if (process.env.RAILWAY_ENVIRONMENT) {
     handleRejections: true
   }));
   
-  console.log('🔧 Logger configurado para Railway: solo errores críticos');
+      logger.info('Logger configurado para Railway: solo errores críticos', {
+      category: 'LOGGER_CONFIG',
+      environment: 'railway',
+      level: 'error'
+    });
 }
 
 // Método para obtener estadísticas del logger

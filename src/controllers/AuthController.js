@@ -2,7 +2,7 @@ const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
-const { ResponseHandler, ApiError } = require('../utils/responseHandler');
+const ResponseHandler = require('../utils/responseHandler');
 const { safeDateToISOString } = require('../utils/dateHelpers');
 const { v4: uuidv4 } = require('uuid');
 const { getAccessTokenConfig, getRefreshTokenConfig, validateJwtConfig } = require('../config/jwt');
@@ -59,11 +59,7 @@ class AuthController {
           });
         }
 
-        return res.status(400).json({
-          error: 'Credenciales incompletas',
-          message: 'Email y contraseña son requeridos',
-          code: 'MISSING_CREDENTIALS',
-        });
+        return ResponseHandler.validationError(res, 'Email y contraseña son requeridos');
       }
       logger.debug('Datos de entrada validados exitosamente', {
         category: 'AUTH_VALIDATION_SUCCESS'
@@ -113,11 +109,7 @@ class AuthController {
           });
         }
 
-        return res.status(401).json({ 
-          error: 'Usuario no encontrado',
-          message: 'Email o contraseña incorrectos',
-          code: 'USER_NOT_FOUND'
-        });
+        return ResponseHandler.authenticationError(res, 'Email o contraseña incorrectos');
       }
       logger.debug('Usuario encontrado exitosamente', {
         category: 'AUTH_USER_FOUND'
@@ -211,11 +203,12 @@ class AuthController {
         if (req.logger && typeof req.logger.error === 'function') {
           req.logger.error('JWT_SECRET no configurado');
         }
-        return res.status(500).json({
-          error: 'Error de configuración',
-          message: 'Servidor mal configurado',
-          code: 'SERVER_ERROR',
-        });
+        const ResponseHandler = require('../utils/responseHandler');
+        return ResponseHandler.error(res, {
+          type: 'CONFIGURATION_ERROR',
+          code: 'JWT_SECRET_MISSING',
+          message: 'Error de configuración del servidor'
+        }, 500);
       }
       logger.debug('JWT_SECRET configurado correctamente', {
         category: 'AUTH_JWT_CONFIG_VALID'
@@ -247,11 +240,8 @@ class AuthController {
       logger.debug('Generando access token', {
         category: 'AUTH_TOKEN_GENERATION'
       });
-      const accessToken = jwt.sign(accessTokenPayload, jwtConfig.secret, { 
-        expiresIn: jwtConfig.expiresIn,
-        issuer: jwtConfig.issuer,
-        audience: jwtConfig.audience,
-      });
+      const AuthService = require('../services/AuthService');
+      const accessToken = AuthService.signAccess(accessTokenPayload);
       logger.debug('Access token generado exitosamente', {
         category: 'AUTH_TOKEN_SUCCESS'
       });
@@ -360,11 +350,12 @@ class AuthController {
         });
       }
       
-      return res.status(500).json({ 
-        error: 'Error interno del servidor',
-        message: 'Ocurrió un error durante el login',
-        code: 'INTERNAL_SERVER_ERROR'
-      });
+      const ResponseHandler = require('../utils/responseHandler');
+      return ResponseHandler.error(res, {
+        type: 'INTERNAL_SERVER_ERROR',
+        code: 'LOGIN_FAILED',
+        message: 'Ocurrió un error durante el login'
+      }, 500);
     }
   }
 
@@ -382,11 +373,8 @@ class AuthController {
           ip: req.ip
         });
 
-        return res.status(400).json({
-          error: 'Refresh token requerido',
-          message: 'Incluye el refresh token en el cuerpo de la petición',
-          code: 'MISSING_REFRESH_TOKEN',
-        });
+        const ResponseHandler = require('../utils/responseHandler');
+        return ResponseHandler.validationError(res, 'Refresh token requerido');
       }
 
       req.logger.auth('refresh_attempt', {
@@ -404,11 +392,8 @@ class AuthController {
           ip: req.ip
         });
 
-        return res.status(401).json({
-          error: 'Refresh token inválido',
-          message: 'El refresh token no existe o ha sido invalidado',
-          code: 'INVALID_REFRESH_TOKEN',
-        });
+        const ResponseHandler = require('../utils/responseHandler');
+        return ResponseHandler.authenticationError(res, 'El refresh token no existe o ha sido invalidado');
       }
 
       // 🔍 VERIFICAR VALIDEZ DEL REFRESH TOKEN
@@ -432,14 +417,8 @@ class AuthController {
       // 🔍 VERIFICAR JWT DEL REFRESH TOKEN
       let decodedRefreshToken;
       try {
-        decodedRefreshToken = jwt.verify(
-          refreshToken, 
-          process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
-          {
-            issuer: 'utalk-backend',
-            audience: 'utalk-api'
-          }
-        );
+        const AuthService = require('../services/AuthService');
+        decodedRefreshToken = AuthService.verifyRefreshToken(refreshToken);
       } catch (jwtError) {
         req.logger.auth('refresh_failed', {
           reason: 'refresh_token_jwt_invalid',
@@ -473,6 +452,7 @@ class AuthController {
       }
 
       // 🔄 GENERAR NUEVO ACCESS TOKEN
+      const AuthService = require('../services/AuthService');
       const jwtConfig = getAccessTokenConfig();
 
       const newAccessTokenPayload = {
@@ -483,11 +463,7 @@ class AuthController {
         iat: Math.floor(Date.now() / 1000),
       };
 
-      const newAccessToken = jwt.sign(newAccessTokenPayload, jwtConfig.secret, {
-        expiresIn: jwtConfig.expiresIn,
-        issuer: jwtConfig.issuer,
-        audience: jwtConfig.audience,
-      });
+      const newAccessToken = AuthService.signAccess(newAccessTokenPayload);
 
       // 🔄 ACTUALIZAR REFRESH TOKEN (incrementar contador de usos)
       await storedRefreshToken.update({
@@ -570,12 +546,8 @@ class AuthController {
       if (bearerToken) {
         try {
           // Intentar verificar normalmente
-          const jwtConfig = getAccessTokenConfig();
-          decoded = jwt.verify(bearerToken, jwtConfig.secret, {
-            issuer: jwtConfig.issuer,
-            audience: jwtConfig.audience,
-            algorithms: ['HS256']
-          });
+                  const AuthService = require('../services/AuthService');
+        decoded = AuthService.verifyAccessToken(bearerToken);
           emailFromToken = decoded?.email || null;
         } catch (jwtError) {
           if (jwtError && jwtError.name === 'TokenExpiredError') {
@@ -744,8 +716,8 @@ class AuthController {
       // 🔐 VERIFICAR JWT
       let decodedToken;
       try {
-        const jwtConfig = getAccessTokenConfig();
-        decodedToken = jwt.verify(token, jwtConfig.secret);
+        const AuthService = require('../services/AuthService');
+        decodedToken = AuthService.verifyAccessToken(token);
         
         req.logger.auth('token_validated', {
           email: decodedToken.email,

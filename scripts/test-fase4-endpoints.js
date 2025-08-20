@@ -12,7 +12,7 @@
  * @author Backend Team
  */
 
-console.log('🧪 INICIANDO PRUEBAS DE FASE 4 - ENDPOINTS FALTANTES\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE FASE 4 - ENDPOINTS FALTANTES\n' });
 
 /**
  * Simular datos de prueba
@@ -28,7 +28,7 @@ const testData = {
  * Simular el endpoint GET /api/media/files/:conversationId
  */
 async function testListFilesByConversation() {
-  console.log('🔄 Prueba 1: GET /api/media/files/:conversationId');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Prueba 1: GET /api/media/files/:conversationId' });
   
   try {
     // Simular parámetros de consulta
@@ -76,10 +76,10 @@ async function testListFilesByConversation() {
       }
     ];
 
-    console.log('✅ Endpoint simulado exitosamente');
-    console.log('  - Archivos encontrados:', mockFiles.length);
-    console.log('  - Conversación ID:', testData.conversationId);
-    console.log('  - Parámetros de consulta:', queryParams);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Endpoint simulado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Archivos encontrados:', mockFiles.length });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversación ID:', testData.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Parámetros de consulta:', queryParams });
 
     return {
       success: true,
@@ -98,7 +98,7 @@ async function testListFilesByConversation() {
  * Simular el endpoint GET /api/media/file/:fileId
  */
 async function testGetFileInfo() {
-  console.log('\n🔄 Prueba 2: GET /api/media/file/:fileId');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 2: GET /api/media/file/:fileId' });
   
   try {
     // Simular información del archivo
@@ -123,13 +123,13 @@ async function testGetFileInfo() {
       isActive: true
     };
 
-    console.log('✅ Información de archivo obtenida exitosamente');
-    console.log('  - File ID:', fileInfo.id);
-    console.log('  - Nombre:', fileInfo.originalName);
-    console.log('  - Tamaño:', fileInfo.size, 'bytes');
-    console.log('  - Tipo MIME:', fileInfo.mimetype);
-    console.log('  - URL:', fileInfo.url);
-    console.log('  - Preview URL:', fileInfo.previewUrl);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Información de archivo obtenida exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileInfo.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Nombre:', fileInfo.originalName });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño:', fileInfo.size, 'bytes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tipo MIME:', fileInfo.mimetype });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL:', fileInfo.url });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Preview URL:', fileInfo.previewUrl });
 
     return {
       success: true,
@@ -146,7 +146,7 @@ async function testGetFileInfo() {
  * Simular el endpoint DELETE /api/media/file/:fileId
  */
 async function testDeleteFile() {
-  console.log('\n🔄 Prueba 3: DELETE /api/media/file/:fileId');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 3: DELETE /api/media/file/:fileId' });
   
   try {
     // Simular eliminación de archivo
@@ -163,11 +163,11 @@ async function testDeleteFile() {
       }
     };
 
-    console.log('✅ Archivo eliminado exitosamente');
-    console.log('  - File ID:', deleteResult.fileId);
-    console.log('  - Eliminado por:', deleteResult.deletedBy);
-    console.log('  - Fecha de eliminación:', deleteResult.deletedAt);
-    console.log('  - Espacio liberado:', deleteResult.metadata.storageFreed, 'bytes');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo eliminado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', deleteResult.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Eliminado por:', deleteResult.deletedBy });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Fecha de eliminación:', deleteResult.deletedAt });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Espacio liberado:', deleteResult.metadata.storageFreed, 'bytes' });
 
     return {
       success: true,
@@ -215,11 +215,11 @@ async function testUploadFile() {
     };
 
     console.log('✅ Archivo subido exitosamente (FASE 4)');
-    console.log('  - File ID:', uploadResult.attachments[0].id);
-    console.log('  - Nombre:', uploadResult.attachments[0].name);
-    console.log('  - Tamaño:', uploadResult.attachments[0].size, 'bytes');
-    console.log('  - Compatible con WhatsApp:', uploadResult.attachments[0].whatsappCompatible);
-    console.log('  - Tiene preview:', !!uploadResult.attachments[0].previewUrl);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', uploadResult.attachments[0].id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Nombre:', uploadResult.attachments[0].name });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño:', uploadResult.attachments[0].size, 'bytes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Compatible con WhatsApp:', uploadResult.attachments[0].whatsappCompatible });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tiene preview:', !!uploadResult.attachments[0].previewUrl });
     console.log('  - Tags:', uploadResult.attachments[0].tags.join(', '));
 
     return {
@@ -237,7 +237,7 @@ async function testUploadFile() {
  * Simular el endpoint GET /api/media/preview/:fileId
  */
 async function testGetFilePreview() {
-  console.log('\n🔄 Prueba 5: GET /api/media/preview/:fileId');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 5: GET /api/media/preview/:fileId' });
   
   try {
     // Simular parámetros de consulta
@@ -271,13 +271,13 @@ async function testGetFilePreview() {
       }
     };
 
-    console.log('✅ Preview generado exitosamente');
-    console.log('  - File ID:', previewResult.fileId);
-    console.log('  - Preview URL:', previewResult.preview.url);
-    console.log('  - Dimensiones:', `${previewResult.preview.width}x${previewResult.preview.height}`);
-    console.log('  - Formato:', previewResult.preview.format);
-    console.log('  - Tamaño original:', previewResult.originalFile.size, 'bytes');
-    console.log('  - Tamaño preview:', previewResult.preview.size, 'bytes');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Preview generado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', previewResult.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Preview URL:', previewResult.preview.url });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Dimensiones:', `${previewResult.preview.width}x${previewResult.preview.height}` });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Formato:', previewResult.preview.format });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño original:', previewResult.originalFile.size, 'bytes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño preview:', previewResult.preview.size, 'bytes' });
     console.log('  - Compresión:', Math.round((1 - previewResult.preview.size / previewResult.originalFile.size) * 100) + '%');
 
     return {
@@ -295,7 +295,7 @@ async function testGetFilePreview() {
  * Probar validaciones de endpoints
  */
 async function testValidations() {
-  console.log('\n🔄 Prueba 6: VALIDACIONES DE ENDPOINTS');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 6: VALIDACIONES DE ENDPOINTS' });
   
   try {
     const validationTests = [
@@ -350,14 +350,14 @@ async function testValidations() {
     for (const test of validationTests) {
       try {
         test.test();
-        console.log(`  ✅ ${test.name}: PASÓ`);
+        logger.info('${test.name}: PASÓ', { category: 'AUTO_MIGRATED' });
         passed++;
       } catch (error) {
-        console.log(`  ❌ ${test.name}: FALLÓ - ${error.message}`);
+        logger.info('❌ ${test.name}: FALLÓ - ${error.message}', { category: 'AUTO_MIGRATED' });
       }
     }
 
-    console.log(`\n📊 Resultado validaciones: ${passed}/${total} pasaron`);
+    logger.info('\n Resultado validaciones: ${passed}/${total} pasaron', { category: 'AUTO_MIGRATED' });
 
     return {
       success: passed === total,
@@ -376,7 +376,7 @@ async function testValidations() {
  */
 async function testFase4Endpoints() {
   try {
-    console.log('🔄 Ejecutando pruebas de Fase 4...\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Ejecutando pruebas de Fase 4...\n' });
 
     const results = [];
 
@@ -392,33 +392,33 @@ async function testFase4Endpoints() {
     const successfulTests = results.filter(r => r.success).length;
     const totalTests = results.length;
 
-    console.log('\n🎉 PRUEBAS DE FASE 4 COMPLETADAS');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 4 COMPLETADAS' });
     console.log('=' .repeat(50));
-    console.log(`📊 Resultado: ${successfulTests}/${totalTests} pruebas exitosas`);
+    logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
-      console.log('✅ TODAS LAS PRUEBAS PASARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TODAS LAS PRUEBAS PASARON' });
     } else {
-      console.log('⚠️  ALGUNAS PRUEBAS FALLARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  ALGUNAS PRUEBAS FALLARON' });
     }
 
     // Mostrar detalles de cada endpoint
-    console.log('\n📋 DETALLES DE ENDPOINTS IMPLEMENTADOS:');
-    console.log('1. ✅ GET /api/media/files/:conversationId - Listar archivos de conversación');
-    console.log('2. ✅ GET /api/media/file/:fileId - Obtener archivo específico');
-    console.log('3. ✅ DELETE /api/media/file/:fileId - Eliminar archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 DETALLES DE ENDPOINTS IMPLEMENTADOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ GET /api/media/files/:conversationId - Listar archivos de conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ GET /api/media/file/:fileId - Obtener archivo específico' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ DELETE /api/media/file/:fileId - Eliminar archivo' });
     console.log('4. ✅ POST /api/media/upload - Subir archivo (mejorado)');
-    console.log('5. ✅ GET /api/media/preview/:fileId - Obtener preview de archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. ✅ GET /api/media/preview/:fileId - Obtener preview de archivo' });
 
     // Mostrar mejoras implementadas
-    console.log('\n🔧 MEJORAS IMPLEMENTADAS:');
-    console.log('- Rate limiting en uploads');
-    console.log('- Validación de compatibilidad con WhatsApp');
-    console.log('- Generación automática de previews');
-    console.log('- Metadata enriquecida');
-    console.log('- Eventos WebSocket mejorados');
-    console.log('- Validaciones robustas');
-    console.log('- Logging detallado');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 MEJORAS IMPLEMENTADAS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Rate limiting en uploads' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Validación de compatibilidad con WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Generación automática de previews' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Metadata enriquecida' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Eventos WebSocket mejorados' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Validaciones robustas' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Logging detallado' });
 
     return {
       success: successfulTests === totalTests,
@@ -439,7 +439,7 @@ async function testFase4Endpoints() {
 async function main() {
   try {
     await testFase4Endpoints();
-    console.log('\n✅ Script de prueba completado exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Script de prueba falló');

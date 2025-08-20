@@ -13,7 +13,7 @@
  * @author Backend Team
  */
 
-console.log('🧪 INICIANDO PRUEBAS DE FASE 8 - MÉTRICAS Y ANALYTICS\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE FASE 8 - MÉTRICAS Y ANALYTICS\n' });
 
 /**
  * Simular datos de prueba
@@ -31,7 +31,7 @@ const testData = {
  * Simular la función trackFileUsage
  */
 async function testTrackFileUsage() {
-  console.log('🔄 Prueba 1: trackFileUsage');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Prueba 1: trackFileUsage' });
   
   try {
     // Simular datos de tracking
@@ -49,12 +49,12 @@ async function testTrackFileUsage() {
       }
     };
 
-    console.log('📊 Simulando tracking de uso de archivo');
-    console.log('  - File ID:', trackingData.fileId);
-    console.log('  - Action:', trackingData.action);
-    console.log('  - User ID:', trackingData.userId);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando tracking de uso de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', trackingData.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Action:', trackingData.action });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - User ID:', trackingData.userId });
     console.log('  - User Agent:', trackingData.userAgent.substring(0, 50) + '...');
-    console.log('  - IP:', trackingData.ip);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - IP:', trackingData.ip });
 
     // Simular registro de uso
     const usageRecord = {
@@ -75,11 +75,11 @@ async function testTrackFileUsage() {
       }
     };
 
-    console.log('✅ Registro de uso creado exitosamente:');
-    console.log(`  - Timestamp: ${usageRecord.timestamp.toISOString()}`);
-    console.log(`  - Device Type: ${usageRecord.metadata.deviceType}`);
-    console.log(`  - Browser: ${usageRecord.metadata.browser}`);
-    console.log(`  - Platform: ${usageRecord.metadata.platform}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Registro de uso creado exitosamente:' });
+    logger.info('- Timestamp: ${usageRecord.timestamp.toISOString()}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Device Type: ${usageRecord.metadata.deviceType}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Browser: ${usageRecord.metadata.browser}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Platform: ${usageRecord.metadata.platform}', { category: 'AUTO_MIGRATED' });
 
     return {
       success: true,
@@ -97,15 +97,15 @@ async function testTrackFileUsage() {
  * Simular la función getFileUsageStats
  */
 async function testGetFileUsageStats() {
-  console.log('\n🔄 Prueba 2: getFileUsageStats');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 2: getFileUsageStats' });
   
   try {
     const fileId = testData.fileId;
     const timeRange = '30d';
 
-    console.log('📊 Simulando obtención de estadísticas de uso de archivo');
-    console.log('  - File ID:', fileId);
-    console.log('  - Time Range:', timeRange);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando obtención de estadísticas de uso de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Time Range:', timeRange });
 
     // Simular estadísticas de uso
     const stats = {
@@ -136,11 +136,11 @@ async function testGetFileUsageStats() {
       averageUsagePerDay: 5.0
     };
 
-    console.log('✅ Estadísticas de uso obtenidas exitosamente:');
-    console.log(`  - Total Usage: ${stats.totalUsage}`);
-    console.log(`  - Unique Users: ${stats.uniqueUsers}`);
-    console.log(`  - Average Usage Per Day: ${stats.averageUsagePerDay}`);
-    console.log('  - Action Breakdown:', stats.actionBreakdown);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Estadísticas de uso obtenidas exitosamente:' });
+    logger.info('- Total Usage: ${stats.totalUsage}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Unique Users: ${stats.uniqueUsers}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Average Usage Per Day: ${stats.averageUsagePerDay}', { category: 'AUTO_MIGRATED' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Action Breakdown:', stats.actionBreakdown });
 
     return {
       success: true,
@@ -158,13 +158,13 @@ async function testGetFileUsageStats() {
  * Simular la función getGlobalUsageMetrics
  */
 async function testGetGlobalUsageMetrics() {
-  console.log('\n🔄 Prueba 3: getGlobalUsageMetrics');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 3: getGlobalUsageMetrics' });
   
   try {
     const timeRange = '30d';
 
-    console.log('📊 Simulando obtención de métricas globales de uso');
-    console.log('  - Time Range:', timeRange);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando obtención de métricas globales de uso' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Time Range:', timeRange });
 
     // Simular métricas globales
     const metrics = {
@@ -199,12 +199,12 @@ async function testGetGlobalUsageMetrics() {
       averageUsagePerUser: 104.2
     };
 
-    console.log('✅ Métricas globales obtenidas exitosamente:');
-    console.log(`  - Total Usage: ${metrics.totalUsage}`);
-    console.log(`  - Unique Files: ${metrics.uniqueFiles}`);
-    console.log(`  - Unique Users: ${metrics.uniqueUsers}`);
-    console.log(`  - Average Usage Per File: ${metrics.averageUsagePerFile}`);
-    console.log(`  - Average Usage Per User: ${metrics.averageUsagePerUser}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Métricas globales obtenidas exitosamente:' });
+    logger.info('- Total Usage: ${metrics.totalUsage}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Unique Files: ${metrics.uniqueFiles}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Unique Users: ${metrics.uniqueUsers}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Average Usage Per File: ${metrics.averageUsagePerFile}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Average Usage Per User: ${metrics.averageUsagePerUser}', { category: 'AUTO_MIGRATED' });
 
     return {
       success: true,
@@ -222,17 +222,17 @@ async function testGetGlobalUsageMetrics() {
  * Simular la función recordFileAction
  */
 async function testRecordFileAction() {
-  console.log('\n🔄 Prueba 4: recordFileAction');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 4: recordFileAction' });
   
   try {
     const fileId = testData.fileId;
     const action = 'download';
     const userId = testData.userEmail;
 
-    console.log('📊 Simulando registro de acción de archivo');
-    console.log('  - File ID:', fileId);
-    console.log('  - Action:', action);
-    console.log('  - User ID:', userId);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando registro de acción de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Action:', action });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - User ID:', userId });
 
     // Simular registro de acción
     const actionRecord = {
@@ -268,11 +268,11 @@ async function testRecordFileAction() {
       ])
     };
 
-    console.log('✅ Acción de archivo registrada exitosamente:');
-    console.log(`  - Timestamp: ${actionRecord.timestamp.toISOString()}`);
-    console.log(`  - Total Actions: ${metrics.totalActions}`);
-    console.log(`  - File Actions: ${metrics.byFile.get(fileId)?.totalActions}`);
-    console.log(`  - User Actions: ${metrics.byUser.get(userId)?.totalActions}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Acción de archivo registrada exitosamente:' });
+    logger.info('- Timestamp: ${actionRecord.timestamp.toISOString()}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Total Actions: ${metrics.totalActions}', { category: 'AUTO_MIGRATED' });
+    logger.info('- File Actions: ${metrics.byFile.get(fileId)?.totalActions}', { category: 'AUTO_MIGRATED' });
+    logger.info('- User Actions: ${metrics.byUser.get(userId)?.totalActions}', { category: 'AUTO_MIGRATED' });
 
     return {
       success: true,
@@ -291,10 +291,10 @@ async function testRecordFileAction() {
  * Simular AnalyticsController
  */
 async function testAnalyticsController() {
-  console.log('\n🔄 Prueba 5: AnalyticsController');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 5: AnalyticsController' });
   
   try {
-    console.log('📊 Simulando controlador de analytics');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando controlador de analytics' });
 
     // Simular endpoints del controlador
     const endpoints = [
@@ -330,10 +330,10 @@ async function testAnalyticsController() {
       }
     ];
 
-    console.log('✅ Endpoints del AnalyticsController:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Endpoints del AnalyticsController:' });
     for (const endpoint of endpoints) {
-      console.log(`  - ${endpoint.method} ${endpoint.path}`);
-      console.log(`    ${endpoint.description}`);
+      logger.info('- ${endpoint.method} ${endpoint.path}', { category: 'AUTO_MIGRATED' });
+      logger.info('${endpoint.description}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -352,10 +352,10 @@ async function testAnalyticsController() {
  * Simular rutas de analytics
  */
 async function testAnalyticsRoutes() {
-  console.log('\n🔄 Prueba 6: AnalyticsRoutes');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 6: AnalyticsRoutes' });
   
   try {
-    console.log('📊 Simulando rutas de analytics');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando rutas de analytics' });
 
     // Simular validadores
     const validators = [
@@ -378,14 +378,14 @@ async function testAnalyticsRoutes() {
       'analyticsValidators.validateTrackingConfig'
     ];
 
-    console.log('✅ Validadores de analytics:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Validadores de analytics:' });
     for (const validator of validators) {
-      console.log(`  - ${validator.name}: ${validator.description}`);
+      logger.info('- ${validator.name}: ${validator.description}', { category: 'AUTO_MIGRATED' });
     }
 
-    console.log('✅ Middleware aplicado:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Middleware aplicado:' });
     for (const mw of middleware) {
-      console.log(`  - ${mw}`);
+      logger.info('- ${mw}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -405,13 +405,13 @@ async function testAnalyticsRoutes() {
  * Simular tracking completo
  */
 async function testCompleteTracking() {
-  console.log('\n🔄 Prueba 7: Tracking Completo');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 7: Tracking Completo' });
   
   try {
-    console.log('📊 Simulando flujo completo de tracking');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Simulando flujo completo de tracking' });
 
     // 1. Usuario sube archivo
-    console.log('  1. 📎 Usuario sube archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  1. 📎 Usuario sube archivo' });
     const uploadTracking = await testTrackFileUsage();
     
     if (!uploadTracking.success) {
@@ -419,7 +419,7 @@ async function testCompleteTracking() {
     }
 
     // 2. Usuario ve archivo
-    console.log('  2. 👁️ Usuario ve archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  2. 👁️ Usuario ve archivo' });
     const viewTracking = await testTrackFileUsage();
     
     if (!viewTracking.success) {
@@ -427,7 +427,7 @@ async function testCompleteTracking() {
     }
 
     // 3. Usuario descarga archivo
-    console.log('  3. ⬇️ Usuario descarga archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  3. ⬇️ Usuario descarga archivo' });
     const downloadTracking = await testTrackFileUsage();
     
     if (!downloadTracking.success) {
@@ -435,7 +435,7 @@ async function testCompleteTracking() {
     }
 
     // 4. Obtener estadísticas
-    console.log('  4. 📊 Obtener estadísticas de uso');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  4. 📊 Obtener estadísticas de uso' });
     const stats = await testGetFileUsageStats();
     
     if (!stats.success) {
@@ -443,18 +443,18 @@ async function testCompleteTracking() {
     }
 
     // 5. Obtener métricas globales
-    console.log('  5. 🌍 Obtener métricas globales');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  5. 🌍 Obtener métricas globales' });
     const globalMetrics = await testGetGlobalUsageMetrics();
     
     if (!globalMetrics.success) {
       throw new Error('Error obteniendo métricas globales');
     }
 
-    console.log('✅ Tracking completo exitoso');
-    console.log('  - Todos los eventos se registran correctamente');
-    console.log('  - Las estadísticas se calculan en tiempo real');
-    console.log('  - Las métricas globales se actualizan automáticamente');
-    console.log('  - El sistema de analytics funciona correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Tracking completo exitoso' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Todos los eventos se registran correctamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Las estadísticas se calculan en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Las métricas globales se actualizan automáticamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - El sistema de analytics funciona correctamente' });
 
     return {
       success: true,
@@ -477,7 +477,7 @@ async function testCompleteTracking() {
  */
 async function testFase8Analytics() {
   try {
-    console.log('🔄 Ejecutando pruebas de Fase 8...\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Ejecutando pruebas de Fase 8...\n' });
 
     const results = [];
 
@@ -494,72 +494,72 @@ async function testFase8Analytics() {
     const successfulTests = results.filter(r => r.success).length;
     const totalTests = results.length;
 
-    console.log('\n🎉 PRUEBAS DE FASE 8 COMPLETADAS');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 8 COMPLETADAS' });
     console.log('=' .repeat(50));
-    console.log(`📊 Resultado: ${successfulTests}/${totalTests} pruebas exitosas`);
+    logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
-      console.log('✅ TODAS LAS PRUEBAS PASARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TODAS LAS PRUEBAS PASARON' });
     } else {
-      console.log('⚠️  ALGUNAS PRUEBAS FALLARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  ALGUNAS PRUEBAS FALLARON' });
     }
 
     // Mostrar detalles de cada función implementada
-    console.log('\n📋 DETALLES DE FUNCIONES IMPLEMENTADAS:');
-    console.log('1. ✅ trackFileUsage - Registro de uso de archivos');
-    console.log('2. ✅ getFileUsageStats - Estadísticas de archivo específico');
-    console.log('3. ✅ getGlobalUsageMetrics - Métricas globales');
-    console.log('4. ✅ recordFileAction - Registro de acciones en tiempo real');
-    console.log('5. ✅ AnalyticsController - Controlador de analytics');
-    console.log('6. ✅ AnalyticsRoutes - Rutas de analytics');
-    console.log('7. ✅ Tracking completo - Flujo end-to-end');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 DETALLES DE FUNCIONES IMPLEMENTADAS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ trackFileUsage - Registro de uso de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ getFileUsageStats - Estadísticas de archivo específico' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ getGlobalUsageMetrics - Métricas globales' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ recordFileAction - Registro de acciones en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. ✅ AnalyticsController - Controlador de analytics' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '6. ✅ AnalyticsRoutes - Rutas de analytics' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '7. ✅ Tracking completo - Flujo end-to-end' });
 
     // Mostrar características de analytics
-    console.log('\n🔧 CARACTERÍSTICAS DE ANALYTICS:');
-    console.log('- Tracking automático de todas las acciones de archivos');
-    console.log('- Estadísticas detalladas por archivo, usuario y conversación');
-    console.log('- Métricas globales en tiempo real');
-    console.log('- Detección automática de dispositivo y navegador');
-    console.log('- Configuración flexible de tracking');
-    console.log('- API REST completa para analytics');
-    console.log('- Validación robusta de parámetros');
-    console.log('- Logging detallado de eventos');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 CARACTERÍSTICAS DE ANALYTICS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Tracking automático de todas las acciones de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Estadísticas detalladas por archivo, usuario y conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Métricas globales en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Detección automática de dispositivo y navegador' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Configuración flexible de tracking' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- API REST completa para analytics' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Validación robusta de parámetros' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Logging detallado de eventos' });
 
     // Mostrar endpoints implementados
-    console.log('\n🎯 ENDPOINTS IMPLEMENTADOS:');
-    console.log('- GET /api/analytics/file/:fileId/usage');
-    console.log('- GET /api/analytics/global/usage');
-    console.log('- GET /api/analytics/conversation/:conversationId/usage');
-    console.log('- GET /api/analytics/user/:userId/usage');
-    console.log('- POST /api/analytics/tracking/configure');
-    console.log('- GET /api/analytics/tracking/status');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 ENDPOINTS IMPLEMENTADOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- GET /api/analytics/file/:fileId/usage' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- GET /api/analytics/global/usage' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- GET /api/analytics/conversation/:conversationId/usage' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- GET /api/analytics/user/:userId/usage' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- POST /api/analytics/tracking/configure' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- GET /api/analytics/tracking/status' });
 
     // Mostrar acciones trackeadas
-    console.log('\n📱 ACCIONES TRACKEADAS:');
-    console.log('- view - Vista de archivo');
-    console.log('- download - Descarga de archivo');
-    console.log('- share - Compartir archivo');
-    console.log('- upload - Subida de archivo');
-    console.log('- delete - Eliminación de archivo');
-    console.log('- preview - Vista previa de archivo');
-    console.log('- edit - Edición de archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📱 ACCIONES TRACKEADAS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- view - Vista de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- download - Descarga de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- share - Compartir archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- upload - Subida de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- delete - Eliminación de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- preview - Vista previa de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- edit - Edición de archivo' });
 
     // Mostrar rangos de tiempo soportados
-    console.log('\n⏰ RANGOS DE TIEMPO SOPORTADOS:');
-    console.log('- 1d - Último día');
-    console.log('- 7d - Última semana');
-    console.log('- 30d - Último mes');
-    console.log('- 90d - Últimos 3 meses');
-    console.log('- 1y - Último año');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⏰ RANGOS DE TIEMPO SOPORTADOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- 1d - Último día' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- 7d - Última semana' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- 30d - Último mes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- 90d - Últimos 3 meses' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- 1y - Último año' });
 
     // Mostrar casos de uso cubiertos
-    console.log('\n📊 CASOS DE USO CUBIERTOS:');
-    console.log('- Análisis de uso de archivos por usuario');
-    console.log('- Identificación de archivos más populares');
-    console.log('- Métricas de conversación por archivos');
-    console.log('- Estadísticas globales del sistema');
-    console.log('- Configuración de tracking personalizada');
-    console.log('- Monitoreo en tiempo real de acciones');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 CASOS DE USO CUBIERTOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Análisis de uso de archivos por usuario' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Identificación de archivos más populares' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Métricas de conversación por archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Estadísticas globales del sistema' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Configuración de tracking personalizada' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Monitoreo en tiempo real de acciones' });
 
     return {
       success: successfulTests === totalTests,
@@ -580,7 +580,7 @@ async function testFase8Analytics() {
 async function main() {
   try {
     await testFase8Analytics();
-    console.log('\n✅ Script de prueba completado exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Script de prueba falló');

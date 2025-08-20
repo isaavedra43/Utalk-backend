@@ -7,7 +7,7 @@
  * @version 1.0.0
  */
 
-console.log('🧪 INICIANDO PRUEBA DE 3 SOLUCIONES PARA ERROR DE MEDIA\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DE 3 SOLUCIONES PARA ERROR DE MEDIA\n' });
 
 // Simular las 3 soluciones
 class MediaProcessingSolutions {
@@ -16,7 +16,7 @@ class MediaProcessingSolutions {
    * SOLUCIÓN 1: BYPASS COMPLETO DEL FILESERVICE
    */
   static async solution1(mediaUrl, messageSid, index) {
-    console.log('🔧 SOLUCIÓN 1: Bypass completo del FileService');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 1: Bypass completo del FileService' });
     
     try {
       // Simular descarga de media
@@ -43,13 +43,13 @@ class MediaProcessingSolutions {
         bypassMode: true // Indicar que se usó bypass
       };
 
-      console.log('✅ SOLUCIÓN 1: Exitosa');
-      console.log('   Resultado:', result);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ SOLUCIÓN 1: Exitosa' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado:', result });
       return result;
 
     } catch (error) {
-      console.log('❌ SOLUCIÓN 1: Falló');
-      console.log('   Error:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ SOLUCIÓN 1: Falló' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Error:', error.message });
       throw error;
     }
   }
@@ -58,7 +58,7 @@ class MediaProcessingSolutions {
    * SOLUCIÓN 2: SISTEMA DE FALLBACK CON MÚLTIPLES INTENTOS
    */
   static async solution2(mediaUrl, messageSid, index) {
-    console.log('🔧 SOLUCIÓN 2: Sistema de fallback con múltiples intentos');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 2: Sistema de fallback con múltiples intentos' });
     
     const attempts = [
       { name: 'FileService Completo', method: this.attemptFileService },
@@ -69,20 +69,20 @@ class MediaProcessingSolutions {
     for (let i = 0; i < attempts.length; i++) {
       const attempt = attempts[i];
       try {
-        console.log(`   Intento ${i + 1}/${attempts.length}: ${attempt.name}`);
+        logger.info('Intento ${i + 1}/${attempts.length}: ${attempt.name}', { category: 'AUTO_MIGRATED' });
         
         const result = await attempt.method.call(this, mediaUrl, messageSid, index);
         
-        console.log(`✅ SOLUCIÓN 2: ${attempt.name} exitoso`);
-        console.log('   Resultado:', { ...result, fallbackUsed: attempt.name });
+        logger.info('SOLUCIÓN 2: ${attempt.name} exitoso', { category: 'AUTO_MIGRATED' });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado:', { ...result, fallbackUsed: attempt.name } });
         return { ...result, fallbackUsed: attempt.name };
 
       } catch (error) {
-        console.log(`⚠️ SOLUCIÓN 2: ${attempt.name} falló - ${error.message}`);
+        logger.info('SOLUCIÓN 2: ${attempt.name} falló - ${error.message}', { category: 'AUTO_MIGRATED' });
         
         // Si es el último intento, lanzar el error
         if (i === attempts.length - 1) {
-          console.log('❌ SOLUCIÓN 2: Todos los intentos fallaron');
+          logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ SOLUCIÓN 2: Todos los intentos fallaron' });
           throw error;
         }
         
@@ -96,7 +96,7 @@ class MediaProcessingSolutions {
    * SOLUCIÓN 3: SISTEMA DE PROCESAMIENTO ASÍNCRONO
    */
   static async solution3(mediaUrl, messageSid, index) {
-    console.log('🔧 SOLUCIÓN 3: Sistema de procesamiento asíncrono');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 3: Sistema de procesamiento asíncrono' });
     
     try {
       // Crear un ID único para el procesamiento
@@ -114,19 +114,19 @@ class MediaProcessingSolutions {
         processId: processId
       };
 
-      console.log('✅ SOLUCIÓN 3: Procesamiento iniciado');
-      console.log('   Resultado inmediato:', immediateResult);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ SOLUCIÓN 3: Procesamiento iniciado' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado inmediato:', immediateResult });
 
       // Simular procesamiento en segundo plano
       setTimeout(() => {
-        console.log('   🔄 SOLUCIÓN 3: Procesamiento en segundo plano completado');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   🔄 SOLUCIÓN 3: Procesamiento en segundo plano completado' });
       }, 1000);
 
       return immediateResult;
 
     } catch (error) {
-      console.log('❌ SOLUCIÓN 3: Falló');
-      console.log('   Error:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ SOLUCIÓN 3: Falló' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Error:', error.message });
       throw error;
     }
   }
@@ -170,83 +170,83 @@ async function testAllSolutions() {
   const messageSid = 'MM123456789';
   const index = 0;
 
-  console.log('📋 Datos de prueba:');
-  console.log('- Media URL:', mediaUrl);
-  console.log('- Message SID:', messageSid);
-  console.log('- Index:', index);
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos de prueba:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media URL:', mediaUrl });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Message SID:', messageSid });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Index:', index });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   // Test 1: Solución 1 - Bypass completo
   console.log('='.repeat(50));
-  console.log('TEST 1: SOLUCIÓN 1 - BYPASS COMPLETO');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 1: SOLUCIÓN 1 - BYPASS COMPLETO' });
   console.log('='.repeat(50));
   try {
     const result1 = await MediaProcessingSolutions.solution1(mediaUrl, messageSid, index);
-    console.log('✅ TEST 1: PASÓ');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 1: PASÓ' });
   } catch (error) {
-    console.log('❌ TEST 1: FALLÓ');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ TEST 1: FALLÓ' });
   }
 
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   // Test 2: Solución 2 - Sistema de fallback
   console.log('='.repeat(50));
-  console.log('TEST 2: SOLUCIÓN 2 - SISTEMA DE FALLBACK');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 2: SOLUCIÓN 2 - SISTEMA DE FALLBACK' });
   console.log('='.repeat(50));
   try {
     const result2 = await MediaProcessingSolutions.solution2(mediaUrl, messageSid, index);
-    console.log('✅ TEST 2: PASÓ');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 2: PASÓ' });
   } catch (error) {
-    console.log('❌ TEST 2: FALLÓ');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ TEST 2: FALLÓ' });
   }
 
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   // Test 3: Solución 3 - Procesamiento asíncrono
   console.log('='.repeat(50));
-  console.log('TEST 3: SOLUCIÓN 3 - PROCESAMIENTO ASÍNCRONO');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 3: SOLUCIÓN 3 - PROCESAMIENTO ASÍNCRONO' });
   console.log('='.repeat(50));
   try {
     const result3 = await MediaProcessingSolutions.solution3(mediaUrl, messageSid, index);
-    console.log('✅ TEST 3: PASÓ');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 3: PASÓ' });
   } catch (error) {
-    console.log('❌ TEST 3: FALLÓ');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ TEST 3: FALLÓ' });
   }
 
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
   console.log('='.repeat(50));
-  console.log('📊 RESUMEN DE SOLUCIONES');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN DE SOLUCIONES' });
   console.log('='.repeat(50));
-  console.log('');
-  console.log('🔧 SOLUCIÓN 1: BYPASS COMPLETO');
-  console.log('   ✅ Ventajas: Simple, rápido, no depende de FileService');
-  console.log('   ⚠️ Desventajas: No procesa archivos, solo usa URL original');
-  console.log('');
-  console.log('🔧 SOLUCIÓN 2: SISTEMA DE FALLBACK');
-  console.log('   ✅ Ventajas: Múltiples intentos, robusto, fallback automático');
-  console.log('   ⚠️ Desventajas: Más complejo, puede ser lento');
-  console.log('');
-  console.log('🔧 SOLUCIÓN 3: PROCESAMIENTO ASÍNCRONO');
-  console.log('   ✅ Ventajas: No bloquea, respuesta inmediata, procesa en segundo plano');
-  console.log('   ⚠️ Desventajas: Estado inicial incompleto, requiere seguimiento');
-  console.log('');
-  console.log('💡 RECOMENDACIÓN:');
-  console.log('   - Para solución rápida: SOLUCIÓN 1');
-  console.log('   - Para robustez: SOLUCIÓN 2');
-  console.log('   - Para experiencia de usuario: SOLUCIÓN 3');
-  console.log('');
-  console.log('🎯 PRÓXIMOS PASOS:');
-  console.log('1. Elegir una solución');
-  console.log('2. Implementar en el código real');
-  console.log('3. Probar con imágenes reales de WhatsApp');
-  console.log('4. Monitorear logs para confirmar funcionamiento');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 1: BYPASS COMPLETO' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Ventajas: Simple, rápido, no depende de FileService' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ⚠️ Desventajas: No procesa archivos, solo usa URL original' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 2: SISTEMA DE FALLBACK' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Ventajas: Múltiples intentos, robusto, fallback automático' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ⚠️ Desventajas: Más complejo, puede ser lento' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN 3: PROCESAMIENTO ASÍNCRONO' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Ventajas: No bloquea, respuesta inmediata, procesa en segundo plano' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ⚠️ Desventajas: Estado inicial incompleto, requiere seguimiento' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💡 RECOMENDACIÓN:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Para solución rápida: SOLUCIÓN 1' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Para robustez: SOLUCIÓN 2' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Para experiencia de usuario: SOLUCIÓN 3' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎯 PRÓXIMOS PASOS:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Elegir una solución' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. Implementar en el código real' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. Probar con imágenes reales de WhatsApp' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. Monitorear logs para confirmar funcionamiento' });
 }
 
 // Ejecutar pruebas
 if (require.main === module) {
   testAllSolutions()
     .then(() => {
-      console.log('\n✅ PRUEBAS COMPLETADAS');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ PRUEBAS COMPLETADAS' });
       process.exit(0);
     })
     .catch((error) => {

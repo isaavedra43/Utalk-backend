@@ -494,11 +494,8 @@ class EnterpriseSocketManager {
 
         let decodedToken;
         try {
-          decodedToken = jwt.verify(token, jwtConfig.secret, {
-            issuer: jwtConfig.issuer,
-            audience: jwtConfig.audience,
-            clockTolerance: 60
-          });
+          const AuthService = require('../services/AuthService');
+          decodedToken = AuthService.verifyAccessToken(token);
         } catch (jwtError) {
           logger.warn('Socket.IO: Invalid JWT token', {
             category: 'SOCKET_AUTH_INVALID_TOKEN',

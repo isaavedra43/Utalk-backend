@@ -8,9 +8,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Simular el webhook endpoint
 app.post('/webhook/twilio', async (req, res) => {
-  console.log('📨 Webhook recibido:');
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📨 Webhook recibido:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Headers:', req.headers });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Body:', req.body });
   
   try {
     // Simular el procesamiento del webhook
@@ -18,13 +18,13 @@ app.post('/webhook/twilio', async (req, res) => {
     
     // Verificar si es un mensaje de media
     const numMedia = parseInt(webhookData.NumMedia || '0');
-    console.log('🔍 Análisis del webhook:');
-    console.log('- NumMedia:', numMedia);
-    console.log('- MediaUrl0:', webhookData.MediaUrl0);
-    console.log('- MediaContentType0:', webhookData.MediaContentType0);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Análisis del webhook:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- NumMedia:', numMedia });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaUrl0:', webhookData.MediaUrl0 });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaContentType0:', webhookData.MediaContentType0 });
     
     if (numMedia > 0) {
-      console.log('✅ Es un mensaje de media');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Es un mensaje de media' });
       
       // Simular el procesamiento de media
       const mediaUrls = [];
@@ -44,7 +44,7 @@ app.post('/webhook/twilio', async (req, res) => {
           else if (mediaContentType && mediaContentType.startsWith('audio/')) category = 'audio';
           
           types.add(category);
-          console.log(`✅ Media ${i}: ${category} - ${mediaUrl}`);
+          logger.info('Media ${i}: ${category} - ${mediaUrl}', { category: 'AUTO_MIGRATED' });
         }
       }
       
@@ -54,10 +54,10 @@ app.post('/webhook/twilio', async (req, res) => {
                          types.has('audio') ? 'audio' : 
                          types.has('document') ? 'document' : 'media';
       
-      console.log('📊 Resultado del procesamiento:');
-      console.log('- URLs encontradas:', mediaUrls.length);
-      console.log('- URLs:', mediaUrls);
-      console.log('- Tipo principal:', primaryType);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Resultado del procesamiento:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- URLs encontradas:', mediaUrls.length });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- URLs:', mediaUrls });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Tipo principal:', primaryType });
       
       // Simular respuesta exitosa
       res.status(200).json({
@@ -71,7 +71,7 @@ app.post('/webhook/twilio', async (req, res) => {
       });
       
     } else {
-      console.log('ℹ️ No es un mensaje de media');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'ℹ️ No es un mensaje de media' });
       res.status(200).json({
         success: true,
         message: 'Webhook procesado (no es media)'
@@ -101,12 +101,12 @@ app.get('/test', (req, res) => {
 // Iniciar servidor
 const PORT = 3001;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor de prueba iniciado en puerto ${PORT}`);
-  console.log(`📝 Endpoints:`);
-  console.log(`   - GET  http://localhost:${PORT}/test`);
-  console.log(`   - POST http://localhost:${PORT}/webhook/twilio`);
-  console.log('');
-  console.log('🧪 Para probar, envía un POST a /webhook/twilio con:');
+  logger.info('� Servidor de prueba iniciado en puerto ${PORT}', { category: 'AUTO_MIGRATED' });
+  logger.info('� Endpoints:', { category: 'AUTO_MIGRATED' });
+  logger.info('- GET  http://localhost:${PORT}/test', { category: 'AUTO_MIGRATED' });
+  logger.info('- POST http://localhost:${PORT}/webhook/twilio', { category: 'AUTO_MIGRATED' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Para probar, envía un POST a /webhook/twilio con:' });
   console.log(JSON.stringify({
     From: '+5214773790184',
     To: '+5214793176502',

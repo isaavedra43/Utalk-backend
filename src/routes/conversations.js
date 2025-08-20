@@ -92,7 +92,13 @@ router.get('/',
   requireReadAccess,
   (req, res, next) => {
     // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a conversaciones
-    console.log(`📞 CONVERSATIONS_REQUEST: ${req.user?.email || 'anonymous'} - ${req.method} ${req.path} - Query: ${JSON.stringify(req.query)}`);
+    req.logger.info('CONVERSATIONS_REQUEST', {
+      category: 'CONVERSATIONS_API',
+      user: req.user?.email || 'anonymous',
+      method: req.method,
+      path: req.path,
+      query: req.query
+    });
     next();
   },
   intelligentRateLimit,

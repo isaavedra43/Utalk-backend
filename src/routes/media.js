@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const MediaUploadController = require('../controllers/MediaUploadController');
+
+// Instanciar el controlador para mantener el contexto 'this'
+const mediaUploadController = new MediaUploadController();
 const TwilioMediaService = require('../services/TwilioMediaService');
 const { authMiddleware, requireReadAccess, requireWriteAccess } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
@@ -113,9 +116,9 @@ router.post('/upload',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateUpload,
-  MediaUploadController.getUploadRateLimit(),
-  MediaUploadController.getMulterConfig().single('file'),
-  MediaUploadController.uploadMedia
+  mediaUploadController.getUploadRateLimit(),
+  mediaUploadController.getMulterConfig().single('file'),
+  mediaUploadController.uploadMedia.bind(mediaUploadController)
 );
 
 /**
@@ -128,7 +131,7 @@ router.get('/file/:fileId',
   requireReadAccess,
   mediaValidators.validateGetFile,
   fileAuthorizationMiddleware,
-  MediaUploadController.getFileInfo
+  mediaUploadController.getFileInfo.bind(mediaUploadController)
 );
 
 /**
@@ -141,7 +144,7 @@ router.get('/preview/:fileId',
   requireReadAccess,
   mediaValidators.validateFilePreview,
   fileAuthorizationMiddleware,
-  MediaUploadController.getFilePreview
+  mediaUploadController.getFilePreview.bind(mediaUploadController)
 );
 
 /**
@@ -154,7 +157,7 @@ router.delete('/file/:fileId',
   requireWriteAccess,
   mediaValidators.validateDeleteFile,
   fileDeleteAuthorizationMiddleware,
-  MediaUploadController.deleteFile
+  mediaUploadController.deleteFile.bind(mediaUploadController)
 );
 
 /**
@@ -166,7 +169,7 @@ router.post('/file/:fileId/share',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateShareFile,
-  MediaUploadController.shareFile
+  mediaUploadController.shareFile.bind(mediaUploadController)
 );
 
 /**
@@ -178,7 +181,7 @@ router.post('/file/:fileId/compress',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateCompressFile,
-  MediaUploadController.compressFile
+  mediaUploadController.compressFile.bind(mediaUploadController)
 );
 
 /**
@@ -190,7 +193,7 @@ router.post('/file/:fileId/convert',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateConvertFile,
-  MediaUploadController.convertFile
+  mediaUploadController.convertFile.bind(mediaUploadController)
 );
 
 /**
@@ -202,7 +205,7 @@ router.post('/file/:fileId/validate',
   authMiddleware,
   requireReadAccess,
   mediaValidators.validateGetFile,
-  MediaUploadController.validateFile
+  mediaUploadController.validateFile.bind(mediaUploadController)
 );
 
 /**
@@ -214,7 +217,7 @@ router.post('/file/:fileId/backup',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateGetFile,
-  MediaUploadController.backupFile
+  mediaUploadController.backupFile.bind(mediaUploadController)
 );
 
 /**
@@ -225,7 +228,7 @@ router.post('/file/:fileId/backup',
 router.post('/cleanup',
   authMiddleware,
   requireWriteAccess,
-  MediaUploadController.cleanupOrphanedFiles
+  mediaUploadController.cleanupOrphanedFiles.bind(mediaUploadController)
 );
 
 /**
@@ -237,8 +240,8 @@ router.post('/upload/image',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateUpload,
-  MediaUploadController.getUploadRateLimit(),
-  MediaUploadController.uploadImage
+  mediaUploadController.getUploadRateLimit(),
+  mediaUploadController.uploadImage.bind(mediaUploadController)
 );
 
 /**
@@ -250,8 +253,8 @@ router.post('/upload/audio',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateUpload,
-  MediaUploadController.getUploadRateLimit(),
-  MediaUploadController.uploadAudio
+  mediaUploadController.getUploadRateLimit(),
+  mediaUploadController.uploadAudio.bind(mediaUploadController)
 );
 
 /**
@@ -263,8 +266,8 @@ router.post('/upload/video',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateUpload,
-  MediaUploadController.getUploadRateLimit(),
-  MediaUploadController.uploadVideo
+  mediaUploadController.getUploadRateLimit(),
+  mediaUploadController.uploadVideo.bind(mediaUploadController)
 );
 
 /**
@@ -276,8 +279,8 @@ router.post('/upload/document',
   authMiddleware,
   requireWriteAccess,
   mediaValidators.validateUpload,
-  MediaUploadController.getUploadRateLimit(),
-  MediaUploadController.uploadDocument
+  mediaUploadController.getUploadRateLimit(),
+  mediaUploadController.uploadDocument.bind(mediaUploadController)
 );
 
 /**
@@ -289,7 +292,7 @@ router.get('/file/:fileId/download',
   authMiddleware,
   requireReadAccess,
   fileAuthorizationMiddleware,
-  MediaUploadController.downloadFile
+  mediaUploadController.downloadFile.bind(mediaUploadController)
 );
 
 /**
@@ -302,7 +305,7 @@ router.get('/files/:conversationId',
   requireReadAccess,
   mediaValidators.validateFilesByConversation,
   conversationFileAuthorizationMiddleware,
-  MediaUploadController.listFilesByConversation
+  mediaUploadController.listFilesByConversation.bind(mediaUploadController)
 );
 
 /**
@@ -313,7 +316,7 @@ router.get('/files/:conversationId',
 router.get('/conversation/:conversationId',
   authMiddleware,
   requireReadAccess,
-  MediaUploadController.listFilesByConversation
+  mediaUploadController.listFilesByConversation.bind(mediaUploadController)
 );
 
 /**
@@ -324,7 +327,7 @@ router.get('/conversation/:conversationId',
 router.get('/user/:userId',
   authMiddleware,
   requireReadAccess,
-  MediaUploadController.listFilesByUser
+  mediaUploadController.listFilesByUser.bind(mediaUploadController)
 );
 
 /**
@@ -335,7 +338,7 @@ router.get('/user/:userId',
 router.get('/category/:category',
   authMiddleware,
   requireReadAccess,
-  MediaUploadController.listFilesByCategory
+  mediaUploadController.listFilesByCategory.bind(mediaUploadController)
 );
 
 /**
@@ -346,7 +349,7 @@ router.get('/category/:category',
 router.get('/search',
   authMiddleware,
   requireReadAccess,
-  MediaUploadController.searchFiles
+  mediaUploadController.searchFiles.bind(mediaUploadController)
 );
 
 /**
@@ -357,7 +360,7 @@ router.get('/search',
 router.get('/stats',
   authMiddleware,
   requireReadAccess,
-  MediaUploadController.getFileStats
+  mediaUploadController.getFileStats.bind(mediaUploadController)
 );
 
 /**
@@ -368,7 +371,7 @@ router.get('/stats',
 router.post('/file/:fileId/tags',
   authMiddleware,
   requireWriteAccess,
-  MediaUploadController.addTagsToFile
+  mediaUploadController.addTagsToFile.bind(mediaUploadController)
 );
 
 /**
@@ -379,7 +382,7 @@ router.post('/file/:fileId/tags',
 router.delete('/file/:fileId/tags',
   authMiddleware,
   requireWriteAccess,
-  MediaUploadController.removeTagsFromFile
+  mediaUploadController.removeTagsFromFile.bind(mediaUploadController)
 );
 
 /**
@@ -398,7 +401,7 @@ router.get('/proxy',
       mediaSid: Joi.string().required().pattern(/^ME[a-f0-9]{32}$/)
     })
   }),
-  MediaUploadController.proxyTwilioMedia
+  mediaUploadController.proxyTwilioMedia.bind(mediaUploadController)
 );
 
 /**
@@ -426,7 +429,7 @@ router.get('/permanent-url/:fileId',
       fileId: Joi.string().uuid().required()
     })
   }),
-  MediaUploadController.generatePermanentUrl
+  mediaUploadController.generatePermanentUrl.bind(mediaUploadController)
 );
 
 /**
@@ -443,7 +446,7 @@ router.get('/proxy-file/:fileId',
       fileId: Joi.string().uuid().required()
     })
   }),
-  MediaUploadController.proxyStoredFile
+  mediaUploadController.proxyStoredFile.bind(mediaUploadController)
 );
 
 /**
@@ -458,7 +461,7 @@ router.get('/proxy-file-public/:fileId',
       fileId: Joi.string().uuid().required()
     })
   }),
-  MediaUploadController.proxyStoredFile
+  mediaUploadController.proxyStoredFile.bind(mediaUploadController)
 );
 
 /**

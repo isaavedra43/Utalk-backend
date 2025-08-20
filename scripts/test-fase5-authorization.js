@@ -10,7 +10,7 @@
  * @author Backend Team
  */
 
-console.log('🧪 INICIANDO PRUEBAS DE FASE 5 - AUTORIZACIÓN Y PERMISOS\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE FASE 5 - AUTORIZACIÓN Y PERMISOS\n' });
 
 /**
  * Simular datos de prueba
@@ -28,7 +28,7 @@ const testData = {
  * Simular el middleware fileAuthorizationMiddleware
  */
 async function testFileAuthorizationMiddleware() {
-  console.log('🔄 Prueba 1: fileAuthorizationMiddleware');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Prueba 1: fileAuthorizationMiddleware' });
   
   try {
     // Simular request con usuario propietario
@@ -68,12 +68,12 @@ async function testFileAuthorizationMiddleware() {
       })
     };
 
-    console.log('✅ Simulación de autorización exitosa');
-    console.log('  - File ID:', mockFileData.id);
-    console.log('  - Usuario:', ownerRequest.user.email);
-    console.log('  - Es propietario:', true);
-    console.log('  - Es participante:', true);
-    console.log('  - Es admin:', false);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Simulación de autorización exitosa' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', mockFileData.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Usuario:', ownerRequest.user.email });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es propietario:', true });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es participante:', true });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es admin:', false });
 
     return {
       success: true,
@@ -97,7 +97,7 @@ async function testFileAuthorizationMiddleware() {
  * Simular el middleware conversationFileAuthorizationMiddleware
  */
 async function testConversationFileAuthorizationMiddleware() {
-  console.log('\n🔄 Prueba 2: conversationFileAuthorizationMiddleware');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 2: conversationFileAuthorizationMiddleware' });
   
   try {
     // Simular request con usuario participante
@@ -121,12 +121,12 @@ async function testConversationFileAuthorizationMiddleware() {
       })
     };
 
-    console.log('✅ Simulación de autorización de conversación exitosa');
-    console.log('  - Conversation ID:', mockConversationData.id);
-    console.log('  - Usuario:', participantRequest.user.email);
-    console.log('  - Es participante:', true);
-    console.log('  - Es admin:', false);
-    console.log('  - Participantes totales:', mockConversationData.participants.length);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Simulación de autorización de conversación exitosa' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', mockConversationData.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Usuario:', participantRequest.user.email });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es participante:', true });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es admin:', false });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Participantes totales:', mockConversationData.participants.length });
 
     return {
       success: true,
@@ -148,7 +148,7 @@ async function testConversationFileAuthorizationMiddleware() {
  * Simular el middleware fileDeleteAuthorizationMiddleware
  */
 async function testFileDeleteAuthorizationMiddleware() {
-  console.log('\n🔄 Prueba 3: fileDeleteAuthorizationMiddleware');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 3: fileDeleteAuthorizationMiddleware' });
   
   try {
     // Simular request con admin
@@ -178,13 +178,13 @@ async function testFileDeleteAuthorizationMiddleware() {
       })
     };
 
-    console.log('✅ Simulación de autorización de eliminación exitosa');
-    console.log('  - File ID:', mockFileData.id);
-    console.log('  - Usuario:', adminRequest.user.email);
-    console.log('  - Rol:', adminRequest.user.role);
-    console.log('  - Es propietario:', false);
-    console.log('  - Es admin:', true);
-    console.log('  - Es superadmin:', false);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Simulación de autorización de eliminación exitosa' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', mockFileData.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Usuario:', adminRequest.user.email });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Rol:', adminRequest.user.role });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es propietario:', false });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es admin:', true });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Es superadmin:', false });
 
     return {
       success: true,
@@ -207,7 +207,7 @@ async function testFileDeleteAuthorizationMiddleware() {
  * Probar casos de acceso denegado
  */
 async function testAccessDeniedCases() {
-  console.log('\n🔄 Prueba 4: Casos de Acceso Denegado');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 4: Casos de Acceso Denegado' });
   
   try {
     const testCases = [
@@ -252,7 +252,7 @@ async function testAccessDeniedCases() {
 
     for (const testCase of testCases) {
       try {
-        console.log(`  🔍 ${testCase.name}`);
+        logger.info('${testCase.name}', { category: 'AUTO_MIGRATED' });
         
         // Simular verificación de permisos
         const hasAccess = testCase.scenario.userEmail === testCase.scenario.fileOwner ||
@@ -261,17 +261,17 @@ async function testAccessDeniedCases() {
                          testCase.scenario.userRole === 'superadmin';
 
         if (!hasAccess) {
-          console.log(`    ✅ Acceso denegado correctamente: ${testCase.scenario.expectedResult}`);
+          logger.info('Acceso denegado correctamente: ${testCase.scenario.expectedResult}', { category: 'AUTO_MIGRATED' });
           passed++;
         } else {
-          console.log(`    ❌ Acceso permitido incorrectamente`);
+          logger.info('❌ Acceso permitido incorrectamente', { category: 'AUTO_MIGRATED' });
         }
       } catch (error) {
-        console.log(`    ❌ Error en caso de prueba: ${error.message}`);
+        logger.info('❌ Error en caso de prueba: ${error.message}', { category: 'AUTO_MIGRATED' });
       }
     }
 
-    console.log(`\n📊 Resultado casos de acceso denegado: ${passed}/${total} pasaron`);
+    logger.info('\n Resultado casos de acceso denegado: ${passed}/${total} pasaron', { category: 'AUTO_MIGRATED' });
 
     return {
       success: passed === total,
@@ -289,7 +289,7 @@ async function testAccessDeniedCases() {
  * Probar casos de acceso permitido
  */
 async function testAccessAllowedCases() {
-  console.log('\n🔄 Prueba 5: Casos de Acceso Permitido');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 5: Casos de Acceso Permitido' });
   
   try {
     const testCases = [
@@ -336,7 +336,7 @@ async function testAccessAllowedCases() {
 
     for (const testCase of testCases) {
       try {
-        console.log(`  🔍 ${testCase.name}`);
+        logger.info('${testCase.name}', { category: 'AUTO_MIGRATED' });
         
         // Simular verificación de permisos
         const isOwner = testCase.scenario.userEmail === testCase.scenario.fileOwner;
@@ -346,17 +346,17 @@ async function testAccessAllowedCases() {
         const hasAccess = isOwner || isParticipant || isAdmin;
 
         if (hasAccess) {
-          console.log(`    ✅ Acceso permitido correctamente: ${testCase.scenario.reason}`);
+          logger.info('Acceso permitido correctamente: ${testCase.scenario.reason}', { category: 'AUTO_MIGRATED' });
           passed++;
         } else {
-          console.log(`    ❌ Acceso denegado incorrectamente`);
+          logger.info('❌ Acceso denegado incorrectamente', { category: 'AUTO_MIGRATED' });
         }
       } catch (error) {
-        console.log(`    ❌ Error en caso de prueba: ${error.message}`);
+        logger.info('❌ Error en caso de prueba: ${error.message}', { category: 'AUTO_MIGRATED' });
       }
     }
 
-    console.log(`\n📊 Resultado casos de acceso permitido: ${passed}/${total} pasaron`);
+    logger.info('\n Resultado casos de acceso permitido: ${passed}/${total} pasaron', { category: 'AUTO_MIGRATED' });
 
     return {
       success: passed === total,
@@ -374,7 +374,7 @@ async function testAccessAllowedCases() {
  * Probar logging y auditoría
  */
 async function testLoggingAndAudit() {
-  console.log('\n🔄 Prueba 6: Logging y Auditoría');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 6: Logging y Auditoría' });
   
   try {
     const auditEvents = [
@@ -408,14 +408,14 @@ async function testLoggingAndAudit() {
       }
     ];
 
-    console.log('✅ Eventos de auditoría generados:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos de auditoría generados:' });
     for (const event of auditEvents) {
-      console.log(`  - ${event.event}: ${event.data.reason || 'N/A'}`);
+      logger.info('- ${event.event}: ${event.data.reason || 'N/A'}', { category: 'AUTO_MIGRATED' });
     }
 
-    console.log('✅ Logging detallado implementado');
-    console.log('✅ Auditoría de acceso configurada');
-    console.log('✅ Métricas de seguridad registradas');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Logging detallado implementado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Auditoría de acceso configurada' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Métricas de seguridad registradas' });
 
     return {
       success: true,
@@ -434,7 +434,7 @@ async function testLoggingAndAudit() {
  */
 async function testFase5Authorization() {
   try {
-    console.log('🔄 Ejecutando pruebas de Fase 5...\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Ejecutando pruebas de Fase 5...\n' });
 
     const results = [];
 
@@ -450,40 +450,40 @@ async function testFase5Authorization() {
     const successfulTests = results.filter(r => r.success).length;
     const totalTests = results.length;
 
-    console.log('\n🎉 PRUEBAS DE FASE 5 COMPLETADAS');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 5 COMPLETADAS' });
     console.log('=' .repeat(50));
-    console.log(`📊 Resultado: ${successfulTests}/${totalTests} pruebas exitosas`);
+    logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
-      console.log('✅ TODAS LAS PRUEBAS PASARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TODAS LAS PRUEBAS PASARON' });
     } else {
-      console.log('⚠️  ALGUNAS PRUEBAS FALLARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  ALGUNAS PRUEBAS FALLARON' });
     }
 
     // Mostrar detalles de cada middleware
-    console.log('\n📋 DETALLES DE MIDDLEWARES IMPLEMENTADOS:');
-    console.log('1. ✅ fileAuthorizationMiddleware - Autorización de archivos');
-    console.log('2. ✅ conversationFileAuthorizationMiddleware - Autorización por conversación');
-    console.log('3. ✅ fileDeleteAuthorizationMiddleware - Autorización de eliminación');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 DETALLES DE MIDDLEWARES IMPLEMENTADOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ fileAuthorizationMiddleware - Autorización de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ conversationFileAuthorizationMiddleware - Autorización por conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ fileDeleteAuthorizationMiddleware - Autorización de eliminación' });
 
     // Mostrar características de seguridad
-    console.log('\n🔧 CARACTERÍSTICAS DE SEGURIDAD:');
-    console.log('- Verificación de propietario del archivo');
-    console.log('- Verificación de participación en conversación');
-    console.log('- Verificación de roles de administrador');
-    console.log('- Logging detallado de auditoría');
-    console.log('- Manejo de errores robusto');
-    console.log('- Validación de archivos inactivos');
-    console.log('- Métricas de seguridad');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 CARACTERÍSTICAS DE SEGURIDAD:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Verificación de propietario del archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Verificación de participación en conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Verificación de roles de administrador' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Logging detallado de auditoría' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Manejo de errores robusto' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Validación de archivos inactivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Métricas de seguridad' });
 
     // Mostrar casos de uso cubiertos
-    console.log('\n🎯 CASOS DE USO CUBIERTOS:');
-    console.log('- Usuario propietario accede a su archivo');
-    console.log('- Participante accede a archivos de conversación');
-    console.log('- Administrador accede a cualquier archivo');
-    console.log('- Solo propietario/admin puede eliminar');
-    console.log('- Usuarios no autorizados son bloqueados');
-    console.log('- Archivos inactivos son rechazados');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 CASOS DE USO CUBIERTOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Usuario propietario accede a su archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Participante accede a archivos de conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Administrador accede a cualquier archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Solo propietario/admin puede eliminar' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Usuarios no autorizados son bloqueados' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Archivos inactivos son rechazados' });
 
     return {
       success: successfulTests === totalTests,
@@ -504,7 +504,7 @@ async function testFase5Authorization() {
 async function main() {
   try {
     await testFase5Authorization();
-    console.log('\n✅ Script de prueba completado exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Script de prueba falló');

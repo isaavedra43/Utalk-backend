@@ -14,7 +14,7 @@
  * @author Backend Team
  */
 
-console.log('🧪 INICIANDO PRUEBAS DE FASE 7 - SINCRONIZACIÓN EN TIEMPO REAL\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE FASE 7 - SINCRONIZACIÓN EN TIEMPO REAL\n' });
 
 /**
  * Simular datos de prueba
@@ -53,16 +53,16 @@ async function testHandleFileUploaded() {
       workspaceId: testData.workspaceId,
       tenantId: testData.tenantId,
       emit: (event, data) => {
-        console.log(`  📡 Socket emit: ${event}`, data);
+        logger.info('� Socket emit: ${event}', { category: 'AUTO_MIGRATED', data: data });
       }
     };
 
-    console.log('📎 Simulando subida de archivo con sincronización en tiempo real');
-    console.log('  - File ID:', fileData.fileId);
-    console.log('  - Conversation ID:', fileData.conversationId);
-    console.log('  - File Name:', fileData.fileName);
-    console.log('  - File Type:', fileData.fileType);
-    console.log('  - File Size:', fileData.fileSize);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Simulando subida de archivo con sincronización en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileData.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', fileData.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Name:', fileData.fileName });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Type:', fileData.fileType });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Size:', fileData.fileSize });
 
     // Simular emisión de eventos
     const events = [
@@ -88,9 +88,9 @@ async function testHandleFileUploaded() {
       }
     ];
 
-    console.log('✅ Eventos emitidos exitosamente:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos emitidos exitosamente:' });
     for (const event of events) {
-      console.log(`  - ${event.event}: ${JSON.stringify(event.data, null, 2)}`);
+      logger.info('- ${event.event}: ${JSON.stringify(event.data, null, 2)}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -110,7 +110,7 @@ async function testHandleFileUploaded() {
  * Simular la función handleFileReceived
  */
 async function testHandleFileReceived() {
-  console.log('\n🔄 Prueba 2: handleFileReceived');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 2: handleFileReceived' });
   
   try {
     // Simular datos del archivo recibido
@@ -130,15 +130,15 @@ async function testHandleFileReceived() {
       workspaceId: testData.workspaceId,
       tenantId: testData.tenantId,
       emit: (event, data) => {
-        console.log(`  📡 Socket emit: ${event}`, data);
+        logger.info('� Socket emit: ${event}', { category: 'AUTO_MIGRATED', data: data });
       }
     };
 
-    console.log('📱 Simulando recepción de archivo de WhatsApp');
-    console.log('  - File ID:', fileData.fileId);
-    console.log('  - Conversation ID:', fileData.conversationId);
-    console.log('  - Source:', fileData.source);
-    console.log('  - File Size:', fileData.fileSize);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 Simulando recepción de archivo de WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileData.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', fileData.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Source:', fileData.source });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Size:', fileData.fileSize });
 
     // Simular emisión de eventos
     const events = [
@@ -165,9 +165,9 @@ async function testHandleFileReceived() {
       }
     ];
 
-    console.log('✅ Eventos de archivo recibido emitidos exitosamente:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos de archivo recibido emitidos exitosamente:' });
     for (const event of events) {
-      console.log(`  - ${event.event}: ${JSON.stringify(event.data, null, 2)}`);
+      logger.info('- ${event.event}: ${JSON.stringify(event.data, null, 2)}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -187,7 +187,7 @@ async function testHandleFileReceived() {
  * Simular la función handleFileDeleted
  */
 async function testHandleFileDeleted() {
-  console.log('\n🔄 Prueba 3: handleFileDeleted');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 3: handleFileDeleted' });
   
   try {
     // Simular datos del archivo eliminado
@@ -204,14 +204,14 @@ async function testHandleFileDeleted() {
       workspaceId: testData.workspaceId,
       tenantId: testData.tenantId,
       emit: (event, data) => {
-        console.log(`  📡 Socket emit: ${event}`, data);
+        logger.info('� Socket emit: ${event}', { category: 'AUTO_MIGRATED', data: data });
       }
     };
 
-    console.log('🗑️ Simulando eliminación de archivo');
-    console.log('  - File ID:', fileData.fileId);
-    console.log('  - Conversation ID:', fileData.conversationId);
-    console.log('  - File Name:', fileData.fileName);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🗑️ Simulando eliminación de archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileData.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', fileData.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Name:', fileData.fileName });
 
     // Simular emisión de eventos
     const events = [
@@ -235,9 +235,9 @@ async function testHandleFileDeleted() {
       }
     ];
 
-    console.log('✅ Eventos de archivo eliminado emitidos exitosamente:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos de archivo eliminado emitidos exitosamente:' });
     for (const event of events) {
-      console.log(`  - ${event.event}: ${JSON.stringify(event.data, null, 2)}`);
+      logger.info('- ${event.event}: ${JSON.stringify(event.data, null, 2)}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -257,19 +257,19 @@ async function testHandleFileDeleted() {
  * Simular la función getFileCount
  */
 async function testGetFileCount() {
-  console.log('\n🔄 Prueba 4: getFileCount');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 4: getFileCount' });
   
   try {
     const conversationId = testData.conversationId;
 
-    console.log('🔢 Simulando conteo de archivos de conversación');
-    console.log('  - Conversation ID:', conversationId);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔢 Simulando conteo de archivos de conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', conversationId });
 
     // Simular conteo de archivos
     const fileCount = 7; // Simulado
 
-    console.log('✅ Conteo de archivos obtenido exitosamente');
-    console.log('  - File Count:', fileCount);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conteo de archivos obtenido exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Count:', fileCount });
 
     return {
       success: true,
@@ -288,17 +288,17 @@ async function testGetFileCount() {
  * Simular la función emitConversationFilesUpdated
  */
 async function testEmitConversationFilesUpdated() {
-  console.log('\n🔄 Prueba 5: emitConversationFilesUpdated');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 5: emitConversationFilesUpdated' });
   
   try {
     const conversationId = testData.conversationId;
     const workspaceId = testData.workspaceId;
     const tenantId = testData.tenantId;
 
-    console.log('🔄 Simulando actualización de lista de archivos en tiempo real');
-    console.log('  - Conversation ID:', conversationId);
-    console.log('  - Workspace ID:', workspaceId);
-    console.log('  - Tenant ID:', tenantId);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando actualización de lista de archivos en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Workspace ID:', workspaceId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tenant ID:', tenantId });
 
     // Simular emisión de evento
     const event = {
@@ -310,8 +310,8 @@ async function testEmitConversationFilesUpdated() {
       }
     };
 
-    console.log('✅ Lista de archivos actualizada exitosamente');
-    console.log(`  - ${event.event}: ${JSON.stringify(event.data, null, 2)}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Lista de archivos actualizada exitosamente' });
+    logger.info('- ${event.event}: ${JSON.stringify(event.data, null, 2)}', { category: 'AUTO_MIGRATED' });
 
     return {
       success: true,
@@ -332,7 +332,7 @@ async function testEmitConversationFilesUpdated() {
  * Simular la función emitFileReceived
  */
 async function testEmitFileReceived() {
-  console.log('\n🔄 Prueba 6: emitFileReceived');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 6: emitFileReceived' });
   
   try {
     // Simular datos del archivo recibido
@@ -346,11 +346,11 @@ async function testEmitFileReceived() {
       receivedBy: '+1234567890'
     };
 
-    console.log('📱 Simulando emisión de evento de archivo recibido');
-    console.log('  - File ID:', fileData.fileId);
-    console.log('  - Conversation ID:', fileData.conversationId);
-    console.log('  - Source:', fileData.source);
-    console.log('  - Received By:', fileData.receivedBy);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 Simulando emisión de evento de archivo recibido' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileData.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', fileData.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Source:', fileData.source });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Received By:', fileData.receivedBy });
 
     // Simular emisión de eventos
     const events = [
@@ -377,9 +377,9 @@ async function testEmitFileReceived() {
       }
     ];
 
-    console.log('✅ Eventos de archivo recibido emitidos exitosamente:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos de archivo recibido emitidos exitosamente:' });
     for (const event of events) {
-      console.log(`  - ${event.event}: ${JSON.stringify(event.data, null, 2)}`);
+      logger.info('- ${event.event}: ${JSON.stringify(event.data, null, 2)}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -399,7 +399,7 @@ async function testEmitFileReceived() {
  * Simular la función emitFileDeleted
  */
 async function testEmitFileDeleted() {
-  console.log('\n🔄 Prueba 7: emitFileDeleted');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 7: emitFileDeleted' });
   
   try {
     // Simular datos del archivo eliminado
@@ -410,10 +410,10 @@ async function testEmitFileDeleted() {
       deletedBy: testData.userEmail
     };
 
-    console.log('🗑️ Simulando emisión de evento de archivo eliminado');
-    console.log('  - File ID:', fileData.fileId);
-    console.log('  - Conversation ID:', fileData.conversationId);
-    console.log('  - Deleted By:', fileData.deletedBy);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🗑️ Simulando emisión de evento de archivo eliminado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', fileData.fileId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', fileData.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Deleted By:', fileData.deletedBy });
 
     // Simular emisión de eventos
     const events = [
@@ -437,9 +437,9 @@ async function testEmitFileDeleted() {
       }
     ];
 
-    console.log('✅ Eventos de archivo eliminado emitidos exitosamente:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos de archivo eliminado emitidos exitosamente:' });
     for (const event of events) {
-      console.log(`  - ${event.event}: ${JSON.stringify(event.data, null, 2)}`);
+      logger.info('- ${event.event}: ${JSON.stringify(event.data, null, 2)}', { category: 'AUTO_MIGRATED' });
     }
 
     return {
@@ -459,13 +459,13 @@ async function testEmitFileDeleted() {
  * Probar sincronización completa en tiempo real
  */
 async function testCompleteRealtimeSync() {
-  console.log('\n🔄 Prueba 8: Sincronización Completa en Tiempo Real');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 8: Sincronización Completa en Tiempo Real' });
   
   try {
-    console.log('🔄 Simulando flujo completo de sincronización en tiempo real');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando flujo completo de sincronización en tiempo real' });
 
     // 1. Usuario sube archivo
-    console.log('  1. 📎 Usuario sube archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  1. 📎 Usuario sube archivo' });
     const uploadResult = await testHandleFileUploaded();
     
     if (!uploadResult.success) {
@@ -473,7 +473,7 @@ async function testCompleteRealtimeSync() {
     }
 
     // 2. Archivo se procesa y se notifica a todos los usuarios
-    console.log('  2. 🔄 Archivo se procesa y se notifica a todos los usuarios');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  2. 🔄 Archivo se procesa y se notifica a todos los usuarios' });
     const processingResult = await testEmitConversationFilesUpdated();
     
     if (!processingResult.success) {
@@ -481,7 +481,7 @@ async function testCompleteRealtimeSync() {
     }
 
     // 3. Usuario recibe archivo de WhatsApp
-    console.log('  3. 📱 Usuario recibe archivo de WhatsApp');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  3. 📱 Usuario recibe archivo de WhatsApp' });
     const receiveResult = await testHandleFileReceived();
     
     if (!receiveResult.success) {
@@ -489,7 +489,7 @@ async function testCompleteRealtimeSync() {
     }
 
     // 4. Lista de archivos se actualiza automáticamente
-    console.log('  4. 📋 Lista de archivos se actualiza automáticamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  4. 📋 Lista de archivos se actualiza automáticamente' });
     const updateResult = await testEmitConversationFilesUpdated();
     
     if (!updateResult.success) {
@@ -497,17 +497,17 @@ async function testCompleteRealtimeSync() {
     }
 
     // 5. Usuario elimina archivo
-    console.log('  5. 🗑️ Usuario elimina archivo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  5. 🗑️ Usuario elimina archivo' });
     const deleteResult = await testHandleFileDeleted();
     
     if (!deleteResult.success) {
       throw new Error('Error en eliminación de archivo');
     }
 
-    console.log('✅ Sincronización completa en tiempo real exitosa');
-    console.log('  - Todos los usuarios reciben notificaciones en tiempo real');
-    console.log('  - Lista de archivos se actualiza automáticamente');
-    console.log('  - Eventos WebSocket funcionan correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Sincronización completa en tiempo real exitosa' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Todos los usuarios reciben notificaciones en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Lista de archivos se actualiza automáticamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Eventos WebSocket funcionan correctamente' });
 
     return {
       success: true,
@@ -530,7 +530,7 @@ async function testCompleteRealtimeSync() {
  */
 async function testFase7Realtime() {
   try {
-    console.log('🔄 Ejecutando pruebas de Fase 7...\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Ejecutando pruebas de Fase 7...\n' });
 
     const results = [];
 
@@ -548,51 +548,51 @@ async function testFase7Realtime() {
     const successfulTests = results.filter(r => r.success).length;
     const totalTests = results.length;
 
-    console.log('\n🎉 PRUEBAS DE FASE 7 COMPLETADAS');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 7 COMPLETADAS' });
     console.log('=' .repeat(50));
-    console.log(`📊 Resultado: ${successfulTests}/${totalTests} pruebas exitosas`);
+    logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
-      console.log('✅ TODAS LAS PRUEBAS PASARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TODAS LAS PRUEBAS PASARON' });
     } else {
-      console.log('⚠️  ALGUNAS PRUEBAS FALLARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  ALGUNAS PRUEBAS FALLARON' });
     }
 
     // Mostrar detalles de cada función implementada
-    console.log('\n📋 DETALLES DE FUNCIONES IMPLEMENTADAS:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 DETALLES DE FUNCIONES IMPLEMENTADAS:' });
     console.log('1. ✅ handleFileUploaded (Mejorado) - Sincronización automática');
-    console.log('2. ✅ handleFileReceived - Archivos de WhatsApp');
-    console.log('3. ✅ handleFileDeleted - Eliminación de archivos');
-    console.log('4. ✅ getFileCount - Conteo de archivos');
-    console.log('5. ✅ emitConversationFilesUpdated - Actualización de lista');
-    console.log('6. ✅ emitFileReceived - Emisión de archivos recibidos');
-    console.log('7. ✅ emitFileDeleted - Emisión de archivos eliminados');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ handleFileReceived - Archivos de WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ handleFileDeleted - Eliminación de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ getFileCount - Conteo de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. ✅ emitConversationFilesUpdated - Actualización de lista' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '6. ✅ emitFileReceived - Emisión de archivos recibidos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '7. ✅ emitFileDeleted - Emisión de archivos eliminados' });
 
     // Mostrar características de sincronización
-    console.log('\n🔧 CARACTERÍSTICAS DE SINCRONIZACIÓN:');
-    console.log('- Notificaciones en tiempo real para todos los usuarios');
-    console.log('- Actualización automática de lista de archivos');
-    console.log('- Eventos WebSocket optimizados');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 CARACTERÍSTICAS DE SINCRONIZACIÓN:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Notificaciones en tiempo real para todos los usuarios' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Actualización automática de lista de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Eventos WebSocket optimizados' });
     console.log('- Sincronización bidireccional (subida/recepción/eliminación)');
-    console.log('- Logging detallado de eventos');
-    console.log('- Manejo robusto de errores');
-    console.log('- Compatibilidad con WhatsApp');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Logging detallado de eventos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Manejo robusto de errores' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Compatibilidad con WhatsApp' });
 
     // Mostrar eventos implementados
-    console.log('\n🎯 EVENTOS IMPLEMENTADOS:');
-    console.log('- file-uploaded - Archivo subido');
-    console.log('- file-received - Archivo recibido');
-    console.log('- file-deleted - Archivo eliminado');
-    console.log('- conversation-files-updated - Lista actualizada');
-    console.log('- Emisión automática en todas las operaciones');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 EVENTOS IMPLEMENTADOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- file-uploaded - Archivo subido' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- file-received - Archivo recibido' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- file-deleted - Archivo eliminado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- conversation-files-updated - Lista actualizada' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Emisión automática en todas las operaciones' });
 
     // Mostrar casos de uso cubiertos
-    console.log('\n📱 CASOS DE USO CUBIERTOS:');
-    console.log('- Usuario sube archivo → Todos reciben notificación');
-    console.log('- Usuario recibe archivo de WhatsApp → Lista se actualiza');
-    console.log('- Usuario elimina archivo → Todos reciben notificación');
-    console.log('- Lista de archivos se sincroniza automáticamente');
-    console.log('- Eventos en tiempo real para todas las operaciones');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📱 CASOS DE USO CUBIERTOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Usuario sube archivo → Todos reciben notificación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Usuario recibe archivo de WhatsApp → Lista se actualiza' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Usuario elimina archivo → Todos reciben notificación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Lista de archivos se sincroniza automáticamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Eventos en tiempo real para todas las operaciones' });
 
     return {
       success: successfulTests === totalTests,
@@ -613,7 +613,7 @@ async function testFase7Realtime() {
 async function main() {
   try {
     await testFase7Realtime();
-    console.log('\n✅ Script de prueba completado exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Script de prueba falló');

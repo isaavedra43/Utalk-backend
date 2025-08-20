@@ -1,4 +1,5 @@
 const Message = require('../models/Message');
+const MessageRepository = require('../repositories/MessageRepository');
 const ContactService = require('./ContactService');
 const Conversation = require('../models/Conversation');
 const twilio = require('twilio');
@@ -341,7 +342,7 @@ class MessageService {
       }
 
       // Verificar si el mensaje ya existe (duplicados)
-        const existingMessage = await Message.getByTwilioSid(MessageSid);
+        const existingMessage = await MessageRepository.getByTwilioSid(MessageSid);
         if (existingMessage) {
         logger.warn('Message duplicate detected', {
           category: 'MESSAGE_DUPLICATE',
@@ -1064,7 +1065,7 @@ class MessageService {
       query = query.orderBy(orderBy, order);
 
       if (startAfter) {
-        const startDoc = await Message.getById(startAfter);
+        const startDoc = await MessageRepository.getById(startAfter);
         if (startDoc) {
           query = query.startAfter(startDoc.getFirestoreDoc());
         }
@@ -1126,7 +1127,7 @@ class MessageService {
 
         const batchPromises = batch.map(async (messageId) => {
           try {
-            const message = await Message.getById(messageId);
+            const message = await MessageRepository.getById(messageId);
             if (!message) {
               return { messageId, success: false, error: 'Mensaje no encontrado' };
             }
@@ -1456,7 +1457,7 @@ class MessageService {
    */
   static async deleteMessage (messageId, userId = null) {
     try {
-      const message = await Message.getById(messageId);
+      const message = await MessageRepository.getById(messageId);
       if (!message) {
         throw new Error('Mensaje no encontrado');
       }

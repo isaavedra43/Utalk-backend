@@ -1,5 +1,5 @@
 // Script para probar URLs públicas de media
-console.log('🧪 Probando URLs públicas de media...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando URLs públicas de media...\n' });
 
 // Simular mensaje con mediaUrl de Twilio
 const messageWithTwilioMedia = {
@@ -60,10 +60,10 @@ function simulateToJSON(message) {
         // Generar URL pública del proxy
         processedMediaUrl = `${baseUrl}/media/proxy-file-public/${fileId}`;
         
-        console.log('🔄 URL de Firebase convertida a URL pública:');
-        console.log('- Original:', message.mediaUrl);
-        console.log('- Pública:', processedMediaUrl);
-        console.log('- FileId:', fileId);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 URL de Firebase convertida a URL pública:' });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Original:', message.mediaUrl });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Pública:', processedMediaUrl });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- FileId:', fileId });
         
       } else if (message.mediaUrl.includes('api.twilio.com')) {
         // Si es una URL de Twilio, generar URL pública del proxy
@@ -74,11 +74,11 @@ function simulateToJSON(message) {
         // Generar URL pública del proxy de Twilio
         processedMediaUrl = `${baseUrl}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
         
-        console.log('🔄 URL de Twilio convertida a URL pública:');
-        console.log('- Original:', message.mediaUrl);
-        console.log('- Pública:', processedMediaUrl);
-        console.log('- MessageSid:', messageSid);
-        console.log('- MediaSid:', mediaSid);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 URL de Twilio convertida a URL pública:' });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Original:', message.mediaUrl });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Pública:', processedMediaUrl });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MessageSid:', messageSid });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaSid:', mediaSid });
       }
     } catch (error) {
       console.warn('⚠️ Error generando URL pública:', error.message);
@@ -102,10 +102,10 @@ function simulateToJSON(message) {
   };
 }
 
-console.log('📋 Probando mensaje con media de Twilio:');
-console.log('=====================================');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Probando mensaje con media de Twilio:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=====================================' });
 const twilioResult = simulateToJSON(messageWithTwilioMedia);
-console.log('\n📝 Resultado final:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resultado final:' });
 console.log(JSON.stringify({
   id: twilioResult.id,
   type: twilioResult.type,
@@ -113,10 +113,10 @@ console.log(JSON.stringify({
   hasMedia: !!twilioResult.mediaUrl
 }, null, 2));
 
-console.log('\n📋 Probando mensaje con media de Firebase:');
-console.log('=========================================');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Probando mensaje con media de Firebase:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=========================================' });
 const firebaseResult = simulateToJSON(messageWithFirebaseMedia);
-console.log('\n📝 Resultado final:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resultado final:' });
 console.log(JSON.stringify({
   id: firebaseResult.id,
   type: firebaseResult.type,
@@ -124,6 +124,6 @@ console.log(JSON.stringify({
   hasMedia: !!firebaseResult.mediaUrl
 }, null, 2));
 
-console.log('\n🏁 Prueba completada');
-console.log('\n✅ Las URLs públicas deberían funcionar sin autenticación');
-console.log('🔗 Las URLs generadas son accesibles directamente desde el frontend'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Prueba completada' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Las URLs públicas deberían funcionar sin autenticación' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔗 Las URLs generadas son accesibles directamente desde el frontend' }); 

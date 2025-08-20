@@ -3,16 +3,16 @@ const { firestore } = require('../src/config/firebase');
 
 async function reconstructMediaUrlsFromSids() {
   try {
-    console.log('🔧 Reconstruyendo URLs de media usando SIDs existentes...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 Reconstruyendo URLs de media usando SIDs existentes...' });
     
     // Usar el Account SID que sabemos que es correcto
     const accountSid = 'AC1ed6685660488369e7f0c3ab257f250c';
     
-    console.log(`🔑 Account SID: ${accountSid}`);
+    logger.info('� Account SID: ${accountSid}', { category: 'AUTO_MIGRATED' });
     
     // Procesar la conversación específica que vimos en los logs
     const conversationId = 'conv_+5214773790184_+5214793176502';
-    console.log(`📱 Procesando conversación: ${conversationId}`);
+    logger.info('� Procesando conversación: ${conversationId}', { category: 'AUTO_MIGRATED' });
     
     // Obtener todos los mensajes de la conversación
     const messagesSnapshot = await firestore
@@ -32,7 +32,7 @@ async function reconstructMediaUrlsFromSids() {
       if (messageData.type === 'media' && !messageData.mediaUrl && messageData.metadata?.twilio?.sid) {
         const twilioSid = messageData.metadata.twilio.sid;
         
-        console.log(`🔍 Mensaje de media sin URL: ${twilioSid}`);
+        logger.info('Mensaje de media sin URL: ${twilioSid}', { category: 'AUTO_MIGRATED' });
         
         // Reconstruir la URL usando el SID del mensaje
         // Como no tenemos el MediaSid real, vamos a usar una aproximación
@@ -54,14 +54,14 @@ async function reconstructMediaUrlsFromSids() {
           }]
         });
         
-        console.log(`✅ URL reconstruida para ${twilioSid}: ${reconstructedUrl}`);
+        logger.info('URL reconstruida para ${twilioSid}: ${reconstructedUrl}', { category: 'AUTO_MIGRATED' });
         totalMessagesFixed++;
       }
     }
     
-    console.log(`\n📊 Resumen:`);
-    console.log(`- Mensajes procesados: ${totalMessagesProcessed}`);
-    console.log(`- Mensajes arreglados: ${totalMessagesFixed}`);
+    logger.info('\n Resumen:', { category: 'AUTO_MIGRATED' });
+    logger.info('- Mensajes procesados: ${totalMessagesProcessed}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Mensajes arreglados: ${totalMessagesFixed}', { category: 'AUTO_MIGRATED' });
     
   } catch (error) {
     console.error('❌ Error en reconstructMediaUrlsFromSids:', error);
@@ -70,7 +70,7 @@ async function reconstructMediaUrlsFromSids() {
 
 // Ejecutar el script
 reconstructMediaUrlsFromSids().then(() => {
-  console.log('✅ Script completado');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Script completado' });
   process.exit(0);
 }).catch((error) => {
   console.error('❌ Error:', error);

@@ -34,58 +34,58 @@ function createTestSocket() {
  * Prueba principal
  */
 async function testRealtimeFix() {
-  console.log('🚀 PROBANDO SOLUCIÓN DE TIEMPO REAL');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 PROBANDO SOLUCIÓN DE TIEMPO REAL' });
   console.log('=' .repeat(50));
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ WebSocket conectado exitosamente');
-      console.log('  - Socket ID:', socket.id);
-      console.log('  - URL:', TEST_CONFIG.wsUrl);
-      console.log('\n🔍 Escuchando eventos de nuevas conversaciones...');
-      console.log('💡 Envía un mensaje de WhatsApp para probar');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ WebSocket conectado exitosamente' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Socket ID:', socket.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL:', TEST_CONFIG.wsUrl });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 Escuchando eventos de nuevas conversaciones...' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💡 Envía un mensaje de WhatsApp para probar' });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('🔌 WebSocket desconectado:', reason);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔌 WebSocket desconectado:', reason });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error de WebSocket:', error);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error de WebSocket:', error });
     });
 
     // Escuchar eventos de nuevas conversaciones
     socket.on('conversation-event', (data) => {
-      console.log('\n🎉 EVENTO DE CONVERSACIÓN RECIBIDO:');
-      console.log('  - Conversation ID:', data.conversationId);
-      console.log('  - Last Message:', data.lastMessage);
-      console.log('  - Updated At:', data.updatedAt);
-      console.log('  - Unread Count:', data.unreadCount);
-      console.log('  - Is New Conversation:', data.isNewConversation);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 EVENTO DE CONVERSACIÓN RECIBIDO:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', data.conversationId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Last Message:', data.lastMessage });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Updated At:', data.updatedAt });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Unread Count:', data.unreadCount });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Is New Conversation:', data.isNewConversation });
     });
 
     socket.on('new-message', (data) => {
-      console.log('\n📨 NUEVO MENSAJE RECIBIDO:');
-      console.log('  - Conversation ID:', data.conversationId);
-      console.log('  - Message ID:', data.message?.id);
-      console.log('  - Content:', data.message?.content);
-      console.log('  - Sender:', data.message?.sender);
-      console.log('  - Is New Conversation:', data.isNewConversation);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📨 NUEVO MENSAJE RECIBIDO:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', data.conversationId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Message ID:', data.message?.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Content:', data.message?.content });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Sender:', data.message?.sender });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Is New Conversation:', data.isNewConversation });
     });
 
-    console.log('⏰ Esperando 60 segundos para eventos...');
-    console.log('💡 Envía un mensaje de WhatsApp durante este tiempo para probar');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⏰ Esperando 60 segundos para eventos...' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💡 Envía un mensaje de WhatsApp durante este tiempo para probar' });
     
     setTimeout(() => {
       socket.disconnect();
-      console.log('\n✅ PRUEBA COMPLETADA');
-      console.log('\n📋 RESULTADO:');
-      console.log('- Si recibiste eventos de nuevas conversaciones,');
-      console.log('  la solución está funcionando correctamente.');
-      console.log('- Si no recibiste eventos, verifica que el backend');
-      console.log('  esté procesando los mensajes de WhatsApp.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ PRUEBA COMPLETADA' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 RESULTADO:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Si recibiste eventos de nuevas conversaciones,' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  la solución está funcionando correctamente.' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Si no recibiste eventos, verifica que el backend' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  esté procesando los mensajes de WhatsApp.' });
       resolve(true);
     }, 60000);
   });

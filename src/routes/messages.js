@@ -176,7 +176,13 @@ router.get('/',
   requireReadAccess,
   (req, res, next) => {
     // 🔧 LOG CRÍTICO PARA RAILWAY: Llamada a mensajes
-    console.log(`💬 MESSAGES_REQUEST: ${req.user?.email || 'anonymous'} - ${req.method} ${req.path} - Query: ${JSON.stringify(req.query)}`);
+    req.logger.info('MESSAGES_REQUEST', {
+      category: 'MESSAGES_API',
+      user: req.user?.email || 'anonymous',
+      method: req.method,
+      path: req.path,
+      query: req.query
+    });
     next();
   },
   normalizeConversationIdQuery, // 🔧 CORRECCIÓN: Normalizar conversationId en query

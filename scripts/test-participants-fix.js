@@ -22,37 +22,37 @@ const db = admin.firestore();
  */
 async function checkConversationParticipants(conversationId) {
   try {
-    console.log(`🔍 Verificando participantes en conversación: ${conversationId}`);
+    logger.info('Verificando participantes en conversación: ${conversationId}', { category: 'AUTO_MIGRATED' });
     
     const conversationDoc = await db.collection('conversations').doc(conversationId).get();
     
     if (!conversationDoc.exists) {
-      console.log('❌ Conversación no encontrada');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Conversación no encontrada' });
       return false;
     }
     
     const data = conversationDoc.data();
     const participants = data.participants || [];
     
-    console.log('📋 Datos de la conversación:');
-    console.log(`  - ID: ${conversationDoc.id}`);
-    console.log(`  - Customer Phone: ${data.customerPhone || 'N/A'}`);
-    console.log(`  - Status: ${data.status || 'N/A'}`);
-    console.log(`  - Participants Count: ${participants.length}`);
-    console.log(`  - Participants: ${JSON.stringify(participants, null, 2)}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos de la conversación:' });
+    logger.info('- ID: ${conversationDoc.id}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Customer Phone: ${data.customerPhone || 'N/A'}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Status: ${data.status || 'N/A'}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Participants Count: ${participants.length}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Participants: ${JSON.stringify(participants, null, 2)}', { category: 'AUTO_MIGRATED' });
     
     // Verificar si tiene los participantes por defecto
     const defaultViewers = getDefaultViewerEmails();
-    console.log(`\n📋 Viewers por defecto configurados:`);
-    console.log(`  - Default Viewers: ${JSON.stringify(defaultViewers, null, 2)}`);
+    logger.info('\n Viewers por defecto configurados:', { category: 'AUTO_MIGRATED' });
+    logger.info('- Default Viewers: ${JSON.stringify(defaultViewers, null, 2)}', { category: 'AUTO_MIGRATED' });
     
     const hasDefaultViewers = defaultViewers.every(viewer => 
       participants.some(p => p.toLowerCase() === viewer.toLowerCase())
     );
     
-    console.log(`\n✅ Verificación de participantes:`);
-    console.log(`  - Tiene participantes: ${participants.length > 0 ? 'SÍ' : 'NO'}`);
-    console.log(`  - Tiene viewers por defecto: ${hasDefaultViewers ? 'SÍ' : 'NO'}`);
+    logger.info('\n Verificación de participantes:', { category: 'AUTO_MIGRATED' });
+    logger.info('- Tiene participantes: ${participants.length > 0 ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Tiene viewers por defecto: ${hasDefaultViewers ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
     
     return participants.length > 0 && hasDefaultViewers;
     
@@ -67,7 +67,7 @@ async function checkConversationParticipants(conversationId) {
  */
 async function listRecentConversations(limit = 10) {
   try {
-    console.log(`📋 Listando las ${limit} conversaciones más recientes:`);
+    logger.info('Listando las ${limit} conversaciones más recientes:', { category: 'AUTO_MIGRATED' });
     
     const snapshot = await db.collection('conversations')
       .orderBy('updatedAt', 'desc')
@@ -75,7 +75,7 @@ async function listRecentConversations(limit = 10) {
       .get();
     
     if (snapshot.empty) {
-      console.log('❌ No se encontraron conversaciones');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ No se encontraron conversaciones' });
       return [];
     }
     
@@ -93,13 +93,13 @@ async function listRecentConversations(limit = 10) {
     });
     
     conversations.forEach((conv, index) => {
-      console.log(`  ${index + 1}. ${conv.id}`);
-      console.log(`     - Customer: ${conv.customerPhone}`);
-      console.log(`     - Status: ${conv.status}`);
-      console.log(`     - Participants: ${conv.participantsCount}`);
-      console.log(`     - Has Participants: ${conv.hasParticipants ? '✅' : '❌'}`);
-      console.log(`     - Updated: ${conv.updatedAt}`);
-      console.log('');
+      logger.info('${index + 1}. ${conv.id}', { category: 'AUTO_MIGRATED' });
+      logger.info('- Customer: ${conv.customerPhone}', { category: 'AUTO_MIGRATED' });
+      logger.info('- Status: ${conv.status}', { category: 'AUTO_MIGRATED' });
+      logger.info('- Participants: ${conv.participantsCount}', { category: 'AUTO_MIGRATED' });
+      logger.info('- Has Participants: ${conv.hasParticipants ? '' : '❌'}', { category: 'AUTO_MIGRATED' });
+      logger.info('- Updated: ${conv.updatedAt}', { category: 'AUTO_MIGRATED' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
     });
     
     return conversations;
@@ -114,12 +114,12 @@ async function listRecentConversations(limit = 10) {
  * Función para verificar configuración de viewers por defecto
  */
 function checkDefaultViewersConfig() {
-  console.log('🔧 Verificando configuración de viewers por defecto:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 Verificando configuración de viewers por defecto:' });
   
   const defaultViewers = getDefaultViewerEmails();
-  console.log(`  - DEFAULT_VIEWER_EMAILS: ${process.env.DEFAULT_VIEWER_EMAILS || 'No configurado'}`);
-  console.log(`  - DEFAULT_AGENT_EMAIL: ${process.env.DEFAULT_AGENT_EMAIL || 'No configurado'}`);
-  console.log(`  - Viewers resultantes: ${JSON.stringify(defaultViewers, null, 2)}`);
+  logger.info('- DEFAULT_VIEWER_EMAILS: ${process.env.DEFAULT_VIEWER_EMAILS || 'No configurado'}', { category: 'AUTO_MIGRATED' });
+  logger.info('- DEFAULT_AGENT_EMAIL: ${process.env.DEFAULT_AGENT_EMAIL || 'No configurado'}', { category: 'AUTO_MIGRATED' });
+  logger.info('- Viewers resultantes: ${JSON.stringify(defaultViewers, null, 2)}', { category: 'AUTO_MIGRATED' });
   
   return defaultViewers;
 }
@@ -128,30 +128,30 @@ function checkDefaultViewersConfig() {
  * Función principal
  */
 async function runTest() {
-  console.log('🚀 INICIANDO PRUEBA DE PARTICIPANTES');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBA DE PARTICIPANTES' });
   console.log('=' .repeat(50));
   
   try {
     // 1. Verificar configuración
-    console.log('\n1️⃣ Verificando configuración...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n1️⃣ Verificando configuración...' });
     const defaultViewers = checkDefaultViewersConfig();
     
     if (defaultViewers.length === 0) {
-      console.log('⚠️ ADVERTENCIA: No hay viewers por defecto configurados');
-      console.log('   Esto puede causar problemas de permisos en las conversaciones');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ ADVERTENCIA: No hay viewers por defecto configurados' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Esto puede causar problemas de permisos en las conversaciones' });
     }
     
     // 2. Listar conversaciones recientes
-    console.log('\n2️⃣ Listando conversaciones recientes...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n2️⃣ Listando conversaciones recientes...' });
     const conversations = await listRecentConversations(5);
     
     if (conversations.length === 0) {
-      console.log('❌ No hay conversaciones para verificar');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ No hay conversaciones para verificar' });
       return;
     }
     
     // 3. Verificar participantes en las conversaciones más recientes
-    console.log('\n3️⃣ Verificando participantes en conversaciones recientes...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3️⃣ Verificando participantes en conversaciones recientes...' });
     
     let conversationsWithParticipants = 0;
     let conversationsWithoutParticipants = 0;
@@ -165,24 +165,24 @@ async function runTest() {
         conversationsWithoutParticipants++;
       }
       
-      console.log(''); // Separador
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' }); // Separador
     }
     
     // 4. Resumen
-    console.log('\n📊 RESUMEN:');
-    console.log(`  - Total de conversaciones verificadas: ${conversations.length}`);
-    console.log(`  - Con participantes: ${conversationsWithParticipants} ✅`);
-    console.log(`  - Sin participantes: ${conversationsWithoutParticipants} ❌`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 RESUMEN:' });
+    logger.info('- Total de conversaciones verificadas: ${conversations.length}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Con participantes: ${conversationsWithParticipants}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Sin participantes: ${conversationsWithoutParticipants} ❌', { category: 'AUTO_MIGRATED' });
     
     if (conversationsWithoutParticipants > 0) {
-      console.log('\n⚠️ PROBLEMA DETECTADO:');
-      console.log('   Algunas conversaciones no tienen la colección de participantes.');
-      console.log('   Esto puede causar problemas de permisos de acceso.');
-      console.log('\n🔧 SOLUCIÓN:');
-      console.log('   Ejecuta el script de backfill para agregar participantes:');
-      console.log('   node scripts/backfill_add_viewers.js');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ PROBLEMA DETECTADO:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Algunas conversaciones no tienen la colección de participantes.' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Esto puede causar problemas de permisos de acceso.' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 SOLUCIÓN:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Ejecuta el script de backfill para agregar participantes:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   node scripts/backfill_add_viewers.js' });
     } else {
-      console.log('\n✅ TODAS LAS CONVERSACIONES TIENEN PARTICIPANTES');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ TODAS LAS CONVERSACIONES TIENEN PARTICIPANTES' });
     }
     
   } catch (error) {

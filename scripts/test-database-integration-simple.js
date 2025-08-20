@@ -16,7 +16,7 @@ const mockFirestore = {
   collection: (name) => ({
     doc: (id) => ({
       set: async (data) => {
-        console.log(`✅ Mock: Archivo guardado en ${name}/${id}`);
+        logger.info('Mock: Archivo guardado en ${name}/${id}', { category: 'AUTO_MIGRATED' });
         return { id, ...data };
       },
       get: async () => ({
@@ -24,7 +24,7 @@ const mockFirestore = {
         data: () => ({ id, originalName: 'test-file.txt', category: 'document' })
       }),
       update: async (data) => {
-        console.log(`✅ Mock: Archivo actualizado en ${name}/${id}`);
+        logger.info('Mock: Archivo actualizado en ${name}/${id}', { category: 'AUTO_MIGRATED' });
         return true;
       }
     }),
@@ -74,7 +74,7 @@ const mockFirestore = {
     update: (ref, data) => {},
     delete: (ref) => {},
     commit: async () => {
-      console.log('✅ Mock: Batch commit ejecutado');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: Batch commit ejecutado' });
     }
   })
 };
@@ -96,7 +96,7 @@ const mockStorage = {
   bucket: () => ({
     file: (path) => ({
       save: async (buffer, options) => {
-        console.log(`✅ Mock: Archivo guardado en storage: ${path}`);
+        logger.info('Mock: Archivo guardado en storage: ${path}', { category: 'AUTO_MIGRATED' });
         return true;
       },
       getSignedUrl: async (options) => {
@@ -104,7 +104,7 @@ const mockStorage = {
       },
       exists: async () => [true],
       delete: async () => {
-        console.log(`✅ Mock: Archivo eliminado de storage: ${path}`);
+        logger.info('Mock: Archivo eliminado de storage: ${path}', { category: 'AUTO_MIGRATED' });
         return true;
       }
     })
@@ -114,7 +114,7 @@ const mockStorage = {
 // Mock del modelo File
 const mockFileModel = {
   create: async (fileData) => {
-    console.log('✅ Mock: File.create ejecutado', { fileId: fileData.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: File.create ejecutado', { fileId: fileData.id } });
     return {
       id: fileData.id,
       ...fileData,
@@ -122,7 +122,7 @@ const mockFileModel = {
     };
   },
   getById: async (id) => {
-    console.log('✅ Mock: File.getById ejecutado', { id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: File.getById ejecutado', { id } });
     return {
       id,
       originalName: 'test-file.txt',
@@ -131,7 +131,7 @@ const mockFileModel = {
     };
   },
   listByConversation: async (conversationId, options) => {
-    console.log('✅ Mock: File.listByConversation ejecutado', { conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: File.listByConversation ejecutado', { conversationId } });
     return [
       {
         id: 'test-file-1',
@@ -142,7 +142,7 @@ const mockFileModel = {
     ];
   },
   listByUser: async (userId, options) => {
-    console.log('✅ Mock: File.listByUser ejecutado', { userId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: File.listByUser ejecutado', { userId } });
     return [
       {
         id: 'test-file-1',
@@ -153,7 +153,7 @@ const mockFileModel = {
     ];
   },
   search: async (searchTerm, options) => {
-    console.log('✅ Mock: File.search ejecutado', { searchTerm });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: File.search ejecutado', { searchTerm } });
     return [
       {
         id: 'test-file-1',
@@ -164,7 +164,7 @@ const mockFileModel = {
     ];
   },
   getStats: async (options) => {
-    console.log('✅ Mock: File.getStats ejecutado');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Mock: File.getStats ejecutado' });
     return {
       total: 1,
       totalSize: 1024,
@@ -207,7 +207,7 @@ require = function(moduleName) {
  * Prueba simplificada de integración con base de datos
  */
 async function testSimpleDatabaseIntegration() {
-  console.log('🧪 INICIANDO PRUEBAS SIMPLIFICADAS DE INTEGRACIÓN CON BASE DE DATOS\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS SIMPLIFICADAS DE INTEGRACIÓN CON BASE DE DATOS\n' });
 
   try {
     // Importar FileService después de los mocks
@@ -215,7 +215,7 @@ async function testSimpleDatabaseIntegration() {
     const fileService = new FileService();
 
     // 1. PRUEBA: saveFileToDatabase
-    console.log('🔄 Prueba 1: saveFileToDatabase');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Prueba 1: saveFileToDatabase' });
     
     const testFileData = {
       fileId: 'test-file-' + Date.now(),
@@ -235,104 +235,104 @@ async function testSimpleDatabaseIntegration() {
     const savedFile = await fileService.saveFileToDatabase(testFileData);
     
     if (savedFile && savedFile.id === testFileData.fileId) {
-      console.log('✅ saveFileToDatabase: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ saveFileToDatabase: PASÓ' });
     } else {
       throw new Error('Archivo guardado no coincide con datos de entrada');
     }
 
     // 2. PRUEBA: getFileById
-    console.log('\n🔄 Prueba 2: getFileById');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 2: getFileById' });
     
     const retrievedFile = await fileService.getFileById(testFileData.fileId);
     
     if (retrievedFile && retrievedFile.id === testFileData.fileId) {
-      console.log('✅ getFileById: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ getFileById: PASÓ' });
     } else {
       throw new Error('Archivo recuperado no coincide');
     }
 
     // 3. PRUEBA: listFilesByConversation
-    console.log('\n🔄 Prueba 3: listFilesByConversation');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 3: listFilesByConversation' });
     
     const filesByConversation = await fileService.listFilesByConversation(testFileData.conversationId);
     
     if (filesByConversation && filesByConversation.length > 0) {
-      console.log('✅ listFilesByConversation: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ listFilesByConversation: PASÓ' });
     } else {
       throw new Error('No se encontraron archivos por conversación');
     }
 
     // 4. PRUEBA: listFilesByUser
-    console.log('\n🔄 Prueba 4: listFilesByUser');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 4: listFilesByUser' });
     
     const filesByUser = await fileService.listFilesByUser(testFileData.userId);
     
     if (filesByUser && filesByUser.length > 0) {
-      console.log('✅ listFilesByUser: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ listFilesByUser: PASÓ' });
     } else {
       throw new Error('No se encontraron archivos por usuario');
     }
 
     // 5. PRUEBA: searchFiles
-    console.log('\n🔄 Prueba 5: searchFiles');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 5: searchFiles' });
     
     const searchResults = await fileService.searchFiles(testFileData.conversationId, 'test');
     
     if (searchResults && searchResults.length > 0) {
-      console.log('✅ searchFiles: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ searchFiles: PASÓ' });
     } else {
       throw new Error('Búsqueda no encontró resultados');
     }
 
     // 6. PRUEBA: getFileStatsByConversation
-    console.log('\n🔄 Prueba 6: getFileStatsByConversation');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 6: getFileStatsByConversation' });
     
     const stats = await fileService.getFileStatsByConversation(testFileData.conversationId);
     
     if (stats && stats.totalFiles >= 0) {
-      console.log('✅ getFileStatsByConversation: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ getFileStatsByConversation: PASÓ' });
     } else {
       throw new Error('No se pudieron obtener estadísticas');
     }
 
     // 7. PRUEBA: updateFileMetadata
-    console.log('\n🔄 Prueba 7: updateFileMetadata');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 7: updateFileMetadata' });
     
     const updateResult = await fileService.updateFileMetadata(testFileData.fileId, {
       metadata: { testUpdate: true }
     });
     
     if (updateResult) {
-      console.log('✅ updateFileMetadata: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ updateFileMetadata: PASÓ' });
     } else {
       throw new Error('No se pudo actualizar metadata');
     }
 
     // 8. PRUEBA: incrementDownloadCount
-    console.log('\n🔄 Prueba 8: incrementDownloadCount');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 8: incrementDownloadCount' });
     
     const downloadResult = await fileService.incrementDownloadCount(testFileData.fileId);
     
     if (downloadResult) {
-      console.log('✅ incrementDownloadCount: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ incrementDownloadCount: PASÓ' });
     } else {
       throw new Error('No se pudo incrementar contador de descargas');
     }
 
     // 9. PRUEBA: softDeleteFile
-    console.log('\n🔄 Prueba 9: softDeleteFile');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 9: softDeleteFile' });
     
     const deleteResult = await fileService.softDeleteFile(testFileData.fileId, testFileData.uploadedBy);
     
     if (deleteResult) {
-      console.log('✅ softDeleteFile: PASÓ');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ softDeleteFile: PASÓ' });
     } else {
       throw new Error('No se pudo eliminar archivo');
     }
 
-    console.log('\n🎉 TODAS LAS PRUEBAS SIMPLIFICADAS COMPLETADAS EXITOSAMENTE');
-    console.log('📊 RESUMEN: 9/9 pruebas pasaron');
-    console.log('\n✅ INTEGRACIÓN CON BASE DE DATOS FUNCIONANDO CORRECTAMENTE');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 TODAS LAS PRUEBAS SIMPLIFICADAS COMPLETADAS EXITOSAMENTE' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN: 9/9 pruebas pasaron' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ INTEGRACIÓN CON BASE DE DATOS FUNCIONANDO CORRECTAMENTE' });
 
   } catch (error) {
     console.error('\n❌ Error en pruebas simplificadas:', error.message);

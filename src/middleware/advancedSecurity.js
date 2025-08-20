@@ -780,8 +780,8 @@ class AdvancedSecurity {
         const token = authHeader.substring(7);
 
         // Verificar token
-        const jwtConfig = getAccessTokenConfig();
-        const decoded = jwt.verify(token, jwtConfig.secret);
+        const AuthService = require('../services/AuthService');
+        const decoded = AuthService.verifyAccessToken(token);
 
         // Validaciones adicionales
         const validation = await this.validateTokenClaims(decoded, req);

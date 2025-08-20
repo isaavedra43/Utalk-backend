@@ -15,36 +15,36 @@ const ContactConversationSyncService = require('../src/services/ContactConversat
 const logger = require('../src/utils/logger');
 
 async function syncAllConversationsWithContacts() {
-  console.log('🔄 Iniciando sincronización masiva de conversaciones con contactos...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Iniciando sincronización masiva de conversaciones con contactos...' });
   console.log('⏰ Fecha y hora:', new Date().toISOString());
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   try {
     // Ejecutar sincronización masiva
     const result = await ContactConversationSyncService.syncAllConversationsWithContacts();
 
-    console.log('');
-    console.log('✅ SINCRONIZACIÓN COMPLETADA');
-    console.log('📊 Resultados:');
-    console.log(`   - Conversaciones procesadas: ${result.success + result.failed}`);
-    console.log(`   - Sincronizaciones exitosas: ${result.success}`);
-    console.log(`   - Sincronizaciones fallidas: ${result.failed}`);
-    console.log(`   - Tasa de éxito: ${((result.success / (result.success + result.failed)) * 100).toFixed(2)}%`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ SINCRONIZACIÓN COMPLETADA' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Resultados:' });
+    logger.info('- Conversaciones procesadas: ${result.success + result.failed}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Sincronizaciones exitosas: ${result.success}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Sincronizaciones fallidas: ${result.failed}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Tasa de éxito: ${((result.success / (result.success + result.failed)) * 100).toFixed(2)}%', { category: 'AUTO_MIGRATED' });
 
     if (result.failed > 0) {
-      console.log('');
-      console.log('⚠️  Algunas conversaciones no se pudieron sincronizar.');
-      console.log('   Esto puede deberse a:');
-      console.log('   - Contactos no encontrados');
-      console.log('   - Conversaciones sin customerPhone');
-      console.log('   - Errores de permisos en Firestore');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  Algunas conversaciones no se pudieron sincronizar.' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Esto puede deberse a:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Contactos no encontrados' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Conversaciones sin customerPhone' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Errores de permisos en Firestore' });
     }
 
-    console.log('');
-    console.log('🎯 Próximos pasos:');
-    console.log('   1. Verificar en Firebase que los contactos tengan conversationIds');
-    console.log('   2. Probar búsquedas bidireccionales en el frontend');
-    console.log('   3. Monitorear logs para nuevas conversaciones');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎯 Próximos pasos:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   1. Verificar en Firebase que los contactos tengan conversationIds' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   2. Probar búsquedas bidireccionales en el frontend' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   3. Monitorear logs para nuevas conversaciones' });
 
   } catch (error) {
     console.error('❌ ERROR EN SINCRONIZACIÓN:', error.message);
@@ -56,8 +56,8 @@ async function syncAllConversationsWithContacts() {
 // Ejecutar sincronización
 syncAllConversationsWithContacts()
   .then(() => {
-    console.log('');
-    console.log('🏁 Script completado exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏁 Script completado exitosamente' });
     process.exit(0);
   })
   .catch((error) => {

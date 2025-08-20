@@ -86,7 +86,7 @@ class RailwayLogExporter {
    * Exportar logs a archivo JSON
    */
   async exportToJSON(outputPath = './railway-logs.json', options = {}) {
-    console.log('📊 Exportando logs de Railway...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Exportando logs de Railway...' });
     
     const allLogs = [];
     let offset = 0;
@@ -102,7 +102,7 @@ class RailwayLogExporter {
       hasNextPage = result.pageInfo.hasNextPage;
       offset += limit;
       
-      console.log(`📈 Procesados ${allLogs.length} logs...`);
+      logger.info('� Procesados ${allLogs.length} logs...', { category: 'AUTO_MIGRATED' });
       
       // Pausa para evitar rate limits
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -133,8 +133,8 @@ class RailwayLogExporter {
     };
 
     fs.writeFileSync(outputPath, JSON.stringify(output, null, 2));
-    console.log(`✅ Logs exportados a: ${outputPath}`);
-    console.log(`📊 Total de logs: ${filteredLogs.length}`);
+    logger.info('Logs exportados a: ${outputPath}', { category: 'AUTO_MIGRATED' });
+    logger.info('Total de logs: ${filteredLogs.length}', { category: 'AUTO_MIGRATED' });
     
     return output;
   }
@@ -143,7 +143,7 @@ class RailwayLogExporter {
    * Exportar logs a archivo CSV
    */
   async exportToCSV(outputPath = './railway-logs.csv', options = {}) {
-    console.log('📊 Exportando logs de Railway a CSV...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Exportando logs de Railway a CSV...' });
     
     const jsonData = await this.exportToJSON('./temp-logs.json', options);
     
@@ -164,7 +164,7 @@ class RailwayLogExporter {
     // Limpiar archivo temporal
     fs.unlinkSync('./temp-logs.json');
     
-    console.log(`✅ Logs exportados a CSV: ${outputPath}`);
+    logger.info('Logs exportados a CSV: ${outputPath}', { category: 'AUTO_MIGRATED' });
     return csvContent;
   }
 
@@ -172,7 +172,7 @@ class RailwayLogExporter {
    * Exportar solo errores críticos
    */
   async exportErrors(outputPath = './railway-errors.json') {
-    console.log('🚨 Exportando solo errores críticos...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚨 Exportando solo errores críticos...' });
     return this.exportToJSON(outputPath, {
       level: 'error',
       maxLogs: 5000
@@ -184,7 +184,7 @@ class RailwayLogExporter {
    */
   async exportRecentLogs(hours = 24, outputPath = './railway-recent-logs.json') {
     const startDate = new Date(Date.now() - hours * 60 * 60 * 1000);
-    console.log(`📊 Exportando logs de las últimas ${hours} horas...`);
+    logger.info('Exportando logs de las últimas ${hours} horas...', { category: 'AUTO_MIGRATED' });
     
     return this.exportToJSON(outputPath, {
       startDate,
@@ -222,7 +222,7 @@ async function main() {
       await exporter.exportToJSON(outputPath, options);
     }
 
-    console.log('🎉 Exportación completada exitosamente!');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 Exportación completada exitosamente!' });
     
   } catch (error) {
     console.error('❌ Error en la exportación:', error.message);

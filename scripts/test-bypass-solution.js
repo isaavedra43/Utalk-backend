@@ -7,7 +7,7 @@
  * @version 1.0.0
  */
 
-console.log('🧪 INICIANDO PRUEBA DE SOLUCIÓN BYPASS IMPLEMENTADA\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DE SOLUCIÓN BYPASS IMPLEMENTADA\n' });
 
 // Simular la solución de bypass implementada
 class BypassSolutionTest {
@@ -17,11 +17,11 @@ class BypassSolutionTest {
    */
   static async processIndividualWebhookMedia(mediaUrl, messageSid, index) {
     try {
-      console.log('🔧 SOLUCIÓN BYPASS: Procesando media con bypass completo', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 SOLUCIÓN BYPASS: Procesando media con bypass completo', {
         mediaUrl,
         messageSid,
         index
-      });
+      } });
 
       // Simular descarga de media
       const buffer = Buffer.from('datos simulados de imagen');
@@ -34,14 +34,14 @@ class BypassSolutionTest {
       else if (contentType.startsWith('audio/')) category = 'audio';
 
       // 🔧 BYPASS COMPLETO: NO USAR FILESERVICE
-      console.log('🔧 BYPASS COMPLETO: Evitando FileService problemático', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 BYPASS COMPLETO: Evitando FileService problemático', {
         mediaUrl,
         messageSid,
         index,
         category,
         size: buffer.byteLength,
         contentType
-      });
+      } });
 
       // Crear un ID único para el archivo
       const fileId = `bypass-${messageSid}-${index}-${Date.now()}`;
@@ -58,17 +58,17 @@ class BypassSolutionTest {
         originalUrl: mediaUrl // Mantener URL original
       };
 
-      console.log('✅ BYPASS COMPLETO: Media procesado exitosamente', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ BYPASS COMPLETO: Media procesado exitosamente', {
         fileId,
         category,
         size: buffer.byteLength,
         bypassMode: true
-      });
+      } });
 
       return result;
 
     } catch (error) {
-      console.log('❌ BYPASS COMPLETO: Error procesando media individual:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ BYPASS COMPLETO: Error procesando media individual:', error.message });
       throw error;
     }
   }
@@ -77,14 +77,14 @@ class BypassSolutionTest {
    * Simular el flujo completo de procesamiento de webhook
    */
   static async processWebhookMedia(webhookData) {
-    console.log('🔄 Simulando flujo completo de procesamiento de webhook');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando flujo completo de procesamiento de webhook' });
     
     const numMedia = parseInt(webhookData.NumMedia) || 0;
     const mediaUrls = [];
     const processedMedia = [];
     const types = new Set();
 
-    console.log(`📊 Procesando ${numMedia} archivos de media`);
+    logger.info('Procesando ${numMedia} archivos de media', { category: 'AUTO_MIGRATED' });
 
     // Procesar cada archivo de media
     for (let i = 0; i < numMedia; i++) {
@@ -92,7 +92,7 @@ class BypassSolutionTest {
 
       if (mediaUrl) {
         try {
-          console.log(`\n📁 Procesando media ${i + 1}/${numMedia}`);
+          logger.info('\n� Procesando media ${i + 1}/${numMedia}', { category: 'AUTO_MIGRATED' });
           
           // Procesar y guardar usando bypass
           const processedInfo = await this.processIndividualWebhookMedia(
@@ -105,10 +105,10 @@ class BypassSolutionTest {
           processedMedia.push(processedInfo); // Info procesada
           types.add(processedInfo.category);
           
-          console.log(`✅ Media ${i + 1} procesado exitosamente`);
+          logger.info('Media ${i + 1} procesado exitosamente', { category: 'AUTO_MIGRATED' });
           
         } catch (mediaError) {
-          console.log(`❌ Error procesando media ${i}:`, mediaError.message);
+          logger.info('❌ Error procesando media ${i}:', { category: 'AUTO_MIGRATED', data: mediaError.message });
           // Continuar con el siguiente archivo
         }
       }
@@ -130,14 +130,14 @@ class BypassSolutionTest {
       count: mediaUrls.length,
     };
 
-    console.log('\n🎉 Procesamiento completo exitoso:', result);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 Procesamiento completo exitoso:', result });
     return result;
   }
 }
 
 // Función principal de prueba
 async function testBypassSolution() {
-  console.log('📋 Datos de prueba:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos de prueba:' });
   
   // Simular datos de webhook con media
   const webhookData = {
@@ -149,15 +149,15 @@ async function testBypassSolution() {
     To: 'whatsapp:+0987654321'
   };
 
-  console.log('- Message SID:', webhookData.MessageSid);
-  console.log('- Num Media:', webhookData.NumMedia);
-  console.log('- Media URLs:', webhookData.MediaUrl0, webhookData.MediaUrl1);
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Message SID:', webhookData.MessageSid });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Num Media:', webhookData.NumMedia });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media URLs:', webhookData.MediaUrl0, webhookData.MediaUrl1 });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
   try {
     // Test 1: Procesar media individual
     console.log('='.repeat(50));
-    console.log('TEST 1: PROCESAMIENTO DE MEDIA INDIVIDUAL');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 1: PROCESAMIENTO DE MEDIA INDIVIDUAL' });
     console.log('='.repeat(50));
     
     const result1 = await BypassSolutionTest.processIndividualWebhookMedia(
@@ -166,22 +166,22 @@ async function testBypassSolution() {
       0
     );
     
-    console.log('✅ TEST 1: PASÓ');
-    console.log('   Resultado:', result1);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 1: PASÓ' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado:', result1 });
 
     // Test 2: Procesar múltiples media
     console.log('\n' + '='.repeat(50));
-    console.log('TEST 2: PROCESAMIENTO DE MÚLTIPLES MEDIA');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 2: PROCESAMIENTO DE MÚLTIPLES MEDIA' });
     console.log('='.repeat(50));
     
     const result2 = await BypassSolutionTest.processWebhookMedia(webhookData);
     
-    console.log('✅ TEST 2: PASÓ');
-    console.log('   Resultado:', result2);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 2: PASÓ' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Resultado:', result2 });
 
     // Test 3: Verificar que no hay errores de FileService
     console.log('\n' + '='.repeat(50));
-    console.log('TEST 3: VERIFICACIÓN DE SIN ERRORES FILESERVICE');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'TEST 3: VERIFICACIÓN DE SIN ERRORES FILESERVICE' });
     console.log('='.repeat(50));
     
     let hasFileServiceError = false;
@@ -194,27 +194,27 @@ async function testBypassSolution() {
       }
     }
     
-    console.log('✅ TEST 3: PASÓ');
-    console.log('   FileService errors:', hasFileServiceError ? 'SÍ' : 'NO');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TEST 3: PASÓ' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   FileService errors:', hasFileServiceError ? 'SÍ' : 'NO' });
 
     console.log('\n' + '='.repeat(50));
-    console.log('🎉 TODAS LAS PRUEBAS PASARON');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 TODAS LAS PRUEBAS PASARON' });
     console.log('='.repeat(50));
     
-    console.log('\n✅ SOLUCIÓN BYPASS IMPLEMENTADA CORRECTAMENTE');
-    console.log('\n📊 RESUMEN:');
-    console.log('- ✅ No se usa FileService problemático');
-    console.log('- ✅ Procesamiento directo y rápido');
-    console.log('- ✅ URLs originales de Twilio preservadas');
-    console.log('- ✅ IDs únicos generados correctamente');
-    console.log('- ✅ Categorías detectadas correctamente');
-    console.log('- ✅ Múltiples media procesados exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ SOLUCIÓN BYPASS IMPLEMENTADA CORRECTAMENTE' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 RESUMEN:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ No se usa FileService problemático' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Procesamiento directo y rápido' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ URLs originales de Twilio preservadas' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ IDs únicos generados correctamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Categorías detectadas correctamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Múltiples media procesados exitosamente' });
     
-    console.log('\n🚀 LISTO PARA DESPLIEGUE');
-    console.log('La solución debería resolver el error de procesamiento de media');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🚀 LISTO PARA DESPLIEGUE' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'La solución debería resolver el error de procesamiento de media' });
 
   } catch (error) {
-    console.log('\n❌ ERROR EN PRUEBAS:', error.message);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ ERROR EN PRUEBAS:', error.message });
     console.log('Stack:', error.stack?.split('\n').slice(0, 3));
   }
 }
@@ -223,7 +223,7 @@ async function testBypassSolution() {
 if (require.main === module) {
   testBypassSolution()
     .then(() => {
-      console.log('\n✅ PRUEBAS COMPLETADAS EXITOSAMENTE');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ PRUEBAS COMPLETADAS EXITOSAMENTE' });
       process.exit(0);
     })
     .catch((error) => {

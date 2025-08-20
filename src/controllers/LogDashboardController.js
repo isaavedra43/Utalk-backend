@@ -401,7 +401,12 @@ class LogDashboardController {
   static async getDashboardHTML(req, res) {
     try {
       // 🔧 LOG PARA RAILWAY: Acceso al dashboard
-      console.log(`📊 DASHBOARD_ACCESS: ${req.ip} - ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+      req.logger.info('DASHBOARD_ACCESS', {
+      category: 'DASHBOARD_SECURITY',
+      ip: req.ip,
+      userAgent: req.headers['user-agent']?.substring(0, 50) || 'unknown',
+      user: req.user?.email || 'anonymous'
+    });
       
       // 🔧 CAPTURAR EN LOG MONITOR
       logMonitor.addLog('info', 'DASHBOARD', 'Dashboard HTML requested', {

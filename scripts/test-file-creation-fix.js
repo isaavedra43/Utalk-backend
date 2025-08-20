@@ -7,7 +7,7 @@
  * @version 1.0.0
  */
 
-console.log('🧪 INICIANDO PRUEBA DE CORRECCIÓN DE CREACIÓN DE ARCHIVOS\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DE CORRECCIÓN DE CREACIÓN DE ARCHIVOS\n' });
 
 // Simular el modelo File
 class MockFile {
@@ -39,13 +39,13 @@ class MockFile {
   }
 
   static async createIndexes(file) {
-    console.log('🔍 Creando índices para archivo:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Creando índices para archivo:', {
       id: file.id,
       conversationId: file.conversationId,
       uploadedBy: file.uploadedBy,
       uploadedAt: file.uploadedAt,
       uploadedAtType: typeof file.uploadedAt
-    });
+    } });
 
     // Simular la lógica de creación de índices
     const batch = [];
@@ -106,13 +106,13 @@ class MockFile {
       fileId: file.id
     });
 
-    console.log('✅ Índices creados exitosamente:', batch.length, 'índices');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Índices creados exitosamente:', batch.length, 'índices' });
     return batch;
   }
 }
 
 // Test 1: Crear archivo con datos completos
-console.log('1. Probando creación de archivo con datos completos...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Probando creación de archivo con datos completos...' });
 try {
   const fileData = {
     id: 'test-file-1',
@@ -132,19 +132,19 @@ try {
   };
 
   const file = await MockFile.create(fileData);
-  console.log('✅ Archivo creado exitosamente:', {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo creado exitosamente:', {
     id: file.id,
     uploadedAt: file.uploadedAt,
     uploadedAtType: typeof file.uploadedAt
-  });
+  } });
 } catch (error) {
-  console.log('❌ Error creando archivo:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error creando archivo:', error.message });
 }
 
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Test 2: Crear archivo sin uploadedAt (debería usar fallback)
-console.log('2. Probando creación de archivo sin uploadedAt...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. Probando creación de archivo sin uploadedAt...' });
 try {
   const fileData = {
     id: 'test-file-2',
@@ -170,13 +170,13 @@ try {
     uploadedAtType: typeof file.uploadedAt
   });
 } catch (error) {
-  console.log('❌ Error creando archivo sin uploadedAt:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error creando archivo sin uploadedAt:', error.message });
 }
 
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Test 3: Crear archivo con uploadedAt undefined
-console.log('3. Probando creación de archivo con uploadedAt undefined...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. Probando creación de archivo con uploadedAt undefined...' });
 try {
   const fileData = {
     id: 'test-file-3',
@@ -202,13 +202,13 @@ try {
     uploadedAtType: typeof file.uploadedAt
   });
 } catch (error) {
-  console.log('❌ Error creando archivo con uploadedAt undefined:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error creando archivo con uploadedAt undefined:', error.message });
 }
 
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Test 4: Simular el flujo completo de FileService.saveFileToDatabase
-console.log('4. Probando flujo completo de saveFileToDatabase...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. Probando flujo completo de saveFileToDatabase...' });
 try {
   const fileData = {
     fileId: 'test-file-4',
@@ -240,19 +240,19 @@ try {
   };
 
   const savedFile = await MockFile.create(fileRecord);
-  console.log('✅ saveFileToDatabase completado exitosamente:', {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ saveFileToDatabase completado exitosamente:', {
     id: savedFile.id,
     uploadedAt: savedFile.uploadedAt,
     uploadedAtType: typeof savedFile.uploadedAt
-  });
+  } });
 } catch (error) {
-  console.log('❌ Error en saveFileToDatabase:', error.message);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en saveFileToDatabase:', error.message });
 }
 
-console.log('\n🎉 PRUEBA DE CORRECCIÓN COMPLETADA');
-console.log('\n✅ TODAS LAS CORRECCIONES IMPLEMENTADAS:');
-console.log('1. ✅ uploadedAt siempre tiene un valor válido');
-console.log('2. ✅ Manejo de errores en procesamiento de fecha');
-console.log('3. ✅ Fallback para uploadedAt undefined');
-console.log('4. ✅ Validación robusta en creación de índices');
-console.log('\n🔧 CORRECCIÓN LISTA PARA DESPLIEGUE'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBA DE CORRECCIÓN COMPLETADA' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ TODAS LAS CORRECCIONES IMPLEMENTADAS:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ uploadedAt siempre tiene un valor válido' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ Manejo de errores en procesamiento de fecha' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ Fallback para uploadedAt undefined' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ Validación robusta en creación de índices' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 CORRECCIÓN LISTA PARA DESPLIEGUE' }); 

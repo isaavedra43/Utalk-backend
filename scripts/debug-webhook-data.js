@@ -6,7 +6,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.post('/debug-webhook', (req, res) => {
-  console.log('🔍 WEBHOOK RECIBIDO:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 WEBHOOK RECIBIDO:' });
   console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
   console.log('📦 Body:', JSON.stringify(req.body, null, 2));
   console.log('🔗 Query params:', JSON.stringify(req.query, null, 2));
@@ -19,21 +19,21 @@ app.post('/debug-webhook', (req, res) => {
     }
   }
   
-  console.log('📎 Campos de media encontrados:', mediaFields);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Campos de media encontrados:', mediaFields });
   
   // Verificar si hay datos de media
   const numMedia = parseInt(req.body.NumMedia || '0');
-  console.log(`📊 NumMedia: ${numMedia}`);
+  logger.info('NumMedia: ${numMedia}', { category: 'AUTO_MIGRATED' });
   
   if (numMedia > 0) {
-    console.log('✅ Hay datos de media en el webhook');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Hay datos de media en el webhook' });
     for (let i = 0; i < numMedia; i++) {
-      console.log(`  Media ${i}:`);
-      console.log(`    URL: ${req.body[`MediaUrl${i}`]}`);
-      console.log(`    Content-Type: ${req.body[`MediaContentType${i}`]}`);
+      logger.info('Media ${i}:', { category: 'AUTO_MIGRATED' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `    URL: ${req.body[`MediaUrl${i}`]}` });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: `    Content-Type: ${req.body[`MediaContentType${i}`]}` });
     }
   } else {
-    console.log('❌ No hay datos de media en el webhook');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ No hay datos de media en el webhook' });
   }
   
   res.status(200).send('OK');
@@ -41,12 +41,12 @@ app.post('/debug-webhook', (req, res) => {
 
 const PORT = 3002;
 app.listen(PORT, () => {
-  console.log(`🔍 Servidor de debug iniciado en puerto ${PORT}`);
-  console.log(`📝 Endpoint: http://localhost:${PORT}/debug-webhook`);
-  console.log(`\n🧪 Para probar:`);
-  console.log(`1. Cambia temporalmente la URL del webhook en Twilio a:`);
-  console.log(`   http://localhost:${PORT}/debug-webhook`);
-  console.log(`2. Envía un mensaje con imagen`);
-  console.log(`3. Revisa los logs aquí`);
-  console.log(`4. Cambia la URL de vuelta a tu backend`);
+  logger.info('Servidor de debug iniciado en puerto ${PORT}', { category: 'AUTO_MIGRATED' });
+  logger.info('� Endpoint: http://localhost:${PORT}/debug-webhook', { category: 'AUTO_MIGRATED' });
+  logger.info('\n🧪 Para probar:', { category: 'AUTO_MIGRATED' });
+  logger.info('1. Cambia temporalmente la URL del webhook en Twilio a:', { category: 'AUTO_MIGRATED' });
+  logger.info('http://localhost:${PORT}/debug-webhook', { category: 'AUTO_MIGRATED' });
+  logger.info('2. Envía un mensaje con imagen', { category: 'AUTO_MIGRATED' });
+  logger.info('3. Revisa los logs aquí', { category: 'AUTO_MIGRATED' });
+  logger.info('4. Cambia la URL de vuelta a tu backend', { category: 'AUTO_MIGRATED' });
 }); 

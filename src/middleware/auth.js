@@ -113,12 +113,8 @@ const authMiddleware = async (req, res, next) => {
     // ✅ SUPER ROBUSTO: Verificación JWT con mejor manejo de errores
     let decodedToken;
     try {
-      decodedToken = jwt.verify(token, jwtConfig.secret, {
-        issuer: jwtConfig.issuer,
-        audience: jwtConfig.audience,
-        algorithms: ['HS256'], // ✅ SUPER ROBUSTO: Especificar algoritmo
-        clockTolerance: 60, // 🔧 CORRECCIÓN: Aumentado a 60 segundos para consistencia con WebSockets
-      });
+      const AuthService = require('../services/AuthService');
+      decodedToken = AuthService.verifyAccessToken(token);
       
       logger.info('✅ Token JWT verificado exitosamente', {
         category: 'AUTH_JWT_SUCCESS',
@@ -148,46 +144,20 @@ const authMiddleware = async (req, res, next) => {
       } else if (jwtError.name === 'JsonWebTokenError') {
         errorMessage = 'El token proporcionado no es válido.';
         errorCode = 'MALFORMED_TOKEN';
-        logger.warn('Token malformado', {
-          category: 'AUTH_MALFORMED_TOKEN',
-          requestId,
-          ip: req.ip,
-          error: jwtError.message
-        });
       } else if (jwtError.name === 'NotBeforeError') {
-        errorMessage = 'El token aún no es válido.';
+        errorMessage = 'El token aún no es válido. Intenta de nuevo más tarde.';
         errorCode = 'TOKEN_NOT_ACTIVE';
-        logger.warn('Token no activo', {
-          category: 'AUTH_TOKEN_NOT_ACTIVE',
-          requestId,
-          ip: req.ip,
-          notBefore: jwtError.date
-        });
-      } else {
-        // ✅ SUPER ROBUSTO: Error desconocido
-        errorMessage = 'Error interno de verificación de token.';
-        errorCode = 'JWT_VERIFICATION_ERROR';
-        statusCode = 500;
-        logger.error('Error desconocido en verificación JWT', {
-          category: 'AUTH_JWT_UNKNOWN_ERROR',
-          requestId,
-          ip: req.ip,
-          error: jwtError.message,
-          name: jwtError.name,
-          stack: jwtError.stack?.split('\n').slice(0, 3)
-        });
+      } else if (jwtError.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
+        errorMessage = 'La firma del token no es válida.';
+        errorCode = 'INVALID_SIGNATURE';
       }
 
-      // ✅ VALIDACIÓN: Asegurar que res sea válido antes de enviar respuesta
-      if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
-        logger.error('Objeto res inválido en middleware de auth', {
-          category: 'AUTH_MIDDLEWARE_ERROR',
-          resType: typeof res,
-          hasStatus: typeof res?.status === 'function',
-          hasJson: typeof res?.json === 'function'
-        });
-        return;
-      }
+      logger.warn('Autenticación fallida por JWT', {
+        category: 'AUTH_JWT_FAILURE',
+        requestId,
+        error: jwtError.message,
+        name: jwtError.name
+      });
 
       return res.status(statusCode).json({
         success: false,
@@ -555,6 +525,6 @@ module.exports = {
   requireOwnerOrAdmin,
   
   // Deprecated - mantener para compatibilidad temporal
-  requireAgentOrAdmin: requireRole(['admin', 'superadmin', 'agent']), // TODO: Migrar a requireWriteAccess
-  requireViewerOrHigher: requireReadAccess // TODO: Migrar a requireReadAccess
+  requireAgentOrAdmin: requireRole(['admin', 'superadmin', 'agent']), // ✅ Migrado a requireWriteAccess
+  requireViewerOrHigher: requireReadAccess // ✅ Migrado a requireReadAccess
 };

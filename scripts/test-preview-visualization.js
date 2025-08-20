@@ -19,9 +19,9 @@ const path = require('path');
 // Configurar logger
 const logger = require('../src/utils/logger');
 
-console.log('🖼️ ========================================');
-console.log('🖼️ PRUEBA FASE 5: PREVIEW Y VISUALIZACIÓN');
-console.log('🖼️ ========================================\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ ========================================' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ PRUEBA FASE 5: PREVIEW Y VISUALIZACIÓN' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ ========================================\n' });
 
 // Variables de prueba
 const TEST_CONVERSATION_ID = 'test-preview-conversation-' + Date.now();
@@ -78,7 +78,7 @@ function createTestVideoBuffer() {
  * 🧪 PRUEBA 1: PREVIEW DE IMÁGENES
  */
 async function testImagePreview() {
-  console.log('🧪 PRUEBA 1: Preview de imágenes');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 PRUEBA 1: Preview de imágenes' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -87,7 +87,7 @@ async function testImagePreview() {
     const testImageBuffer = createTestImageBuffer(1200, 800);
     const fileId = 'test-image-' + uuidv4();
     
-    console.log('🖼️ Generando preview de imagen de prueba...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ Generando preview de imagen de prueba...' });
     
     // Probar generación de preview completo
     const imagePreview = await fileService.generateImagePreview(
@@ -109,17 +109,17 @@ async function testImagePreview() {
     });
     
     // Probar thumbnail rápido
-    console.log('🖼️ Generando thumbnail rápido...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ Generando thumbnail rápido...' });
     const quickThumbnail = await fileService.generateQuickThumbnail(
       testImageBuffer,
       fileId,
       TEST_CONVERSATION_ID
     );
     
-    console.log('✅ Thumbnail rápido generado:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Thumbnail rápido generado:', {
       size: `${quickThumbnail.size / 1024}KB`,
       dimensions: `${quickThumbnail.dimensions.width}x${quickThumbnail.dimensions.height}`
-    });
+    } });
     
     // Validar URLs
     const hasValidUrls = imagePreview.thumbnail.url && 
@@ -127,10 +127,10 @@ async function testImagePreview() {
                         quickThumbnail.url;
     
     if (hasValidUrls) {
-      console.log('✅ URLs de preview válidas generadas');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ URLs de preview válidas generadas' });
       return true;
     } else {
-      console.log('❌ Error: URLs de preview no válidas');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error: URLs de preview no válidas' });
       return false;
     }
     
@@ -144,7 +144,7 @@ async function testImagePreview() {
  * 🧪 PRUEBA 2: PREVIEW DE DOCUMENTOS
  */
 async function testDocumentPreview() {
-  console.log('\n🧪 PRUEBA 2: Preview de documentos');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 2: Preview de documentos' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -169,7 +169,7 @@ async function testDocumentPreview() {
     let totalTests = testCases.length;
     
     for (const testCase of testCases) {
-      console.log(`\n  📄 Probando: ${testCase.name}`);
+      logger.info('\n  � Probando: ${testCase.name}', { category: 'AUTO_MIGRATED' });
       
       const fileId = 'test-doc-' + uuidv4();
       
@@ -187,24 +187,24 @@ async function testDocumentPreview() {
           }
         );
         
-        console.log(`    Tipo de documento: ${documentPreview.documentType}`);
-        console.log(`    Tiene texto: ${!!documentPreview.text}`);
-        console.log(`    Tiene thumbnail: ${!!documentPreview.thumbnail}`);
-        console.log(`    Número de páginas: ${documentPreview.pages.length}`);
+        logger.info('Tipo de documento: ${documentPreview.documentType}', { category: 'AUTO_MIGRATED' });
+        logger.info('Tiene texto: ${!!documentPreview.text}', { category: 'AUTO_MIGRATED' });
+        logger.info('Tiene thumbnail: ${!!documentPreview.thumbnail}', { category: 'AUTO_MIGRATED' });
+        logger.info('Número de páginas: ${documentPreview.pages.length}', { category: 'AUTO_MIGRATED' });
         
         if (documentPreview.documentType === testCase.expectedType) {
-          console.log(`    ✅ PASÓ`);
+          logger.info('PASÓ', { category: 'AUTO_MIGRATED' });
           passedTests++;
         } else {
-          console.log(`    ❌ FALLÓ - Esperado: ${testCase.expectedType}, Obtenido: ${documentPreview.documentType}`);
+          logger.info('❌ FALLÓ - Esperado: ${testCase.expectedType}, Obtenido: ${documentPreview.documentType}', { category: 'AUTO_MIGRATED' });
         }
         
       } catch (docError) {
-        console.log(`    ❌ Error procesando documento: ${docError.message}`);
+        logger.info('❌ Error procesando documento: ${docError.message}', { category: 'AUTO_MIGRATED' });
       }
     }
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -217,7 +217,7 @@ async function testDocumentPreview() {
  * 🧪 PRUEBA 3: PREVIEW DE VIDEOS
  */
 async function testVideoPreview() {
-  console.log('\n🧪 PRUEBA 3: Preview de videos');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 3: Preview de videos' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -226,7 +226,7 @@ async function testVideoPreview() {
     const testVideoBuffer = createTestVideoBuffer();
     const fileId = 'test-video-' + uuidv4();
     
-    console.log('🎥 Generando preview de video de prueba...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎥 Generando preview de video de prueba...' });
     
     try {
       const videoPreview = await fileService.generateVideoPreview(
@@ -241,28 +241,28 @@ async function testVideoPreview() {
         }
       );
       
-      console.log('✅ Preview de video generado:', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Preview de video generado:', {
         videoType: videoPreview.videoType,
         originalSize: `${videoPreview.originalSize / 1024}KB`,
         hasMetadata: !!videoPreview.metadata,
         hasThumbnail: !!videoPreview.thumbnail
-      });
+      } });
       
       if (videoPreview.thumbnail) {
-        console.log('  Thumbnail:', {
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  Thumbnail:', {
           size: `${videoPreview.thumbnail.size / 1024}KB`,
           dimensions: `${videoPreview.thumbnail.dimensions.width}x${videoPreview.thumbnail.dimensions.height}`,
           type: videoPreview.thumbnail.type
-        });
+        } });
       }
       
       if (videoPreview.metadata) {
-        console.log('  Metadatos:', {
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  Metadatos:', {
           duration: videoPreview.metadata.duration,
           format: videoPreview.metadata.format,
           hasVideo: !!videoPreview.metadata.video,
           hasAudio: !!videoPreview.metadata.audio
-        });
+        } });
       }
       
       return true;
@@ -284,16 +284,16 @@ async function testVideoPreview() {
           }
         );
         
-        console.log('✅ Preview completo de video generado:', {
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Preview completo de video generado:', {
           videoType: completeVideoPreview.videoType,
           hasThumbnail: !!completeVideoPreview.thumbnail,
           hasPreviewUrl: !!completeVideoPreview.previewUrl
-        });
+        } });
         
         return true;
         
       } catch (completeError) {
-        console.log('⚠️ Error en preview completo de video:', completeError.message);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ Error en preview completo de video:', completeError.message });
         return false;
       }
     }
@@ -308,7 +308,7 @@ async function testVideoPreview() {
  * 🧪 PRUEBA 4: INTEGRACIÓN COMPLETA DE PREVIEW
  */
 async function testCompletePreviewIntegration() {
-  console.log('\n🧪 PRUEBA 4: Integración completa de preview');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 4: Integración completa de preview' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -339,7 +339,7 @@ async function testCompletePreviewIntegration() {
     let totalTests = testFiles.length;
     
     for (const testFile of testFiles) {
-      console.log(`\n  📋 Procesando: ${testFile.name}`);
+      logger.info('\n   Procesando: ${testFile.name}', { category: 'AUTO_MIGRATED' });
       
       const fileId = 'test-integration-' + uuidv4();
       
@@ -392,9 +392,9 @@ async function testCompletePreviewIntegration() {
         }
         
         if (previewResult) {
-          console.log(`    ✅ Preview generado exitosamente`);
-          console.log(`    Tipo: ${testFile.type}`);
-          console.log(`    Tamaño original: ${(testFile.buffer.length / 1024).toFixed(1)}KB`);
+          logger.info('Preview generado exitosamente', { category: 'AUTO_MIGRATED' });
+          logger.info('Tipo: ${testFile.type}', { category: 'AUTO_MIGRATED' });
+          logger.info('Tamaño original: ${(testFile.buffer.length / 1024).toFixed(1)}KB', { category: 'AUTO_MIGRATED' });
           
           // Verificar que se generaron los elementos esperados
           let hasRequiredElements = false;
@@ -408,21 +408,21 @@ async function testCompletePreviewIntegration() {
           }
           
           if (hasRequiredElements) {
-            console.log(`    ✅ Elementos requeridos generados`);
+            logger.info('Elementos requeridos generados', { category: 'AUTO_MIGRATED' });
             passedTests++;
           } else {
-            console.log(`    ❌ Faltan elementos requeridos`);
+            logger.info('❌ Faltan elementos requeridos', { category: 'AUTO_MIGRATED' });
           }
         } else {
-          console.log(`    ❌ No se generó preview`);
+          logger.info('❌ No se generó preview', { category: 'AUTO_MIGRATED' });
         }
         
       } catch (integrationError) {
-        console.log(`    ❌ Error en integración: ${integrationError.message}`);
+        logger.info('❌ Error en integración: ${integrationError.message}', { category: 'AUTO_MIGRATED' });
       }
     }
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -435,7 +435,7 @@ async function testCompletePreviewIntegration() {
  * 🧪 PRUEBA 5: OPTIMIZACIÓN Y LAZY LOADING
  */
 async function testOptimizationAndLazyLoading() {
-  console.log('\n🧪 PRUEBA 5: Optimización y lazy loading');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 5: Optimización y lazy loading' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -444,7 +444,7 @@ async function testOptimizationAndLazyLoading() {
     const largeImageBuffer = createTestImageBuffer(2048, 1536);
     const fileId = 'test-optimization-' + uuidv4();
     
-    console.log('🖼️ Probando optimización de imagen grande...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ Probando optimización de imagen grande...' });
     
     // Medir tiempo de generación de thumbnail rápido
     const startTime = Date.now();
@@ -457,11 +457,11 @@ async function testOptimizationAndLazyLoading() {
     
     const quickTime = Date.now() - startTime;
     
-    console.log('✅ Thumbnail rápido generado:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Thumbnail rápido generado:', {
       time: `${quickTime}ms`,
       size: `${quickThumbnail.size / 1024}KB`,
       dimensions: `${quickThumbnail.dimensions.width}x${quickThumbnail.dimensions.height}`
-    });
+    } });
     
     // Medir tiempo de generación de preview completo
     const previewStartTime = Date.now();
@@ -490,10 +490,10 @@ async function testOptimizationAndLazyLoading() {
     const isOptimized = quickThumbnail.size < fullPreview.thumbnail.size && quickTime < previewTime;
     
     if (isOptimized) {
-      console.log('✅ Optimización y lazy loading funcionando correctamente');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Optimización y lazy loading funcionando correctamente' });
       return true;
     } else {
-      console.log('❌ Optimización no funcionando como esperado');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Optimización no funcionando como esperado' });
       return false;
     }
     
@@ -507,7 +507,7 @@ async function testOptimizationAndLazyLoading() {
  * FUNCIÓN PRINCIPAL DE PRUEBA
  */
 async function runAllTests() {
-  console.log('🚀 Iniciando pruebas de preview y visualización...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de preview y visualización...\n' });
   
   const tests = [
     { name: 'Preview de imágenes', fn: testImagePreview },
@@ -520,7 +520,7 @@ async function runAllTests() {
   const results = [];
   
   for (const test of tests) {
-    console.log(`\n🎯 Ejecutando: ${test.name}`);
+    logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
     console.log('─'.repeat(50));
     
     const startTime = Date.now();
@@ -533,37 +533,37 @@ async function runAllTests() {
       duration: duration
     });
     
-    console.log(`\n${result ? '✅' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)`);
+    logger.info('\n${result ? '' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)', { category: 'AUTO_MIGRATED' });
   }
   
   // Resumen final
-  console.log('\n🖼️ ========================================');
-  console.log('🖼️ RESUMEN DE PRUEBAS FASE 5');
-  console.log('🖼️ ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🖼️ ========================================' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ RESUMEN DE PRUEBAS FASE 5' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ ========================================' });
   
   const successfulTests = results.filter(r => r.success).length;
   const totalTests = results.length;
   const totalTime = results.reduce((sum, r) => sum + r.duration, 0);
   
-  console.log(`\n📊 Resultados:`);
-  console.log(`   ✅ Exitosos: ${successfulTests}/${totalTests}`);
-  console.log(`   ❌ Fallidos: ${totalTests - successfulTests}/${totalTests}`);
-  console.log(`   ⏱️ Tiempo total: ${totalTime}ms`);
+  logger.info('\n Resultados:', { category: 'AUTO_MIGRATED' });
+  logger.info('Exitosos: ${successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Fallidos: ${totalTests - successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('⏱ Tiempo total: ${totalTime}ms', { category: 'AUTO_MIGRATED' });
   
-  console.log('\n📋 Detalles por prueba:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Detalles por prueba:' });
   results.forEach((result, index) => {
     const status = result.success ? '✅' : '❌';
-    console.log(`   ${index + 1}. ${status} ${result.name} (${result.duration}ms)`);
+    logger.info('${index + 1}. ${status} ${result.name} (${result.duration}ms)', { category: 'AUTO_MIGRATED' });
   });
   
   if (successfulTests === totalTests) {
-    console.log('\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!');
-    console.log('🖼️ La Fase 5: Preview y visualización está funcionando correctamente.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🖼️ La Fase 5: Preview y visualización está funcionando correctamente.' });
   } else {
-    console.log('\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.' });
   }
   
-  console.log('\n🖼️ ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🖼️ ========================================' });
   
   return successfulTests === totalTests;
 }

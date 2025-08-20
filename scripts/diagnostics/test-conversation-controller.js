@@ -27,27 +27,27 @@ const req = {
   }
 };
 
-console.log('=== SIMULACIÓN DE CONVERSATIONCONTROLLER ===');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=== SIMULACIÓN DE CONVERSATIONCONTROLLER ===' });
 
-console.log('1. Estado inicial de req.logger:');
-console.log('   req.logger:', req.logger);
-console.log('   typeof req.logger:', typeof req.logger);
-console.log('   req.logger?.info:', req.logger?.info);
-console.log('   typeof req.logger?.info:', typeof req.logger?.info);
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Estado inicial de req.logger:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger:', req.logger });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger:', typeof req.logger });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger?.info:', req.logger?.info });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 
 // Simular lo que haría correlation.js
 console.log('\n2. Después de correlation.js (simulado):');
 if (req.logger?.child) {
   req.logger = req.logger.child({ requestId: req.requestId, traceId: req.traceId });
-  console.log('   req.logger asignado con child');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger asignado con child' });
 } else {
-  console.log('   req.logger NO tiene child, NO se asigna');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger NO tiene child, NO se asigna' });
 }
 
-console.log('   req.logger:', req.logger);
-console.log('   typeof req.logger:', typeof req.logger);
-console.log('   req.logger?.info:', req.logger?.info);
-console.log('   typeof req.logger?.info:', typeof req.logger?.info);
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger:', req.logger });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger:', typeof req.logger });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   req.logger?.info:', req.logger?.info });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   typeof req.logger?.info:', typeof req.logger?.info });
 
 // Simular el call site problemático
 console.log('\n3. Intentando req.logger?.info():');
@@ -71,11 +71,11 @@ try {
   console.log('   ✅ req.logger?.info() funcionó');
 } catch (error) {
   console.log('   ❌ req.logger?.info() falló:', error.message);
-  console.log('   Stack:', error.stack);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Stack:', error.stack });
 }
 
 // Probar con logger directo
-console.log('\n4. Comparación con logger directo:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n4. Comparación con logger directo:' });
 try {
   logger.info({
     event: 'test_direct_logger',

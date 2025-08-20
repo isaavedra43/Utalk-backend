@@ -15,7 +15,7 @@ const webhookData = {
   ApiVersion: '2010-04-01'
 };
 
-console.log('🧪 Probando webhook real con curl...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando webhook real con curl...\n' });
 
 // Convertir el objeto a formato form-data para curl
 const formData = Object.entries(webhookData)
@@ -26,13 +26,13 @@ const curlCommand = `curl -X POST http://localhost:3002/webhook/test \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "${formData}"`;
 
-console.log('📋 Comando curl:');
-console.log(curlCommand);
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Comando curl:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: curlCommand });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
-console.log('📋 Datos del webhook:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos del webhook:' });
 console.log(JSON.stringify(webhookData, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Ejecutar el comando curl
 exec(curlCommand, (error, stdout, stderr) => {
@@ -45,28 +45,28 @@ exec(curlCommand, (error, stdout, stderr) => {
     console.error('⚠️ Stderr:', stderr);
   }
   
-  console.log('✅ Respuesta del webhook:');
-  console.log(stdout);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta del webhook:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: stdout });
   
   try {
     const response = JSON.parse(stdout);
-    console.log('\n📊 Análisis de la respuesta:');
-    console.log('- Success:', response.success);
-    console.log('- Message:', response.message);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 Análisis de la respuesta:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Success:', response.success });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Message:', response.message });
     
     if (response.data) {
-      console.log('- Message ID:', response.data.message.id);
-      console.log('- Message Type:', response.data.message.type);
-      console.log('- Media URL:', response.data.message.mediaUrl);
-      console.log('- Has Media:', !!response.data.message.mediaUrl);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Message ID:', response.data.message.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Message Type:', response.data.message.type });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media URL:', response.data.message.mediaUrl });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Has Media:', !!response.data.message.mediaUrl });
       
       if (response.data.media) {
-        console.log('- Media URLs:', response.data.media.urls.length);
-        console.log('- Media Type:', response.data.media.primaryType);
-        console.log('- URLs:', response.data.media.urls);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media URLs:', response.data.media.urls.length });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media Type:', response.data.media.primaryType });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- URLs:', response.data.media.urls });
       }
     }
   } catch (parseError) {
-    console.log('⚠️ No se pudo parsear la respuesta como JSON');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ No se pudo parsear la respuesta como JSON' });
   }
 }); 

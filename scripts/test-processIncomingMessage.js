@@ -1,5 +1,5 @@
 // Script para probar el método processIncomingMessage
-console.log('🧪 Probando método processIncomingMessage...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando método processIncomingMessage...\n' });
 
 // Simular webhook data exactamente como llega de Twilio
 const webhookData = {
@@ -16,15 +16,15 @@ const webhookData = {
   ApiVersion: '2010-04-01'
 };
 
-console.log('📋 Webhook data de entrada:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de entrada:' });
 console.log(JSON.stringify(webhookData, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular el método processIncomingMessage paso a paso
 async function simulateProcessIncomingMessage(webhookData) {
   const requestId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  console.log('🔄 Simulando processIncomingMessage...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando processIncomingMessage...\n' });
 
   // PASO 1: Extraer datos del webhook
   const {
@@ -39,30 +39,30 @@ async function simulateProcessIncomingMessage(webhookData) {
     WaId: waId,
   } = webhookData;
 
-  console.log('1. ✅ Datos extraídos del webhook:');
-  console.log('- twilioSid:', twilioSid);
-  console.log('- rawFromPhone:', rawFromPhone);
-  console.log('- rawToPhone:', rawToPhone);
-  console.log('- content:', content);
-  console.log('- mediaUrl:', mediaUrl);
-  console.log('- mediaType:', mediaType);
-  console.log('- numMedia:', numMedia);
-  console.log('- profileName:', profileName);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ Datos extraídos del webhook:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- twilioSid:', twilioSid });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- rawFromPhone:', rawFromPhone });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- rawToPhone:', rawToPhone });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- content:', content });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl:', mediaUrl });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaType:', mediaType });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- numMedia:', numMedia });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- profileName:', profileName });
 
   // PASO 2: Normalizar números de teléfono
   const normalizedFromPhone = rawFromPhone?.replace('whatsapp:', '') || '';
   const normalizedToPhone = rawToPhone?.replace('whatsapp:', '') || '';
 
-  console.log('\n2. ✅ Números normalizados:');
-  console.log('- normalizedFromPhone:', normalizedFromPhone);
-  console.log('- normalizedToPhone:', normalizedToPhone);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n2. ✅ Números normalizados:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- normalizedFromPhone:', normalizedFromPhone });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- normalizedToPhone:', normalizedToPhone });
 
   // PASO 3: Determinar tipo de mensaje y procesar medios
   let messageType = 'text';
   let mediaData = null;
 
   if (parseInt(numMedia) > 0) {
-    console.log('\n3. 📎 Procesando medios...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3. 📎 Procesando medios...' });
     console.log('- numMedia > 0:', parseInt(numMedia) > 0);
     
     // Simular processWebhookMedia
@@ -87,17 +87,17 @@ async function simulateProcessIncomingMessage(webhookData) {
       primaryType: mediaInfo.primaryType
     };
 
-    console.log('✅ Medios procesados:');
-    console.log('- mediaInfo:', mediaInfo);
-    console.log('- messageType:', messageType);
-    console.log('- mediaData:', mediaData);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Medios procesados:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaInfo:', mediaInfo });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- messageType:', messageType });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaData:', mediaData });
   }
 
   // PASO 4: Generar ID de conversación
   const conversationId = `conv_${normalizedFromPhone}_${normalizedToPhone}`;
 
-  console.log('\n4. ✅ ID de conversación generado:');
-  console.log('- conversationId:', conversationId);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n4. ✅ ID de conversación generado:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- conversationId:', conversationId });
 
   // PASO 5: Crear datos del mensaje
   const messageData = {
@@ -130,18 +130,18 @@ async function simulateProcessIncomingMessage(webhookData) {
     updatedAt: new Date().toISOString(),
   };
 
-  console.log('\n5. ✅ Datos del mensaje creados:');
-  console.log('- messageData.mediaUrl:', messageData.mediaUrl);
-  console.log('- messageData.type:', messageData.type);
-  console.log('- messageData.metadata.media:', messageData.metadata.media);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n5. ✅ Datos del mensaje creados:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- messageData.mediaUrl:', messageData.mediaUrl });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- messageData.type:', messageData.type });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- messageData.metadata.media:', messageData.metadata.media });
 
   // 🔍 DIAGNÓSTICO DE MEDIA
-  console.log('\n🔍 DIAGNÓSTICO DE MEDIA:');
-  console.log('- mediaData:', mediaData);
-  console.log('- mediaData?.urls:', mediaData?.urls);
-  console.log('- mediaData?.url:', mediaData?.url);
-  console.log('- mediaUrlAssigned:', messageData.mediaUrl);
-  console.log('- messageType:', messageType);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 DIAGNÓSTICO DE MEDIA:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaData:', mediaData });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaData?.urls:', mediaData?.urls });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaData?.url:', mediaData?.url });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrlAssigned:', messageData.mediaUrl });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- messageType:', messageType });
   console.log('- numMedia:', parseInt(numMedia) || 0);
 
   return {
@@ -152,7 +152,7 @@ async function simulateProcessIncomingMessage(webhookData) {
 
 // Ejecutar la simulación
 simulateProcessIncomingMessage(webhookData).then((result) => {
-  console.log('\n📝 Resultado final:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Resultado final:' });
   console.log(JSON.stringify({
     success: result.success,
     messageId: result.message.id,
@@ -167,12 +167,12 @@ simulateProcessIncomingMessage(webhookData).then((result) => {
   }, null, 2));
 
   if (result.message.mediaUrl) {
-    console.log('\n🎉 SUCCESS: El mensaje tiene mediaUrl asignada');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 SUCCESS: El mensaje tiene mediaUrl asignada' });
   } else {
-    console.log('\n❌ FAILED: El mensaje no tiene mediaUrl');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ FAILED: El mensaje no tiene mediaUrl' });
   }
 
-  console.log('\n🏁 Simulación completada');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Simulación completada' });
 }).catch((error) => {
   console.error('❌ Error en la simulación:', error);
 }); 

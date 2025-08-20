@@ -3,7 +3,7 @@ const twilio = require('twilio');
 
 async function checkTwilioWebhookConfig() {
   try {
-    console.log('🔧 Verificando configuración del webhook de Twilio...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 Verificando configuración del webhook de Twilio...' });
     
     const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -18,39 +18,39 @@ async function checkTwilioWebhookConfig() {
     // Obtener la configuración actual del webhook
     try {
       const webhookConfig = await client.messaging.v1.webhooks().fetch();
-      console.log('📋 Configuración actual del webhook:');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Configuración actual del webhook:' });
       console.log(JSON.stringify(webhookConfig, null, 2));
     } catch (error) {
-      console.log('⚠️ No se pudo obtener la configuración del webhook:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ No se pudo obtener la configuración del webhook:', error.message });
     }
     
     // Verificar si hay un webhook configurado para el número
     try {
       const phoneNumbers = await client.incomingPhoneNumbers.list();
-      console.log('\n📱 Números de teléfono configurados:');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📱 Números de teléfono configurados:' });
       
       for (const phoneNumber of phoneNumbers) {
-        console.log(`\n  Número: ${phoneNumber.phoneNumber}`);
-        console.log(`  SID: ${phoneNumber.sid}`);
-        console.log(`  Webhook URL: ${phoneNumber.webhookUrl || 'No configurado'}`);
-        console.log(`  Webhook Method: ${phoneNumber.webhookMethod || 'No configurado'}`);
+        logger.info('\n  Número: ${phoneNumber.phoneNumber}', { category: 'AUTO_MIGRATED' });
+        logger.info('SID: ${phoneNumber.sid}', { category: 'AUTO_MIGRATED' });
+        logger.info('Webhook URL: ${phoneNumber.webhookUrl || 'No configurado'}', { category: 'AUTO_MIGRATED' });
+        logger.info('Webhook Method: ${phoneNumber.webhookMethod || 'No configurado'}', { category: 'AUTO_MIGRATED' });
         
         if (phoneNumber.webhookUrl) {
-          console.log(`  ✅ Webhook configurado`);
+          logger.info('Webhook configurado', { category: 'AUTO_MIGRATED' });
         } else {
-          console.log(`  ❌ Webhook NO configurado`);
+          logger.info('❌ Webhook NO configurado', { category: 'AUTO_MIGRATED' });
         }
       }
     } catch (error) {
       console.error('❌ Error obteniendo números de teléfono:', error.message);
     }
     
-    console.log('\n🔧 Para corregir el problema:');
-    console.log('1. Ve a la consola de Twilio');
-    console.log('2. Navega a Messaging > Settings > Webhook Configuration');
-    console.log('3. Configura la URL del webhook: https://utalk-backend-production.up.railway.app/webhook/twilio');
-    console.log('4. Asegúrate de que esté configurado para recibir media');
-    console.log('5. Guarda la configuración');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 Para corregir el problema:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Ve a la consola de Twilio' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. Navega a Messaging > Settings > Webhook Configuration' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. Configura la URL del webhook: https://utalk-backend-production.up.railway.app/webhook/twilio' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. Asegúrate de que esté configurado para recibir media' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. Guarda la configuración' });
     
   } catch (error) {
     console.error('❌ Error:', error);
@@ -59,7 +59,7 @@ async function checkTwilioWebhookConfig() {
 
 // Ejecutar la verificación
 checkTwilioWebhookConfig().then(() => {
-  console.log('\n✅ Verificación completada');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Verificación completada' });
   process.exit(0);
 }).catch(error => {
   console.error('❌ Error fatal:', error);

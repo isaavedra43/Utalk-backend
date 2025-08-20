@@ -1,5 +1,5 @@
 // Simular exactamente el procesamiento de media del webhook
-console.log('🧪 Probando extracción de URLs de media del webhook...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando extracción de URLs de media del webhook...\n' });
 
 // Simular webhook data con media (basado en el mensaje de la imagen)
 const webhookData = {
@@ -13,9 +13,9 @@ const webhookData = {
   ProfileName: 'Isra'
 };
 
-console.log('📋 Webhook data de entrada:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de entrada:' });
 console.log(JSON.stringify(webhookData, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular el método processWebhookMedia simplificado
 function simulateProcessWebhookMedia(webhookData) {
@@ -35,7 +35,7 @@ function simulateProcessWebhookMedia(webhookData) {
     const mediaUrl = webhookData[`MediaUrl${i}`];
     const mediaContentType = webhookData[`MediaContentType${i}`];
 
-    console.log(`🔍 Media ${i}:`, { mediaUrl, mediaContentType });
+    logger.info('Media ${i}:', { category: 'AUTO_MIGRATED', data: { mediaUrl, mediaContentType } });
 
     if (mediaUrl) {
       // Determinar categoría basada en content-type
@@ -54,9 +54,9 @@ function simulateProcessWebhookMedia(webhookData) {
       });
       types.add(category);
 
-      console.log(`✅ Media ${i} procesado:`, { category, url: mediaUrl });
+      logger.info('Media ${i} procesado:', { category: 'AUTO_MIGRATED', data: { category, url: mediaUrl } });
     } else {
-      console.log(`❌ Media ${i} sin URL`);
+      logger.info('❌ Media ${i} sin URL', { category: 'AUTO_MIGRATED' });
     }
   }
 
@@ -76,19 +76,19 @@ function simulateProcessWebhookMedia(webhookData) {
     count: mediaUrls.length,
   };
 
-  console.log('📊 Resultado del procesamiento de media:', result);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Resultado del procesamiento de media:', result });
 
   return result;
 }
 
 // Simular el procesamiento completo del webhook
-console.log('🔄 Simulando procesamiento completo...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando procesamiento completo...\n' });
 
 // 1. Detectar tipo de mensaje
 let messageType = 'text';
 if (parseInt(webhookData.NumMedia || '0') > 0) {
   messageType = 'media';
-  console.log('📎 Mensaje multimedia detectado');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Mensaje multimedia detectado' });
 }
 
 // 2. Crear messageData inicial
@@ -103,15 +103,15 @@ const messageData = {
   timestamp: new Date()
 };
 
-console.log('📝 MessageData inicial:', {
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📝 MessageData inicial:', {
   type: messageData.type,
   content: messageData.content,
   mediaUrl: messageData.mediaUrl
-});
+} });
 
 // 3. Procesar media si es necesario
 if (messageType === 'media' && parseInt(webhookData.NumMedia || '0') > 0) {
-  console.log('\n🔄 Procesando media...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Procesando media...' });
   const mediaResult = simulateProcessWebhookMedia(webhookData);
   
   if (mediaResult.urls.length > 0) {
@@ -120,16 +120,16 @@ if (messageType === 'media' && parseInt(webhookData.NumMedia || '0') > 0) {
     // Actualizar el tipo basado en el tipo principal detectado
     messageData.type = mediaResult.primaryType;
     
-    console.log('✅ Media aplicado al mensaje:');
-    console.log('- mediaUrl:', messageData.mediaUrl);
-    console.log('- type:', messageData.type);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Media aplicado al mensaje:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl:', messageData.mediaUrl });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- type:', messageData.type });
   } else {
-    console.log('❌ No se encontraron URLs de media');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ No se encontraron URLs de media' });
   }
 }
 
 // 4. Resultado final
-console.log('\n📝 Mensaje final:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Mensaje final:' });
 console.log(JSON.stringify({
   id: 'simulated-message-id',
   conversationId: messageData.conversationId,
@@ -142,9 +142,9 @@ console.log(JSON.stringify({
   recipientIdentifier: messageData.recipientIdentifier
 }, null, 2));
 
-console.log('\n🏁 Simulación completada');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Simulación completada' });
 if (messageData.mediaUrl) {
-  console.log('✅ SUCCESS: El mensaje tiene mediaUrl asignada');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ SUCCESS: El mensaje tiene mediaUrl asignada' });
 } else {
-  console.log('❌ FAILED: El mensaje no tiene mediaUrl');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ FAILED: El mensaje no tiene mediaUrl' });
 } 

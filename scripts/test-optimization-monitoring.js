@@ -20,9 +20,9 @@ const path = require('path');
 // Configurar logger
 const logger = require('../src/utils/logger');
 
-console.log('⚡ ========================================');
-console.log('⚡ PRUEBA FASE 6: OPTIMIZACIÓN Y MONITOREO');
-console.log('⚡ ========================================\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚡ ========================================' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚡ PRUEBA FASE 6: OPTIMIZACIÓN Y MONITOREO' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚡ ========================================\n' });
 
 // Variables de prueba
 const TEST_CONVERSATION_ID = 'test-optimization-conversation-' + Date.now();
@@ -52,7 +52,7 @@ function createLargeTestFile(sizeInMB) {
  * 🧪 PRUEBA 1: OPTIMIZACIÓN DE RENDIMIENTO
  */
 async function testPerformanceOptimization() {
-  console.log('🧪 PRUEBA 1: Optimización de rendimiento');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 PRUEBA 1: Optimización de rendimiento' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -62,7 +62,7 @@ async function testPerformanceOptimization() {
     const results = [];
     
     for (const sizeMB of testSizes) {
-      console.log(`  📁 Probando archivo de ${sizeMB}MB...`);
+      logger.info('� Probando archivo de ${sizeMB}MB...', { category: 'AUTO_MIGRATED' });
       
       const testBuffer = createTestFile(sizeMB);
       const fileId = `test-optimization-${sizeMB}mb-${uuidv4()}`;
@@ -89,21 +89,21 @@ async function testPerformanceOptimization() {
         totalChunks: result?.totalChunks || 0
       });
       
-      console.log(`    ✅ ${sizeMB}MB procesado en ${processingTime}ms`);
+      logger.info('${sizeMB}MB procesado en ${processingTime}ms', { category: 'AUTO_MIGRATED' });
     }
     
     // Analizar resultados
-    console.log('\n📊 Análisis de rendimiento:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 Análisis de rendimiento:' });
     results.forEach(result => {
       const speed = result.sizeMB / (result.processingTime / 1000); // MB/s
-      console.log(`  ${result.sizeMB}MB: ${result.processingTime}ms (${speed.toFixed(2)} MB/s) - ${result.result}`);
+      logger.info('${result.sizeMB}MB: ${result.processingTime}ms (${speed.toFixed(2)} MB/s) - ${result.result}', { category: 'AUTO_MIGRATED' });
     });
     
     // Verificar que archivos grandes se procesaron en chunks
     const largeFiles = results.filter(r => r.sizeMB >= 25);
     const chunkedFiles = largeFiles.filter(r => r.processedInChunks);
     
-    console.log(`\n✅ Archivos grandes procesados en chunks: ${chunkedFiles.length}/${largeFiles.length}`);
+    logger.info('\n Archivos grandes procesados en chunks: ${chunkedFiles.length}/${largeFiles.length}', { category: 'AUTO_MIGRATED' });
     
     return results.every(r => r.result === 'success');
     
@@ -117,7 +117,7 @@ async function testPerformanceOptimization() {
  * 🧪 PRUEBA 2: SISTEMA DE CACHE
  */
 async function testCacheSystem() {
-  console.log('\n🧪 PRUEBA 2: Sistema de cache');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 2: Sistema de cache' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -126,34 +126,34 @@ async function testCacheSystem() {
     const fileId = `test-cache-${uuidv4()}`;
     const options = { mimetype: 'text/plain' };
     
-    console.log('  🔄 Probando cache de archivos...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  🔄 Probando cache de archivos...' });
     
     // Primera llamada - debería procesar y cachear
     const startTime1 = Date.now();
     const result1 = await fileService.processLargeFile(testBuffer, fileId, TEST_CONVERSATION_ID, options);
     const time1 = Date.now() - startTime1;
     
-    console.log(`    Primera llamada: ${time1}ms`);
+    logger.info('Primera llamada: ${time1}ms', { category: 'AUTO_MIGRATED' });
     
     // Segunda llamada - debería usar cache
     const startTime2 = Date.now();
     const result2 = await fileService.processLargeFile(testBuffer, fileId, TEST_CONVERSATION_ID, options);
     const time2 = Date.now() - startTime2;
     
-    console.log(`    Segunda llamada: ${time2}ms`);
+    logger.info('Segunda llamada: ${time2}ms', { category: 'AUTO_MIGRATED' });
     
     // Verificar mejora de rendimiento
     const improvement = ((time1 - time2) / time1) * 100;
-    console.log(`    Mejora de rendimiento: ${improvement.toFixed(1)}%`);
+    logger.info('Mejora de rendimiento: ${improvement.toFixed(1)}%', { category: 'AUTO_MIGRATED' });
     
     // Obtener métricas de cache
     const metrics = fileService.getPerformanceMetrics();
-    console.log(`    Cache hits: ${metrics.cacheHits}`);
-    console.log(`    Cache misses: ${metrics.cacheMisses}`);
-    console.log(`    Tasa de acierto: ${metrics.cacheHitRate}`);
+    logger.info('Cache hits: ${metrics.cacheHits}', { category: 'AUTO_MIGRATED' });
+    logger.info('Cache misses: ${metrics.cacheMisses}', { category: 'AUTO_MIGRATED' });
+    logger.info('Tasa de acierto: ${metrics.cacheHitRate}', { category: 'AUTO_MIGRATED' });
     
     const cacheEffective = time2 < time1 && metrics.cacheHits > 0;
-    console.log(`    ✅ Cache efectivo: ${cacheEffective ? 'SÍ' : 'NO'}`);
+    logger.info('Cache efectivo: ${cacheEffective ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
     
     return cacheEffective;
     
@@ -167,11 +167,11 @@ async function testCacheSystem() {
  * 🧪 PRUEBA 3: SISTEMA DE MONITOREO
  */
 async function testMonitoringSystem() {
-  console.log('\n🧪 PRUEBA 3: Sistema de monitoreo');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 3: Sistema de monitoreo' });
   try {
     const fileMonitoringSystem = require('../src/utils/monitoring');
     
-    console.log('  📊 Probando sistema de monitoreo...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  📊 Probando sistema de monitoreo...' });
     
     // Simular procesamiento de archivos
     const testFiles = [
@@ -196,34 +196,34 @@ async function testMonitoringSystem() {
     
     // Obtener métricas actuales
     const currentMetrics = fileMonitoringSystem.getCurrentMetrics();
-    console.log(`    Archivos procesados: ${currentMetrics.files.totalProcessed}`);
-    console.log(`    Archivos subidos: ${currentMetrics.files.totalUploaded}`);
-    console.log(`    Errores totales: ${currentMetrics.errors.total}`);
+    logger.info('Archivos procesados: ${currentMetrics.files.totalProcessed}', { category: 'AUTO_MIGRATED' });
+    logger.info('Archivos subidos: ${currentMetrics.files.totalUploaded}', { category: 'AUTO_MIGRATED' });
+    logger.info('Errores totales: ${currentMetrics.errors.total}', { category: 'AUTO_MIGRATED' });
     
     // Verificar categorización por tipo
-    console.log('    Archivos por tipo:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Archivos por tipo:' });
     Object.entries(currentMetrics.files.byType).forEach(([type, count]) => {
       if (count > 0) {
-        console.log(`      ${type}: ${count}`);
+        logger.info('${type}: ${count}', { category: 'AUTO_MIGRATED' });
       }
     });
     
     // Verificar categorización por tamaño
-    console.log('    Archivos por tamaño:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Archivos por tamaño:' });
     Object.entries(currentMetrics.files.bySize).forEach(([size, count]) => {
       if (count > 0) {
-        console.log(`      ${size}: ${count}`);
+        logger.info('${size}: ${count}', { category: 'AUTO_MIGRATED' });
       }
     });
     
     // Obtener estadísticas detalladas
     const detailedStats = fileMonitoringSystem.getDetailedStats();
-    console.log(`    Tasa de error: ${detailedStats.overview.errorRate.toFixed(2)}%`);
-    console.log(`    Tamaño promedio: ${(detailedStats.overview.averageFileSize / 1024 / 1024).toFixed(2)}MB`);
+    logger.info('Tasa de error: ${detailedStats.overview.errorRate.toFixed(2)}%', { category: 'AUTO_MIGRATED' });
+    logger.info('Tamaño promedio: ${(detailedStats.overview.averageFileSize / 1024 / 1024).toFixed(2)}MB', { category: 'AUTO_MIGRATED' });
     
     const monitoringWorking = currentMetrics.files.totalProcessed > 0 && 
                              currentMetrics.errors.total > 0;
-    console.log(`    ✅ Monitoreo funcionando: ${monitoringWorking ? 'SÍ' : 'NO'}`);
+    logger.info('Monitoreo funcionando: ${monitoringWorking ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
     
     return monitoringWorking;
     
@@ -237,11 +237,11 @@ async function testMonitoringSystem() {
  * 🧪 PRUEBA 4: ALERTAS Y THRESHOLDS
  */
 async function testAlertsAndThresholds() {
-  console.log('\n🧪 PRUEBA 4: Alertas y thresholds');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 4: Alertas y thresholds' });
   try {
     const fileMonitoringSystem = require('../src/utils/monitoring');
     
-    console.log('  🚨 Probando sistema de alertas...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  🚨 Probando sistema de alertas...' });
     
     // Simular alta tasa de errores para trigger alerta
     for (let i = 0; i < 20; i++) {
@@ -261,23 +261,23 @@ async function testAlertsAndThresholds() {
     const currentMetrics = fileMonitoringSystem.getCurrentMetrics();
     const errorRate = currentMetrics.performance.errorRate;
     
-    console.log(`    Tasa de error actual: ${errorRate.toFixed(2)}%`);
-    console.log(`    Errores totales: ${currentMetrics.errors.total}`);
+    logger.info('Tasa de error actual: ${errorRate.toFixed(2)}%', { category: 'AUTO_MIGRATED' });
+    logger.info('Errores totales: ${currentMetrics.errors.total}', { category: 'AUTO_MIGRATED' });
     
     // Verificar categorización de errores
-    console.log('    Errores por categoría:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Errores por categoría:' });
     Object.entries(currentMetrics.errors.byType).forEach(([category, count]) => {
       if (count > 0) {
-        console.log(`      ${category}: ${count}`);
+        logger.info('${category}: ${count}', { category: 'AUTO_MIGRATED' });
       }
     });
     
     // Verificar errores recientes
     const recentErrors = currentMetrics.errors.recent.slice(0, 5);
-    console.log(`    Errores recientes: ${recentErrors.length}`);
+    logger.info('Errores recientes: ${recentErrors.length}', { category: 'AUTO_MIGRATED' });
     
     const alertsWorking = errorRate > 0 && currentMetrics.errors.total > 0;
-    console.log(`    ✅ Alertas funcionando: ${alertsWorking ? 'SÍ' : 'NO'}`);
+    logger.info('Alertas funcionando: ${alertsWorking ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
     
     return alertsWorking;
     
@@ -291,12 +291,12 @@ async function testAlertsAndThresholds() {
  * 🧪 PRUEBA 5: MÉTRICAS DE RENDIMIENTO
  */
 async function testPerformanceMetrics() {
-  console.log('\n🧪 PRUEBA 5: Métricas de rendimiento');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 5: Métricas de rendimiento' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
     
-    console.log('  ⚡ Probando métricas de rendimiento...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  ⚡ Probando métricas de rendimiento...' });
     
     // Procesar varios archivos para generar métricas
     const testFiles = [1, 2, 3, 4, 5]; // MB
@@ -316,22 +316,22 @@ async function testPerformanceMetrics() {
     // Obtener métricas de rendimiento
     const metrics = fileService.getPerformanceMetrics();
     
-    console.log(`    Archivos procesados: ${metrics.filesProcessed}`);
-    console.log(`    Cache hits: ${metrics.cacheHits}`);
-    console.log(`    Cache misses: ${metrics.cacheMisses}`);
-    console.log(`    Tasa de acierto de cache: ${metrics.cacheHitRate}`);
-    console.log(`    Tiempo promedio de procesamiento: ${metrics.averageProcessingTime}`);
-    console.log(`    Errores: ${metrics.errors}`);
+    logger.info('Archivos procesados: ${metrics.filesProcessed}', { category: 'AUTO_MIGRATED' });
+    logger.info('Cache hits: ${metrics.cacheHits}', { category: 'AUTO_MIGRATED' });
+    logger.info('Cache misses: ${metrics.cacheMisses}', { category: 'AUTO_MIGRATED' });
+    logger.info('Tasa de acierto de cache: ${metrics.cacheHitRate}', { category: 'AUTO_MIGRATED' });
+    logger.info('Tiempo promedio de procesamiento: ${metrics.averageProcessingTime}', { category: 'AUTO_MIGRATED' });
+    logger.info('Errores: ${metrics.errors}', { category: 'AUTO_MIGRATED' });
     
     // Verificar tamaños de cache
-    console.log('    Tamaños de cache:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Tamaños de cache:' });
     Object.entries(metrics.cacheSize).forEach(([cacheType, size]) => {
-      console.log(`      ${cacheType}: ${size} items`);
+      logger.info('${cacheType}: ${size} items', { category: 'AUTO_MIGRATED' });
     });
     
     const metricsWorking = metrics.filesProcessed > 0 && 
                           typeof metrics.averageProcessingTime === 'string';
-    console.log(`    ✅ Métricas funcionando: ${metricsWorking ? 'SÍ' : 'NO'}`);
+    logger.info('Métricas funcionando: ${metricsWorking ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
     
     return metricsWorking;
     
@@ -345,12 +345,12 @@ async function testPerformanceMetrics() {
  * 🧪 PRUEBA 6: TEST DE CARGA
  */
 async function testLoadTesting() {
-  console.log('\n🧪 PRUEBA 6: Test de carga');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 6: Test de carga' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
     
-    console.log('  🔥 Probando carga del sistema...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  🔥 Probando carga del sistema...' });
     
     const concurrentRequests = 10;
     const requests = [];
@@ -380,17 +380,17 @@ async function testLoadTesting() {
     const successfulRequests = results.filter(r => r.success).length;
     const failedRequests = results.filter(r => !r.success).length;
     
-    console.log(`    Requests concurrentes: ${concurrentRequests}`);
-    console.log(`    Requests exitosos: ${successfulRequests}`);
-    console.log(`    Requests fallidos: ${failedRequests}`);
-    console.log(`    Tiempo total: ${totalTime}ms`);
-    console.log(`    Requests por segundo: ${(concurrentRequests / (totalTime / 1000)).toFixed(2)}`);
+    logger.info('Requests concurrentes: ${concurrentRequests}', { category: 'AUTO_MIGRATED' });
+    logger.info('Requests exitosos: ${successfulRequests}', { category: 'AUTO_MIGRATED' });
+    logger.info('Requests fallidos: ${failedRequests}', { category: 'AUTO_MIGRATED' });
+    logger.info('Tiempo total: ${totalTime}ms', { category: 'AUTO_MIGRATED' });
+    logger.info('Requests por segundo: ${(concurrentRequests / (totalTime / 1000)).toFixed(2)}', { category: 'AUTO_MIGRATED' });
     
     const successRate = (successfulRequests / concurrentRequests) * 100;
-    console.log(`    Tasa de éxito: ${successRate.toFixed(1)}%`);
+    logger.info('Tasa de éxito: ${successRate.toFixed(1)}%', { category: 'AUTO_MIGRATED' });
     
     const loadTestPassed = successRate >= 80; // Al menos 80% de éxito
-    console.log(`    ✅ Test de carga: ${loadTestPassed ? 'PASÓ' : 'FALLÓ'}`);
+    logger.info('Test de carga: ${loadTestPassed ? 'PASÓ' : 'FALLÓ'}', { category: 'AUTO_MIGRATED' });
     
     return loadTestPassed;
     
@@ -404,37 +404,37 @@ async function testLoadTesting() {
  * 🧪 PRUEBA 7: LIMPIEZA Y MANTENIMIENTO
  */
 async function testCleanupAndMaintenance() {
-  console.log('\n🧪 PRUEBA 7: Limpieza y mantenimiento');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 7: Limpieza y mantenimiento' });
   try {
     const fileMonitoringSystem = require('../src/utils/monitoring');
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
     
-    console.log('  🧹 Probando limpieza automática...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  🧹 Probando limpieza automática...' });
     
     // Verificar limpieza de cache
     const initialMetrics = fileService.getPerformanceMetrics();
-    console.log(`    Cache inicial: ${JSON.stringify(initialMetrics.cacheSize)}`);
+    logger.info('Cache inicial: ${JSON.stringify(initialMetrics.cacheSize)}', { category: 'AUTO_MIGRATED' });
     
     // Simular tiempo para que expire cache
-    console.log('    Simulando expiración de cache...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Simulando expiración de cache...' });
     
     // Verificar limpieza de historial
     const initialHistory = fileMonitoringSystem.history.hourly.length;
-    console.log(`    Historial inicial: ${initialHistory} snapshots`);
+    logger.info('Historial inicial: ${initialHistory} snapshots', { category: 'AUTO_MIGRATED' });
     
     // Simular limpieza de historial
-    console.log('    Simulando limpieza de historial...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Simulando limpieza de historial...' });
     
     // Verificar reset de métricas
-    console.log('    Probando reset de métricas...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '    Probando reset de métricas...' });
     fileMonitoringSystem.resetMetrics();
     
     const resetMetrics = fileMonitoringSystem.getCurrentMetrics();
     const metricsReset = resetMetrics.files.totalProcessed === 0 && 
                         resetMetrics.errors.total === 0;
     
-    console.log(`    ✅ Métricas reseteadas: ${metricsReset ? 'SÍ' : 'NO'}`);
+    logger.info('Métricas reseteadas: ${metricsReset ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
     
     return metricsReset;
     
@@ -448,7 +448,7 @@ async function testCleanupAndMaintenance() {
  * FUNCIÓN PRINCIPAL DE PRUEBA
  */
 async function runAllTests() {
-  console.log('🚀 Iniciando pruebas de optimización y monitoreo...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de optimización y monitoreo...\n' });
   
   const tests = [
     { name: 'Optimización de rendimiento', fn: testPerformanceOptimization },
@@ -463,7 +463,7 @@ async function runAllTests() {
   const results = [];
   
   for (const test of tests) {
-    console.log(`\n🎯 Ejecutando: ${test.name}`);
+    logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
     console.log('─'.repeat(50));
     
     const startTime = Date.now();
@@ -476,37 +476,37 @@ async function runAllTests() {
       duration: duration
     });
     
-    console.log(`\n${result ? '✅' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)`);
+    logger.info('\n${result ? '' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)', { category: 'AUTO_MIGRATED' });
   }
   
   // Resumen final
-  console.log('\n⚡ ========================================');
-  console.log('⚡ RESUMEN DE PRUEBAS FASE 6');
-  console.log('⚡ ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚡ ========================================' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚡ RESUMEN DE PRUEBAS FASE 6' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚡ ========================================' });
   
   const successfulTests = results.filter(r => r.success).length;
   const totalTests = results.length;
   const totalTime = results.reduce((sum, r) => sum + r.duration, 0);
   
-  console.log(`\n📊 Resultados:`);
-  console.log(`   ✅ Exitosos: ${successfulTests}/${totalTests}`);
-  console.log(`   ❌ Fallidos: ${totalTests - successfulTests}/${totalTests}`);
-  console.log(`   ⏱️ Tiempo total: ${totalTime}ms`);
+  logger.info('\n Resultados:', { category: 'AUTO_MIGRATED' });
+  logger.info('Exitosos: ${successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Fallidos: ${totalTests - successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('⏱ Tiempo total: ${totalTime}ms', { category: 'AUTO_MIGRATED' });
   
-  console.log('\n📋 Detalles por prueba:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Detalles por prueba:' });
   results.forEach((result, index) => {
     const status = result.success ? '✅' : '❌';
-    console.log(`   ${index + 1}. ${status} ${result.name} (${result.duration}ms)`);
+    logger.info('${index + 1}. ${status} ${result.name} (${result.duration}ms)', { category: 'AUTO_MIGRATED' });
   });
   
   if (successfulTests === totalTests) {
-    console.log('\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!');
-    console.log('⚡ La Fase 6: Optimización y monitoreo está funcionando correctamente.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚡ La Fase 6: Optimización y monitoreo está funcionando correctamente.' });
   } else {
-    console.log('\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.' });
   }
   
-  console.log('\n⚡ ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚡ ========================================' });
   
   return successfulTests === totalTests;
 }

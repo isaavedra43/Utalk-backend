@@ -37,29 +37,29 @@ function createTestSocket() {
  * Prueba 1: Conexión y autenticación
  */
 async function testConnection() {
-  console.log('\n🧪 PRUEBA 1: Conexión y autenticación WebSocket');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 1: Conexión y autenticación WebSocket' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ Socket conectado exitosamente');
-      console.log('  - Socket ID:', socket.id);
-      console.log('  - Conectado:', socket.connected);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Socket conectado exitosamente' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Socket ID:', socket.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conectado:', socket.connected });
     });
 
     socket.on('authenticated', (data) => {
-      console.log('✅ Autenticación exitosa');
-      console.log('  - Usuario:', data.userEmail);
-      console.log('  - Rol:', data.role);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Autenticación exitosa' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Usuario:', data.userEmail });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Rol:', data.role });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error de autenticación:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error de autenticación:', error.message });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('🔌 Socket desconectado:', reason);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔌 Socket desconectado:', reason });
     });
 
     // Timeout para la prueba
@@ -74,13 +74,13 @@ async function testConnection() {
  * Prueba 2: Unirse a conversación
  */
 async function testJoinConversation() {
-  console.log('\n🧪 PRUEBA 2: Unirse a conversación');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 2: Unirse a conversación' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ Conectado, uniéndose a conversación...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, uniéndose a conversación...' });
       
       socket.emit('join-conversation', {
         conversationId: TEST_CONFIG.testConversationId,
@@ -89,13 +89,13 @@ async function testJoinConversation() {
     });
 
     socket.on('conversation-joined', (data) => {
-      console.log('✅ Unido a conversación exitosamente');
-      console.log('  - Conversation ID:', data.conversationId);
-      console.log('  - Room ID:', data.roomId);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Unido a conversación exitosamente' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', data.conversationId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Room ID:', data.roomId });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error uniéndose a conversación:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error uniéndose a conversación:', error.message });
     });
 
     setTimeout(() => {
@@ -109,14 +109,14 @@ async function testJoinConversation() {
  * Prueba 3: Eventos de archivos
  */
 async function testFileEvents() {
-  console.log('\n🧪 PRUEBA 3: Eventos de archivos');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 3: Eventos de archivos' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     const testFileId = uuidv4();
     
     socket.on('connect', () => {
-      console.log('✅ Conectado, probando eventos de archivos...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, probando eventos de archivos...' });
       
       // Unirse a conversación primero
       socket.emit('join-conversation', {
@@ -126,7 +126,7 @@ async function testFileEvents() {
     });
 
     socket.on('conversation-joined', () => {
-      console.log('✅ Unido a conversación, enviando eventos de archivo...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Unido a conversación, enviando eventos de archivo...' });
       
       // Simular evento de archivo subido
       socket.emit('file-uploaded', {
@@ -163,41 +163,41 @@ async function testFileEvents() {
 
     // Escuchar eventos de archivos
     socket.on('file-uploaded', (data) => {
-      console.log('📁 Evento file-uploaded recibido:');
-      console.log('  - File ID:', data.fileId);
-      console.log('  - File Name:', data.fileName);
-      console.log('  - File Type:', data.fileType);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📁 Evento file-uploaded recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', data.fileId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Name:', data.fileName });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File Type:', data.fileType });
     });
 
     socket.on('file-processing', (data) => {
-      console.log('⚙️ Evento file-processing recibido:');
-      console.log('  - File ID:', data.fileId);
-      console.log('  - Progress:', data.progress + '%');
-      console.log('  - Stage:', data.stage);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚙️ Evento file-processing recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', data.fileId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Progress:', data.progress + '%' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Stage:', data.stage });
     });
 
     socket.on('file-ready', (data) => {
-      console.log('✅ Evento file-ready recibido:');
-      console.log('  - File ID:', data.fileId);
-      console.log('  - File URL:', data.fileUrl);
-      console.log('  - Metadata:', data.metadata);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Evento file-ready recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', data.fileId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File URL:', data.fileUrl });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Metadata:', data.metadata });
     });
 
     socket.on('file-error', (data) => {
-      console.log('❌ Evento file-error recibido:');
-      console.log('  - File ID:', data.fileId);
-      console.log('  - Error:', data.error);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Evento file-error recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', data.fileId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Error:', data.error });
     });
 
     socket.on('file-progress', (data) => {
-      console.log('📊 Evento file-progress recibido:');
-      console.log('  - File ID:', data.fileId);
-      console.log('  - Progress:', data.progress + '%');
-      console.log('  - Stage:', data.stage);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Evento file-progress recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', data.fileId });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Progress:', data.progress + '%' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Stage:', data.stage });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error en eventos de archivo:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en eventos de archivo:', error.message });
     });
 
     setTimeout(() => {
@@ -211,13 +211,13 @@ async function testFileEvents() {
  * Prueba 4: Integración con mensajes
  */
 async function testMessageIntegration() {
-  console.log('\n🧪 PRUEBA 4: Integración con mensajes');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 4: Integración con mensajes' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ Conectado, probando integración con mensajes...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, probando integración con mensajes...' });
       
       // Unirse a conversación
       socket.emit('join-conversation', {
@@ -227,7 +227,7 @@ async function testMessageIntegration() {
     });
 
     socket.on('conversation-joined', () => {
-      console.log('✅ Unido a conversación, enviando mensaje con archivo...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Unido a conversación, enviando mensaje con archivo...' });
       
       // Simular mensaje con archivo adjunto
       socket.emit('new-message', {
@@ -247,22 +247,22 @@ async function testMessageIntegration() {
 
     // Escuchar eventos de mensajes
     socket.on('message-sent', (data) => {
-      console.log('📤 Evento message-sent recibido:');
-      console.log('  - Message ID:', data.message?.id);
-      console.log('  - Content:', data.message?.content);
-      console.log('  - Type:', data.message?.type);
-      console.log('  - Attachments:', data.message?.metadata?.attachments?.length || 0);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📤 Evento message-sent recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Message ID:', data.message?.id });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Content:', data.message?.content });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Type:', data.message?.type });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Attachments:', data.message?.metadata?.attachments?.length || 0 });
     });
 
     socket.on('new-message', (data) => {
-      console.log('📨 Evento new-message recibido:');
-      console.log('  - Content:', data.content);
-      console.log('  - Type:', data.type);
-      console.log('  - Sender:', data.senderEmail);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📨 Evento new-message recibido:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Content:', data.content });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Type:', data.type });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Sender:', data.senderEmail });
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error en integración con mensajes:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error en integración con mensajes:', error.message });
     });
 
     setTimeout(() => {
@@ -276,13 +276,13 @@ async function testMessageIntegration() {
  * Prueba 5: Manejo de errores
  */
 async function testErrorHandling() {
-  console.log('\n🧪 PRUEBA 5: Manejo de errores');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 5: Manejo de errores' });
   
   return new Promise((resolve) => {
     const socket = createTestSocket();
     
     socket.on('connect', () => {
-      console.log('✅ Conectado, probando manejo de errores...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conectado, probando manejo de errores...' });
       
       // Enviar datos inválidos para probar manejo de errores
       socket.emit('file-uploaded', {
@@ -293,9 +293,9 @@ async function testErrorHandling() {
     });
 
     socket.on('error', (error) => {
-      console.log('❌ Error capturado correctamente:');
-      console.log('  - Error Code:', error.error);
-      console.log('  - Message:', error.message);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error capturado correctamente:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Error Code:', error.error });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Message:', error.message });
     });
 
     setTimeout(() => {
@@ -309,12 +309,12 @@ async function testErrorHandling() {
  * Ejecutar todas las pruebas
  */
 async function runAllTests() {
-  console.log('🚀 INICIANDO PRUEBAS DE EVENTOS WEBSOCKET DE ARCHIVOS');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBAS DE EVENTOS WEBSOCKET DE ARCHIVOS' });
   console.log('=' .repeat(60));
-  console.log('Configuración de prueba:');
-  console.log('  - Server URL:', TEST_CONFIG.serverUrl);
-  console.log('  - Test Conversation ID:', TEST_CONFIG.testConversationId);
-  console.log('  - Test User Email:', TEST_CONFIG.testUserEmail);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Configuración de prueba:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Server URL:', TEST_CONFIG.serverUrl });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Test Conversation ID:', TEST_CONFIG.testConversationId });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Test User Email:', TEST_CONFIG.testUserEmail });
 
   const tests = [
     { name: 'Conexión y autenticación', fn: testConnection },
@@ -329,7 +329,7 @@ async function runAllTests() {
 
   for (const test of tests) {
     try {
-      console.log(`\n🔄 Ejecutando: ${test.name}`);
+      logger.info('\n Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
       const result = await test.fn();
       if (result) passed++;
     } catch (error) {
@@ -338,15 +338,15 @@ async function runAllTests() {
   }
 
   console.log('\n' + '=' .repeat(60));
-  console.log('📊 RESUMEN FINAL DE PRUEBAS WEBSOCKET');
-  console.log(`✅ Pruebas exitosas: ${passed}/${total}`);
-  console.log(`❌ Pruebas fallidas: ${total - passed}`);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN FINAL DE PRUEBAS WEBSOCKET' });
+  logger.info('Pruebas exitosas: ${passed}/${total}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Pruebas fallidas: ${total - passed}', { category: 'AUTO_MIGRATED' });
   
   if (passed === total) {
-    console.log('🎉 ¡TODAS LAS PRUEBAS WEBSOCKET PASARON!');
-    console.log('✅ La integración WebSocket de archivos está funcionando correctamente.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 ¡TODAS LAS PRUEBAS WEBSOCKET PASARON!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ La integración WebSocket de archivos está funcionando correctamente.' });
   } else {
-    console.log('⚠️  Algunas pruebas fallaron. Revisar implementación.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  Algunas pruebas fallaron. Revisar implementación.' });
   }
 
   return passed === total;

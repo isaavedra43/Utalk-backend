@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🔍 Verificando implementación de soluciones para error toJSON...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Verificando implementación de soluciones para error toJSON...\n' });
 
 // Verificar archivos modificados
 const filesToCheck = [
@@ -18,12 +18,12 @@ const filesToCheck = [
   'src/middleware/validation.js'
 ];
 
-console.log('📋 Verificando archivos modificados:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Verificando archivos modificados:' });
 filesToCheck.forEach(file => {
   if (fs.existsSync(file)) {
-    console.log(`   ✅ ${file} - EXISTE`);
+    logger.info('${file} - EXISTE', { category: 'AUTO_MIGRATED' });
   } else {
-    console.log(`   ❌ ${file} - NO EXISTE`);
+    logger.info('❌ ${file} - NO EXISTE', { category: 'AUTO_MIGRATED' });
   }
 });
 
@@ -37,8 +37,8 @@ if (fs.existsSync(conversationControllerPath)) {
   const toJSONCalls = content.match(/\.toJSON\(\)/g);
   const safeFirestoreCalls = content.match(/safeFirestoreToJSON\(/g);
   
-  console.log(`   📊 Llamadas totales a toJSON(): ${toJSONCalls ? toJSONCalls.length : 0}`);
-  console.log(`   📊 Llamadas a safeFirestoreToJSON(): ${safeFirestoreCalls ? safeFirestoreCalls.length : 0}`);
+  logger.info('Llamadas totales a toJSON(): ${toJSONCalls ? toJSONCalls.length : 0}', { category: 'AUTO_MIGRATED' });
+  logger.info('Llamadas a safeFirestoreToJSON(): ${safeFirestoreCalls ? safeFirestoreCalls.length : 0}', { category: 'AUTO_MIGRATED' });
   
   if (toJSONCalls && toJSONCalls.length > 0) {
     console.log('   ⚠️  Aún hay llamadas a toJSON() - verificar si son seguras');
@@ -48,7 +48,7 @@ if (fs.existsSync(conversationControllerPath)) {
 }
 
 // Verificar que las utilidades de Firestore están disponibles
-console.log('\n📋 Verificando utilidades de Firestore:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Verificando utilidades de Firestore:' });
 const firestoreUtilsPath = 'src/utils/firestore.js';
 if (fs.existsSync(firestoreUtilsPath)) {
   const content = fs.readFileSync(firestoreUtilsPath, 'utf8');
@@ -57,13 +57,13 @@ if (fs.existsSync(firestoreUtilsPath)) {
   const hasValidateFirestoreDocument = content.includes('validateFirestoreDocument');
   const hasAnalyzeFirestoreDocument = content.includes('analyzeFirestoreDocument');
   
-  console.log(`   ✅ safeFirestoreToJSON: ${hasSafeFirestoreToJSON ? 'IMPLEMENTADO' : 'FALTANTE'}`);
-  console.log(`   ✅ validateFirestoreDocument: ${hasValidateFirestoreDocument ? 'IMPLEMENTADO' : 'FALTANTE'}`);
-  console.log(`   ✅ analyzeFirestoreDocument: ${hasAnalyzeFirestoreDocument ? 'IMPLEMENTADO' : 'FALTANTE'}`);
+  logger.info('safeFirestoreToJSON: ${hasSafeFirestoreToJSON ? 'IMPLEMENTADO' : 'FALTANTE'}', { category: 'AUTO_MIGRATED' });
+  logger.info('validateFirestoreDocument: ${hasValidateFirestoreDocument ? 'IMPLEMENTADO' : 'FALTANTE'}', { category: 'AUTO_MIGRATED' });
+  logger.info('analyzeFirestoreDocument: ${hasAnalyzeFirestoreDocument ? 'IMPLEMENTADO' : 'FALTANTE'}', { category: 'AUTO_MIGRATED' });
 }
 
 // Verificar que ConversationService tiene logging mejorado
-console.log('\n📋 Verificando mejoras en ConversationService:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Verificando mejoras en ConversationService:' });
 const conversationServicePath = 'src/services/ConversationService.js';
 if (fs.existsSync(conversationServicePath)) {
   const content = fs.readFileSync(conversationServicePath, 'utf8');
@@ -71,12 +71,12 @@ if (fs.existsSync(conversationServicePath)) {
   const hasImprovedLogging = content.includes('logger.debug') && content.includes('logger.warn');
   const hasBetterErrorHandling = content.includes('doc?.exists');
   
-  console.log(`   ✅ Logging mejorado: ${hasImprovedLogging ? 'IMPLEMENTADO' : 'FALTANTE'}`);
-  console.log(`   ✅ Manejo de errores mejorado: ${hasBetterErrorHandling ? 'IMPLEMENTADO' : 'FALTANTE'}`);
+  logger.info('Logging mejorado: ${hasImprovedLogging ? 'IMPLEMENTADO' : 'FALTANTE'}', { category: 'AUTO_MIGRATED' });
+  logger.info('Manejo de errores mejorado: ${hasBetterErrorHandling ? 'IMPLEMENTADO' : 'FALTANTE'}', { category: 'AUTO_MIGRATED' });
 }
 
 // Verificar que ConversationController usa las utilidades seguras
-console.log('\n📋 Verificando uso de utilidades seguras en ConversationController:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Verificando uso de utilidades seguras en ConversationController:' });
 if (fs.existsSync(conversationControllerPath)) {
   const content = fs.readFileSync(conversationControllerPath, 'utf8');
   
@@ -84,25 +84,25 @@ if (fs.existsSync(conversationControllerPath)) {
   const usesAnalyzeFirestoreDocument = content.includes('analyzeFirestoreDocument(');
   const hasDebugLogging = content.includes('logger.debug');
   
-  console.log(`   ✅ Usa safeFirestoreToJSON: ${usesSafeFirestoreToJSON ? 'SÍ' : 'NO'}`);
-  console.log(`   ✅ Usa analyzeFirestoreDocument: ${usesAnalyzeFirestoreDocument ? 'SÍ' : 'NO'}`);
-  console.log(`   ✅ Tiene logging de debug: ${hasDebugLogging ? 'SÍ' : 'NO'}`);
+  logger.info('Usa safeFirestoreToJSON: ${usesSafeFirestoreToJSON ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
+  logger.info('Usa analyzeFirestoreDocument: ${usesAnalyzeFirestoreDocument ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
+  logger.info('Tiene logging de debug: ${hasDebugLogging ? 'SÍ' : 'NO'}', { category: 'AUTO_MIGRATED' });
 }
 
-console.log('\n🎯 RESUMEN DE IMPLEMENTACIÓN:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 RESUMEN DE IMPLEMENTACIÓN:' });
 console.log('   ✅ ConversationController.getConversation() - SOLUCIONADO');
 console.log('   ✅ ConversationService.getConversationById() - MEJORADO');
-console.log('   ✅ Utilidades de Firestore seguras - IMPLEMENTADAS');
-console.log('   ✅ Logging y debugging - MEJORADO');
-console.log('   ✅ Manejo de errores - ROBUSTO');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Utilidades de Firestore seguras - IMPLEMENTADAS' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Logging y debugging - MEJORADO' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   ✅ Manejo de errores - ROBUSTO' });
 
-console.log('\n🚀 EL ERROR toJSON HA SIDO COMPLETAMENTE SOLUCIONADO!');
-console.log('   El endpoint /api/conversations/:id debería funcionar correctamente ahora.');
-console.log('   Todas las conversiones de documentos son seguras.');
-console.log('   El logging mejorado ayudará a diagnosticar futuros problemas.');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🚀 EL ERROR toJSON HA SIDO COMPLETAMENTE SOLUCIONADO!' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   El endpoint /api/conversations/:id debería funcionar correctamente ahora.' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Todas las conversiones de documentos son seguras.' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   El logging mejorado ayudará a diagnosticar futuros problemas.' });
 
-console.log('\n📝 PRÓXIMOS PASOS:');
-console.log('   1. Reiniciar el servidor backend');
-console.log('   2. Probar el endpoint /api/conversations/conv_+5214773790184_+5214793176502');
-console.log('   3. Verificar que no hay más errores 500');
-console.log('   4. Monitorear los logs para confirmar que funciona correctamente'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 PRÓXIMOS PASOS:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   1. Reiniciar el servidor backend' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   2. Probar el endpoint /api/conversations/conv_+5214773790184_+5214793176502' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   3. Verificar que no hay más errores 500' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   4. Monitorear los logs para confirmar que funciona correctamente' }); 

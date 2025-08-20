@@ -10,7 +10,7 @@ const {
   validateConversationIdForDatabase 
 } = require('../src/utils/conversation');
 
-console.log('🧪 INICIANDO PRUEBAS DE CORRECCIÓN DE CONVERSATION ID\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE CORRECCIÓN DE CONVERSATION ID\n' });
 
 // Casos de prueba
 const testCases = [
@@ -41,52 +41,52 @@ const testCases = [
 ];
 
 // Probar normalización de números
-console.log('📱 PRUEBAS DE NORMALIZACIÓN DE NÚMEROS:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 PRUEBAS DE NORMALIZACIÓN DE NÚMEROS:' });
 testCases.forEach((testCase, index) => {
-  console.log(`\n${index + 1}. ${testCase.name}:`);
+  logger.info('\n${index + 1}. ${testCase.name}:', { category: 'AUTO_MIGRATED' });
   
   const normalized1 = normalizePhoneNumber(testCase.phone1);
   const normalized2 = normalizePhoneNumber(testCase.phone2);
   
-  console.log(`   Phone1: "${testCase.phone1}" -> "${normalized1}"`);
-  console.log(`   Phone2: "${testCase.phone2}" -> "${normalized2}"`);
+  logger.info('Phone1: "${testCase.phone1}" -> "${normalized1}"', { category: 'AUTO_MIGRATED' });
+  logger.info('Phone2: "${testCase.phone2}" -> "${normalized2}"', { category: 'AUTO_MIGRATED' });
   
   if (normalized1 && normalized2) {
-    console.log(`   ✅ Normalización exitosa`);
+    logger.info('Normalización exitosa', { category: 'AUTO_MIGRATED' });
   } else {
-    console.log(`   ❌ Error en normalización`);
+    logger.info('❌ Error en normalización', { category: 'AUTO_MIGRATED' });
   }
 });
 
 // Probar generación de IDs
-console.log('\n🆔 PRUEBAS DE GENERACIÓN DE CONVERSATION ID:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🆔 PRUEBAS DE GENERACIÓN DE CONVERSATION ID:' });
 testCases.forEach((testCase, index) => {
-  console.log(`\n${index + 1}. ${testCase.name}:`);
+  logger.info('\n${index + 1}. ${testCase.name}:', { category: 'AUTO_MIGRATED' });
   
   try {
     const generatedId = generateConversationId(testCase.phone1, testCase.phone2);
-    console.log(`   Generado: "${generatedId}"`);
-    console.log(`   Esperado: "${testCase.expected}"`);
+    logger.info('Generado: "${generatedId}"', { category: 'AUTO_MIGRATED' });
+    logger.info('Esperado: "${testCase.expected}"', { category: 'AUTO_MIGRATED' });
     
     if (generatedId === testCase.expected) {
-      console.log(`   ✅ ID generado correctamente`);
+      logger.info('ID generado correctamente', { category: 'AUTO_MIGRATED' });
     } else {
-      console.log(`   ❌ ID no coincide con el esperado`);
+      logger.info('❌ ID no coincide con el esperado', { category: 'AUTO_MIGRATED' });
     }
     
     // Verificar que no contenga doble ++
     if (generatedId.includes('++')) {
-      console.log(`   🚨 ERROR: ID contiene doble ++`);
+      logger.info('ERROR: ID contiene doble ++', { category: 'AUTO_MIGRATED' });
     } else {
-      console.log(`   ✅ ID no contiene doble ++`);
+      logger.info('ID no contiene doble ++', { category: 'AUTO_MIGRATED' });
     }
   } catch (error) {
-    console.log(`   ❌ Error generando ID: ${error.message}`);
+    logger.info('❌ Error generando ID: ${error.message}', { category: 'AUTO_MIGRATED' });
   }
 });
 
 // Probar validación de IDs
-console.log('\n🔍 PRUEBAS DE VALIDACIÓN DE CONVERSATION ID:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 PRUEBAS DE VALIDACIÓN DE CONVERSATION ID:' });
 const validationTests = [
   {
     id: 'conv_+5214773790184_+5214793176502',
@@ -111,28 +111,28 @@ const validationTests = [
 ];
 
 validationTests.forEach((testCase, index) => {
-  console.log(`\n${index + 1}. ${testCase.name}:`);
-  console.log(`   ID: "${testCase.id}"`);
+  logger.info('\n${index + 1}. ${testCase.name}:', { category: 'AUTO_MIGRATED' });
+  logger.info('ID: "${testCase.id}"', { category: 'AUTO_MIGRATED' });
   
   const validation = validateConversationIdForDatabase(testCase.id);
-  console.log(`   Validación: ${validation.isValid ? '✅ Válido' : '❌ Inválido'}`);
+  logger.info('Validación: ${validation.isValid ? ' Válido' : '❌ Inválido'}', { category: 'AUTO_MIGRATED' });
   
   if (!validation.isValid && validation.correctedId) {
-    console.log(`   ID corregido: "${validation.correctedId}"`);
+    logger.info('ID corregido: "${validation.correctedId}"', { category: 'AUTO_MIGRATED' });
   }
   
   if (validation.error) {
-    console.log(`   Error: ${validation.error}`);
+    logger.info('Error: ${validation.error}', { category: 'AUTO_MIGRATED' });
   }
   
   if (validation.isValid === testCase.shouldBeValid) {
-    console.log(`   ✅ Resultado esperado`);
+    logger.info('Resultado esperado', { category: 'AUTO_MIGRATED' });
   } else {
-    console.log(`   ❌ Resultado inesperado`);
+    logger.info('❌ Resultado inesperado', { category: 'AUTO_MIGRATED' });
   }
 });
 
-console.log('\n🎯 PRUEBAS COMPLETADAS');
-console.log('✅ La solución debería prevenir IDs con doble ++');
-console.log('✅ Los IDs existentes con doble ++ serán corregidos automáticamente');
-console.log('✅ Nuevas conversaciones usarán el formato correcto'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 PRUEBAS COMPLETADAS' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ La solución debería prevenir IDs con doble ++' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Los IDs existentes con doble ++ serán corregidos automáticamente' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Nuevas conversaciones usarán el formato correcto' }); 

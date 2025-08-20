@@ -3,7 +3,7 @@ const Message = require('../src/models/Message');
 
 async function debugMediaUrl() {
   try {
-    console.log('🔍 DEBUG: Verificando mensajes con media...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 DEBUG: Verificando mensajes con media...' });
     
     // Verificar que firestore esté disponible
     if (!firestore) {
@@ -16,7 +16,7 @@ async function debugMediaUrl() {
     
     for (const convDoc of conversationsSnapshot.docs) {
       const conversationId = convDoc.id;
-      console.log(`\n📱 Conversación: ${conversationId}`);
+      logger.info('\n� Conversación: ${conversationId}', { category: 'AUTO_MIGRATED' });
       
       // Buscar mensajes de media en esta conversación
       const messagesSnapshot = await firestore
@@ -28,49 +28,49 @@ async function debugMediaUrl() {
         .get();
       
       if (messagesSnapshot.empty) {
-        console.log('  ❌ No hay mensajes de media');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  ❌ No hay mensajes de media' });
         continue;
       }
       
-      console.log(`  ✅ Encontrados ${messagesSnapshot.size} mensajes de media`);
+      logger.info('Encontrados ${messagesSnapshot.size} mensajes de media', { category: 'AUTO_MIGRATED' });
       
       for (const msgDoc of messagesSnapshot.docs) {
         const rawData = msgDoc.data();
-        console.log(`\n  📄 Mensaje ID: ${msgDoc.id}`);
-        console.log(`     Tipo: ${rawData.type}`);
-        console.log(`     Contenido: ${rawData.content || '(vacío)'}`);
-        console.log(`     MediaUrl (raw): ${rawData.mediaUrl || 'NULL'}`);
-        console.log(`     Timestamp: ${rawData.timestamp}`);
+        logger.info('\n  � Mensaje ID: ${msgDoc.id}', { category: 'AUTO_MIGRATED' });
+        logger.info('Tipo: ${rawData.type}', { category: 'AUTO_MIGRATED' });
+        logger.info('Contenido: ${rawData.content || '(vacío)'}', { category: 'AUTO_MIGRATED' });
+        logger.info('MediaUrl (raw): ${rawData.mediaUrl || 'NULL'}', { category: 'AUTO_MIGRATED' });
+        logger.info('Timestamp: ${rawData.timestamp}', { category: 'AUTO_MIGRATED' });
         
         // Crear instancia de Message y verificar toJSON()
         const message = new Message({ id: msgDoc.id, ...rawData });
         const jsonData = message.toJSON();
         
-        console.log(`     MediaUrl (toJSON): ${jsonData.mediaUrl || 'NULL'}`);
-        console.log(`     Dirección: ${jsonData.direction}`);
-        console.log(`     Sender: ${jsonData.senderIdentifier}`);
-        console.log(`     Recipient: ${jsonData.recipientIdentifier}`);
+        logger.info('MediaUrl (toJSON): ${jsonData.mediaUrl || 'NULL'}', { category: 'AUTO_MIGRATED' });
+        logger.info('Dirección: ${jsonData.direction}', { category: 'AUTO_MIGRATED' });
+        logger.info('Sender: ${jsonData.senderIdentifier}', { category: 'AUTO_MIGRATED' });
+        logger.info('Recipient: ${jsonData.recipientIdentifier}', { category: 'AUTO_MIGRATED' });
         
         // Verificar si la URL original es de Twilio
         if (rawData.mediaUrl && rawData.mediaUrl.includes('api.twilio.com')) {
-          console.log(`     ✅ URL de Twilio detectada`);
+          logger.info('URL de Twilio detectada', { category: 'AUTO_MIGRATED' });
           
           // Verificar si se está convirtiendo correctamente
           if (jsonData.mediaUrl && jsonData.mediaUrl.includes('proxy-public')) {
-            console.log(`     ✅ URL convertida a proxy público`);
+            logger.info('URL convertida a proxy público', { category: 'AUTO_MIGRATED' });
           } else {
-            console.log(`     ❌ URL NO convertida a proxy público`);
+            logger.info('❌ URL NO convertida a proxy público', { category: 'AUTO_MIGRATED' });
           }
         } else if (rawData.mediaUrl && rawData.mediaUrl.includes('firebase')) {
-          console.log(`     ✅ URL de Firebase detectada`);
+          logger.info('URL de Firebase detectada', { category: 'AUTO_MIGRATED' });
           
           if (jsonData.mediaUrl && jsonData.mediaUrl.includes('proxy-file-public')) {
-            console.log(`     ✅ URL convertida a proxy público`);
+            logger.info('URL convertida a proxy público', { category: 'AUTO_MIGRATED' });
           } else {
-            console.log(`     ❌ URL NO convertida a proxy público`);
+            logger.info('❌ URL NO convertida a proxy público', { category: 'AUTO_MIGRATED' });
           }
         } else if (!rawData.mediaUrl) {
-          console.log(`     ❌ NO hay mediaUrl en la base de datos`);
+          logger.info('❌ NO hay mediaUrl en la base de datos', { category: 'AUTO_MIGRATED' });
         }
       }
     }
@@ -82,7 +82,7 @@ async function debugMediaUrl() {
 
 // Ejecutar debug
 debugMediaUrl().then(() => {
-  console.log('\n✅ Debug completado');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Debug completado' });
   process.exit(0);
 }).catch(error => {
   console.error('❌ Error fatal:', error);

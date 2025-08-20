@@ -221,7 +221,14 @@ function intelligentRateLimit(req, res, next) {
       const resetEpoch = Math.ceil(rateLimitResult.resetTime / 1000);
 
       // Logs
-      console.log(`🚨 RATE_LIMIT_EXCEEDED: ${req.user?.email || 'anonymous'} - ${path} - ${rateLimitResult.reason} - Limit: ${rateLimitResult.limit}`);
+              req.logger.warn('RATE_LIMIT_EXCEEDED', {
+          category: 'RATE_LIMIT',
+          user: req.user?.email || 'anonymous',
+          path,
+          reason: rateLimitResult.reason,
+          limit: rateLimitResult.limit,
+          ip: req.ip
+        });
       logMonitor.addLog('error', 'RATE_LIMIT', `Rate limit exceeded: ${rateLimitResult.reason}`, {
         userId: req.user?.email || 'anonymous',
         ip: req.ip,
@@ -265,7 +272,14 @@ function intelligentRateLimit(req, res, next) {
     });
     
     if (typeof rateLimitResult.remaining === 'number' && rateLimitResult.remaining < 5) {
-      console.log(`⚠️ RATE_LIMIT_WARNING: ${req.user?.email || 'anonymous'} - ${path} - Remaining: ${rateLimitResult.remaining}/${rateLimitResult.limit}`);
+              req.logger.info('RATE_LIMIT_WARNING', {
+          category: 'RATE_LIMIT',
+          user: req.user?.email || 'anonymous',
+          path,
+          remaining: rateLimitResult.remaining,
+          limit: rateLimitResult.limit,
+          ip: req.ip
+        });
       logMonitor.addLog('warn', 'RATE_LIMIT', `Rate limit warning: ${rateLimitResult.remaining} remaining`, {
         userId: req.user?.email || 'anonymous',
         ip: req.ip,
@@ -306,7 +320,12 @@ function cacheMiddleware(ttlSeconds = 300) {
     
     if (cachedResponse) {
       // 🔧 LOG PARA RAILWAY: Cache hit
-      console.log(`✅ CACHE_HIT: ${req.path} - ${req.user?.email || 'anonymous'}`);
+              req.logger.debug('CACHE_HIT', {
+          category: 'RATE_LIMIT_CACHE',
+          path: req.path,
+          user: req.user?.email || 'anonymous',
+          ip: req.ip
+        });
       
       // 🔧 CAPTURAR EN LOG MONITOR
       logMonitor.addLog('info', 'CACHE', `Cache hit: ${req.path}`, {
@@ -333,7 +352,13 @@ function cacheMiddleware(ttlSeconds = 300) {
         cacheService.set(cacheKey, data, ttlSeconds);
         
         // 🔧 LOG PARA RAILWAY: Cache miss y set
-        console.log(`🔄 CACHE_MISS: ${req.path} - ${req.user?.email || 'anonymous'} - TTL: ${ttlSeconds}s`);
+        req.logger.debug('CACHE_MISS', {
+          category: 'RATE_LIMIT_CACHE',
+          path: req.path,
+          user: req.user?.email || 'anonymous',
+          ttlSeconds,
+          ip: req.ip
+        });
         
         // 🔧 CAPTURAR EN LOG MONITOR
         logMonitor.addLog('info', 'CACHE', `Cache miss: ${req.path}`, {

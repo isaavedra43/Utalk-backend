@@ -7,7 +7,7 @@
  * @version 1.0.0
  */
 
-console.log('🧪 INICIANDO PRUEBA SIMPLE DE CORRECCIÓN DE PROCESAMIENTO DE MEDIA\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA SIMPLE DE CORRECCIÓN DE PROCESAMIENTO DE MEDIA\n' });
 
 // Simular la lógica de validación de archivo
 function validateFile(file) {
@@ -112,7 +112,7 @@ function processFileByCategory(buffer, fileId, conversationId, category, mimetyp
 }
 
 // Simular el procesamiento de media sin credenciales reales
-console.log('🧪 Probando lógica de procesamiento de media...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando lógica de procesamiento de media...\n' });
 
 // Simular webhook data con media
 const webhookData = {
@@ -126,9 +126,9 @@ const webhookData = {
   ProfileName: 'Isra'
 };
 
-console.log('📋 Webhook data de prueba:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de prueba:' });
 console.log(JSON.stringify(webhookData, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular la lógica de detección de tipo de mensaje
 let messageType = 'text';
@@ -137,10 +137,10 @@ let specialData = null;
 // Detectar mensaje multimedia
 if (parseInt(webhookData.NumMedia || '0') > 0) {
   messageType = 'media';
-  console.log('📎 Mensaje multimedia detectado');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Mensaje multimedia detectado' });
   console.log('- NumMedia:', parseInt(webhookData.NumMedia));
-  console.log('- MediaUrl0:', webhookData.MediaUrl0);
-  console.log('- MediaContentType0:', webhookData.MediaContentType0);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaUrl0:', webhookData.MediaUrl0 });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaContentType0:', webhookData.MediaContentType0 });
 }
 
 // Simular el procesamiento de media
@@ -157,7 +157,7 @@ function simulateProcessWebhookMedia(webhookData) {
     const mediaContentType = webhookData[`MediaContentType${i}`];
 
     if (mediaUrl) {
-      console.log(`✅ Media ${i} encontrado:`, mediaUrl);
+      logger.info('Media ${i} encontrado:', { category: 'AUTO_MIGRATED', data: mediaUrl });
       
       // Determinar categoría basada en content-type
       let category = 'document';
@@ -195,12 +195,12 @@ function simulateProcessWebhookMedia(webhookData) {
 }
 
 // Simular el procesamiento completo
-console.log('🔄 Simulando procesamiento de media...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando procesamiento de media...' });
 const mediaResult = simulateProcessWebhookMedia(webhookData);
 
-console.log('✅ Resultado del procesamiento de media:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado del procesamiento de media:' });
 console.log(JSON.stringify(mediaResult, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular la creación del mensaje
 const messageData = {
@@ -218,12 +218,12 @@ const messageData = {
 if (messageType === 'media' && mediaResult.urls.length > 0) {
   messageData.mediaUrl = mediaResult.urls[0];
   messageData.type = mediaResult.primaryType;
-  console.log('✅ Media aplicado al mensaje:');
-  console.log('- mediaUrl:', messageData.mediaUrl);
-  console.log('- type:', messageData.type);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Media aplicado al mensaje:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl:', messageData.mediaUrl });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- type:', messageData.type });
 }
 
-console.log('\n📝 Mensaje final:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📝 Mensaje final:' });
 console.log(JSON.stringify({
   id: 'simulated-message-id',
   conversationId: messageData.conversationId,
@@ -236,5 +236,5 @@ console.log(JSON.stringify({
   recipientIdentifier: messageData.recipientIdentifier
 }, null, 2));
 
-console.log('\n🏁 Simulación completada');
-console.log('✅ El mensaje ahora tiene mediaUrl y tipo correcto'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Simulación completada' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El mensaje ahora tiene mediaUrl y tipo correcto' }); 

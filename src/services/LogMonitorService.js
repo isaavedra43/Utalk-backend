@@ -229,7 +229,11 @@ class LogMonitorService {
     
     const cleanedCount = initialCount - this.logs.length;
     if (cleanedCount > 0) {
-      console.log(`🧹 LogMonitorService: Limpiados ${cleanedCount} logs antiguos`);
+      logger.info('LogMonitorService: Limpiados logs antiguos', {
+        category: 'LOG_MONITOR_CLEANUP',
+        cleanedCount,
+        retentionDays: this.retentionDays
+      });
     }
   }
 

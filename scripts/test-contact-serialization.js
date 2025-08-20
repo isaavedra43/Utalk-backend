@@ -9,7 +9,7 @@ const Contact = require('../src/models/Contact');
 const { prepareForFirestore } = require('../src/utils/firestore');
 
 async function testContactSerialization() {
-  console.log('🧪 Probando serialización de Contact...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando serialización de Contact...' });
   
   try {
     // Crear un objeto Contact de prueba
@@ -29,11 +29,11 @@ async function testContactSerialization() {
       updatedAt: new Date().toISOString()
     };
 
-    console.log('📋 Datos de contacto de prueba:', contactData);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos de contacto de prueba:', contactData });
 
     // Crear instancia de Contact
     const contact = new Contact(contactData);
-    console.log('✅ Instancia de Contact creada');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Instancia de Contact creada' });
 
     // Probar método toJSON()
     const contactJSON = contact.toJSON();
@@ -42,12 +42,12 @@ async function testContactSerialization() {
 
     // Probar prepareForFirestore
     const firestoreData = prepareForFirestore(contactJSON);
-    console.log('✅ prepareForFirestore ejecutado correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ prepareForFirestore ejecutado correctamente' });
     console.log('📋 Datos para Firestore:', JSON.stringify(firestoreData, null, 2));
 
     // Verificar que no hay métodos o prototipos personalizados
     const hasCustomPrototype = Object.getPrototypeOf(firestoreData) !== Object.prototype;
-    console.log('🔍 ¿Tiene prototipo personalizado?', hasCustomPrototype);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 ¿Tiene prototipo personalizado?', hasCustomPrototype });
 
     // Verificar que todas las propiedades son serializables
     const isSerializable = (() => {
@@ -60,12 +60,12 @@ async function testContactSerialization() {
       }
     })();
 
-    console.log('🔍 ¿Es serializable?', isSerializable);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 ¿Es serializable?', isSerializable });
 
     if (isSerializable && !hasCustomPrototype) {
-      console.log('🎉 ¡Prueba exitosa! El contacto se serializa correctamente para Firestore');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎉 ¡Prueba exitosa! El contacto se serializa correctamente para Firestore' });
     } else {
-      console.log('❌ Problema detectado en la serialización');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Problema detectado en la serialización' });
     }
 
   } catch (error) {

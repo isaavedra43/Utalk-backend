@@ -19,9 +19,9 @@ const path = require('path');
 // Configurar logger
 const logger = require('../src/utils/logger');
 
-console.log('📱 ========================================');
-console.log('📱 PRUEBA FASE 4: VALIDACIÓN WHATSAPP');
-console.log('📱 ========================================\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 ========================================' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 PRUEBA FASE 4: VALIDACIÓN WHATSAPP' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 ========================================\n' });
 
 // Variables de prueba
 const TEST_CONVERSATION_ID = 'test-whatsapp-conversation-' + Date.now();
@@ -76,7 +76,7 @@ function createTestFile(type, size = 1024 * 1024) {
  * 🧪 PRUEBA 1: VALIDACIÓN DE LÍMITES WHATSAPP
  */
 async function testWhatsAppLimits() {
-  console.log('🧪 PRUEBA 1: Validación de límites WhatsApp');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 PRUEBA 1: Validación de límites WhatsApp' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -134,23 +134,23 @@ async function testWhatsAppLimits() {
     let totalTests = testCases.length;
     
     for (const testCase of testCases) {
-      console.log(`\n  📋 Probando: ${testCase.name}`);
+      logger.info('\n   Probando: ${testCase.name}', { category: 'AUTO_MIGRATED' });
       
       const validation = fileService.validateWhatsAppCompatibility(testCase.file);
       
-      console.log(`    Categoría: ${validation.category}`);
-      console.log(`    Válido: ${validation.isValid}`);
-      console.log(`    Mensaje: ${validation.message}`);
+      logger.info('Categoría: ${validation.category}', { category: 'AUTO_MIGRATED' });
+      logger.info('Válido: ${validation.isValid}', { category: 'AUTO_MIGRATED' });
+      logger.info('Mensaje: ${validation.message}', { category: 'AUTO_MIGRATED' });
       
       if (validation.isValid === testCase.expectedValid) {
-        console.log(`    ✅ PASÓ`);
+        logger.info('PASÓ', { category: 'AUTO_MIGRATED' });
         passedTests++;
       } else {
-        console.log(`    ❌ FALLÓ - Esperado: ${testCase.expectedValid}, Obtenido: ${validation.isValid}`);
+        logger.info('❌ FALLÓ - Esperado: ${testCase.expectedValid}, Obtenido: ${validation.isValid}', { category: 'AUTO_MIGRATED' });
       }
     }
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -163,7 +163,7 @@ async function testWhatsAppLimits() {
  * 🧪 PRUEBA 2: CONVERSIÓN AUTOMÁTICA PARA WHATSAPP
  */
 async function testWhatsAppConversion() {
-  console.log('\n🧪 PRUEBA 2: Conversión automática para WhatsApp');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 2: Conversión automática para WhatsApp' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -216,23 +216,23 @@ async function testWhatsAppConversion() {
     let totalTests = testCases.length;
     
     for (const testCase of testCases) {
-      console.log(`\n  📋 Probando: ${testCase.name}`);
+      logger.info('\n   Probando: ${testCase.name}', { category: 'AUTO_MIGRATED' });
       
       const conversion = await fileService.convertForWhatsApp(testCase.file);
       
-      console.log(`    Éxito: ${conversion.success}`);
-      console.log(`    Conversión aplicada: ${conversion.conversionApplied}`);
-      console.log(`    Mensaje: ${conversion.message}`);
+      logger.info('Éxito: ${conversion.success}', { category: 'AUTO_MIGRATED' });
+      logger.info('Conversión aplicada: ${conversion.conversionApplied}', { category: 'AUTO_MIGRATED' });
+      logger.info('Mensaje: ${conversion.message}', { category: 'AUTO_MIGRATED' });
       
       if (conversion.conversionApplied === testCase.expectedConversion) {
-        console.log(`    ✅ PASÓ`);
+        logger.info('PASÓ', { category: 'AUTO_MIGRATED' });
         passedTests++;
       } else {
-        console.log(`    ❌ FALLÓ - Esperado: ${testCase.expectedConversion}, Obtenido: ${conversion.conversionApplied}`);
+        logger.info('❌ FALLÓ - Esperado: ${testCase.expectedConversion}, Obtenido: ${conversion.conversionApplied}', { category: 'AUTO_MIGRATED' });
       }
     }
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -245,7 +245,7 @@ async function testWhatsAppConversion() {
  * 🧪 PRUEBA 3: SOPORTE PARA STICKERS
  */
 async function testStickerSupport() {
-  console.log('\n🧪 PRUEBA 3: Soporte para stickers de WhatsApp');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 3: Soporte para stickers de WhatsApp' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -298,25 +298,25 @@ async function testStickerSupport() {
     let totalTests = testCases.length;
     
     for (const testCase of testCases) {
-      console.log(`\n  📋 Probando: ${testCase.name}`);
+      logger.info('\n   Probando: ${testCase.name}', { category: 'AUTO_MIGRATED' });
       
       // Validar sticker
       const validation = fileService.validateStickerForWhatsApp(testCase.file.buffer, testCase.file.mimetype);
       
-      console.log(`    Válido: ${validation.isValid}`);
-      console.log(`    Mensaje: ${validation.message}`);
-      console.log(`    Tamaño actual: ${validation.currentSize?.toFixed(1)}KB`);
+      logger.info('Válido: ${validation.isValid}', { category: 'AUTO_MIGRATED' });
+      logger.info('Mensaje: ${validation.message}', { category: 'AUTO_MIGRATED' });
+      logger.info('Tamaño actual: ${validation.currentSize?.toFixed(1)}KB', { category: 'AUTO_MIGRATED' });
       
       if (validation.isValid === testCase.expectedValid) {
-        console.log(`    ✅ PASÓ`);
+        logger.info('PASÓ', { category: 'AUTO_MIGRATED' });
         passedTests++;
       } else {
-        console.log(`    ❌ FALLÓ - Esperado: ${testCase.expectedValid}, Obtenido: ${validation.isValid}`);
+        logger.info('❌ FALLÓ - Esperado: ${testCase.expectedValid}, Obtenido: ${validation.isValid}', { category: 'AUTO_MIGRATED' });
       }
     }
     
     // Probar procesamiento completo de stickers
-    console.log('\n  🎭 Probando procesamiento completo de stickers...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n  🎭 Probando procesamiento completo de stickers...' });
     
     const largeSticker = {
       buffer: Buffer.alloc(150 * 1024), // 150KB (muy grande)
@@ -331,20 +331,20 @@ async function testStickerSupport() {
       largeSticker.originalName
     );
     
-    console.log(`    Procesamiento exitoso: ${processing.success}`);
-    console.log(`    Conversión aplicada: ${processing.conversionApplied}`);
-    console.log(`    Mensaje: ${processing.message}`);
+    logger.info('Procesamiento exitoso: ${processing.success}', { category: 'AUTO_MIGRATED' });
+    logger.info('Conversión aplicada: ${processing.conversionApplied}', { category: 'AUTO_MIGRATED' });
+    logger.info('Mensaje: ${processing.message}', { category: 'AUTO_MIGRATED' });
     
     if (processing.success) {
-      console.log(`    ✅ Procesamiento de sticker PASÓ`);
+      logger.info('Procesamiento de sticker PASÓ', { category: 'AUTO_MIGRATED' });
       passedTests++;
     } else {
-      console.log(`    ❌ Procesamiento de sticker FALLÓ`);
+      logger.info('❌ Procesamiento de sticker FALLÓ', { category: 'AUTO_MIGRATED' });
     }
     
     totalTests++;
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -357,7 +357,7 @@ async function testStickerSupport() {
  * 🧪 PRUEBA 4: INTEGRACIÓN COMPLETA WHATSAPP
  */
 async function testCompleteWhatsAppIntegration() {
-  console.log('\n🧪 PRUEBA 4: Integración completa WhatsApp');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 4: Integración completa WhatsApp' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -395,40 +395,40 @@ async function testCompleteWhatsAppIntegration() {
     let totalTests = testFiles.length;
     
     for (const testFile of testFiles) {
-      console.log(`\n  📋 Procesando: ${testFile.name}`);
+      logger.info('\n   Procesando: ${testFile.name}', { category: 'AUTO_MIGRATED' });
       
       // Paso 1: Validar compatibilidad
       const validation = fileService.validateWhatsAppCompatibility(testFile.file);
-      console.log(`    Validación inicial: ${validation.isValid ? '✅ Válido' : '❌ Inválido'}`);
+      logger.info('Validación inicial: ${validation.isValid ? ' Válido' : '❌ Inválido'}', { category: 'AUTO_MIGRATED' });
       
       // Paso 2: Intentar conversión si es necesario
       let conversion = null;
       if (!validation.isValid || testFile.shouldConvert) {
-        console.log(`    🔄 Intentando conversión...`);
+        logger.info('Intentando conversión...', { category: 'AUTO_MIGRATED' });
         conversion = await fileService.convertForWhatsApp(testFile.file);
-        console.log(`    Conversión: ${conversion.success ? '✅ Exitosa' : '❌ Fallida'}`);
+        logger.info('Conversión: ${conversion.success ? ' Exitosa' : '❌ Fallida'}', { category: 'AUTO_MIGRATED' });
         
         if (conversion.success) {
           // Paso 3: Validar archivo convertido
           const convertedValidation = fileService.validateWhatsAppCompatibility(conversion.convertedFile);
-          console.log(`    Validación final: ${convertedValidation.isValid ? '✅ Válido' : '❌ Inválido'}`);
+          logger.info('Validación final: ${convertedValidation.isValid ? ' Válido' : '❌ Inválido'}', { category: 'AUTO_MIGRATED' });
           
           if (convertedValidation.isValid) {
-            console.log(`    ✅ FLUJO COMPLETO EXITOSO`);
+            logger.info('FLUJO COMPLETO EXITOSO', { category: 'AUTO_MIGRATED' });
             passedTests++;
           } else {
-            console.log(`    ❌ Archivo convertido aún no es válido`);
+            logger.info('❌ Archivo convertido aún no es válido', { category: 'AUTO_MIGRATED' });
           }
         } else {
-          console.log(`    ❌ Conversión falló: ${conversion.message}`);
+          logger.info('❌ Conversión falló: ${conversion.message}', { category: 'AUTO_MIGRATED' });
         }
       } else {
-        console.log(`    ✅ Archivo ya compatible, no necesita conversión`);
+        logger.info('Archivo ya compatible, no necesita conversión', { category: 'AUTO_MIGRATED' });
         passedTests++;
       }
     }
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -441,7 +441,7 @@ async function testCompleteWhatsAppIntegration() {
  * 🧪 PRUEBA 5: MANEJO DE ERRORES Y CASOS LÍMITE
  */
 async function testErrorHandlingAndEdgeCases() {
-  console.log('\n🧪 PRUEBA 5: Manejo de errores y casos límite');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 5: Manejo de errores y casos límite' });
   try {
     const FileService = require('../src/services/FileService');
     const fileService = new FileService();
@@ -489,28 +489,28 @@ async function testErrorHandlingAndEdgeCases() {
     let totalTests = edgeCases.length;
     
     for (const edgeCase of edgeCases) {
-      console.log(`\n  📋 Probando: ${edgeCase.name}`);
+      logger.info('\n   Probando: ${edgeCase.name}', { category: 'AUTO_MIGRATED' });
       
       try {
         const validation = fileService.validateWhatsAppCompatibility(edgeCase.file);
-        console.log(`    Validación: ${validation.isValid ? '✅ Válido' : '❌ Inválido'}`);
-        console.log(`    Mensaje: ${validation.message}`);
+        logger.info('Validación: ${validation.isValid ? ' Válido' : '❌ Inválido'}', { category: 'AUTO_MIGRATED' });
+        logger.info('Mensaje: ${validation.message}', { category: 'AUTO_MIGRATED' });
         
         // Los casos límite deberían ser inválidos
         if (!validation.isValid) {
-          console.log(`    ✅ MANEJO CORRECTO`);
+          logger.info('MANEJO CORRECTO', { category: 'AUTO_MIGRATED' });
           passedTests++;
         } else {
-          console.log(`    ❌ Debería ser inválido`);
+          logger.info('❌ Debería ser inválido', { category: 'AUTO_MIGRATED' });
         }
         
       } catch (error) {
-        console.log(`    ✅ Error manejado correctamente: ${error.message}`);
+        logger.info('Error manejado correctamente: ${error.message}', { category: 'AUTO_MIGRATED' });
         passedTests++;
       }
     }
     
-    console.log(`\n📊 Resultados: ${passedTests}/${totalTests} pruebas pasaron`);
+    logger.info('\n Resultados: ${passedTests}/${totalTests} pruebas pasaron', { category: 'AUTO_MIGRATED' });
     return passedTests === totalTests;
     
   } catch (error) {
@@ -523,7 +523,7 @@ async function testErrorHandlingAndEdgeCases() {
  * FUNCIÓN PRINCIPAL DE PRUEBA
  */
 async function runAllTests() {
-  console.log('🚀 Iniciando pruebas de validación WhatsApp...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de validación WhatsApp...\n' });
   
   const tests = [
     { name: 'Validación de límites WhatsApp', fn: testWhatsAppLimits },
@@ -536,7 +536,7 @@ async function runAllTests() {
   const results = [];
   
   for (const test of tests) {
-    console.log(`\n🎯 Ejecutando: ${test.name}`);
+    logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
     console.log('─'.repeat(50));
     
     const startTime = Date.now();
@@ -549,37 +549,37 @@ async function runAllTests() {
       duration: duration
     });
     
-    console.log(`\n${result ? '✅' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)`);
+    logger.info('\n${result ? '' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)', { category: 'AUTO_MIGRATED' });
   }
   
   // Resumen final
-  console.log('\n📱 ========================================');
-  console.log('📱 RESUMEN DE PRUEBAS FASE 4');
-  console.log('📱 ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📱 ========================================' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 RESUMEN DE PRUEBAS FASE 4' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 ========================================' });
   
   const successfulTests = results.filter(r => r.success).length;
   const totalTests = results.length;
   const totalTime = results.reduce((sum, r) => sum + r.duration, 0);
   
-  console.log(`\n📊 Resultados:`);
-  console.log(`   ✅ Exitosos: ${successfulTests}/${totalTests}`);
-  console.log(`   ❌ Fallidos: ${totalTests - successfulTests}/${totalTests}`);
-  console.log(`   ⏱️ Tiempo total: ${totalTime}ms`);
+  logger.info('\n Resultados:', { category: 'AUTO_MIGRATED' });
+  logger.info('Exitosos: ${successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Fallidos: ${totalTests - successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('⏱ Tiempo total: ${totalTime}ms', { category: 'AUTO_MIGRATED' });
   
-  console.log('\n📋 Detalles por prueba:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Detalles por prueba:' });
   results.forEach((result, index) => {
     const status = result.success ? '✅' : '❌';
-    console.log(`   ${index + 1}. ${status} ${result.name} (${result.duration}ms)`);
+    logger.info('${index + 1}. ${status} ${result.name} (${result.duration}ms)', { category: 'AUTO_MIGRATED' });
   });
   
   if (successfulTests === totalTests) {
-    console.log('\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!');
-    console.log('📱 La Fase 4: Validación WhatsApp está funcionando correctamente.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 La Fase 4: Validación WhatsApp está funcionando correctamente.' });
   } else {
-    console.log('\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.' });
   }
   
-  console.log('\n📱 ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📱 ========================================' });
   
   return successfulTests === totalTests;
 }

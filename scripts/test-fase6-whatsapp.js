@@ -12,7 +12,7 @@
  * @author Backend Team
  */
 
-console.log('🧪 INICIANDO PRUEBAS DE FASE 6 - INTEGRACIÓN CON WHATSAPP\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBAS DE FASE 6 - INTEGRACIÓN CON WHATSAPP\n' });
 
 /**
  * Simular datos de prueba
@@ -31,7 +31,7 @@ const testData = {
  * Simular la función sendFileToWhatsApp
  */
 async function testSendFileToWhatsApp() {
-  console.log('🔄 Prueba 1: sendFileToWhatsApp');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Prueba 1: sendFileToWhatsApp' });
   
   try {
     // Simular datos de entrada
@@ -39,10 +39,10 @@ async function testSendFileToWhatsApp() {
     const fileUrl = testData.fileUrl;
     const caption = testData.caption;
 
-    console.log('📎 Simulando envío de archivo a WhatsApp');
-    console.log('  - Número de teléfono:', phoneNumber);
-    console.log('  - URL del archivo:', fileUrl);
-    console.log('  - Caption:', caption);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Simulando envío de archivo a WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Número de teléfono:', phoneNumber });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL del archivo:', fileUrl });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Caption:', caption });
 
     // Simular respuesta de Twilio
     const mockTwilioResponse = {
@@ -62,10 +62,10 @@ async function testSendFileToWhatsApp() {
       timestamp: new Date().toISOString()
     };
 
-    console.log('✅ Archivo enviado exitosamente');
-    console.log('  - Message SID:', result.messageSid);
-    console.log('  - Status:', result.status);
-    console.log('  - Timestamp:', result.timestamp);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo enviado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Message SID:', result.messageSid });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Status:', result.status });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Timestamp:', result.timestamp });
 
     return {
       success: true,
@@ -83,7 +83,7 @@ async function testSendFileToWhatsApp() {
  * Simular la función handleWhatsAppFileReceived
  */
 async function testHandleWhatsAppFileReceived() {
-  console.log('\n🔄 Prueba 2: handleWhatsAppFileReceived');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 2: handleWhatsAppFileReceived' });
   
   try {
     // Simular webhook de WhatsApp
@@ -95,15 +95,15 @@ async function testHandleWhatsAppFileReceived() {
       NumMedia: '1'
     };
 
-    console.log('📱 Simulando procesamiento de archivo recibido de WhatsApp');
-    console.log('  - MediaUrl0:', webhookData.MediaUrl0);
-    console.log('  - From:', webhookData.From);
-    console.log('  - Body:', webhookData.Body);
-    console.log('  - MessageSid:', webhookData.MessageSid);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📱 Simulando procesamiento de archivo recibido de WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - MediaUrl0:', webhookData.MediaUrl0 });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - From:', webhookData.From });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Body:', webhookData.Body });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - MessageSid:', webhookData.MessageSid });
 
     // Simular descarga de archivo
     const fileBuffer = Buffer.from('contenido simulado del archivo');
-    console.log('  - Archivo descargado:', fileBuffer.length, 'bytes');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Archivo descargado:', fileBuffer.length, 'bytes' });
 
     // Simular conversación encontrada
     const conversation = {
@@ -113,7 +113,7 @@ async function testHandleWhatsAppFileReceived() {
       participants: [testData.phoneNumber, '+9876543210']
     };
 
-    console.log('  - Conversación encontrada:', conversation.id);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversación encontrada:', conversation.id });
 
     // Simular archivo procesado
     const processedFile = {
@@ -125,7 +125,7 @@ async function testHandleWhatsAppFileReceived() {
       type: 'image'
     };
 
-    console.log('  - Archivo procesado:', processedFile.id);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Archivo procesado:', processedFile.id });
 
     // Simular mensaje creado
     const messageData = {
@@ -149,10 +149,10 @@ async function testHandleWhatsAppFileReceived() {
       }
     };
 
-    console.log('✅ Archivo de WhatsApp procesado exitosamente');
-    console.log('  - Message ID:', messageData.id);
-    console.log('  - File ID:', processedFile.id);
-    console.log('  - Conversation ID:', conversation.id);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo de WhatsApp procesado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Message ID:', messageData.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', processedFile.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', conversation.id });
 
     return {
       success: true,
@@ -173,12 +173,12 @@ async function testHandleWhatsAppFileReceived() {
  * Simular la función downloadFileFromUrl
  */
 async function testDownloadFileFromUrl() {
-  console.log('\n🔄 Prueba 3: downloadFileFromUrl');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 3: downloadFileFromUrl' });
   
   try {
     const url = testData.mediaUrl;
-    console.log('📥 Simulando descarga de archivo desde URL');
-    console.log('  - URL:', url);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📥 Simulando descarga de archivo desde URL' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL:', url });
 
     // Simular respuesta HTTP exitosa
     const mockResponse = {
@@ -196,9 +196,9 @@ async function testDownloadFileFromUrl() {
     // Simular buffer descargado
     const buffer = Buffer.from(new ArrayBuffer(1024));
     
-    console.log('✅ Archivo descargado exitosamente');
-    console.log('  - Tamaño:', buffer.length, 'bytes');
-    console.log('  - Content-Type:', 'image/jpeg');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo descargado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño:', buffer.length, 'bytes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Content-Type:', 'image/jpeg' });
 
     return {
       success: true,
@@ -219,16 +219,16 @@ async function testDownloadFileFromUrl() {
  * Simular la función findConversationByPhone
  */
 async function testFindConversationByPhone() {
-  console.log('\n🔄 Prueba 4: findConversationByPhone');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 4: findConversationByPhone' });
   
   try {
     const phoneNumber = testData.phoneNumber;
-    console.log('🔍 Simulando búsqueda de conversación por número');
-    console.log('  - Número:', phoneNumber);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Simulando búsqueda de conversación por número' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Número:', phoneNumber });
 
     // Simular normalización de número
     const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+' + phoneNumber;
-    console.log('  - Número normalizado:', normalizedPhone);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Número normalizado:', normalizedPhone });
 
     // Simular conversación existente
     const conversation = {
@@ -240,10 +240,10 @@ async function testFindConversationByPhone() {
       updatedAt: new Date().toISOString()
     };
 
-    console.log('✅ Conversación encontrada');
-    console.log('  - ID:', conversation.id);
-    console.log('  - Participantes:', conversation.participants.length);
-    console.log('  - Estado:', conversation.status);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conversación encontrada' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - ID:', conversation.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Participantes:', conversation.participants.length });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Estado:', conversation.status });
 
     return {
       success: true,
@@ -263,7 +263,7 @@ async function testFindConversationByPhone() {
  * Simular la función processSingleAttachment
  */
 async function testProcessSingleAttachment() {
-  console.log('\n🔄 Prueba 5: processSingleAttachment');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 5: processSingleAttachment' });
   
   try {
     // Simular datos del archivo
@@ -277,11 +277,11 @@ async function testProcessSingleAttachment() {
       uploadedBy: testData.phoneNumber
     };
 
-    console.log('📎 Simulando procesamiento de archivo adjunto');
-    console.log('  - Nombre original:', fileData.originalName);
-    console.log('  - Tamaño:', fileData.size, 'bytes');
-    console.log('  - MIME type:', fileData.mimetype);
-    console.log('  - Conversation ID:', fileData.conversationId);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📎 Simulando procesamiento de archivo adjunto' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Nombre original:', fileData.originalName });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Tamaño:', fileData.size, 'bytes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - MIME type:', fileData.mimetype });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Conversation ID:', fileData.conversationId });
 
     // Simular archivo procesado
     const processedFile = {
@@ -297,9 +297,9 @@ async function testProcessSingleAttachment() {
       createdAt: new Date().toISOString()
     };
 
-    console.log('✅ Archivo procesado exitosamente');
-    console.log('  - File ID:', processedFile.id);
-    console.log('  - URL:', processedFile.url);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Archivo procesado exitosamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - File ID:', processedFile.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - URL:', processedFile.url });
     console.log('  - Tags:', processedFile.tags.join(', '));
 
     return {
@@ -319,7 +319,7 @@ async function testProcessSingleAttachment() {
  * Probar casos de error
  */
 async function testErrorCases() {
-  console.log('\n🔄 Prueba 6: Casos de Error');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 6: Casos de Error' });
   
   try {
     const errorCases = [
@@ -358,23 +358,23 @@ async function testErrorCases() {
 
     for (const testCase of errorCases) {
       try {
-        console.log(`  🔍 ${testCase.name}`);
+        logger.info('${testCase.name}', { category: 'AUTO_MIGRATED' });
         
         // Simular validación de error
         const hasError = true; // Simular que siempre hay error en estos casos
         
         if (hasError) {
-          console.log(`    ✅ Error manejado correctamente: ${testCase.scenario.expectedError}`);
+          logger.info('Error manejado correctamente: ${testCase.scenario.expectedError}', { category: 'AUTO_MIGRATED' });
           passed++;
         } else {
-          console.log(`    ❌ Error no manejado correctamente`);
+          logger.info('❌ Error no manejado correctamente', { category: 'AUTO_MIGRATED' });
         }
       } catch (error) {
-        console.log(`    ❌ Error en caso de prueba: ${error.message}`);
+        logger.info('❌ Error en caso de prueba: ${error.message}', { category: 'AUTO_MIGRATED' });
       }
     }
 
-    console.log(`\n📊 Resultado casos de error: ${passed}/${total} pasaron`);
+    logger.info('\n Resultado casos de error: ${passed}/${total} pasaron', { category: 'AUTO_MIGRATED' });
 
     return {
       success: passed === total,
@@ -393,13 +393,13 @@ async function testErrorCases() {
  * Probar integración completa
  */
 async function testCompleteIntegration() {
-  console.log('\n🔄 Prueba 7: Integración Completa');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔄 Prueba 7: Integración Completa' });
   
   try {
-    console.log('🔄 Simulando flujo completo de integración con WhatsApp');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando flujo completo de integración con WhatsApp' });
 
     // 1. Recibir archivo de WhatsApp
-    console.log('  1. 📱 Archivo recibido de WhatsApp');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  1. 📱 Archivo recibido de WhatsApp' });
     const webhookResult = await testHandleWhatsAppFileReceived();
     
     if (!webhookResult.success) {
@@ -407,7 +407,7 @@ async function testCompleteIntegration() {
     }
 
     // 2. Procesar archivo
-    console.log('  2. 📎 Archivo procesado y guardado');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  2. 📎 Archivo procesado y guardado' });
     const processResult = await testProcessSingleAttachment();
     
     if (!processResult.success) {
@@ -415,17 +415,17 @@ async function testCompleteIntegration() {
     }
 
     // 3. Enviar respuesta con archivo
-    console.log('  3. 📤 Enviando archivo de respuesta');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  3. 📤 Enviando archivo de respuesta' });
     const sendResult = await testSendFileToWhatsApp();
     
     if (!sendResult.success) {
       throw new Error('Error en envío de archivo');
     }
 
-    console.log('✅ Integración completa exitosa');
-    console.log('  - Archivo recibido y procesado');
-    console.log('  - Mensaje creado en conversación');
-    console.log('  - Archivo de respuesta enviado');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Integración completa exitosa' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Archivo recibido y procesado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Mensaje creado en conversación' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '  - Archivo de respuesta enviado' });
 
     return {
       success: true,
@@ -446,7 +446,7 @@ async function testCompleteIntegration() {
  */
 async function testFase6WhatsApp() {
   try {
-    console.log('🔄 Ejecutando pruebas de Fase 6...\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Ejecutando pruebas de Fase 6...\n' });
 
     const results = [];
 
@@ -463,52 +463,52 @@ async function testFase6WhatsApp() {
     const successfulTests = results.filter(r => r.success).length;
     const totalTests = results.length;
 
-    console.log('\n🎉 PRUEBAS DE FASE 6 COMPLETADAS');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 PRUEBAS DE FASE 6 COMPLETADAS' });
     console.log('=' .repeat(50));
-    console.log(`📊 Resultado: ${successfulTests}/${totalTests} pruebas exitosas`);
+    logger.info('Resultado: ${successfulTests}/${totalTests} pruebas exitosas', { category: 'AUTO_MIGRATED' });
 
     if (successfulTests === totalTests) {
-      console.log('✅ TODAS LAS PRUEBAS PASARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ TODAS LAS PRUEBAS PASARON' });
     } else {
-      console.log('⚠️  ALGUNAS PRUEBAS FALLARON');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  ALGUNAS PRUEBAS FALLARON' });
     }
 
     // Mostrar detalles de cada función implementada
-    console.log('\n📋 DETALLES DE FUNCIONES IMPLEMENTADAS:');
-    console.log('1. ✅ sendFileToWhatsApp - Envío de archivos a WhatsApp');
-    console.log('2. ✅ handleWhatsAppFileReceived - Procesamiento de archivos entrantes');
-    console.log('3. ✅ downloadFileFromUrl - Descarga de archivos desde URLs');
-    console.log('4. ✅ findConversationByPhone - Búsqueda de conversaciones');
-    console.log('5. ✅ processSingleAttachment - Procesamiento de archivos adjuntos');
-    console.log('6. ✅ normalizePhoneNumber - Normalización de números de teléfono');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 DETALLES DE FUNCIONES IMPLEMENTADAS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ sendFileToWhatsApp - Envío de archivos a WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ handleWhatsAppFileReceived - Procesamiento de archivos entrantes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. ✅ downloadFileFromUrl - Descarga de archivos desde URLs' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ findConversationByPhone - Búsqueda de conversaciones' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '5. ✅ processSingleAttachment - Procesamiento de archivos adjuntos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '6. ✅ normalizePhoneNumber - Normalización de números de teléfono' });
 
     // Mostrar características de integración
-    console.log('\n🔧 CARACTERÍSTICAS DE INTEGRACIÓN:');
-    console.log('- Envío de archivos con caption personalizado');
-    console.log('- Procesamiento automático de archivos entrantes');
-    console.log('- Descarga segura de archivos desde Twilio');
-    console.log('- Búsqueda y creación automática de conversaciones');
-    console.log('- Integración completa con FileService');
-    console.log('- Logging detallado de todas las operaciones');
-    console.log('- Manejo robusto de errores');
-    console.log('- Validación de números de teléfono');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔧 CARACTERÍSTICAS DE INTEGRACIÓN:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Envío de archivos con caption personalizado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Procesamiento automático de archivos entrantes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Descarga segura de archivos desde Twilio' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Búsqueda y creación automática de conversaciones' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Integración completa con FileService' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Logging detallado de todas las operaciones' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Manejo robusto de errores' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Validación de números de teléfono' });
 
     // Mostrar endpoints implementados
-    console.log('\n🎯 ENDPOINTS IMPLEMENTADOS:');
-    console.log('- POST /api/messages/whatsapp-file - Webhook para archivos entrantes');
-    console.log('- POST /api/messages/send-file-to-whatsapp - Envío de archivos');
-    console.log('- Validación completa de parámetros');
-    console.log('- Autenticación y autorización');
-    console.log('- Respuestas estructuradas');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 ENDPOINTS IMPLEMENTADOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- POST /api/messages/whatsapp-file - Webhook para archivos entrantes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- POST /api/messages/send-file-to-whatsapp - Envío de archivos' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Validación completa de parámetros' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Autenticación y autorización' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Respuestas estructuradas' });
 
     // Mostrar casos de uso cubiertos
-    console.log('\n📱 CASOS DE USO CUBIERTOS:');
-    console.log('- Usuario envía archivo por WhatsApp');
-    console.log('- Sistema procesa y almacena archivo');
-    console.log('- Sistema responde con archivo');
-    console.log('- Conversación se actualiza automáticamente');
-    console.log('- Eventos WebSocket emitidos en tiempo real');
-    console.log('- Logging de auditoría completo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📱 CASOS DE USO CUBIERTOS:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Usuario envía archivo por WhatsApp' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Sistema procesa y almacena archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Sistema responde con archivo' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Conversación se actualiza automáticamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Eventos WebSocket emitidos en tiempo real' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Logging de auditoría completo' });
 
     return {
       success: successfulTests === totalTests,
@@ -529,7 +529,7 @@ async function testFase6WhatsApp() {
 async function main() {
   try {
     await testFase6WhatsApp();
-    console.log('\n✅ Script de prueba completado exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Script de prueba completado exitosamente' });
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Script de prueba falló');

@@ -59,8 +59,8 @@ const FILES_TO_CHECK = [
 
 // Función para verificar un archivo
 function checkFile(filePath, description, checks) {
-  console.log(`\n📁 Verificando: ${description}`);
-  console.log(`📍 Archivo: ${filePath}`);
+  logger.info('\n� Verificando: ${description}', { category: 'AUTO_MIGRATED' });
+  logger.info('� Archivo: ${filePath}', { category: 'AUTO_MIGRATED' });
   
   if (!fs.existsSync(filePath)) {
     console.error(`❌ Archivo no encontrado: ${filePath}`);
@@ -74,11 +74,11 @@ function checkFile(filePath, description, checks) {
     const hasPattern = check.pattern.test(content);
     const status = hasPattern === check.expected ? '✅' : '❌';
     
-    console.log(`  ${index + 1}. ${status} ${check.name}`);
+    logger.info('${index + 1}. ${status} ${check.name}', { category: 'AUTO_MIGRATED' });
     
     if (hasPattern !== check.expected) {
-      console.log(`     💡 Esperado: ${check.expected ? 'ENCONTRADO' : 'NO ENCONTRADO'}`);
-      console.log(`     💡 Actual: ${hasPattern ? 'ENCONTRADO' : 'NO ENCONTRADO'}`);
+      logger.info('� Esperado: ${check.expected ? 'ENCONTRADO' : 'NO ENCONTRADO'}', { category: 'AUTO_MIGRATED' });
+      logger.info('� Actual: ${hasPattern ? 'ENCONTRADO' : 'NO ENCONTRADO'}', { category: 'AUTO_MIGRATED' });
       allChecksPassed = false;
     }
   });
@@ -88,7 +88,7 @@ function checkFile(filePath, description, checks) {
 
 // Función para mostrar el código relevante
 function showRelevantCode() {
-  console.log('\n🔍 CÓDIGO RELEVANTE:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 CÓDIGO RELEVANTE:' });
   
   const mediaRoutesPath = 'src/routes/media.js';
   if (fs.existsSync(mediaRoutesPath)) {
@@ -114,7 +114,7 @@ function showRelevantCode() {
     }
     
     if (routeLines.length > 0) {
-      console.log('\n📋 Configuración de la ruta /upload:');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Configuración de la ruta /upload:' });
       routeLines.forEach(line => console.log(`  ${line}`));
     }
   }
@@ -122,7 +122,7 @@ function showRelevantCode() {
 
 // Función principal
 function runVerification() {
-  console.log('🔍 VERIFICANDO CORRECCIÓN DE SUBIDA DE MEDIA');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 VERIFICANDO CORRECCIÓN DE SUBIDA DE MEDIA' });
   console.log('⏰ Timestamp:', new Date().toISOString());
   console.log('📍 Directorio:', process.cwd());
   
@@ -146,12 +146,12 @@ function runVerification() {
   });
 
   // Mostrar resumen
-  console.log('\n📊 RESUMEN DE VERIFICACIÓN:');
-  console.log(`✅ Checks pasados: ${passedChecks}/${totalChecks}`);
-  console.log(`❌ Checks fallidos: ${totalChecks - passedChecks}/${totalChecks}`);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 RESUMEN DE VERIFICACIÓN:' });
+  logger.info('Checks pasados: ${passedChecks}/${totalChecks}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Checks fallidos: ${totalChecks - passedChecks}/${totalChecks}', { category: 'AUTO_MIGRATED' });
   
   if (failedFiles.length > 0) {
-    console.log(`\n🚨 Archivos con problemas:`);
+    logger.info('\n Archivos con problemas:', { category: 'AUTO_MIGRATED' });
     failedFiles.forEach(file => console.log(`  - ${file}`));
   }
 
@@ -159,18 +159,18 @@ function runVerification() {
   showRelevantCode();
 
   // Conclusión
-  console.log('\n🎯 CONCLUSIÓN:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 CONCLUSIÓN:' });
   if (passedChecks === totalChecks) {
-    console.log('✅ ¡CORRECCIÓN IMPLEMENTADA CORRECTAMENTE!');
-    console.log('✅ El middleware de multer está configurado en la ruta');
-    console.log('✅ La subida de archivos debería funcionar ahora');
-    console.log('\n💡 Para probar completamente:');
-    console.log('   1. Iniciar el servidor: npm start');
-    console.log('   2. Ejecutar: node scripts/test-media-upload-fix.js');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ ¡CORRECCIÓN IMPLEMENTADA CORRECTAMENTE!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El middleware de multer está configurado en la ruta' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ La subida de archivos debería funcionar ahora' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n💡 Para probar completamente:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   1. Iniciar el servidor: npm start' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   2. Ejecutar: node scripts/test-media-upload-fix.js' });
   } else {
-    console.log('❌ CORRECCIÓN INCOMPLETA');
-    console.log('❌ Hay problemas en la configuración');
-    console.log('💡 Revisar los archivos marcados con ❌');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ CORRECCIÓN INCOMPLETA' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Hay problemas en la configuración' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💡 Revisar los archivos marcados con ❌' });
   }
 
   return passedChecks === totalChecks;

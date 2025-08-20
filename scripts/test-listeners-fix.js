@@ -50,7 +50,7 @@ class MockSocket extends EventEmitter {
  * Test 1: Verificar que los listeners se registran correctamente
  */
 function testListenerRegistration() {
-  console.log('📋 Test 1: Verificar registro de listeners');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 1: Verificar registro de listeners' });
   
   const mockSocket = new MockSocket('test-socket-1', 'test@company.com');
   
@@ -59,7 +59,7 @@ function testListenerRegistration() {
   // Registrar listeners para todos los eventos de prueba
   TEST_CONFIG.TEST_EVENTS.forEach(event => {
     const handler = (data) => {
-      console.log(`✅ Evento ${event} recibido:`, data);
+      logger.info('Evento ${event} recibido:', { category: 'AUTO_MIGRATED', data: data });
     };
     
     const wrappedHandler = eventCleanup.addListener(mockSocket, event, handler, {
@@ -69,11 +69,11 @@ function testListenerRegistration() {
     
     if (wrappedHandler) {
       registeredCount++;
-      console.log(`✅ Listener registrado para: ${event}`);
+      logger.info('Listener registrado para: ${event}', { category: 'AUTO_MIGRATED' });
     }
   });
   
-  console.log(`📊 Total listeners registrados: ${registeredCount}/${TEST_CONFIG.TEST_EVENTS.length}`);
+  logger.info('Total listeners registrados: ${registeredCount}/${TEST_CONFIG.TEST_EVENTS.length}', { category: 'AUTO_MIGRATED' });
   
   // Verificar que todos los listeners están registrados
   const allRegistered = TEST_CONFIG.TEST_EVENTS.every(event => {
@@ -82,10 +82,10 @@ function testListenerRegistration() {
   });
   
   if (allRegistered) {
-    console.log('✅ Test 1 PASADO: Todos los listeners registrados correctamente\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 1 PASADO: Todos los listeners registrados correctamente\n' });
     return true;
   } else {
-    console.log('❌ Test 1 FALLÓ: Algunos listeners no se registraron\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 1 FALLÓ: Algunos listeners no se registraron\n' });
     return false;
   }
 }
@@ -94,12 +94,12 @@ function testListenerRegistration() {
  * Test 2: Verificar que los listeners no se remueven prematuramente
  */
 function testListenerPersistence() {
-  console.log('📋 Test 2: Verificar persistencia de listeners');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 2: Verificar persistencia de listeners' });
   
   const mockSocket = new MockSocket('test-socket-2', 'test@company.com');
   
   // Registrar un listener
-  const handler = (data) => console.log('✅ Evento recibido:', data);
+  const handler = (data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Evento recibido:', data });
   const wrappedHandler = eventCleanup.addListener(mockSocket, 'test-event', handler, {
     autoCleanup: false,
     reRegisterOnMissing: true
@@ -114,10 +114,10 @@ function testListenerPersistence() {
   const listener = eventCleanup.getListener(mockSocket, 'test-event');
   
   if (listener) {
-    console.log('✅ Test 2 PASADO: Listener persiste después de múltiples eventos\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 2 PASADO: Listener persiste después de múltiples eventos\n' });
     return true;
   } else {
-    console.log('❌ Test 2 FALLÓ: Listener se removió prematuramente\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 2 FALLÓ: Listener se removió prematuramente\n' });
     return false;
   }
 }
@@ -126,7 +126,7 @@ function testListenerPersistence() {
  * Test 3: Verificar re-registro automático de listeners
  */
 function testListenerReRegistration() {
-  console.log('📋 Test 3: Verificar re-registro automático');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 3: Verificar re-registro automático' });
   
   const mockSocket = new MockSocket('test-socket-3', 'test@company.com');
   
@@ -144,10 +144,10 @@ function testListenerReRegistration() {
   const reRegisteredCount = eventCleanup.reRegisterMissingListeners(mockSocket, requiredHandlers);
   
   if (reRegisteredCount === Object.keys(requiredHandlers).length) {
-    console.log('✅ Test 3 PASADO: Todos los listeners faltantes se re-registraron\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 3 PASADO: Todos los listeners faltantes se re-registraron\n' });
     return true;
   } else {
-    console.log(`❌ Test 3 FALLÓ: Solo ${reRegisteredCount}/${Object.keys(requiredHandlers).length} listeners se re-registraron\n`);
+    logger.info('❌ Test 3 FALLÓ: Solo ${reRegisteredCount}/${Object.keys(requiredHandlers).length} listeners se re-registraron\n', { category: 'AUTO_MIGRATED' });
     return false;
   }
 }
@@ -156,12 +156,12 @@ function testListenerReRegistration() {
  * Test 4: Verificar que los listeners solo se remueven cuando el socket está desconectado
  */
 function testListenerRemovalOnDisconnect() {
-  console.log('📋 Test 4: Verificar remoción solo en desconexión');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 4: Verificar remoción solo en desconexión' });
   
   const mockSocket = new MockSocket('test-socket-4', 'test@company.com');
   
   // Registrar un listener
-  const handler = (data) => console.log('✅ Evento recibido:', data);
+  const handler = (data) => logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Evento recibido:', data });
   const wrappedHandler = eventCleanup.addListener(mockSocket, 'test-event', handler, {
     autoCleanup: false,
     reRegisterOnMissing: true
@@ -171,10 +171,10 @@ function testListenerRemovalOnDisconnect() {
   const removalResult = eventCleanup.removeListener(mockSocket, 'test-event', wrappedHandler);
   
   if (!removalResult) {
-    console.log('✅ Test 4 PASADO: Listener no se removió mientras el socket está conectado\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 4 PASADO: Listener no se removió mientras el socket está conectado\n' });
     return true;
   } else {
-    console.log('❌ Test 4 FALLÓ: Listener se removió incorrectamente\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 4 FALLÓ: Listener se removió incorrectamente\n' });
     return false;
   }
 }
@@ -183,13 +183,13 @@ function testListenerRemovalOnDisconnect() {
  * Test 5: Verificar estadísticas del sistema
  */
 function testSystemStats() {
-  console.log('📋 Test 5: Verificar estadísticas del sistema');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 5: Verificar estadísticas del sistema' });
   
   const mockSocket = new MockSocket('test-socket-5', 'test@company.com');
   
   // Registrar varios listeners
   TEST_CONFIG.TEST_EVENTS.slice(0, 5).forEach(event => {
-    const handler = (data) => console.log(`Evento ${event}:`, data);
+    const handler = (data) => logger.info('Evento ${event}:', { category: 'AUTO_MIGRATED', data: data });
     eventCleanup.addListener(mockSocket, event, handler, {
       autoCleanup: false,
       reRegisterOnMissing: true
@@ -199,18 +199,18 @@ function testSystemStats() {
   // Verificar estadísticas
   const stats = eventCleanup.stats;
   
-  console.log('📊 Estadísticas del sistema:', {
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Estadísticas del sistema:', {
     totalListeners: stats.totalListeners,
     activeListeners: stats.activeListeners,
     cleanedListeners: stats.cleanedListeners,
     reRegisteredListeners: stats.reRegisteredListeners
-  });
+  } });
   
   if (stats.activeListeners === 5 && stats.cleanedListeners === 0) {
-    console.log('✅ Test 5 PASADO: Estadísticas correctas\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 5 PASADO: Estadísticas correctas\n' });
     return true;
   } else {
-    console.log('❌ Test 5 FALLÓ: Estadísticas incorrectas\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 5 FALLÓ: Estadísticas incorrectas\n' });
     return false;
   }
 }
@@ -219,7 +219,7 @@ function testSystemStats() {
  * Ejecutar todas las pruebas
  */
 async function runAllTests() {
-  console.log('🚀 Iniciando pruebas de listeners...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de listeners...\n' });
   
   const tests = [
     testListenerRegistration,
@@ -241,20 +241,20 @@ async function runAllTests() {
     }
   }
   
-  console.log('📊 RESULTADOS FINALES:');
-  console.log(`✅ Tests pasados: ${passedTests}/${totalTests}`);
-  console.log(`❌ Tests fallidos: ${totalTests - passedTests}/${totalTests}`);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESULTADOS FINALES:' });
+  logger.info('Tests pasados: ${passedTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Tests fallidos: ${totalTests - passedTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
   
   if (passedTests === totalTests) {
-    console.log('\n🎉 ¡TODAS LAS PRUEBAS PASARON!');
-    console.log('✅ El problema de listeners está RESUELTO');
-    console.log('✅ Los listeners se registran correctamente');
-    console.log('✅ No se remueven prematuramente');
-    console.log('✅ Se re-registran automáticamente si se pierden');
-    console.log('✅ Solo se remueven cuando el socket se desconecta');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡TODAS LAS PRUEBAS PASARON!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El problema de listeners está RESUELTO' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Los listeners se registran correctamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ No se remueven prematuramente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Se re-registran automáticamente si se pierden' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Solo se remueven cuando el socket se desconecta' });
   } else {
-    console.log('\n⚠️ Algunas pruebas fallaron');
-    console.log('🔧 Revisa la implementación del sistema de listeners');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunas pruebas fallaron' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 Revisa la implementación del sistema de listeners' });
   }
   
   return passedTests === totalTests;

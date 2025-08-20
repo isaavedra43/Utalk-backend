@@ -10,10 +10,10 @@ const axios = require('axios');
 const BASE_URL = 'https://utalk-backend-production.up.railway.app';
 
 async function testDashboardEndpoint() {
-  console.log('🧪 Probando endpoint /api/logs/dashboard...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando endpoint /api/logs/dashboard...\n' });
 
   try {
-    console.log('📡 Haciendo petición GET a /api/logs/dashboard...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📡 Haciendo petición GET a /api/logs/dashboard...' });
     
     const response = await axios.get(`${BASE_URL}/api/logs/dashboard`, {
       timeout: 10000,
@@ -22,40 +22,40 @@ async function testDashboardEndpoint() {
       }
     });
 
-    console.log('✅ Respuesta exitosa!');
-    console.log('📊 Status:', response.status);
-    console.log('📊 Headers:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta exitosa!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Status:', response.status });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Headers:', {
       'content-type': response.headers['content-type'],
       'content-length': response.headers['content-length']
-    });
+    } });
 
     const data = response.data;
-    console.log('📊 Response data:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Response data:', {
       success: data.success,
       hasStats: !!data.data?.stats,
       hasRateLimitMetrics: !!data.data?.rateLimitMetrics,
       timestamp: data.data?.timestamp
-    });
+    } });
 
     if (data.data?.stats) {
-      console.log('📈 Stats:', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📈 Stats:', {
         total: data.data.stats.total,
         lastHour: data.data.stats.lastHour,
         last24Hours: data.data.stats.last24Hours,
         byLevel: data.data.stats.byLevel
-      });
+      } });
     }
 
     if (data.data?.rateLimitMetrics) {
-      console.log('🚦 Rate Limit Metrics:', {
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚦 Rate Limit Metrics:', {
         total: data.data.rateLimitMetrics.total,
         lastHour: data.data.rateLimitMetrics.lastHour,
         timelineLength: data.data.rateLimitMetrics.timeline?.length || 0
-      });
+      } });
     }
 
-    console.log('\n🎉 ¡Endpoint funcionando correctamente!');
-    console.log('✅ El fix del LogMonitorService fue exitoso');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡Endpoint funcionando correctamente!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El fix del LogMonitorService fue exitoso' });
 
   } catch (error) {
     console.error('❌ Error al probar el endpoint:');
@@ -71,7 +71,7 @@ async function testDashboardEndpoint() {
       console.error('🔧 Error:', error.message);
     }
     
-    console.log('\n❌ El endpoint aún tiene problemas');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ El endpoint aún tiene problemas' });
   }
 }
 

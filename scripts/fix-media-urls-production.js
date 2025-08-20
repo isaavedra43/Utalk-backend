@@ -5,7 +5,7 @@ const { firestore } = require('../src/config/firebase');
 
 async function fixMediaUrlsInProduction() {
   try {
-    console.log('🔧 Arreglando URLs de media en producción...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 Arreglando URLs de media en producción...' });
     
     const accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -16,11 +16,11 @@ async function fixMediaUrlsInProduction() {
       return;
     }
     
-    console.log(`🔑 Account SID: ${accountSid}`);
+    logger.info('� Account SID: ${accountSid}', { category: 'AUTO_MIGRATED' });
     
     // Procesar la conversación específica
     const conversationId = 'conv_+5214773790184_+5214793176502';
-    console.log(`📱 Procesando conversación: ${conversationId}`);
+    logger.info('� Procesando conversación: ${conversationId}', { category: 'AUTO_MIGRATED' });
     
     // Obtener todos los mensajes de la conversación
     const messagesSnapshot = await firestore
@@ -40,7 +40,7 @@ async function fixMediaUrlsInProduction() {
       if (messageData.type === 'media' && !messageData.mediaUrl && messageData.metadata?.twilio?.sid) {
         const twilioSid = messageData.metadata.twilio.sid;
         
-        console.log(`🔍 Mensaje de media sin URL: ${twilioSid}`);
+        logger.info('Mensaje de media sin URL: ${twilioSid}', { category: 'AUTO_MIGRATED' });
         
         try {
           // Usar la API de Twilio para obtener los media reales
@@ -66,10 +66,10 @@ async function fixMediaUrlsInProduction() {
               }))
             });
             
-            console.log(`✅ URL reconstruida para ${twilioSid}: ${reconstructedUrl}`);
+            logger.info('URL reconstruida para ${twilioSid}: ${reconstructedUrl}', { category: 'AUTO_MIGRATED' });
             totalMessagesFixed++;
           } else {
-            console.log(`⚠️ No se encontraron media para ${twilioSid}`);
+            logger.info('No se encontraron media para ${twilioSid}', { category: 'AUTO_MIGRATED' });
           }
         } catch (error) {
           console.error(`❌ Error procesando ${twilioSid}:`, error.message);
@@ -77,9 +77,9 @@ async function fixMediaUrlsInProduction() {
       }
     }
     
-    console.log(`\n📊 Resumen:`);
-    console.log(`- Mensajes procesados: ${totalMessagesProcessed}`);
-    console.log(`- Mensajes arreglados: ${totalMessagesFixed}`);
+    logger.info('\n Resumen:', { category: 'AUTO_MIGRATED' });
+    logger.info('- Mensajes procesados: ${totalMessagesProcessed}', { category: 'AUTO_MIGRATED' });
+    logger.info('- Mensajes arreglados: ${totalMessagesFixed}', { category: 'AUTO_MIGRATED' });
     
   } catch (error) {
     console.error('❌ Error en fixMediaUrlsInProduction:', error);
@@ -88,7 +88,7 @@ async function fixMediaUrlsInProduction() {
 
 // Ejecutar el script
 fixMediaUrlsInProduction().then(() => {
-  console.log('✅ Script completado');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Script completado' });
   process.exit(0);
 }).catch((error) => {
   console.error('❌ Error:', error);

@@ -22,7 +22,7 @@ async function migrateFilesToIndexedSystem() {
     if (Object.keys(data).length > 0) {
       console.log(`[${timestamp}] ${message}`, JSON.stringify(data, null, 2));
     } else {
-      console.log(`[${timestamp}] ${message}`);
+      logger.info('[${timestamp}] ${message}', { category: 'AUTO_MIGRATED' });
     }
   };
 
@@ -54,7 +54,7 @@ async function migrateFilesToIndexedSystem() {
     for (let i = 0; i < files.length; i += batchSize) {
       const batch = files.slice(i, i + batchSize);
       
-      console.log(`\n🔄 Procesando lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(files.length / batchSize)}`);
+      logger.info('\n Procesando lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(files.length / batchSize)}', { category: 'AUTO_MIGRATED' });
       
       await Promise.all(batch.map(async (file) => {
         try {
@@ -63,7 +63,7 @@ async function migrateFilesToIndexedSystem() {
           process.stdout.write('.');
         } catch (error) {
           errorCount++;
-          console.log(`\n❌ Error procesando archivo ${file.name}: ${error.message}`);
+          logger.info('\n❌ Error procesando archivo ${file.name}: ${error.message}', { category: 'AUTO_MIGRATED' });
         }
       }));
 
@@ -73,16 +73,16 @@ async function migrateFilesToIndexedSystem() {
       }
     }
 
-    console.log('\n\n📊 RESUMEN DE MIGRACIÓN:');
-    console.log(`✅ Archivos migrados: ${migratedCount}`);
-    console.log(`⏭️ Archivos omitidos: ${skippedCount}`);
-    console.log(`❌ Errores: ${errorCount}`);
-    console.log(`📁 Total procesados: ${migratedCount + skippedCount + errorCount}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n\n📊 RESUMEN DE MIGRACIÓN:' });
+    logger.info('Archivos migrados: ${migratedCount}', { category: 'AUTO_MIGRATED' });
+    logger.info('⏭ Archivos omitidos: ${skippedCount}', { category: 'AUTO_MIGRATED' });
+    logger.info('❌ Errores: ${errorCount}', { category: 'AUTO_MIGRATED' });
+    logger.info('� Total procesados: ${migratedCount + skippedCount + errorCount}', { category: 'AUTO_MIGRATED' });
 
     if (errorCount > 0) {
-      console.log('\n⚠️ Algunos archivos no pudieron ser migrados. Revisa los errores arriba.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunos archivos no pudieron ser migrados. Revisa los errores arriba.' });
     } else {
-      console.log('\n🎉 ¡Migración completada exitosamente!');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡Migración completada exitosamente!' });
     }
 
   } catch (error) {
@@ -100,14 +100,14 @@ async function processFile(storageFile, firestore) {
     const pathInfo = extractPathInfo(storageFile.name);
     
     if (!pathInfo.isValid) {
-      console.log(`⏭️ Omitiendo archivo no válido: ${storageFile.name}`);
+      logger.info('⏭ Omitiendo archivo no válido: ${storageFile.name}', { category: 'AUTO_MIGRATED' });
       return;
     }
 
     // Verificar si ya existe en la base de datos
     const existingFile = await File.getByStoragePath(storageFile.name);
     if (existingFile) {
-      console.log(`⏭️ Archivo ya indexado: ${storageFile.name}`);
+      logger.info('⏭ Archivo ya indexado: ${storageFile.name}', { category: 'AUTO_MIGRATED' });
       return;
     }
 
@@ -133,7 +133,7 @@ async function processFile(storageFile, firestore) {
     // Crear archivo con indexación automática
     await File.create(fileData);
 
-    console.log(`✅ Migrado: ${storageFile.name}`);
+    logger.info('Migrado: ${storageFile.name}', { category: 'AUTO_MIGRATED' });
 
   } catch (error) {
     throw new Error(`Error procesando ${storageFile.name}: ${error.message}`);
@@ -204,7 +204,7 @@ function formatFileSize(bytes) {
  * Limpiar archivos huérfanos
  */
 async function cleanupOrphanedFiles() {
-  console.log('\n🧹 LIMPIANDO ARCHIVOS HUÉRFANOS...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧹 LIMPIANDO ARCHIVOS HUÉRFANOS...' });
 
   try {
     const firestore = admin.firestore();
@@ -221,13 +221,13 @@ async function cleanupOrphanedFiles() {
       }
     });
 
-    console.log(`📊 Archivos indexados: ${indexedFiles.size}`);
+    logger.info('Archivos indexados: ${indexedFiles.size}', { category: 'AUTO_MIGRATED' });
 
     // Obtener todos los archivos en Storage
     const [storageFiles] = await bucket.getFiles();
     const storagePaths = new Set(storageFiles.map(file => file.name));
 
-    console.log(`📊 Archivos en Storage: ${storagePaths.size}`);
+    logger.info('Archivos en Storage: ${storagePaths.size}', { category: 'AUTO_MIGRATED' });
 
     // Encontrar archivos huérfanos (en Storage pero no indexados)
     const orphanedFiles = [];
@@ -237,23 +237,23 @@ async function cleanupOrphanedFiles() {
       }
     }
 
-    console.log(`📊 Archivos huérfanos encontrados: ${orphanedFiles.length}`);
+    logger.info('Archivos huérfanos encontrados: ${orphanedFiles.length}', { category: 'AUTO_MIGRATED' });
 
     if (orphanedFiles.length > 0) {
-      console.log('\n🗑️ Eliminando archivos huérfanos...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🗑️ Eliminando archivos huérfanos...' });
       
       for (const orphanedPath of orphanedFiles) {
         try {
           const file = bucket.file(orphanedPath);
           await file.delete();
-          console.log(`✅ Eliminado archivo huérfano: ${orphanedPath}`);
+          logger.info('Eliminado archivo huérfano: ${orphanedPath}', { category: 'AUTO_MIGRATED' });
         } catch (error) {
-          console.log(`❌ Error eliminando ${orphanedPath}: ${error.message}`);
+          logger.info('❌ Error eliminando ${orphanedPath}: ${error.message}', { category: 'AUTO_MIGRATED' });
         }
       }
     }
 
-    console.log('✅ Limpieza de archivos huérfanos completada');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Limpieza de archivos huérfanos completada' });
 
   } catch (error) {
     console.error('❌ Error en limpieza de archivos huérfanos:', error.message);
@@ -264,7 +264,7 @@ async function cleanupOrphanedFiles() {
  * Verificar integridad del sistema
  */
 async function verifySystemIntegrity() {
-  console.log('\n🔍 VERIFICANDO INTEGRIDAD DEL SISTEMA...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 VERIFICANDO INTEGRIDAD DEL SISTEMA...' });
 
   try {
     const firestore = admin.firestore();
@@ -277,7 +277,7 @@ async function verifySystemIntegrity() {
       ...doc.data()
     }));
 
-    console.log(`📊 Archivos indexados: ${indexedFiles.length}`);
+    logger.info('Archivos indexados: ${indexedFiles.length}', { category: 'AUTO_MIGRATED' });
 
     let validFiles = 0;
     let invalidFiles = 0;
@@ -291,23 +291,23 @@ async function verifySystemIntegrity() {
           validFiles++;
         } else {
           invalidFiles++;
-          console.log(`⚠️ Archivo indexado pero no en Storage: ${file.storagePath}`);
+          logger.info('Archivo indexado pero no en Storage: ${file.storagePath}', { category: 'AUTO_MIGRATED' });
         }
       } catch (error) {
         invalidFiles++;
-        console.log(`❌ Error verificando archivo: ${file.storagePath}`);
+        logger.info('❌ Error verificando archivo: ${file.storagePath}', { category: 'AUTO_MIGRATED' });
       }
     }
 
-    console.log(`\n📊 RESULTADOS DE INTEGRIDAD:`);
-    console.log(`✅ Archivos válidos: ${validFiles}`);
-    console.log(`❌ Archivos inválidos: ${invalidFiles}`);
-    console.log(`📈 Tasa de integridad: ${((validFiles / indexedFiles.length) * 100).toFixed(1)}%`);
+    logger.info('\n RESULTADOS DE INTEGRIDAD:', { category: 'AUTO_MIGRATED' });
+    logger.info('Archivos válidos: ${validFiles}', { category: 'AUTO_MIGRATED' });
+    logger.info('❌ Archivos inválidos: ${invalidFiles}', { category: 'AUTO_MIGRATED' });
+    logger.info('� Tasa de integridad: ${((validFiles / indexedFiles.length) * 100).toFixed(1)}%', { category: 'AUTO_MIGRATED' });
 
     if (invalidFiles > 0) {
-      console.log('\n⚠️ Se encontraron archivos con problemas de integridad.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Se encontraron archivos con problemas de integridad.' });
     } else {
-      console.log('\n🎉 ¡Sistema completamente integro!');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡Sistema completamente integro!' });
     }
 
   } catch (error) {
@@ -319,7 +319,7 @@ async function verifySystemIntegrity() {
  * Generar reporte de migración
  */
 async function generateMigrationReport() {
-  console.log('\n📊 GENERANDO REPORTE DE MIGRACIÓN...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 GENERANDO REPORTE DE MIGRACIÓN...' });
 
   try {
     const firestore = admin.firestore();
@@ -351,19 +351,19 @@ async function generateMigrationReport() {
       stats.averageSize = stats.totalSize / files.length;
     }
 
-    console.log('\n📊 REPORTE DE MIGRACIÓN:');
-    console.log(`📁 Total de archivos: ${stats.total}`);
-    console.log(`💾 Tamaño total: ${formatFileSize(stats.totalSize)}`);
-    console.log(`📏 Tamaño promedio: ${formatFileSize(stats.averageSize)}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 REPORTE DE MIGRACIÓN:' });
+    logger.info('� Total de archivos: ${stats.total}', { category: 'AUTO_MIGRATED' });
+    logger.info('� Tamaño total: ${formatFileSize(stats.totalSize)}', { category: 'AUTO_MIGRATED' });
+    logger.info('� Tamaño promedio: ${formatFileSize(stats.averageSize)}', { category: 'AUTO_MIGRATED' });
     
-    console.log('\n📂 Por categoría:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📂 Por categoría:' });
     for (const [category, count] of Object.entries(stats.byCategory)) {
-      console.log(`  ${category}: ${count} archivos`);
+      logger.info('${category}: ${count} archivos', { category: 'AUTO_MIGRATED' });
     }
 
-    console.log('\n👤 Por usuario:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n👤 Por usuario:' });
     for (const [user, count] of Object.entries(stats.byUser)) {
-      console.log(`  ${user}: ${count} archivos`);
+      logger.info('${user}: ${count} archivos', { category: 'AUTO_MIGRATED' });
     }
 
   } catch (error) {
@@ -377,22 +377,22 @@ if (require.main === module) {
   
   if (args.includes('--cleanup')) {
     cleanupOrphanedFiles().then(() => {
-      console.log('\n🏁 Limpieza completada.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Limpieza completada.' });
       process.exit(0);
     });
   } else if (args.includes('--verify')) {
     verifySystemIntegrity().then(() => {
-      console.log('\n🏁 Verificación completada.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Verificación completada.' });
       process.exit(0);
     });
   } else if (args.includes('--report')) {
     generateMigrationReport().then(() => {
-      console.log('\n🏁 Reporte generado.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Reporte generado.' });
       process.exit(0);
     });
   } else {
     migrateFilesToIndexedSystem().then(() => {
-      console.log('\n🏁 Migración completada.');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Migración completada.' });
       process.exit(0);
     });
   }

@@ -11,7 +11,7 @@
 const MessageService = require('../src/services/MessageService');
 
 async function testMediaProcessing() {
-  console.log('🧪 Probando procesamiento de media...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando procesamiento de media...\n' });
 
   // Simular webhook data con media
   const webhookData = {
@@ -26,23 +26,23 @@ async function testMediaProcessing() {
   };
 
   try {
-    console.log('📋 Webhook data de prueba:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Webhook data de prueba:' });
     console.log(JSON.stringify(webhookData, null, 2));
-    console.log('\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
     // Probar procesamiento de media
-    console.log('🔄 Procesando media...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Procesando media...' });
     const mediaResult = await MessageService.processWebhookMedia(webhookData);
     
-    console.log('✅ Resultado del procesamiento de media:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado del procesamiento de media:' });
     console.log(JSON.stringify(mediaResult, null, 2));
-    console.log('\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
     // Probar procesamiento completo del webhook
-    console.log('🔄 Procesando webhook completo...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Procesando webhook completo...' });
     const webhookResult = await MessageService.processWebhook(webhookData, 'test-request-id');
     
-    console.log('✅ Resultado del procesamiento de webhook:');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado del procesamiento de webhook:' });
     console.log(JSON.stringify({
       success: webhookResult.success,
       messageId: webhookResult.message?.id,
@@ -61,7 +61,7 @@ async function testMediaProcessing() {
 
 // Ejecutar la prueba
 testMediaProcessing().then(() => {
-  console.log('\n🏁 Prueba completada');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Prueba completada' });
   process.exit(0);
 }).catch((error) => {
   console.error('\n💥 Error fatal:', error);

@@ -44,15 +44,15 @@ function createTestServer() {
   
   // Configurar eventos básicos
   io.on('connection', (socket) => {
-    console.log('✅ Cliente conectado:', socket.id);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Cliente conectado:', socket.id });
     
     socket.on('test-event', (data) => {
-      console.log('✅ Evento recibido:', data);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Evento recibido:', data });
       socket.emit('test-response', { received: data, timestamp: new Date().toISOString() });
     });
     
     socket.on('disconnect', () => {
-      console.log('✅ Cliente desconectado:', socket.id);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Cliente desconectado:', socket.id });
     });
   });
   
@@ -63,7 +63,7 @@ function createTestServer() {
  * Test 1: Verificar configuración de CORS HTTP
  */
 function testHttpCors() {
-  console.log('📋 Test 1: Verificar configuración de CORS HTTP');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 1: Verificar configuración de CORS HTTP' });
   
   let passedTests = 0;
   let totalTests = 0;
@@ -75,14 +75,14 @@ function testHttpCors() {
     const expected = TEST_CONFIG.ALLOWED_ORIGINS.includes(origin);
     
     if (isAllowed === expected) {
-      console.log(`✅ Origin "${origin}": ${isAllowed ? 'PERMITIDO' : 'BLOQUEADO'} (correcto)`);
+      logger.info('Origin "${origin}": ${isAllowed ? 'PERMITIDO' : 'BLOQUEADO'} (correcto)', { category: 'AUTO_MIGRATED' });
       passedTests++;
     } else {
-      console.log(`❌ Origin "${origin}": ${isAllowed ? 'PERMITIDO' : 'BLOQUEADO'} (esperado: ${expected ? 'PERMITIDO' : 'BLOQUEADO'})`);
+      logger.info('❌ Origin "${origin}": ${isAllowed ? 'PERMITIDO' : 'BLOQUEADO'} (esperado: ${expected ? 'PERMITIDO' : 'BLOQUEADO'})', { category: 'AUTO_MIGRATED' });
     }
   });
   
-  console.log(`📊 HTTP CORS: ${passedTests}/${totalTests} tests pasaron\n`);
+  logger.info('HTTP CORS: ${passedTests}/${totalTests} tests pasaron\n', { category: 'AUTO_MIGRATED' });
   return passedTests === totalTests;
 }
 
@@ -90,7 +90,7 @@ function testHttpCors() {
  * Test 2: Verificar configuración de CORS WebSocket
  */
 function testWebSocketCors() {
-  console.log('📋 Test 2: Verificar configuración de CORS WebSocket');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 2: Verificar configuración de CORS WebSocket' });
   
   const { socketCorsOptions } = require('../src/config/cors');
   
@@ -110,14 +110,14 @@ function testWebSocketCors() {
     const expected = !origin || origin === 'undefined' || origin === 'null' || TEST_CONFIG.ALLOWED_ORIGINS.includes(origin);
     
     if (result === expected) {
-      console.log(`✅ WebSocket Origin "${origin}": ${result ? 'PERMITIDO' : 'BLOQUEADO'} (correcto)`);
+      logger.info('WebSocket Origin "${origin}": ${result ? 'PERMITIDO' : 'BLOQUEADO'} (correcto)', { category: 'AUTO_MIGRATED' });
       passedTests++;
     } else {
-      console.log(`❌ WebSocket Origin "${origin}": ${result ? 'PERMITIDO' : 'BLOQUEADO'} (esperado: ${expected ? 'PERMITIDO' : 'BLOQUEADO'})`);
+      logger.info('❌ WebSocket Origin "${origin}": ${result ? 'PERMITIDO' : 'BLOQUEADO'} (esperado: ${expected ? 'PERMITIDO' : 'BLOQUEADO'})', { category: 'AUTO_MIGRATED' });
     }
   });
   
-  console.log(`📊 WebSocket CORS: ${passedTests}/${totalTests} tests pasaron\n`);
+  logger.info('WebSocket CORS: ${passedTests}/${totalTests} tests pasaron\n', { category: 'AUTO_MIGRATED' });
   return passedTests === totalTests;
 }
 
@@ -125,13 +125,13 @@ function testWebSocketCors() {
  * Test 3: Verificar conexión WebSocket con origin undefined
  */
 async function testWebSocketConnection() {
-  console.log('📋 Test 3: Verificar conexión WebSocket con origin undefined');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 3: Verificar conexión WebSocket con origin undefined' });
   
   const { httpServer, io } = createTestServer();
   
   return new Promise((resolve) => {
     httpServer.listen(TEST_CONFIG.PORT, () => {
-      console.log(`✅ Servidor de prueba iniciado en puerto ${TEST_CONFIG.PORT}`);
+      logger.info('Servidor de prueba iniciado en puerto ${TEST_CONFIG.PORT}', { category: 'AUTO_MIGRATED' });
       
       // Intentar conectar sin origin (simulando el problema)
       const socket = Client(`http://localhost:${TEST_CONFIG.PORT}`, {
@@ -143,7 +143,7 @@ async function testWebSocketConnection() {
       let connectionError = null;
       
       socket.on('connect', () => {
-        console.log('✅ Conexión WebSocket exitosa sin origin');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Conexión WebSocket exitosa sin origin' });
         connectionSuccess = true;
         
         // Probar evento
@@ -151,26 +151,26 @@ async function testWebSocketConnection() {
       });
       
       socket.on('test-response', (data) => {
-        console.log('✅ Respuesta recibida:', data);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta recibida:', data });
         socket.disconnect();
       });
       
       socket.on('connect_error', (error) => {
-        console.log('❌ Error de conexión:', error.message);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error de conexión:', error.message });
         connectionError = error;
       });
       
       socket.on('disconnect', () => {
-        console.log('✅ Cliente desconectado correctamente');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Cliente desconectado correctamente' });
         
         httpServer.close(() => {
-          console.log('✅ Servidor de prueba cerrado');
+          logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Servidor de prueba cerrado' });
           
           if (connectionSuccess && !connectionError) {
-            console.log('✅ Test 3 PASADO: Conexión WebSocket exitosa\n');
+            logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Test 3 PASADO: Conexión WebSocket exitosa\n' });
             resolve(true);
           } else {
-            console.log('❌ Test 3 FALLÓ: Error en conexión WebSocket\n');
+            logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 3 FALLÓ: Error en conexión WebSocket\n' });
             resolve(false);
           }
         });
@@ -179,7 +179,7 @@ async function testWebSocketConnection() {
       // Timeout de seguridad
       setTimeout(() => {
         if (!connectionSuccess) {
-          console.log('❌ Test 3 FALLÓ: Timeout en conexión');
+          logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 3 FALLÓ: Timeout en conexión' });
           socket.disconnect();
           httpServer.close(() => resolve(false));
         }
@@ -192,12 +192,12 @@ async function testWebSocketConnection() {
  * Test 4: Verificar configuración de allowRequest
  */
 function testAllowRequest() {
-  console.log('📋 Test 4: Verificar configuración de allowRequest');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 4: Verificar configuración de allowRequest' });
   
   const { socketCorsOptions } = require('../src/config/cors');
   
   if (!socketCorsOptions.allowRequest) {
-    console.log('❌ Test 4 FALLÓ: allowRequest no configurado\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Test 4 FALLÓ: allowRequest no configurado\n' });
     return false;
   }
   
@@ -224,14 +224,14 @@ function testAllowRequest() {
     const expected = !origin || isOriginAllowed(origin);
     
     if (result === expected) {
-      console.log(`✅ Request ${index + 1}: ${result ? 'PERMITIDO' : 'BLOQUEADO'} (correcto)`);
+      logger.info('Request ${index + 1}: ${result ? 'PERMITIDO' : 'BLOQUEADO'} (correcto)', { category: 'AUTO_MIGRATED' });
       passedTests++;
     } else {
-      console.log(`❌ Request ${index + 1}: ${result ? 'PERMITIDO' : 'BLOQUEADO'} (esperado: ${expected ? 'PERMITIDO' : 'BLOQUEADO'})`);
+      logger.info('❌ Request ${index + 1}: ${result ? 'PERMITIDO' : 'BLOQUEADO'} (esperado: ${expected ? 'PERMITIDO' : 'BLOQUEADO'})', { category: 'AUTO_MIGRATED' });
     }
   });
   
-  console.log(`📊 allowRequest: ${passedTests}/${totalTests} tests pasaron\n`);
+  logger.info('allowRequest: ${passedTests}/${totalTests} tests pasaron\n', { category: 'AUTO_MIGRATED' });
   return passedTests === totalTests;
 }
 
@@ -239,7 +239,7 @@ function testAllowRequest() {
  * Test 5: Verificar consistencia entre HTTP y WebSocket CORS
  */
 function testCorsConsistency() {
-  console.log('📋 Test 5: Verificar consistencia entre HTTP y WebSocket CORS');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Test 5: Verificar consistencia entre HTTP y WebSocket CORS' });
   
   let passedTests = 0;
   let totalTests = 0;
@@ -256,14 +256,14 @@ function testCorsConsistency() {
     });
     
     if (httpAllowed === wsAllowed) {
-      console.log(`✅ Origin "${origin}": HTTP=${httpAllowed}, WebSocket=${wsAllowed} (consistente)`);
+      logger.info('Origin "${origin}": HTTP=${httpAllowed}, WebSocket=${wsAllowed} (consistente)', { category: 'AUTO_MIGRATED' });
       passedTests++;
     } else {
-      console.log(`❌ Origin "${origin}": HTTP=${httpAllowed}, WebSocket=${wsAllowed} (inconsistente)`);
+      logger.info('❌ Origin "${origin}": HTTP=${httpAllowed}, WebSocket=${wsAllowed} (inconsistente)', { category: 'AUTO_MIGRATED' });
     }
   });
   
-  console.log(`📊 Consistencia CORS: ${passedTests}/${totalTests} tests pasaron\n`);
+  logger.info('Consistencia CORS: ${passedTests}/${totalTests} tests pasaron\n', { category: 'AUTO_MIGRATED' });
   return passedTests === totalTests;
 }
 
@@ -271,7 +271,7 @@ function testCorsConsistency() {
  * Ejecutar todas las pruebas
  */
 async function runAllTests() {
-  console.log('🚀 Iniciando pruebas de CORS WebSocket...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de CORS WebSocket...\n' });
   
   const tests = [
     testHttpCors,
@@ -293,20 +293,20 @@ async function runAllTests() {
     }
   }
   
-  console.log('📊 RESULTADOS FINALES:');
-  console.log(`✅ Tests pasados: ${passedTests}/${totalTests}`);
-  console.log(`❌ Tests fallidos: ${totalTests - passedTests}/${totalTests}`);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESULTADOS FINALES:' });
+  logger.info('Tests pasados: ${passedTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Tests fallidos: ${totalTests - passedTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
   
   if (passedTests === totalTests) {
-    console.log('\n🎉 ¡TODAS LAS PRUEBAS PASARON!');
-    console.log('✅ El problema de CORS WebSocket está RESUELTO');
-    console.log('✅ Origin undefined se maneja correctamente');
-    console.log('✅ Las conexiones WebSocket no tienen errores de CORS');
-    console.log('✅ La configuración es consistente entre HTTP y WebSocket');
-    console.log('✅ El sistema allowRequest funciona correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡TODAS LAS PRUEBAS PASARON!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El problema de CORS WebSocket está RESUELTO' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Origin undefined se maneja correctamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Las conexiones WebSocket no tienen errores de CORS' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ La configuración es consistente entre HTTP y WebSocket' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El sistema allowRequest funciona correctamente' });
   } else {
-    console.log('\n⚠️ Algunas pruebas fallaron');
-    console.log('🔧 Revisa la configuración de CORS WebSocket');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunas pruebas fallaron' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 Revisa la configuración de CORS WebSocket' });
   }
   
   return passedTests === totalTests;

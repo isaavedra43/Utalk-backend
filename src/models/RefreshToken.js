@@ -434,24 +434,17 @@ class RefreshToken {
     }
 
     const refreshConfig = getRefreshTokenConfig();
-    const token = jwt.sign(
-      {
-        type: 'refresh',
-        userEmail,
-        userId,
-        workspaceId: process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
-        tenantId: process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
-        familyId: uuidv4(),
-        deviceId: deviceInfo.deviceId || uuidv4(),
-        iat: Math.floor(Date.now() / 1000)
-      },
-      refreshConfig.secret,
-      {
-        expiresIn: refreshConfig.expiresIn,
-        issuer: refreshConfig.issuer,
-        audience: refreshConfig.audience
-      }
-    );
+    const AuthService = require('../services/AuthService');
+    const token = AuthService.signRefresh({
+      type: 'refresh',
+      userEmail,
+      userId,
+      workspaceId: process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
+      tenantId: process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
+      familyId: uuidv4(),
+      deviceId: deviceInfo.deviceId || uuidv4(),
+      iat: Math.floor(Date.now() / 1000)
+    });
 
     const expiresIn = refreshConfig.expiresIn;
     const expiresAt = new Date();

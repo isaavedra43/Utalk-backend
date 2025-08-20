@@ -12,7 +12,7 @@ function describe(name, obj) {
   });
 }
 
-console.log('=== DIAGNÓSTICO DEL LOGGER ===');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=== DIAGNÓSTICO DEL LOGGER ===' });
 describe('logger', logger);
 
 if (logger?.child) {
@@ -20,7 +20,7 @@ if (logger?.child) {
   describe('logger.child({})', child);
 }
 
-console.log('\n=== PRUEBA DE INVOCACIÓN ===');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n=== PRUEBA DE INVOCACIÓN ===' });
 try {
   logger.info('Test message', { test: true });
   console.log('✅ logger.info() funciona');

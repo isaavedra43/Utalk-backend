@@ -12,7 +12,7 @@ const webhookData = {
   ProfileName: 'Isra'
 };
 
-console.log('🧪 Probando webhook con curl...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando webhook con curl...\n' });
 
 // Convertir el objeto a formato form-data para curl
 const formData = Object.entries(webhookData)
@@ -23,13 +23,13 @@ const curlCommand = `curl -X POST http://localhost:3001/webhook/twilio \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "${formData}"`;
 
-console.log('📋 Comando curl:');
-console.log(curlCommand);
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Comando curl:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: curlCommand });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
-console.log('📋 Datos del webhook:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos del webhook:' });
 console.log(JSON.stringify(webhookData, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Ejecutar el comando curl
 exec(curlCommand, (error, stdout, stderr) => {
@@ -42,21 +42,21 @@ exec(curlCommand, (error, stdout, stderr) => {
     console.error('⚠️ Stderr:', stderr);
   }
   
-  console.log('✅ Respuesta del webhook:');
-  console.log(stdout);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Respuesta del webhook:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: stdout });
   
   try {
     const response = JSON.parse(stdout);
-    console.log('\n📊 Análisis de la respuesta:');
-    console.log('- Success:', response.success);
-    console.log('- Message:', response.message);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 Análisis de la respuesta:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Success:', response.success });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Message:', response.message });
     
     if (response.media) {
-      console.log('- Media URLs:', response.media.urls.length);
-      console.log('- Media Type:', response.media.primaryType);
-      console.log('- URLs:', response.media.urls);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media URLs:', response.media.urls.length });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Media Type:', response.media.primaryType });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- URLs:', response.media.urls });
     }
   } catch (parseError) {
-    console.log('⚠️ No se pudo parsear la respuesta como JSON');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ No se pudo parsear la respuesta como JSON' });
   }
 }); 

@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-console.log('🔧 INICIANDO CORRECCIÓN DE JWT EXPIRATION PARA WEBSOCKETS\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 INICIANDO CORRECCIÓN DE JWT EXPIRATION PARA WEBSOCKETS\n' });
 
 // Simular la configuración de JWT
 const jwtConfig = {
@@ -19,13 +19,13 @@ const jwtConfig = {
   audience: process.env.JWT_AUDIENCE || 'utalk-api'
 };
 
-console.log('📋 Configuración JWT actual:');
-console.log('- Secret configurado:', !!jwtConfig.secret);
-console.log('- Expires In:', jwtConfig.expiresIn);
-console.log('- Refresh Expires In:', jwtConfig.refreshExpiresIn);
-console.log('- Issuer:', jwtConfig.issuer);
-console.log('- Audience:', jwtConfig.audience);
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Configuración JWT actual:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Secret configurado:', !!jwtConfig.secret });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Expires In:', jwtConfig.expiresIn });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Refresh Expires In:', jwtConfig.refreshExpiresIn });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Issuer:', jwtConfig.issuer });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Audience:', jwtConfig.audience });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Verificar si el tiempo de expiración es adecuado para WebSockets
 function isExpirationAdequate(expiresIn) {
@@ -47,25 +47,25 @@ function isExpirationAdequate(expiresIn) {
   return seconds >= 3600;
 }
 
-console.log('🔍 Verificando tiempo de expiración para WebSockets...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Verificando tiempo de expiración para WebSockets...' });
 const isAdequate = isExpirationAdequate(jwtConfig.expiresIn);
-console.log(`✅ Tiempo de expiración ${isAdequate ? 'ADEQUADO' : 'INSUFICIENTE'} para WebSockets`);
-console.log(`   Actual: ${jwtConfig.expiresIn} (${isExpirationAdequate(jwtConfig.expiresIn) ? 'OK' : 'Muy corto'})`);
-console.log('');
+logger.info('Tiempo de expiración ${isAdequate ? 'ADEQUADO' : 'INSUFICIENTE'} para WebSockets', { category: 'AUTO_MIGRATED' });
+logger.info('Actual: ${jwtConfig.expiresIn} (${isExpirationAdequate(jwtConfig.expiresIn) ? 'OK' : 'Muy corto'})', { category: 'AUTO_MIGRATED' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Verificar configuración de clockTolerance
-console.log('🔍 Verificando configuración de clockTolerance...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Verificando configuración de clockTolerance...' });
 const authClockTolerance = 60; // 🔧 CORREGIDO: 60 segundos
 const socketClockTolerance = 60; // WebSocket ya tiene 60 segundos
 
-console.log('✅ ClockTolerance configurado correctamente:');
-console.log(`   Auth Middleware: ${authClockTolerance}s`);
-console.log(`   WebSocket: ${socketClockTolerance}s`);
-console.log(`   Consistencia: ${authClockTolerance === socketClockTolerance ? 'OK' : 'INCONSISTENTE'}`);
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ ClockTolerance configurado correctamente:' });
+logger.info('Auth Middleware: ${authClockTolerance}s', { category: 'AUTO_MIGRATED' });
+logger.info('WebSocket: ${socketClockTolerance}s', { category: 'AUTO_MIGRATED' });
+logger.info('Consistencia: ${authClockTolerance === socketClockTolerance ? 'OK' : 'INCONSISTENTE'}', { category: 'AUTO_MIGRATED' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Verificar variables de entorno
-console.log('🔍 Verificando variables de entorno...');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Verificando variables de entorno...' });
 const envVars = {
   'JWT_SECRET': process.env.JWT_SECRET ? 'Configurado' : 'NO CONFIGURADO',
   'JWT_EXPIRES_IN': process.env.JWT_EXPIRES_IN || 'Usando default (24h)',
@@ -74,47 +74,47 @@ const envVars = {
   'JWT_AUDIENCE': process.env.JWT_AUDIENCE || 'Usando default (utalk-api)'
 };
 
-console.log('📋 Variables de entorno JWT:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Variables de entorno JWT:' });
 Object.entries(envVars).forEach(([key, value]) => {
-  console.log(`   ${key}: ${value}`);
+  logger.info('${key}: ${value}', { category: 'AUTO_MIGRATED' });
 });
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 // Recomendaciones
-console.log('💡 RECOMENDACIONES PARA CORREGIR JWT EXPIRATION:');
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💡 RECOMENDACIONES PARA CORREGIR JWT EXPIRATION:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
 if (!process.env.JWT_SECRET) {
-  console.log('🚨 CRÍTICO: JWT_SECRET no está configurado');
-  console.log('   Solución: Configurar JWT_SECRET en las variables de entorno');
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚨 CRÍTICO: JWT_SECRET no está configurado' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Solución: Configurar JWT_SECRET en las variables de entorno' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 }
 
 if (!isAdequate) {
-  console.log('⚠️ ADVERTENCIA: Tiempo de expiración muy corto para WebSockets');
-  console.log('   Solución: Configurar JWT_EXPIRES_IN=24h o más');
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️ ADVERTENCIA: Tiempo de expiración muy corto para WebSockets' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   Solución: Configurar JWT_EXPIRES_IN=24h o más' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 }
 
-console.log('✅ CONFIGURACIONES CORREGIDAS EN EL CÓDIGO:');
-console.log('1. ✅ JWT_EXPIRES_IN aumentado de 15m a 24h');
-console.log('2. ✅ clockTolerance aumentado de 30s a 60s en auth middleware');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ CONFIGURACIONES CORREGIDAS EN EL CÓDIGO:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ JWT_EXPIRES_IN aumentado de 15m a 24h' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. ✅ clockTolerance aumentado de 30s a 60s en auth middleware' });
 console.log('3. ✅ clockTolerance consistente entre auth y WebSocket (60s)');
-console.log('4. ✅ Manejo de errores mejorado en WebSocket authentication');
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '4. ✅ Manejo de errores mejorado en WebSocket authentication' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
-console.log('🔄 PRÓXIMOS PASOS:');
-console.log('1. Reiniciar el servidor para aplicar los cambios');
-console.log('2. Verificar que los tokens JWT no expiren durante las conexiones WebSocket');
-console.log('3. Monitorear los logs para confirmar que no hay más errores de JWT expirado');
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 PRÓXIMOS PASOS:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Reiniciar el servidor para aplicar los cambios' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '2. Verificar que los tokens JWT no expiren durante las conexiones WebSocket' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '3. Monitorear los logs para confirmar que no hay más errores de JWT expirado' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
-console.log('🎯 RESULTADO ESPERADO:');
-console.log('- Los WebSockets deberían mantener conexiones estables');
-console.log('- No más errores de "jwt expired" en los logs');
-console.log('- Conexiones WebSocket exitosas desde el frontend');
-console.log('');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎯 RESULTADO ESPERADO:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Los WebSockets deberían mantener conexiones estables' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- No más errores de "jwt expired" en los logs' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Conexiones WebSocket exitosas desde el frontend' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
-console.log('🔧 CORRECCIÓN COMPLETADA');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔧 CORRECCIÓN COMPLETADA' });
 console.log('📅 Fecha:', new Date().toISOString());
-console.log('✅ Estado: Listo para reiniciar el servidor'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Estado: Listo para reiniciar el servidor' }); 

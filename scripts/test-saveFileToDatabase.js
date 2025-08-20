@@ -8,7 +8,7 @@
  * @author Backend Team
  */
 
-console.log('🧪 INICIANDO PRUEBA DE saveFileToDatabase\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 INICIANDO PRUEBA DE saveFileToDatabase\n' });
 
 // Simular el método saveFileToDatabase implementado
 async function saveFileToDatabase(fileData) {
@@ -31,12 +31,12 @@ async function saveFileToDatabase(fileData) {
       tags = []
     } = fileData;
 
-    console.log('💾 Guardando archivo en base de datos', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '💾 Guardando archivo en base de datos', {
       fileId,
       conversationId,
       originalName,
       category
-    });
+    } });
 
     const fileRecord = {
       id: fileId,
@@ -89,7 +89,7 @@ async function saveFileToDatabase(fileData) {
  */
 async function testSaveFileToDatabase() {
   try {
-    console.log('🔄 Ejecutando prueba de saveFileToDatabase...\n');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Ejecutando prueba de saveFileToDatabase...\n' });
 
     // Datos de prueba
     const testFileData = {
@@ -118,19 +118,19 @@ async function testSaveFileToDatabase() {
     const savedFile = await saveFileToDatabase(testFileData);
 
     // Verificaciones
-    console.log('\n🔍 Verificando resultado...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🔍 Verificando resultado...' });
 
     // 1. Verificar que se retornó un objeto
     if (!savedFile || typeof savedFile !== 'object') {
       throw new Error('El método no retornó un objeto válido');
     }
-    console.log('✅ Verificación 1: Se retornó un objeto válido');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 1: Se retornó un objeto válido' });
 
     // 2. Verificar que el ID coincide
     if (savedFile.id !== testFileData.fileId) {
       throw new Error('El ID del archivo guardado no coincide con el original');
     }
-    console.log('✅ Verificación 2: ID del archivo coincide');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 2: ID del archivo coincide' });
 
     // 3. Verificar campos requeridos
     const requiredFields = [
@@ -143,51 +143,51 @@ async function testSaveFileToDatabase() {
         throw new Error(`Campo requerido faltante: ${field}`);
       }
     }
-    console.log('✅ Verificación 3: Todos los campos requeridos están presentes');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 3: Todos los campos requeridos están presentes' });
 
     // 4. Verificar metadata
     if (!savedFile.metadata || !savedFile.metadata.savedAt) {
       throw new Error('Metadata no se guardó correctamente');
     }
-    console.log('✅ Verificación 4: Metadata guardada correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 4: Metadata guardada correctamente' });
 
     // 5. Verificar tags
     if (!savedFile.tags || !savedFile.tags.includes('database-saved')) {
       throw new Error('Tags no se guardaron correctamente');
     }
-    console.log('✅ Verificación 5: Tags guardados correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 5: Tags guardados correctamente' });
 
     // 6. Verificar timestamps
     if (!savedFile.createdAt || !savedFile.updatedAt) {
       throw new Error('Timestamps no se guardaron correctamente');
     }
-    console.log('✅ Verificación 6: Timestamps guardados correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 6: Timestamps guardados correctamente' });
 
     // 7. Verificar estado activo
     if (savedFile.isActive !== true) {
       throw new Error('Archivo no se marcó como activo');
     }
-    console.log('✅ Verificación 7: Archivo marcado como activo');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 7: Archivo marcado como activo' });
 
     // 8. Verificar contador de descargas
     if (savedFile.downloadCount !== 0) {
       throw new Error('Contador de descargas no se inicializó correctamente');
     }
-    console.log('✅ Verificación 8: Contador de descargas inicializado correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Verificación 8: Contador de descargas inicializado correctamente' });
 
-    console.log('\n🎉 TODAS LAS VERIFICACIONES PASARON EXITOSAMENTE');
-    console.log('📊 RESUMEN: 8/8 verificaciones pasaron');
-    console.log('\n✅ MÉTODO saveFileToDatabase IMPLEMENTADO CORRECTAMENTE');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 TODAS LAS VERIFICACIONES PASARON EXITOSAMENTE' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 RESUMEN: 8/8 verificaciones pasaron' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ MÉTODO saveFileToDatabase IMPLEMENTADO CORRECTAMENTE' });
 
     // Mostrar estructura del archivo guardado
-    console.log('\n📋 ESTRUCTURA DEL ARCHIVO GUARDADO:');
-    console.log('ID:', savedFile.id);
-    console.log('Nombre:', savedFile.originalName);
-    console.log('Categoría:', savedFile.category);
-    console.log('Tamaño:', savedFile.size, 'bytes');
-    console.log('Conversación:', savedFile.conversationId);
-    console.log('Usuario:', savedFile.uploadedBy);
-    console.log('URL:', savedFile.url);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 ESTRUCTURA DEL ARCHIVO GUARDADO:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'ID:', savedFile.id });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Nombre:', savedFile.originalName });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Categoría:', savedFile.category });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Tamaño:', savedFile.size, 'bytes' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Conversación:', savedFile.conversationId });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Usuario:', savedFile.uploadedBy });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'URL:', savedFile.url });
     console.log('Tags:', savedFile.tags.join(', '));
     console.log('Metadata:', JSON.stringify(savedFile.metadata, null, 2));
 
@@ -203,7 +203,7 @@ async function testSaveFileToDatabase() {
 async function main() {
   try {
     await testSaveFileToDatabase();
-    console.log('\n✅ Prueba completada exitosamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n✅ Prueba completada exitosamente' });
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Prueba falló');

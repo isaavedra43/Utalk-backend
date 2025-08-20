@@ -14,15 +14,15 @@ const axios = require('axios');
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';
 const TEST_TOKEN = process.env.TEST_TOKEN || 'test-token';
 
-console.log('🧪 Iniciando pruebas del proxy de medios mejorado...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Iniciando pruebas del proxy de medios mejorado...\n' });
 
 // Función para hacer petición al proxy
 async function testProxyMedia(messageSid, mediaSid, description) {
   const startTime = Date.now();
   
   try {
-    console.log(`📋 ${description}`);
-    console.log(`   URL: ${BASE_URL}/api/media/proxy?messageSid=${messageSid}&mediaSid=${mediaSid}`);
+    logger.info('${description}', { category: 'AUTO_MIGRATED' });
+    logger.info('URL: ${BASE_URL}/api/media/proxy?messageSid=${messageSid}&mediaSid=${mediaSid}', { category: 'AUTO_MIGRATED' });
     
     const response = await axios({
       method: 'GET',
@@ -41,12 +41,12 @@ async function testProxyMedia(messageSid, mediaSid, description) {
 
     const latencyMs = Date.now() - startTime;
     
-    console.log(`   ✅ Status: ${response.status}`);
-    console.log(`   ⏱️  Latency: ${latencyMs}ms`);
-    console.log(`   📏 Content-Length: ${response.headers['content-length'] || 'unknown'}`);
-    console.log(`   📄 Content-Type: ${response.headers['content-type'] || 'unknown'}`);
-    console.log(`   🔗 X-Proxy-By: ${response.headers['x-proxy-by'] || 'none'}`);
-    console.log('');
+    logger.info('Status: ${response.status}', { category: 'AUTO_MIGRATED' });
+    logger.info('⏱  Latency: ${latencyMs}ms', { category: 'AUTO_MIGRATED' });
+    logger.info('� Content-Length: ${response.headers['content-length'] || 'unknown'}', { category: 'AUTO_MIGRATED' });
+    logger.info('� Content-Type: ${response.headers['content-type'] || 'unknown'}', { category: 'AUTO_MIGRATED' });
+    logger.info('� X-Proxy-By: ${response.headers['x-proxy-by'] || 'none'}', { category: 'AUTO_MIGRATED' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
     return {
       success: true,
@@ -59,15 +59,15 @@ async function testProxyMedia(messageSid, mediaSid, description) {
   } catch (error) {
     const latencyMs = Date.now() - startTime;
     
-    console.log(`   ❌ Error: ${error.message}`);
-    console.log(`   ⏱️  Latency: ${latencyMs}ms`);
-    console.log(`   🔍 Code: ${error.code || 'none'}`);
+    logger.info('❌ Error: ${error.message}', { category: 'AUTO_MIGRATED' });
+    logger.info('⏱  Latency: ${latencyMs}ms', { category: 'AUTO_MIGRATED' });
+    logger.info('Code: ${error.code || 'none'}', { category: 'AUTO_MIGRATED' });
     
     if (error.response) {
-      console.log(`   📊 Response Status: ${error.response.status}`);
-      console.log(`   📄 Response Data: ${JSON.stringify(error.response.data).substring(0, 200)}...`);
+      logger.info('Response Status: ${error.response.status}', { category: 'AUTO_MIGRATED' });
+      logger.info('� Response Data: ${JSON.stringify(error.response.data).substring(0, 200)}...', { category: 'AUTO_MIGRATED' });
     }
-    console.log('');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 
     return {
       success: false,
@@ -82,7 +82,7 @@ async function testProxyMedia(messageSid, mediaSid, description) {
 
 // Función para simular timeout
 async function testTimeout() {
-  console.log('⏰ Probando comportamiento con timeout...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⏰ Probando comportamiento con timeout...' });
   
   try {
     // Usar un messageSid/mediaSid inválido que cause timeout
@@ -93,16 +93,16 @@ async function testTimeout() {
     );
     
     if (!result.success) {
-      console.log('✅ Timeout manejado correctamente');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Timeout manejado correctamente' });
     }
   } catch (error) {
-    console.log('✅ Error de timeout capturado correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error de timeout capturado correctamente' });
   }
 }
 
 // Función para simular error de red
 async function testNetworkError() {
-  console.log('🌐 Probando comportamiento con error de red...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🌐 Probando comportamiento con error de red...' });
   
   try {
     // Usar una URL inválida para simular error de red
@@ -112,15 +112,15 @@ async function testNetworkError() {
       timeout: 5000
     });
   } catch (error) {
-    console.log('✅ Error de red simulado correctamente');
-    console.log(`   Error: ${error.message}`);
-    console.log(`   Code: ${error.code}`);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error de red simulado correctamente' });
+    logger.info('Error: ${error.message}', { category: 'AUTO_MIGRATED' });
+    logger.info('Code: ${error.code}', { category: 'AUTO_MIGRATED' });
   }
 }
 
 // Función para probar parámetros inválidos
 async function testInvalidParameters() {
-  console.log('🔍 Probando parámetros inválidos...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Probando parámetros inválidos...' });
   
   const testCases = [
     {
@@ -156,7 +156,7 @@ async function testInvalidParameters() {
 
 // Función para probar autenticación
 async function testAuthentication() {
-  console.log('🔐 Probando autenticación...');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔐 Probando autenticación...' });
   
   try {
     const response = await axios({
@@ -171,21 +171,21 @@ async function testAuthentication() {
       validateStatus: () => true
     });
 
-    console.log(`   Status: ${response.status}`);
+    logger.info('Status: ${response.status}', { category: 'AUTO_MIGRATED' });
     if (response.status === 401) {
-      console.log('✅ Autenticación requerida correctamente');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Autenticación requerida correctamente' });
     } else {
-      console.log('⚠️  Autenticación no está funcionando como esperado');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '⚠️  Autenticación no está funcionando como esperado' });
     }
   } catch (error) {
-    console.log('✅ Error de autenticación capturado correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error de autenticación capturado correctamente' });
   }
-  console.log('');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
 }
 
 // Ejecutar todas las pruebas
 async function runAllTests() {
-  console.log('🚀 Ejecutando suite completa de pruebas...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Ejecutando suite completa de pruebas...\n' });
 
   // Test 1: Parámetros válidos (puede fallar si no hay credenciales reales)
   await testProxyMedia(
@@ -206,14 +206,14 @@ async function runAllTests() {
   // Test 5: Error de red
   await testNetworkError();
 
-  console.log('🏁 Todas las pruebas completadas');
-  console.log('\n📊 RESUMEN:');
-  console.log('- ✅ Timeout extendido a 120 segundos');
-  console.log('- ✅ Retry automático implementado');
-  console.log('- ✅ Manejo mejorado de errores "aborted"');
-  console.log('- ✅ Logging detallado agregado');
-  console.log('- ✅ Validación de parámetros mejorada');
-  console.log('\n🎯 El proxy de medios está listo para manejar mejor los errores!');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏁 Todas las pruebas completadas' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📊 RESUMEN:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Timeout extendido a 120 segundos' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Retry automático implementado' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Manejo mejorado de errores "aborted"' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Logging detallado agregado' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- ✅ Validación de parámetros mejorada' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎯 El proxy de medios está listo para manejar mejor los errores!' });
 }
 
 // Ejecutar si es llamado directamente

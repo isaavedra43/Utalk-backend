@@ -29,7 +29,7 @@ function createTestFile() {
 // Obtener token de autenticación
 async function getAuthToken() {
   try {
-    console.log('🔐 Obteniendo token de autenticación...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔐 Obteniendo token de autenticación...' });
     
     const response = await axios.post(`${BASE_URL}/api/auth/login`, {
       email: TEST_EMAIL,
@@ -37,7 +37,7 @@ async function getAuthToken() {
     });
 
     if (response.data.success && response.data.data.token) {
-      console.log('✅ Token obtenido correctamente');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Token obtenido correctamente' });
       return response.data.data.token;
     } else {
       throw new Error('No se pudo obtener el token');
@@ -51,7 +51,7 @@ async function getAuthToken() {
 // Probar subida de archivo
 async function testFileUpload(token) {
   try {
-    console.log('\n📁 Probando subida de archivo...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📁 Probando subida de archivo...' });
     
     const testFilePath = createTestFile();
     const formData = new FormData();
@@ -74,13 +74,13 @@ async function testFileUpload(token) {
       timeout: 30000
     });
 
-    console.log('✅ Subida de archivo exitosa!');
-    console.log('📊 Respuesta:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Subida de archivo exitosa!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Respuesta:', {
       success: response.data.success,
       fileId: response.data.data?.id,
       url: response.data.data?.url,
       size: response.data.data?.size
-    });
+    } });
 
     // Limpiar archivo temporal
     fs.unlinkSync(testFilePath);
@@ -115,13 +115,13 @@ async function testFileUpload(token) {
 // Probar endpoint de health check
 async function testHealthCheck() {
   try {
-    console.log('🏥 Probando health check...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🏥 Probando health check...' });
     
     const response = await axios.get(`${BASE_URL}/health`, {
       timeout: 10000
     });
 
-    console.log('✅ Health check exitoso:', response.data.status);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Health check exitoso:', response.data.status });
     return true;
   } catch (error) {
     console.error('❌ Health check falló:', error.message);
@@ -131,8 +131,8 @@ async function testHealthCheck() {
 
 // Función principal
 async function runTest() {
-  console.log('🚀 INICIANDO PRUEBA DE CORRECCIÓN DE SUBIDA DE MEDIA');
-  console.log('📍 URL del backend:', BASE_URL);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 INICIANDO PRUEBA DE CORRECCIÓN DE SUBIDA DE MEDIA' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📍 URL del backend:', BASE_URL });
   console.log('⏰ Timestamp:', new Date().toISOString());
   
   try {
@@ -149,10 +149,10 @@ async function runTest() {
     // 3. Probar subida de archivo
     await testFileUpload(token);
 
-    console.log('\n🎉 ¡PRUEBA EXITOSA!');
-    console.log('✅ El middleware de multer está correctamente configurado');
-    console.log('✅ La subida de archivos funciona correctamente');
-    console.log('✅ El problema de "NO_FILE" ha sido resuelto');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡PRUEBA EXITOSA!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El middleware de multer está correctamente configurado' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ La subida de archivos funciona correctamente' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El problema de "NO_FILE" ha sido resuelto' });
 
   } catch (error) {
     console.error('\n💥 PRUEBA FALLIDA');

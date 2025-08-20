@@ -10,225 +10,202 @@
 const logger = require('./logger');
 
 /**
- * Estructura estándar de respuesta exitosa
+ * ResponseHandler - Centraliza formatos de respuesta
+ * Elimina duplicaciones en error responses y success responses
  */
-class ApiResponse {
-  constructor(data, message = null, metadata = {}) {
-    this.success = true;
-    this.data = data;
-    if (message) this.message = message;
-    if (Object.keys(metadata).length > 0) this.metadata = metadata;
-    this.timestamp = new Date().toISOString();
-  }
-}
 
-/**
- * Estructura estándar de respuesta con paginación
- */
-class PaginatedResponse extends ApiResponse {
-  constructor(data, pagination, message = null, metadata = {}) {
-    super(data, message, metadata);
-    this.pagination = {
-      hasMore: pagination.hasMore || false,
-      nextCursor: pagination.nextCursor || null,
-      totalResults: pagination.totalResults || data.length,
-      limit: pagination.limit || 20,
-      ...pagination
+class ResponseHandler {
+  /**
+   * Respuesta de éxito estándar
+   */
+  static success(res, data = null, message = 'Operación exitosa', statusCode = 200) {
+    const response = {
+      success: true,
+      message,
+      timestamp: new Date().toISOString()
     };
-  }
-}
 
-/**
- * Estructura estándar de error según ReadMe
- */
-class ApiError extends Error {
-  constructor(errorCode, message, suggestion = null, statusCode = 400, details = {}) {
-    super(message);
-    this.name = 'ApiError';
-    this.error = errorCode; // Código único para identificar el error
-    this.message = message; // Descripción detallada del problema
-    this.suggestion = suggestion; // Cómo solucionarlo
-    this.statusCode = statusCode;
-    this.details = details;
-    this.docs = `${process.env.API_DOCS_URL || 'https://api.utalk.com/docs'}/${this.getDocsPath()}`;
-    this.help = `Si necesitas ayuda, contacta soporte@utalk.com y menciona el código de error '${errorCode}'`;
-    this.timestamp = new Date().toISOString();
-  }
-
-  getDocsPath() {
-    const errorToDocs = {
-      'CONVERSATION_NOT_FOUND': 'conversations/get',
-      'MESSAGE_NOT_FOUND': 'messages/get',
-      'USER_NOT_AUTHORIZED': 'authentication',
-      'VALIDATION_FAILED': 'validation',
-      'CONVERSATION_ALREADY_ASSIGNED': 'conversations/assign',
-      'MESSAGE_SEND_FAILED': 'messages/send',
-      'CONVERSATION_CREATE_FAILED': 'conversations/create',
-      'INVALID_PAGINATION_CURSOR': 'pagination',
-      'RATE_LIMIT_EXCEEDED': 'rate-limits',
-      'WEBHOOK_VALIDATION_FAILED': 'webhooks/twilio'
-    };
-    return errorToDocs[this.error] || 'general/errors';
-  }
-
-  toJSON() {
-    return {
-      success: false,
-      error: this.error,
-      message: this.message,
-      suggestion: this.suggestion,
-      docs: this.docs,
-      help: this.help,
-      details: this.details,
-      timestamp: this.timestamp
-    };
-  }
-}
-
-/**
- * Errores predefinidos comunes
- */
-const CommonErrors = {
-  CONVERSATION_NOT_FOUND: (conversationId) => new ApiError(
-    'CONVERSATION_NOT_FOUND',
-    `No se pudo encontrar la conversación con ID: ${conversationId}`,
-    'Verifica que el ID sea correcto y que tengas permisos para acceder a esta conversación',
-    404,
-    { conversationId }
-  ),
-
-  MESSAGE_NOT_FOUND: (messageId, conversationId) => new ApiError(
-    'MESSAGE_NOT_FOUND',
-    `No se pudo encontrar el mensaje ${messageId} en la conversación ${conversationId}`,
-    'Verifica que tanto el ID del mensaje como el de la conversación sean correctos',
-    404,
-    { messageId, conversationId }
-  ),
-
-  USER_NOT_AUTHORIZED: (action, resource) => new ApiError(
-    'USER_NOT_AUTHORIZED',
-    `No tienes permisos para ${action} en ${resource}`,
-    'Contacta a tu administrador para obtener los permisos necesarios',
-    403,
-    { action, resource }
-  ),
-
-  VALIDATION_FAILED: (validationErrors) => new ApiError(
-    'VALIDATION_FAILED',
-    'Los datos enviados no cumplen con el formato requerido',
-    'Revisa los campos marcados como inválidos y corrige el formato',
-    400,
-    { validationErrors }
-  ),
-
-  CONVERSATION_ALREADY_ASSIGNED: (conversationId, currentAssignee) => new ApiError(
-    'CONVERSATION_ALREADY_ASSIGNED',
-    `La conversación ${conversationId} ya está asignada a ${currentAssignee}`,
-    'Desasigna la conversación primero o transfiere directamente al nuevo agente',
-    409,
-    { conversationId, currentAssignee }
-  ),
-
-  MESSAGE_SEND_FAILED: (reason) => new ApiError(
-    'MESSAGE_SEND_FAILED',
-    `No se pudo enviar el mensaje: ${reason}`,
-    'Verifica la conexión con el proveedor de mensajería y reintenta',
-    500,
-    { reason }
-  ),
-
-  RATE_LIMIT_EXCEEDED: (limit, window) => new ApiError(
-    'RATE_LIMIT_EXCEEDED',
-    `Has excedido el límite de ${limit} solicitudes por ${window}`,
-    `Espera ${window} antes de hacer más solicitudes`,
-    429,
-    { limit, window }
-  )
-};
-
-/**
- * Manejadores de respuesta
- */
-const ResponseHandler = {
-  /**
-   * Respuesta exitosa simple
-   */
-  success(res, data, message = null, statusCode = 200) {
-    const response = new ApiResponse(data, message);
-    return res.status(statusCode).json(response);
-  },
-
-  /**
-   * Respuesta exitosa con paginación
-   */
-  successPaginated(res, data, pagination, message = null, statusCode = 200) {
-    const response = new PaginatedResponse(data, pagination, message);
-    return res.status(statusCode).json(response);
-  },
-
-  /**
-   * Respuesta creada exitosamente
-   */
-  created(res, data, message = 'Recurso creado exitosamente') {
-    return this.success(res, data, message, 201);
-  },
-
-  /**
-   * Respuesta sin contenido
-   */
-  noContent(res) {
-    return res.status(204).send();
-  },
-
-  /**
-   * Manejo de errores
-   */
-  error(res, error) {
-    // Si es un ApiError personalizado
-    if (error instanceof ApiError) {
-      logger.warn('Error API controlado', {
-        error: error.error,
-        message: error.message,
-        statusCode: error.statusCode,
-        details: error.details
-      });
-      return res.status(error.statusCode).json(error.toJSON());
+    if (data !== null) {
+      response.data = data;
     }
 
-    // Si es un error de validación Joi
-    if (error.isJoi) {
-      const validationError = CommonErrors.VALIDATION_FAILED(
-        error.details.map(detail => ({
-          field: detail.path.join('.'),
-          message: detail.message,
-          value: detail.context?.value
-        }))
-      );
-      return res.status(validationError.statusCode).json(validationError.toJSON());
-    }
-
-    // Error genérico no controlado
-    logger.error('Error no controlado en API', {
-      error: error.message,
-      stack: error.stack
+    logger.debug('ResponseHandler.success', {
+      category: 'RESPONSE_SUCCESS',
+      statusCode,
+      hasData: data !== null
     });
 
-    const genericError = new ApiError(
-      'INTERNAL_SERVER_ERROR',
-      'Ocurrió un error interno del servidor',
-      'Si el problema persiste, contacta al soporte técnico',
-      500,
-      { originalError: process.env.NODE_ENV === 'development' ? error.message : undefined }
-    );
-
-    return res.status(500).json(genericError.toJSON());
+    return res.status(statusCode).json(response);
   }
-};
 
-module.exports = {
-  ResponseHandler,
-  ApiResponse,
-  PaginatedResponse,
-  ApiError,
-  CommonErrors
-}; 
+  /**
+   * Respuesta de error estándar
+   */
+  static error(res, error, statusCode = 500) {
+    const errorResponse = {
+      success: false,
+      error: {
+        type: error.type || 'INTERNAL_SERVER_ERROR',
+        code: error.code || 'UNKNOWN_ERROR',
+        message: error.message || 'Error interno del servidor',
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    // Agregar detalles si están disponibles
+    if (error.details) {
+      errorResponse.error.details = error.details;
+    }
+
+    // Agregar requestId si está disponible
+    if (error.requestId) {
+      errorResponse.requestId = error.requestId;
+    }
+
+    logger.warn('ResponseHandler.error', {
+      category: 'RESPONSE_ERROR',
+      statusCode,
+      errorType: error.type,
+      errorCode: error.code,
+      message: error.message
+    });
+
+    return res.status(statusCode).json(errorResponse);
+  }
+
+  /**
+   * Error de validación
+   */
+  static validationError(res, message = 'Datos de entrada inválidos', details = null) {
+    return this.error(res, {
+      type: 'VALIDATION_ERROR',
+      code: 'INVALID_INPUT',
+      message,
+      details
+    }, 400);
+  }
+
+  /**
+   * Error de autenticación
+   */
+  static authenticationError(res, message = 'No autorizado') {
+    return this.error(res, {
+      type: 'AUTHENTICATION_ERROR',
+      code: 'UNAUTHORIZED',
+      message
+    }, 401);
+  }
+
+  /**
+   * Error de autorización
+   */
+  static authorizationError(res, message = 'Acceso denegado') {
+    return this.error(res, {
+      type: 'AUTHORIZATION_ERROR',
+      code: 'FORBIDDEN',
+      message
+    }, 403);
+  }
+
+  /**
+   * Error de recurso no encontrado
+   */
+  static notFoundError(res, message = 'Recurso no encontrado') {
+    return this.error(res, {
+      type: 'NOT_FOUND_ERROR',
+      code: 'RESOURCE_NOT_FOUND',
+      message
+    }, 404);
+  }
+
+  /**
+   * Error de conflicto
+   */
+  static conflictError(res, message = 'Conflicto de datos') {
+    return this.error(res, {
+      type: 'CONFLICT_ERROR',
+      code: 'DATA_CONFLICT',
+      message
+    }, 409);
+  }
+
+  /**
+   * Error de configuración
+   */
+  static configurationError(res, message = 'Error de configuración del servidor') {
+    return this.error(res, {
+      type: 'CONFIGURATION_ERROR',
+      code: 'SERVER_CONFIG_ERROR',
+      message
+    }, 500);
+  }
+
+  /**
+   * Error de servicio no disponible
+   */
+  static serviceUnavailableError(res, message = 'Servicio temporalmente no disponible') {
+    return this.error(res, {
+      type: 'SERVICE_UNAVAILABLE_ERROR',
+      code: 'SERVICE_DOWN',
+      message
+    }, 503);
+  }
+
+  /**
+   * Respuesta de logout exitoso
+   */
+  static logoutSuccess(res, message = 'Logout exitoso') {
+    return this.success(res, null, message, 200);
+  }
+
+  /**
+   * Respuesta de creación exitosa
+   */
+  static created(res, data, message = 'Recurso creado exitosamente') {
+    return this.success(res, data, message, 201);
+  }
+
+  /**
+   * Respuesta de actualización exitosa
+   */
+  static updated(res, data, message = 'Recurso actualizado exitosamente') {
+    return this.success(res, data, message, 200);
+  }
+
+  /**
+   * Respuesta de eliminación exitosa
+   */
+  static deleted(res, message = 'Recurso eliminado exitosamente') {
+    return this.success(res, null, message, 200);
+  }
+
+  /**
+   * Respuesta de operación exitosa sin datos
+   */
+  static ok(res, message = 'Operación completada exitosamente') {
+    return this.success(res, null, message, 200);
+  }
+
+  /**
+   * Respuesta con datos y paginación
+   */
+  static paginated(res, data, pagination, message = 'Datos obtenidos exitosamente') {
+    const response = {
+      success: true,
+      message,
+      data,
+      pagination,
+      timestamp: new Date().toISOString()
+    };
+
+    logger.debug('ResponseHandler.paginated', {
+      category: 'RESPONSE_PAGINATED',
+      totalItems: pagination?.total || 0,
+      currentPage: pagination?.page || 1
+    });
+
+    return res.status(200).json(response);
+  }
+}
+
+module.exports = ResponseHandler; 

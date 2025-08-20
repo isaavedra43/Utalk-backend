@@ -152,7 +152,13 @@ class ConversationController {
         });
       } else {
         // 🔧 LOG PARA RAILWAY: Cache hit en conversaciones
-        console.log(`✅ CACHE_HIT: conversations - ${userEmail} - page:${pageNum} - limit:${limitNum}`);
+        req.logger.info('CACHE_HIT', {
+        category: 'CONVERSATIONS_CACHE',
+        user: userEmail,
+        page: pageNum,
+        limit: limitNum,
+        cacheType: 'conversations'
+      });
         
         // 🔧 CAPTURAR EN LOG MONITOR
         logMonitor.addLog('info', 'CACHE', `Cache hit: conversations`, {

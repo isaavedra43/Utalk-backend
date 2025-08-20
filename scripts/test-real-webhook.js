@@ -8,9 +8,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Simular el endpoint de webhook
 app.post('/webhook/test', async (req, res) => {
-  console.log('📨 Webhook de prueba recibido:');
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📨 Webhook de prueba recibido:' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Headers:', req.headers });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'Body:', req.body });
   
   try {
     // Simular el procesamiento del webhook
@@ -18,16 +18,16 @@ app.post('/webhook/test', async (req, res) => {
     
     // Verificar datos de media
     const numMedia = parseInt(webhookData.NumMedia || '0');
-    console.log('🔍 Análisis del webhook:');
-    console.log('- NumMedia:', numMedia);
-    console.log('- MediaUrl0:', webhookData.MediaUrl0);
-    console.log('- MediaContentType0:', webhookData.MediaContentType0);
-    console.log('- MessageSid:', webhookData.MessageSid);
-    console.log('- From:', webhookData.From);
-    console.log('- To:', webhookData.To);
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔍 Análisis del webhook:' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- NumMedia:', numMedia });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaUrl0:', webhookData.MediaUrl0 });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MediaContentType0:', webhookData.MediaContentType0 });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- MessageSid:', webhookData.MessageSid });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- From:', webhookData.From });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- To:', webhookData.To });
     
     if (numMedia > 0) {
-      console.log('✅ Es un mensaje de media');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Es un mensaje de media' });
       
       // Simular processWebhookMedia
       const mediaUrls = [];
@@ -47,7 +47,7 @@ app.post('/webhook/test', async (req, res) => {
           else if (mediaContentType && mediaContentType.startsWith('audio/')) category = 'audio';
           
           types.add(category);
-          console.log(`✅ Media ${i}: ${category} - ${mediaUrl}`);
+          logger.info('Media ${i}: ${category} - ${mediaUrl}', { category: 'AUTO_MIGRATED' });
         }
       }
       
@@ -57,10 +57,10 @@ app.post('/webhook/test', async (req, res) => {
                          types.has('audio') ? 'audio' : 
                          types.has('document') ? 'document' : 'media';
       
-      console.log('📊 Resultado del procesamiento:');
-      console.log('- URLs encontradas:', mediaUrls.length);
-      console.log('- URLs:', mediaUrls);
-      console.log('- Tipo principal:', primaryType);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📊 Resultado del procesamiento:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- URLs encontradas:', mediaUrls.length });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- URLs:', mediaUrls });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Tipo principal:', primaryType });
       
       // Simular creación de mensaje
       const messageData = {
@@ -86,10 +86,10 @@ app.post('/webhook/test', async (req, res) => {
         }
       };
       
-      console.log('📝 Mensaje creado:');
-      console.log('- mediaUrl:', messageData.mediaUrl);
-      console.log('- type:', messageData.type);
-      console.log('- hasMedia:', !!messageData.mediaUrl);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📝 Mensaje creado:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl:', messageData.mediaUrl });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- type:', messageData.type });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- hasMedia:', !!messageData.mediaUrl });
       
       // Simular toJSON
       const baseUrl = process.env.BASE_URL || 'https://utalk-backend-production.up.railway.app';
@@ -102,9 +102,9 @@ app.post('/webhook/test', async (req, res) => {
         
         processedMediaUrl = `${baseUrl}/media/proxy-public?messageSid=${messageSid}&mediaSid=${mediaSid}`;
         
-        console.log('🔄 URL convertida a pública:');
-        console.log('- Original:', messageData.mediaUrl);
-        console.log('- Pública:', processedMediaUrl);
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 URL convertida a pública:' });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Original:', messageData.mediaUrl });
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- Pública:', processedMediaUrl });
       }
       
       const finalMessage = {
@@ -112,9 +112,9 @@ app.post('/webhook/test', async (req, res) => {
         mediaUrl: processedMediaUrl
       };
       
-      console.log('🎯 Mensaje final:');
-      console.log('- mediaUrl:', finalMessage.mediaUrl);
-      console.log('- hasMedia:', !!finalMessage.mediaUrl);
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎯 Mensaje final:' });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl:', finalMessage.mediaUrl });
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- hasMedia:', !!finalMessage.mediaUrl });
       
       res.status(200).json({
         success: true,
@@ -130,7 +130,7 @@ app.post('/webhook/test', async (req, res) => {
       });
       
     } else {
-      console.log('ℹ️ No es un mensaje de media');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: 'ℹ️ No es un mensaje de media' });
       res.status(200).json({
         success: true,
         message: 'Webhook procesado (no es media)'
@@ -149,10 +149,10 @@ app.post('/webhook/test', async (req, res) => {
 // Iniciar servidor
 const PORT = 3002;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor de prueba iniciado en puerto ${PORT}`);
-  console.log(`📝 Endpoint: POST http://localhost:${PORT}/webhook/test`);
-  console.log('');
-  console.log('🧪 Para probar, envía un POST con:');
+  logger.info('� Servidor de prueba iniciado en puerto ${PORT}', { category: 'AUTO_MIGRATED' });
+  logger.info('� Endpoint: POST http://localhost:${PORT}/webhook/test', { category: 'AUTO_MIGRATED' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Para probar, envía un POST con:' });
   console.log(JSON.stringify({
     MessageSid: 'MMe60968c44ac4bb71105ebc3d1c4da65f',
     From: '+5214773790184',

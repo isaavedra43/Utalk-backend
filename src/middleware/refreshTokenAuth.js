@@ -70,11 +70,8 @@ class RefreshTokenAuth {
    */
   static async validateAccessToken(token, req) {
     try {
-      const jwtConfig = getAccessTokenConfig();
-      const decodedToken = jwt.verify(token, jwtConfig.secret, {
-        issuer: jwtConfig.issuer,
-        audience: jwtConfig.audience,
-      });
+      const AuthService = require('../services/AuthService');
+      const decodedToken = AuthService.verifyAccessToken(token);
 
       // Verificar que sea un access token
       if (decodedToken.type !== 'access') {
@@ -192,15 +189,8 @@ class RefreshTokenAuth {
 
       // Verificar JWT del refresh token
       try {
-        const refreshConfig = getRefreshTokenConfig();
-        jwt.verify(
-          refreshToken, 
-          refreshConfig.secret,
-          {
-            issuer: refreshConfig.issuer,
-            audience: refreshConfig.audience
-          }
-        );
+        const AuthService = require('../services/AuthService');
+        AuthService.verifyRefreshToken(refreshToken);
       } catch (jwtError) {
         req.logger.auth('auto_refresh_failed', {
           reason: 'refresh_token_jwt_invalid',
@@ -226,25 +216,17 @@ class RefreshTokenAuth {
       }
 
       // Generar nuevo access token
-      const accessConfig = getAccessTokenConfig();
-      const newAccessToken = jwt.sign(
-        {
-          email: user.email,
-          role: user.role,
-          name: user.name,
-          type: 'access',
-          userId: user.id,           // 🔧 CORRECCIÓN: Agregar userId
-          workspaceId: user.workspaceId || process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
-          tenantId: user.tenantId || process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
-          iat: Math.floor(Date.now() / 1000),
-        },
-        accessConfig.secret,
-        {
-          expiresIn: accessConfig.expiresIn,
-          issuer: accessConfig.issuer,
-          audience: accessConfig.audience,
-        }
-      );
+      const AuthService = require('../services/AuthService');
+      const newAccessToken = AuthService.signAccess({
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        type: 'access',
+        userId: user.id,
+        workspaceId: user.workspaceId || process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace',
+        tenantId: user.tenantId || process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant',
+        iat: Math.floor(Date.now() / 1000),
+      });
 
       // Actualizar refresh token
       await storedRefreshToken.update({
@@ -380,11 +362,8 @@ class RefreshTokenAuth {
       const token = authHeader.substring(7);
       
       try {
-        const jwtConfig = getAccessTokenConfig();
-        const decodedToken = jwt.verify(token, jwtConfig.secret, {
-          issuer: jwtConfig.issuer,
-          audience: jwtConfig.audience,
-        });
+        const AuthService = require('../services/AuthService');
+        const decodedToken = AuthService.verifyAccessToken(token);
 
         const now = Math.floor(Date.now() / 1000);
         const timeUntilExpiry = decodedToken.exp - now;

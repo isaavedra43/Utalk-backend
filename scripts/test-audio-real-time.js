@@ -19,9 +19,9 @@ const path = require('path');
 // Configurar logger
 const logger = require('../src/utils/logger');
 
-console.log('🎵 ========================================');
-console.log('🎵 PRUEBA FASE 3: AUDIO EN TIEMPO REAL');
-console.log('🎵 ========================================\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 ========================================' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 PRUEBA FASE 3: AUDIO EN TIEMPO REAL' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 ========================================\n' });
 
 // Variables de prueba
 const TEST_CONVERSATION_ID = 'test-audio-conversation-' + Date.now();
@@ -56,17 +56,17 @@ function createTestAudioBuffer(durationSeconds = 5) {
  * 🧪 PRUEBA 1: STREAMING DE AUDIO
  */
 async function testAudioStreaming() {
-  console.log('🧪 PRUEBA 1: Streaming de audio');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 PRUEBA 1: Streaming de audio' });
   try {
     const AudioProcessor = require('../src/services/AudioProcessor');
     const audioProcessor = new AudioProcessor();
     
     // Crear buffer de audio de prueba
     const testBuffer = createTestAudioBuffer(3);
-    console.log('✅ Buffer de audio de prueba creado:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Buffer de audio de prueba creado:', {
       size: testBuffer.length,
       duration: '3 segundos'
-    });
+    } });
     
     // Probar optimización para streaming web
     const optimizedResult = await audioProcessor.optimizeForWebStreaming(testBuffer, {
@@ -76,13 +76,13 @@ async function testAudioStreaming() {
       removeSilence: false
     });
     
-    console.log('✅ Audio optimizado para streaming:', {
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Audio optimizado para streaming:', {
       originalSize: optimizedResult.metadata.originalSize,
       optimizedSize: optimizedResult.metadata.optimizedSize,
       compressionRatio: optimizedResult.metadata.compressionRatio,
       format: optimizedResult.metadata.format,
       bitrate: optimizedResult.metadata.bitrate
-    });
+    } });
     
     // Probar generación de chunks
     const chunks = await audioProcessor.generateAudioChunks(testBuffer, {
@@ -109,7 +109,7 @@ async function testAudioStreaming() {
  * 🧪 PRUEBA 2: GRABACIÓN DE AUDIO
  */
 async function testAudioRecording() {
-  console.log('\n🧪 PRUEBA 2: Grabación de audio');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 2: Grabación de audio' });
   try {
     const AudioProcessor = require('../src/services/AudioProcessor');
     const audioProcessor = new AudioProcessor();
@@ -127,7 +127,7 @@ async function testAudioRecording() {
     };
     
     // Probar grabación de audio (versión simulada)
-    console.log('🎙️ Iniciando grabación simulada...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎙️ Iniciando grabación simulada...' });
     
     // Simular proceso de grabación
     const recordingId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -199,7 +199,7 @@ async function testAudioRecording() {
  * 🧪 PRUEBA 3: EVENTOS WEBSOCKET PARA AUDIO
  */
 async function testAudioWebSocketEvents() {
-  console.log('\n🧪 PRUEBA 3: Eventos WebSocket para audio');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 3: Eventos WebSocket para audio' });
   
   return new Promise((resolve) => {
     try {
@@ -227,7 +227,7 @@ async function testAudioWebSocketEvents() {
       const { EnterpriseSocketManager } = require('../src/socket/enterpriseSocketManager');
       const socketManager = new EnterpriseSocketManager();
       
-      console.log('🎵 Simulando eventos de audio...');
+      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 Simulando eventos de audio...' });
       
       // Simular reproducción de audio
       setTimeout(() => {
@@ -274,7 +274,7 @@ async function testAudioWebSocketEvents() {
       }, 5000);
       
       setTimeout(() => {
-        console.log('✅ Eventos WebSocket de audio simulados correctamente');
+        logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Eventos WebSocket de audio simulados correctamente' });
         resolve(true);
       }, 6000);
       
@@ -289,7 +289,7 @@ async function testAudioWebSocketEvents() {
  * 🧪 PRUEBA 4: INTEGRACIÓN COMPLETA DE AUDIO
  */
 async function testCompleteAudioIntegration() {
-  console.log('\n🧪 PRUEBA 4: Integración completa de audio');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 4: Integración completa de audio' });
   try {
     const AudioProcessor = require('../src/services/AudioProcessor');
     const audioProcessor = new AudioProcessor();
@@ -306,7 +306,7 @@ async function testCompleteAudioIntegration() {
       removeSilence: true
     });
     
-    console.log('✅ Audio optimizado para streaming web');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Audio optimizado para streaming web' });
     
     // Generar chunks para streaming
     const streamingChunks = await audioProcessor.generateAudioChunks(optimizedAudio.buffer, {
@@ -322,16 +322,16 @@ async function testCompleteAudioIntegration() {
     });
     
     // Simular reproducción en tiempo real
-    console.log('🎵 Simulando reproducción en tiempo real...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 Simulando reproducción en tiempo real...' });
     for (let i = 0; i < streamingChunks.length; i++) {
       const chunk = streamingChunks[i];
-      console.log(`  Chunk ${i + 1}/${streamingChunks.length}: ${chunk.size} bytes, ${chunk.duration}s`);
+      logger.info('Chunk ${i + 1}/${streamingChunks.length}: ${chunk.size} bytes, ${chunk.duration}s', { category: 'AUTO_MIGRATED' });
       
       // Simular delay de reproducción
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    console.log('✅ Reproducción en tiempo real simulada correctamente');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Reproducción en tiempo real simulada correctamente' });
     
     return true;
     
@@ -345,7 +345,7 @@ async function testCompleteAudioIntegration() {
  * 🧪 PRUEBA 5: VALIDACIÓN DE FORMATOS Y COMPATIBILIDAD
  */
 async function testAudioFormatsAndCompatibility() {
-  console.log('\n🧪 PRUEBA 5: Validación de formatos y compatibilidad');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 5: Validación de formatos y compatibilidad' });
   try {
     const AudioProcessor = require('../src/services/AudioProcessor');
     const audioProcessor = new AudioProcessor();
@@ -353,7 +353,7 @@ async function testAudioFormatsAndCompatibility() {
     const testBuffer = createTestAudioBuffer(3);
     const formats = ['mp3', 'wav', 'ogg', 'aac'];
     
-    console.log('🎵 Probando diferentes formatos de audio...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 Probando diferentes formatos de audio...' });
     
     for (const format of formats) {
       try {
@@ -364,19 +364,19 @@ async function testAudioFormatsAndCompatibility() {
           removeSilence: false
         });
         
-        console.log(`✅ Formato ${format.toUpperCase()}:`, {
+        logger.info('Formato ${format.toUpperCase()}:', { category: 'AUTO_MIGRATED', data: {
           originalSize: optimizedAudio.metadata.originalSize,
           optimizedSize: optimizedAudio.metadata.optimizedSize,
           compressionRatio: optimizedAudio.metadata.compressionRatio
-        });
+        } });
         
       } catch (formatError) {
-        console.log(`⚠️ Formato ${format.toUpperCase()}: No soportado - ${formatError.message}`);
+        logger.info('Formato ${format.toUpperCase()}: No soportado - ${formatError.message}', { category: 'AUTO_MIGRATED' });
       }
     }
     
     // Probar diferentes bitrates
-    console.log('\n🎵 Probando diferentes bitrates...');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎵 Probando diferentes bitrates...' });
     const bitrates = [64000, 128000, 192000, 256000];
     
     for (const bitrate of bitrates) {
@@ -388,13 +388,13 @@ async function testAudioFormatsAndCompatibility() {
           removeSilence: false
         });
         
-        console.log(`✅ Bitrate ${bitrate/1000}kbps:`, {
+        logger.info('Bitrate ${bitrate/1000}kbps:', { category: 'AUTO_MIGRATED', data: {
           optimizedSize: optimizedAudio.metadata.optimizedSize,
           compressionRatio: optimizedAudio.metadata.compressionRatio
-        });
+        } });
         
       } catch (bitrateError) {
-        console.log(`⚠️ Bitrate ${bitrate/1000}kbps: Error - ${bitrateError.message}`);
+        logger.info('Bitrate ${bitrate/1000}kbps: Error - ${bitrateError.message}', { category: 'AUTO_MIGRATED' });
       }
     }
     
@@ -410,7 +410,7 @@ async function testAudioFormatsAndCompatibility() {
  * 🧪 PRUEBA 6: RENDIMIENTO Y OPTIMIZACIÓN
  */
 async function testAudioPerformance() {
-  console.log('\n🧪 PRUEBA 6: Rendimiento y optimización');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🧪 PRUEBA 6: Rendimiento y optimización' });
   try {
     const AudioProcessor = require('../src/services/AudioProcessor');
     const audioProcessor = new AudioProcessor();
@@ -419,13 +419,13 @@ async function testAudioPerformance() {
     const testDurations = [5, 10, 30, 60]; // segundos
     
     for (const duration of testDurations) {
-      console.log(`\n🎵 Probando audio de ${duration} segundos...`);
+      logger.info('\n� Probando audio de ${duration} segundos...', { category: 'AUTO_MIGRATED' });
       
       const startTime = Date.now();
       const testBuffer = createTestAudioBuffer(duration);
       const bufferCreationTime = Date.now() - startTime;
       
-      console.log(`  Buffer creado en ${bufferCreationTime}ms`);
+      logger.info('Buffer creado en ${bufferCreationTime}ms', { category: 'AUTO_MIGRATED' });
       
       // Optimizar audio
       const optimizationStart = Date.now();
@@ -437,7 +437,7 @@ async function testAudioPerformance() {
       });
       const optimizationTime = Date.now() - optimizationStart;
       
-      console.log(`  Optimización completada en ${optimizationTime}ms`);
+      logger.info('Optimización completada en ${optimizationTime}ms', { category: 'AUTO_MIGRATED' });
       
       // Generar chunks
       const chunkingStart = Date.now();
@@ -454,11 +454,11 @@ async function testAudioPerformance() {
       });
       
       const totalTime = Date.now() - startTime;
-      console.log(`  ⏱️ Tiempo total: ${totalTime}ms`);
+      logger.info('⏱ Tiempo total: ${totalTime}ms', { category: 'AUTO_MIGRATED' });
       
       // Calcular métricas de rendimiento
       const processingRate = (optimizedAudio.buffer.length / 1024 / 1024) / (totalTime / 1000); // MB/s
-      console.log(`  📊 Velocidad de procesamiento: ${processingRate.toFixed(2)} MB/s`);
+      logger.info('Velocidad de procesamiento: ${processingRate.toFixed(2)} MB/s', { category: 'AUTO_MIGRATED' });
     }
     
     return true;
@@ -473,7 +473,7 @@ async function testAudioPerformance() {
  * FUNCIÓN PRINCIPAL DE PRUEBA
  */
 async function runAllTests() {
-  console.log('🚀 Iniciando pruebas de audio en tiempo real...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de audio en tiempo real...\n' });
   
   const tests = [
     { name: 'Streaming de audio', fn: testAudioStreaming },
@@ -487,7 +487,7 @@ async function runAllTests() {
   const results = [];
   
   for (const test of tests) {
-    console.log(`\n🎯 Ejecutando: ${test.name}`);
+    logger.info('\n� Ejecutando: ${test.name}', { category: 'AUTO_MIGRATED' });
     console.log('─'.repeat(50));
     
     const startTime = Date.now();
@@ -500,37 +500,37 @@ async function runAllTests() {
       duration: duration
     });
     
-    console.log(`\n${result ? '✅' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)`);
+    logger.info('\n${result ? '' : '❌'} ${test.name}: ${result ? 'EXITOSO' : 'FALLIDO'} (${duration}ms)', { category: 'AUTO_MIGRATED' });
   }
   
   // Resumen final
-  console.log('\n🎵 ========================================');
-  console.log('🎵 RESUMEN DE PRUEBAS FASE 3');
-  console.log('🎵 ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎵 ========================================' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 RESUMEN DE PRUEBAS FASE 3' });
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 ========================================' });
   
   const successfulTests = results.filter(r => r.success).length;
   const totalTests = results.length;
   const totalTime = results.reduce((sum, r) => sum + r.duration, 0);
   
-  console.log(`\n📊 Resultados:`);
-  console.log(`   ✅ Exitosos: ${successfulTests}/${totalTests}`);
-  console.log(`   ❌ Fallidos: ${totalTests - successfulTests}/${totalTests}`);
-  console.log(`   ⏱️ Tiempo total: ${totalTime}ms`);
+  logger.info('\n Resultados:', { category: 'AUTO_MIGRATED' });
+  logger.info('Exitosos: ${successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('❌ Fallidos: ${totalTests - successfulTests}/${totalTests}', { category: 'AUTO_MIGRATED' });
+  logger.info('⏱ Tiempo total: ${totalTime}ms', { category: 'AUTO_MIGRATED' });
   
-  console.log('\n📋 Detalles por prueba:');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n📋 Detalles por prueba:' });
   results.forEach((result, index) => {
     const status = result.success ? '✅' : '❌';
-    console.log(`   ${index + 1}. ${status} ${result.name} (${result.duration}ms)`);
+    logger.info('${index + 1}. ${status} ${result.name} (${result.duration}ms)', { category: 'AUTO_MIGRATED' });
   });
   
   if (successfulTests === totalTests) {
-    console.log('\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!');
-    console.log('🎵 La Fase 3: Audio en tiempo real está funcionando correctamente.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 ¡TODAS LAS PRUEBAS EXITOSAS!' });
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🎵 La Fase 3: Audio en tiempo real está funcionando correctamente.' });
   } else {
-    console.log('\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.');
+    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n⚠️ Algunas pruebas fallaron. Revisar logs para más detalles.' });
   }
   
-  console.log('\n🎵 ========================================');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎵 ========================================' });
   
   return successfulTests === totalTests;
 }

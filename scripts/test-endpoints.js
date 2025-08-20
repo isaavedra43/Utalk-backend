@@ -4,8 +4,8 @@ const axios = require('axios');
 const BASE_URL = 'https://utalk-backend-production.up.railway.app';
 
 async function testEndpoint(path, description) {
-  console.log(`\n🧪 Probando: ${description}`);
-  console.log(`📋 URL: ${BASE_URL}${path}`);
+  logger.info('\n🧪 Probando: ${description}', { category: 'AUTO_MIGRATED' });
+  logger.info('URL: ${BASE_URL}${path}', { category: 'AUTO_MIGRATED' });
   
   try {
     const response = await axios.get(`${BASE_URL}${path}`, {
@@ -13,19 +13,19 @@ async function testEndpoint(path, description) {
       validateStatus: (status) => true
     });
     
-    console.log(`✅ Status: ${response.status}`);
-    console.log(`📄 Response:`, response.data);
+    logger.info('Status: ${response.status}', { category: 'AUTO_MIGRATED' });
+    logger.info('� Response:', { category: 'AUTO_MIGRATED', data: response.data });
     
   } catch (error) {
-    console.log(`❌ Error: ${error.message}`);
+    logger.info('❌ Error: ${error.message}', { category: 'AUTO_MIGRATED' });
     if (error.response) {
-      console.log(`📄 Response:`, error.response.data);
+      logger.info('� Response:', { category: 'AUTO_MIGRATED', data: error.response.data });
     }
   }
 }
 
 async function runTests() {
-  console.log('🚀 Iniciando pruebas de endpoints...\n');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 Iniciando pruebas de endpoints...\n' });
   
   // Probar endpoints en orden
   await testEndpoint('/test-media', 'Endpoint de prueba simple');

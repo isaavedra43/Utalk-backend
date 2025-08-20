@@ -1,5 +1,5 @@
 // Script para probar que el campo mediaUrl se guarda correctamente en la base de datos
-console.log('🧪 Probando guardado de mediaUrl en la base de datos...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando guardado de mediaUrl en la base de datos...\n' });
 
 // Simular datos de mensaje con media
 const messageData = {
@@ -25,22 +25,22 @@ const messageData = {
   tenantId: 'default_tenant'
 };
 
-console.log('📋 Datos del mensaje a guardar:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '📋 Datos del mensaje a guardar:' });
 console.log(JSON.stringify(messageData, null, 2));
-console.log('\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n' });
 
 // Simular el proceso de guardado
-console.log('🔄 Simulando proceso de guardado...\n');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🔄 Simulando proceso de guardado...\n' });
 
 // 1. Verificar que mediaUrl está presente en los datos
-console.log('1. ✅ Verificación de mediaUrl en datos de entrada:');
-console.log('- mediaUrl presente:', !!messageData.mediaUrl);
-console.log('- mediaUrl valor:', messageData.mediaUrl);
-console.log('- type:', messageData.type);
-console.log('- metadata.media.count:', messageData.metadata?.media?.count);
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. ✅ Verificación de mediaUrl en datos de entrada:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl presente:', !!messageData.mediaUrl });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl valor:', messageData.mediaUrl });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- type:', messageData.type });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- metadata.media.count:', messageData.metadata?.media?.count });
 
 // 2. Simular preparación de datos para Firestore
-console.log('\n2. 🔄 Preparación de datos para Firestore:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n2. 🔄 Preparación de datos para Firestore:' });
 const messageFirestoreData = {
   id: messageData.messageId,
   conversationId: messageData.conversationId,
@@ -57,17 +57,17 @@ const messageFirestoreData = {
   updatedAt: new Date()
 };
 
-console.log('✅ Datos preparados para Firestore:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Datos preparados para Firestore:' });
 console.log(JSON.stringify(messageFirestoreData, null, 2));
 
 // 3. Verificar que mediaUrl se preservó
-console.log('\n3. ✅ Verificación de mediaUrl en datos de Firestore:');
-console.log('- mediaUrl presente:', !!messageFirestoreData.mediaUrl);
-console.log('- mediaUrl valor:', messageFirestoreData.mediaUrl);
-console.log('- type:', messageFirestoreData.type);
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3. ✅ Verificación de mediaUrl en datos de Firestore:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl presente:', !!messageFirestoreData.mediaUrl });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl valor:', messageFirestoreData.mediaUrl });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- type:', messageFirestoreData.type });
 
 // 4. Simular creación de objeto Message
-console.log('\n4. 🔄 Simulación de creación de objeto Message:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n4. 🔄 Simulación de creación de objeto Message:' });
 const mockMessage = {
   id: messageFirestoreData.id,
   conversationId: messageFirestoreData.conversationId,
@@ -84,7 +84,7 @@ const mockMessage = {
   updatedAt: messageFirestoreData.updatedAt
 };
 
-console.log('✅ Objeto Message creado:');
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Objeto Message creado:' });
 console.log(JSON.stringify(mockMessage, null, 2));
 
 // 5. Simular toJSON()
@@ -117,16 +117,16 @@ console.log('✅ Resultado de toJSON():');
 console.log(JSON.stringify(toJSONResult, null, 2));
 
 // 6. Verificación final
-console.log('\n6. ✅ Verificación final:');
-console.log('- mediaUrl en toJSON:', !!toJSONResult.mediaUrl);
-console.log('- mediaUrl valor:', toJSONResult.mediaUrl);
-console.log('- type en toJSON:', toJSONResult.type);
-console.log('- metadata.media.count:', toJSONResult.metadata?.media?.count);
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n6. ✅ Verificación final:' });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl en toJSON:', !!toJSONResult.mediaUrl });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- mediaUrl valor:', toJSONResult.mediaUrl });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- type en toJSON:', toJSONResult.type });
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '- metadata.media.count:', toJSONResult.metadata?.media?.count });
 
 if (toJSONResult.mediaUrl) {
-  console.log('\n🎉 SUCCESS: El campo mediaUrl se preserva correctamente en todo el flujo');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 SUCCESS: El campo mediaUrl se preserva correctamente en todo el flujo' });
 } else {
-  console.log('\n❌ FAILED: El campo mediaUrl se perdió en algún punto del flujo');
+  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n❌ FAILED: El campo mediaUrl se perdió en algún punto del flujo' });
 }
 
-console.log('\n🏁 Prueba completada'); 
+logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🏁 Prueba completada' }); 
