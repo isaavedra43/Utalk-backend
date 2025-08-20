@@ -2192,4 +2192,4 @@ class MediaUploadController {
   }
 }
 
-module.exports = new MediaUploadController(); 
+module.exports = MediaUploadController; 
