@@ -1,5 +1,5 @@
 const File = require('../models/File');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid');
 const sharp = require('sharp');
