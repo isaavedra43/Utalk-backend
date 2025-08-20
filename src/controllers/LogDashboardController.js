@@ -15,7 +15,7 @@ try {
   const { logMonitor: monitor } = require('../services/LogMonitorService');
   logMonitor = monitor;
 } catch (error) {
-  console.error('❌ Error importando LogMonitorService:', error.message);
+  logger.error('❌ Error importando LogMonitorService:', error.message);
   // Crear un mock del logMonitor para evitar errores
   logMonitor = {
     getStats: () => ({ 
