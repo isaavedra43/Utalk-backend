@@ -1054,6 +1054,119 @@ app.get('/health/socket', (req, res) => {
 });
 ```
 
+### 🔧 Configuración de Performance
+```javascript
+// Configuración optimizada para performance
+const performanceConfig = {
+  // Socket.IO
+  socket: {
+    maxHttpBufferSize: 1e8, // 100MB
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    upgradeTimeout: 10000,
+    allowUpgrades: true,
+    transports: ['websocket', 'polling']
+  },
+  
+  // Redis Adapter
+  redis: {
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    password: process.env.REDIS_PASSWORD,
+    retryDelayOnFailover: 100,
+    enableReadyCheck: false,
+    maxRetriesPerRequest: null
+  },
+  
+  // Rate Limiting
+  rateLimit: {
+    windowMs: 60000, // 1 minuto
+    max: 50, // 50 eventos por minuto
+    message: 'Demasiados eventos desde este socket'
+  }
+};
+```
+
+### 🔧 Configuración de Seguridad
+```javascript
+// Configuración de seguridad para Socket.IO
+const securityConfig = {
+  // Autenticación
+  auth: {
+    required: true,
+    timeout: 5000,
+    tokenExpiration: 900 // 15 minutos
+  },
+  
+  // Autorización
+  authorization: {
+    roomAccess: true,
+    eventFiltering: true,
+    userValidation: true
+  },
+  
+  // Rate Limiting
+  rateLimit: {
+    enabled: true,
+    windowMs: 60000,
+    maxEvents: 50,
+    maxConnections: 10
+  },
+  
+  // Sanitización
+  sanitization: {
+    enabled: true,
+    maxPayloadSize: 1024 * 1024, // 1MB
+    allowedEvents: [
+      'message:send',
+      'typing:start',
+      'typing:stop',
+      'conversation:read',
+      'sync:state'
+    ]
+  }
+};
+```
+
+### 🔧 Configuración de Monitoreo
+```javascript
+// Configuración de monitoreo en tiempo real
+const monitoringConfig = {
+  // Métricas en tiempo real
+  realtime: {
+    enabled: true,
+    interval: 5000, // 5 segundos
+    metrics: ['connections', 'events', 'latency', 'errors']
+  },
+  
+  // Alertas
+  alerts: {
+    highLatency: {
+      threshold: 200, // ms
+      duration: 300000, // 5 minutos
+      notification: 'slack#ops-alerts'
+    },
+    connectionSpike: {
+      threshold: 1000, // conexiones
+      duration: 60000, // 1 minuto
+      notification: 'slack#ops-alerts'
+    },
+    errorRate: {
+      threshold: 0.05, // 5%
+      duration: 300000, // 5 minutos
+      notification: 'slack#ops-alerts,pagerduty'
+    }
+  },
+  
+  // Logging
+  logging: {
+    level: 'info',
+    events: ['connect', 'disconnect', 'error', 'message'],
+    retention: '30 days'
+  }
+};
+```
+
 ---
 
 **📝 Nota**: Este documento es la fuente de verdad para todos los eventos de Socket.IO. Cualquier cambio en eventos debe ser documentado aquí. 

@@ -15,6 +15,13 @@
 - **📊 Analytics**: KPIs, reportes, métricas de rendimiento
 - **⚡ Realtime**: Socket.IO para sincronización en tiempo real
 
+### 🎯 Casos de Uso Principales
+- **Atención al Cliente**: Chat automatizado con escalamiento a agentes
+- **Ventas**: Lead qualification y nurturing
+- **Soporte Técnico**: Resolución de problemas con IA
+- **Encuestas**: Recolección de feedback automatizada
+- **Notificaciones**: Alertas y recordatorios personalizados
+
 ---
 
 ## 🏢 TOPOLOGÍA Y DESPLIEGUE
@@ -43,6 +50,32 @@
 - **Vertical**: Auto-scaling basado en CPU/Memoria
 - **WebSocket**: Redis adapter para múltiples instancias
 - **Rate Limiting**: Por usuario y por endpoint
+
+### 🔧 Configuración de Infraestructura
+```javascript
+// Railway configuration
+{
+  "build": {
+    "builder": "nixpacks",
+    "buildCommand": "npm install && npm run build"
+  },
+  "deploy": {
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  },
+  "resources": {
+    "cpu": "0.5",
+    "memory": "1GB",
+    "disk": "10GB"
+  },
+  "scaling": {
+    "min": 1,
+    "max": 10,
+    "cpuThreshold": 70,
+    "memoryThreshold": 80
+  }
+}
+```
 
 ---
 
@@ -383,6 +416,40 @@ sequenceDiagram
 - **Reintentos**: Manejo de fallos con backoff exponencial
 - **Deduplicación**: Por `messageId` para evitar duplicados
 
+### 🔐 Configuración de Seguridad
+```javascript
+// Configuración de seguridad
+const securityConfig = {
+  // Headers de seguridad
+  headers: {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+    'Content-Security-Policy': "default-src 'self'"
+  },
+  
+  // Rate limiting
+  rateLimit: {
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100, // máximo 100 requests por ventana
+    message: 'Demasiadas requests desde esta IP'
+  },
+  
+  // Helmet configuration
+  helmet: {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"]
+      }
+    }
+  }
+};
+```
+
 ---
 
 ## 🔗 COMPATIBILIDAD CON FRONT
@@ -453,6 +520,215 @@ sequenceDiagram
 - [ ] Agregar análisis de sentimientos
 - [ ] Implementar routing inteligente
 - [ ] Optimizar escalamiento automático
+
+---
+
+## 🔧 LÍMITES DEL SISTEMA
+
+### 📊 Límites de Rendimiento
+```javascript
+const systemLimits = {
+  // API Limits
+  api: {
+    maxRequestsPerMinute: 6000,
+    maxConcurrentConnections: 1000,
+    maxPayloadSize: '10MB',
+    maxResponseTime: '30s'
+  },
+  
+  // WebSocket Limits
+  websocket: {
+    maxConnections: 10000,
+    maxEventsPerMinute: 30000,
+    maxPayloadSize: '100MB',
+    maxReconnectionAttempts: 5
+  },
+  
+  // Database Limits
+  database: {
+    maxQueriesPerSecond: 1000,
+    maxDocumentSize: '1MB',
+    maxCollections: 1000,
+    maxIndexes: 200
+  },
+  
+  // Storage Limits
+  storage: {
+    maxFileSize: '100MB',
+    maxFilesPerUpload: 10,
+    supportedFormats: ['jpg', 'png', 'gif', 'mp3', 'mp4', 'pdf'],
+    maxStoragePerWorkspace: '10GB'
+  },
+  
+  // AI Limits
+  ai: {
+    maxTokensPerRequest: 4000,
+    maxRequestsPerMinute: 60,
+    maxConcurrentRequests: 10,
+    timeout: '30s'
+  }
+};
+```
+
+### 🚨 Límites de Negocio
+```javascript
+const businessLimits = {
+  // User Limits
+  users: {
+    maxUsersPerWorkspace: 1000,
+    maxAgentsPerWorkspace: 100,
+    maxConversationsPerAgent: 10
+  },
+  
+  // Conversation Limits
+  conversations: {
+    maxParticipants: 10,
+    maxMessagesPerConversation: 10000,
+    maxConversationsPerUser: 1000,
+    conversationTimeout: '30 days'
+  },
+  
+  // Message Limits
+  messages: {
+    maxTextLength: 4096,
+    maxMediaPerMessage: 10,
+    maxMessagesPerMinute: 60
+  },
+  
+  // Media Limits
+  media: {
+    maxFileSize: '100MB',
+    maxFilesPerConversation: 1000,
+    retentionPeriod: '2 years'
+  }
+};
+```
+
+---
+
+## 🛠️ GUÍA DE DESARROLLO
+
+### 🚀 Setup del Entorno
+```bash
+# 1. Clonar repositorio
+git clone https://github.com/isaavedra43/Utalk-backend.git
+cd Utalk-backend
+
+# 2. Instalar dependencias
+npm install
+
+# 3. Configurar variables de entorno
+cp .env.example .env.local
+# Editar .env.local con valores apropiados
+
+# 4. Configurar Firebase
+# Crear proyecto en Firebase Console
+# Descargar service account key
+# Configurar FIREBASE_PROJECT_ID y credenciales
+
+# 5. Configurar Twilio
+# Crear cuenta en Twilio
+# Configurar TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN
+
+# 6. Iniciar servidor
+npm run dev
+```
+
+### 🧪 Testing
+```bash
+# Tests unitarios
+npm test
+
+# Tests de integración
+npm run test:integration
+
+# Tests de performance
+npm run test:performance
+
+# Coverage report
+npm run test:coverage
+```
+
+### 📦 Build y Deploy
+```bash
+# Build para producción
+npm run build
+
+# Deploy a Railway
+railway up
+
+# Verificar deployment
+railway status
+```
+
+### 🔍 Debugging
+```bash
+# Logs en tiempo real
+railway logs
+
+# Conectar a instancia
+railway shell
+
+# Variables de entorno
+railway variables list
+```
+
+---
+
+## 🚨 TROUBLESHOOTING
+
+### 🔧 Problemas Comunes
+
+#### 🚨 Error de Conexión a Firebase
+```bash
+# Verificar credenciales
+echo $FIREBASE_PROJECT_ID
+echo $FIREBASE_PRIVATE_KEY
+
+# Probar conexión
+npm run test:firebase-connection
+```
+
+#### 🚨 Error de WebSocket
+```bash
+# Verificar Redis
+redis-cli ping
+
+# Verificar configuración Socket.IO
+grep "socket" src/config/*.js
+```
+
+#### 🚨 Error de Twilio
+```bash
+# Verificar credenciales
+echo $TWILIO_ACCOUNT_SID
+echo $TWILIO_AUTH_TOKEN
+
+# Probar API
+curl -X GET "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
+  -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN"
+```
+
+#### 🚨 Error de Memoria
+```bash
+# Verificar uso de memoria
+node --max-old-space-size=4096 src/index.js
+
+# Analizar heap
+node --inspect src/index.js
+```
+
+### 📊 Monitoreo de Salud
+```bash
+# Health check
+curl https://utalk-backend.railway.app/health
+
+# Métricas detalladas
+curl https://utalk-backend.railway.app/health/detailed
+
+# Estado de servicios
+curl https://utalk-backend.railway.app/health/services
+```
 
 ---
 

@@ -1078,6 +1078,207 @@ if (featureFlags.workspaceFlags['new-ui'].enabled) {
 - [ ] Runbooks actualizados
 ```
 
+### 🔧 Configuración de Alertas
+```javascript
+// Configuración de alertas automáticas
+const alertConfig = {
+  // Alertas críticas
+  critical: {
+    'api-down': {
+      condition: 'health_check_failed for 2 minutes',
+      notification: ['slack#ops-alerts', 'pagerduty', 'sms'],
+      escalation: 'immediate'
+    },
+    'database-down': {
+      condition: 'database_connection_failed for 1 minute',
+      notification: ['slack#ops-alerts', 'pagerduty', 'sms'],
+      escalation: 'immediate'
+    },
+    'high-error-rate': {
+      condition: 'error_rate > 10% for 5 minutes',
+      notification: ['slack#ops-alerts', 'pagerduty'],
+      escalation: '15 minutes'
+    }
+  },
+  
+  // Alertas de advertencia
+  warning: {
+    'high-latency': {
+      condition: 'p95_latency > 500ms for 10 minutes',
+      notification: ['slack#ops-alerts'],
+      escalation: '30 minutes'
+    },
+    'high-memory': {
+      condition: 'memory_usage > 85% for 15 minutes',
+      notification: ['slack#ops-alerts'],
+      escalation: '1 hour'
+    },
+    'disk-space': {
+      condition: 'disk_usage > 80%',
+      notification: ['slack#ops-alerts'],
+      escalation: '2 hours'
+    }
+  }
+};
+```
+
+### 🔧 Configuración de Dashboards
+```javascript
+// Configuración de dashboards de monitoreo
+const dashboardConfig = {
+  // Dashboard principal
+  main: {
+    title: 'UTalk Backend - Overview',
+    refresh: '30s',
+    panels: [
+      {
+        title: 'API Response Time',
+        type: 'graph',
+        query: 'avg(response_time) by (endpoint)',
+        thresholds: { warning: 200, critical: 500 }
+      },
+      {
+        title: 'Error Rate',
+        type: 'graph',
+        query: 'rate(error_count[5m])',
+        thresholds: { warning: 0.01, critical: 0.05 }
+      },
+      {
+        title: 'Active Connections',
+        type: 'stat',
+        query: 'socket_connections_active',
+        thresholds: { warning: 5000, critical: 8000 }
+      },
+      {
+        title: 'Memory Usage',
+        type: 'gauge',
+        query: 'memory_usage_percent',
+        thresholds: { warning: 70, critical: 85 }
+      }
+    ]
+  },
+  
+  // Dashboard de WebSocket
+  websocket: {
+    title: 'WebSocket Performance',
+    refresh: '10s',
+    panels: [
+      {
+        title: 'Connection Rate',
+        type: 'graph',
+        query: 'rate(socket_connections_total[1m])'
+      },
+      {
+        title: 'Event Throughput',
+        type: 'graph',
+        query: 'rate(socket_events_total[1m])'
+      },
+      {
+        title: 'Latency Distribution',
+        type: 'heatmap',
+        query: 'socket_event_duration_seconds'
+      }
+    ]
+  }
+};
+```
+
+### 🔧 Configuración de Logs
+```javascript
+// Configuración avanzada de logging
+const loggingConfig = {
+  // Niveles por ambiente
+  levels: {
+    development: 'debug',
+    staging: 'info',
+    production: 'warn'
+  },
+  
+  // Formato de logs
+  format: {
+    timestamp: 'ISO',
+    includeStack: true,
+    includeMetadata: true,
+    redactSensitive: true
+  },
+  
+  // Transportes
+  transports: {
+    console: {
+      enabled: true,
+      level: 'info',
+      colorize: true
+    },
+    file: {
+      enabled: true,
+      level: 'error',
+      filename: 'logs/error.log',
+      maxSize: '10MB',
+      maxFiles: 5
+    },
+    cloudwatch: {
+      enabled: process.env.NODE_ENV === 'production',
+      level: 'info',
+      logGroup: '/utalk/backend',
+      logStream: 'app'
+    }
+  },
+  
+  // Filtros
+  filters: {
+    excludePaths: ['/health', '/metrics'],
+    excludeUserAgents: ['health-check', 'monitoring'],
+    sensitiveFields: ['password', 'token', 'secret']
+  }
+};
+```
+
+### 🔧 Configuración de Métricas
+```javascript
+// Configuración de métricas y telemetría
+const metricsConfig = {
+  // Métricas de aplicación
+  application: {
+    enabled: true,
+    interval: 15000, // 15 segundos
+    metrics: [
+      'http_requests_total',
+      'http_request_duration_seconds',
+      'http_requests_in_flight',
+      'nodejs_heap_size_total_bytes',
+      'nodejs_heap_size_used_bytes',
+      'nodejs_eventloop_lag_seconds'
+    ]
+  },
+  
+  // Métricas de negocio
+  business: {
+    enabled: true,
+    interval: 60000, // 1 minuto
+    metrics: [
+      'conversations_total',
+      'messages_total',
+      'escalations_total',
+      'bot_responses_total',
+      'user_sessions_total'
+    ]
+  },
+  
+  // Métricas de WebSocket
+  websocket: {
+    enabled: true,
+    interval: 5000, // 5 segundos
+    metrics: [
+      'socket_connections_active',
+      'socket_connections_total',
+      'socket_events_total',
+      'socket_event_duration_seconds',
+      'socket_errors_total'
+    ]
+  }
+};
+```
+
 ---
 
 **📝 Nota**: Este documento es la fuente de verdad para operaciones y runbooks. Cualquier cambio en procedimientos debe ser documentado aquí. 

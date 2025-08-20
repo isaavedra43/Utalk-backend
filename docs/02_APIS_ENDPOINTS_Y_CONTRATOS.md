@@ -45,6 +45,28 @@
 - **429**: Too Many Requests (rate limit)
 - **500**: Internal Server Error
 
+### 🌐 Configuración CORS
+```javascript
+// Configuración CORS
+const corsConfig = {
+  origin: [
+    'https://app.utalk.com',
+    'https://admin.utalk.com',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-API-Version'
+  ],
+  credentials: true,
+  maxAge: 86400 // 24 horas
+};
+```
+
 ---
 
 ## 🔐 AUTENTICACIÓN Y AUTORIZACIÓN
@@ -671,6 +693,92 @@ Location: https://storage.googleapis.com/utalk-media/...?signature=...
 }
 ```
 
+### 🏥 HEALTH CHECK
+
+#### GET /health
+**Descripción**: Health check básico
+**Auth**: No requerida
+
+```javascript
+// Response (200)
+{
+  "status": "healthy",
+  "timestamp": "2025-08-20T10:00:00Z",
+  "version": "1.0.0",
+  "uptime": 3600 // segundos
+}
+```
+
+#### GET /health/detailed
+**Descripción**: Health check detallado
+**Auth**: No requerida
+
+```javascript
+// Response (200)
+{
+  "status": "healthy",
+  "timestamp": "2025-08-20T10:00:00Z",
+  "version": "1.0.0",
+  "uptime": 3600,
+  "services": {
+    "database": {
+      "status": "healthy",
+      "responseTime": 15 // ms
+    },
+    "redis": {
+      "status": "healthy",
+      "responseTime": 5 // ms
+    },
+    "twilio": {
+      "status": "healthy",
+      "responseTime": 200 // ms
+    },
+    "firebase": {
+      "status": "healthy",
+      "responseTime": 50 // ms
+    }
+  },
+  "metrics": {
+    "memoryUsage": 0.65, // 65%
+    "cpuUsage": 0.45, // 45%
+    "activeConnections": 150,
+    "requestsPerSecond": 25
+  }
+}
+```
+
+#### GET /health/services
+**Descripción**: Estado de servicios externos
+**Auth**: No requerida
+
+```javascript
+// Response (200)
+{
+  "services": {
+    "firebase": {
+      "status": "healthy",
+      "lastCheck": "2025-08-20T10:00:00Z",
+      "responseTime": 50
+    },
+    "twilio": {
+      "status": "healthy",
+      "lastCheck": "2025-08-20T10:00:00Z",
+      "responseTime": 200
+    },
+    "redis": {
+      "status": "healthy",
+      "lastCheck": "2025-08-20T10:00:00Z",
+      "responseTime": 5
+    },
+    "openai": {
+      "status": "healthy",
+      "lastCheck": "2025-08-20T10:00:00Z",
+      "responseTime": 1500
+    }
+  }
+}
+```
+
 ---
 
 ## 🔗 WEBHOOKS ENTRANTES
@@ -870,6 +978,109 @@ X-API-Version: v1
     "migrationPath": "/api/v2/conversations"
   }
 }
+```
+
+---
+
+## 🚨 MANEJO DE ERRORES DETALLADO
+
+### 📋 Códigos de Error
+```javascript
+const errorCodes = {
+  // Autenticación
+  'UNAUTHORIZED': 'No autenticado o token inválido',
+  'FORBIDDEN': 'No autorizado para este recurso',
+  'TOKEN_EXPIRED': 'Token de acceso expirado',
+  'INVALID_CREDENTIALS': 'Credenciales incorrectas',
+  
+  // Validación
+  'VALIDATION_ERROR': 'Datos de entrada inválidos',
+  'MISSING_REQUIRED_FIELD': 'Campo requerido faltante',
+  'INVALID_FORMAT': 'Formato de dato inválido',
+  'FIELD_TOO_LONG': 'Campo excede longitud máxima',
+  
+  // Recursos
+  'RESOURCE_NOT_FOUND': 'Recurso no encontrado',
+  'RESOURCE_ALREADY_EXISTS': 'Recurso ya existe',
+  'RESOURCE_CONFLICT': 'Conflicto con recurso existente',
+  
+  // Negocio
+  'CONVERSATION_NOT_FOUND': 'Conversación no encontrada',
+  'MESSAGE_DUPLICATE': 'Mensaje duplicado',
+  'AGENT_NOT_AVAILABLE': 'Agente no disponible',
+  'BOT_DISABLED': 'Bot deshabilitado para conversación',
+  
+  // Límites
+  'RATE_LIMIT_EXCEEDED': 'Límite de requests excedido',
+  'QUOTA_EXCEEDED': 'Cuota excedida',
+  'FILE_TOO_LARGE': 'Archivo demasiado grande',
+  
+  // Servicios externos
+  'TWILIO_ERROR': 'Error en servicio Twilio',
+  'FIREBASE_ERROR': 'Error en servicio Firebase',
+  'OPENAI_ERROR': 'Error en servicio OpenAI',
+  
+  // Sistema
+  'INTERNAL_ERROR': 'Error interno del servidor',
+  'SERVICE_UNAVAILABLE': 'Servicio no disponible',
+  'DATABASE_ERROR': 'Error de base de datos',
+  'NETWORK_ERROR': 'Error de red'
+};
+```
+
+### 🔧 Estructura de Error Detallada
+```javascript
+// Error completo
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Datos de entrada inválidos",
+    "details": {
+      "path": "email",
+      "value": "invalid-email",
+      "constraints": ["email", "required"],
+      "suggestions": ["Verificar formato de email"]
+    },
+    "timestamp": "2025-08-20T10:00:00Z",
+    "requestId": "req_uuid-v4",
+    "correlationId": "corr_uuid-v4"
+  },
+  "metadata": {
+    "endpoint": "/api/auth/login",
+    "method": "POST",
+    "userAgent": "Mozilla/5.0...",
+    "ip": "192.168.1.1"
+  }
+}
+```
+
+### 🔄 Reintentos y Fallbacks
+```javascript
+// Estrategia de reintentos
+const retryStrategy = {
+  // Reintentos automáticos
+  automatic: {
+    maxRetries: 3,
+    backoffMultiplier: 2,
+    initialDelay: 1000, // 1 segundo
+    maxDelay: 10000 // 10 segundos
+  },
+  
+  // Reintentos manuales
+  manual: {
+    endpoints: ['/api/messages', '/api/media/upload'],
+    maxRetries: 5,
+    userNotification: true
+  },
+  
+  // Fallbacks
+  fallbacks: {
+    'twilio': 'firebase-messaging',
+    'openai': 'anthropic',
+    'firebase': 'local-storage'
+  }
+};
 ```
 
 ---
@@ -1080,6 +1291,60 @@ curl -X POST https://utalk-backend.railway.app/api/auth/login \
 curl -X POST https://utalk-backend.railway.app/webhooks/twilio/whatsapp \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "MessageSid=SM123&From=whatsapp:+1234567890&Body=Test"
+
+# Test de health check
+curl https://utalk-backend.railway.app/health
+```
+
+### 📊 Ejemplos de Integración
+```javascript
+// Ejemplo de integración con JavaScript
+class UTalkAPI {
+  constructor(baseURL, token) {
+    this.baseURL = baseURL;
+    this.token = token;
+  }
+  
+  async request(endpoint, options = {}) {
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'API Error');
+    }
+    
+    return data;
+  }
+  
+  async sendMessage(conversationId, text) {
+    return this.request('/api/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        conversationId,
+        messageId: crypto.randomUUID(),
+        type: 'text',
+        text
+      })
+    });
+  }
+  
+  async getConversations(filters = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/api/conversations?${params}`);
+  }
+}
+
+// Uso
+const api = new UTalkAPI('https://utalk-backend.railway.app', 'your_token');
+const conversations = await api.getConversations({ status: 'open' });
 ```
 
 ---
