@@ -124,31 +124,35 @@ class CampaignQueueService {
         showFriendlyErrorStack: process.env.NODE_ENV === 'development'
       });
 
-      // 🔧 SOLUCIÓN RAILWAY: Configuración de colas optimizada para Railway
+      // 🔧 SOLUCIÓN RAILWAY: Configurar Bull para crear sus propios clientes con family=0
+      const makeBullClient = () => new Redis(redisUrlWithFamily, {
+        maxRetriesPerRequest: 1,
+        retryDelayOnFailover: 50,
+        enableReadyCheck: false,
+        lazyConnect: false,
+        connectTimeout: 10000,
+        commandTimeout: 5000,
+        showFriendlyErrorStack: process.env.NODE_ENV === 'development'
+      });
+
       this.campaignQueue = new Queue('campaign-processing', {
-        redis: this.redis,
+        createClient: (_type) => makeBullClient(),
         defaultJobOptions: {
-          removeOnComplete: 50, // Reducir para Railway
-          removeOnFail: 25, // Reducir para Railway
-          attempts: 2, // Reducir intentos para Railway
-          backoff: {
-            type: 'exponential',
-            delay: 1000 // Reducir delay para Railway
-          }
+          removeOnComplete: 50,
+          removeOnFail: 25,
+          attempts: 2,
+          backoff: { type: 'exponential', delay: 1000 }
         }
       });
 
-      // 🔧 SOLUCIÓN RAILWAY: Configuración de cola de mensajes optimizada
+      // 🔧 SOLUCIÓN RAILWAY: Configuración de cola de mensajes con createClient
       this.processingQueue = new Queue('message-processing', {
-        redis: this.redis,
+        createClient: (_type) => makeBullClient(),
         defaultJobOptions: {
-          removeOnComplete: 500, // Reducir para Railway
-          removeOnFail: 50, // Reducir para Railway
-          attempts: 3, // Reducir intentos para Railway
-          backoff: {
-            type: 'exponential',
-            delay: 500 // Reducir delay para Railway
-          }
+          removeOnComplete: 500,
+          removeOnFail: 50,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 500 }
         }
       });
 
