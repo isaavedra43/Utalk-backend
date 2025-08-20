@@ -125,18 +125,30 @@ class CampaignQueueService {
       });
 
       // 🔧 SOLUCIÓN RAILWAY: Configurar Bull para crear sus propios clientes con family=0
-      const makeBullClient = () => new Redis(redisUrlWithFamily, {
-        maxRetriesPerRequest: 1,
-        retryDelayOnFailover: 50,
-        enableReadyCheck: false,
-        lazyConnect: false,
-        connectTimeout: 10000,
-        commandTimeout: 5000,
-        showFriendlyErrorStack: process.env.NODE_ENV === 'development'
-      });
+      const makeBullClientByType = (type) => {
+        // Para subscriber y bclient, Bull no permite enableReadyCheck ni maxRetriesPerRequest
+        const baseOptions = {
+          lazyConnect: false,
+          connectTimeout: 10000,
+          commandTimeout: 5000,
+          showFriendlyErrorStack: process.env.NODE_ENV === 'development'
+        };
+
+        if (type === 'subscriber' || type === 'bclient') {
+          return new Redis(redisUrlWithFamily, baseOptions);
+        }
+
+        // Para el client normal sí aplicamos los timeouts y retries reducidos
+        return new Redis(redisUrlWithFamily, {
+          ...baseOptions,
+          maxRetriesPerRequest: 1,
+          retryDelayOnFailover: 50,
+          enableReadyCheck: false
+        });
+      };
 
       this.campaignQueue = new Queue('campaign-processing', {
-        createClient: (_type) => makeBullClient(),
+        createClient: (type) => makeBullClientByType(type),
         defaultJobOptions: {
           removeOnComplete: 50,
           removeOnFail: 25,
@@ -147,7 +159,7 @@ class CampaignQueueService {
 
       // 🔧 SOLUCIÓN RAILWAY: Configuración de cola de mensajes con createClient
       this.processingQueue = new Queue('message-processing', {
-        createClient: (_type) => makeBullClient(),
+        createClient: (type) => makeBullClientByType(type),
         defaultJobOptions: {
           removeOnComplete: 500,
           removeOnFail: 50,
