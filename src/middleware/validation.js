@@ -3,9 +3,10 @@
  * 
  * Sistema de validación robusto para todas las rutas del backend
  * Usa Joi para validación de esquemas y sanitización de datos
+ * Incluye validaciones de permisos estandarizadas
  * 
  * @author Backend Team
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 const Joi = require('joi');
@@ -536,6 +537,104 @@ const safeFirestoreToJSON = (doc) => {
   return null;
 };
 
+/**
+ * 🔐 VALIDACIONES DE PERMISOS ESTANDARIZADAS
+ */
+
+/**
+ * Middleware para validar roles de usuario
+ */
+function requireRole(allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: 'Usuario no autenticado'
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: 'FORBIDDEN',
+        message: `Acceso denegado. Roles permitidos: ${allowedRoles.join(', ')}`
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Middleware para validar permisos específicos
+ */
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: 'Usuario no autenticado'
+      });
+    }
+
+    if (!req.user.permissions || !req.user.permissions.includes(permission)) {
+      return res.status(403).json({
+        success: false,
+        error: 'FORBIDDEN',
+        message: `Permiso requerido: ${permission}`
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Middleware para validar propiedad de recursos
+ */
+function requireOwnership(resourceType, getResourceId) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Usuario no autenticado'
+        });
+      }
+
+      // Admins pueden acceder a todo
+      if (req.user.role === 'admin') {
+        return next();
+      }
+
+      const resourceId = getResourceId(req);
+      if (!resourceId) {
+        return res.status(400).json({
+          success: false,
+          error: 'MISSING_RESOURCE_ID',
+          message: 'ID del recurso requerido'
+        });
+      }
+
+      // Aquí implementarías la lógica para verificar propiedad
+      // Por ahora, asumimos que el recurso tiene un campo createdBy o ownerId
+      // Esta función debería ser implementada según el modelo específico
+
+      next();
+    } catch (error) {
+      logger.error('Error validando propiedad de recurso:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'OWNERSHIP_VALIDATION_ERROR',
+        message: 'Error validando propiedad del recurso'
+      });
+    }
+  };
+}
+
 module.exports = {
   validateRequest,
   validateFile,
@@ -546,5 +645,8 @@ module.exports = {
   formatFileSize,
   validateMessagesArrayResponse,
   validateFirestoreDocument,
-  safeFirestoreToJSON
+  safeFirestoreToJSON,
+  requireRole,
+  requirePermission,
+  requireOwnership
 }; 

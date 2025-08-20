@@ -4,7 +4,7 @@ const { getMessageService } = require('../services/MessageService');
 const logger = require('../utils/logger');
 const { Parser } = require('json2csv');
 const campaignQueueService = require('../services/CampaignQueueService');
-const { ResponseHandler } = require('../utils/responseHandler');
+const { ResponseHandler, ApiError } = require('../utils/responseHandler');
 
 /**
  * Calcular fechas de inicio y fin basadas en un período
@@ -720,12 +720,22 @@ class CampaignController {
       const campaign = await Campaign.getById(campaignId);
       
       if (!campaign) {
-        throw new Error('Campaña no encontrada');
+        throw new ApiError(
+          'CAMPAIGN_NOT_FOUND',
+          'Campaña no encontrada',
+          `No se encontró una campaña con ID ${campaignId}`,
+          404
+        );
       }
 
       // Verificar permisos
       if (userFilter && campaign.createdBy !== userFilter) {
-        throw new Error('No tiene permisos para ver esta campaña');
+        throw new ApiError(
+          'CAMPAIGN_ACCESS_DENIED',
+          'No tienes permisos para ver esta campaña',
+          'Solo el creador o administradores pueden ver los detalles de la campaña',
+          403
+        );
       }
 
       // Obtener métricas adicionales

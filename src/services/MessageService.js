@@ -10,6 +10,7 @@ const { firestore, FieldValue, Timestamp } = require('../config/firebase');
 const FileService = require('./FileService');
 const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const { integrateAIWithIncomingMessage } = require('./AIWebhookIntegration');
+const { ApiError } = require('../utils/responseHandler');
 
 /**
  * Servicio centralizado para toda la lógica de mensajes
@@ -50,12 +51,12 @@ class MessageService {
 
   ensureWhatsApp(number) {
     // Garantiza prefijo 'whatsapp:' y E.164
-    if (!number) throw new Error('to is required');
+    if (!number) throw new ApiError('MISSING_TO_NUMBER', 'Número de destino requerido', 'El campo "to" es obligatorio', 400);
     return number.startsWith('whatsapp:') ? number : `whatsapp:${number}`;
   }
 
   ensureFrom(from) {
-    if (!from) throw new Error('from is required');
+    if (!from) throw new ApiError('MISSING_FROM_NUMBER', 'Número de origen requerido', 'El campo "from" es obligatorio', 400);
     return from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
   }
 
@@ -83,15 +84,15 @@ class MessageService {
       // Validación estricta de entrada
       if (validateInput) {
         if (!messageData.conversationId) {
-          throw new Error('conversationId es obligatorio');
+          throw new ApiError('MISSING_CONVERSATION_ID', 'ID de conversación requerido', 'El campo conversationId es obligatorio', 400);
         }
 
         if (!messageData.senderIdentifier || !messageData.recipientIdentifier) {
-          throw new Error('senderIdentifier y recipientIdentifier son obligatorios');
+          throw new ApiError('MISSING_IDENTIFIERS', 'Identificadores requeridos', 'Los campos senderIdentifier y recipientIdentifier son obligatorios', 400);
         }
 
         if (!messageData.direction || !['inbound', 'outbound'].includes(messageData.direction)) {
-          throw new Error('direction debe ser inbound o outbound');
+          throw new ApiError('INVALID_DIRECTION', 'Dirección inválida', 'El campo direction debe ser "inbound" o "outbound"', 400);
         }
 
         // CORREGIDO: Validación que permite contenido vacío pero no null/undefined
@@ -99,7 +100,7 @@ class MessageService {
         const noMedia = !messageData.mediaUrl || messageData.mediaUrl === null || messageData.mediaUrl === undefined;
         
         if (noContent && noMedia) {
-          throw new Error('El mensaje debe tener contenido o mediaUrl');
+          throw new ApiError('MISSING_CONTENT', 'Contenido requerido', 'El mensaje debe tener contenido o mediaUrl', 400);
         }
       }
 
@@ -184,13 +185,13 @@ class MessageService {
 
       // Validar parámetros
       if (!to || !content) {
-        throw new Error('to y content son requeridos');
+        throw new ApiError('MISSING_PARAMETERS', 'Parámetros requeridos', 'Los campos "to" y "content" son requeridos', 400);
       }
 
       // Normalizar número de teléfono
       const toPhone = normalizePhoneNumber(to);
       if (!toPhone) {
-        throw new Error('Número de teléfono inválido');
+        throw new ApiError('INVALID_PHONE_NUMBER', 'Número de teléfono inválido', 'El número de teléfono proporcionado no es válido', 400);
       }
 
       // Generar conversationId si no se proporciona
