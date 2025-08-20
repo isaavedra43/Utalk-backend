@@ -23,6 +23,74 @@ const winston = require('winston');
 const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 
+/**
+ * 🔧 FUNCIÓN SEGURA PARA SERIALIZAR OBJETOS CON REFERENCIAS CIRCULARES
+ * 
+ * @param {any} obj - Objeto a serializar
+ * @param {number} maxDepth - Profundidad máxima de recursión (default: 3)
+ * @returns {string} - JSON string seguro
+ */
+function safeStringify(obj, maxDepth = 3) {
+  const seen = new WeakSet();
+  
+  function replacer(key, value, depth = 0) {
+    // Evitar recursión infinita
+    if (depth > maxDepth) {
+      return '[Max Depth Reached]';
+    }
+    
+    // Manejar referencias circulares
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular Reference]';
+      }
+      seen.add(value);
+    }
+    
+    // Manejar errores específicos
+    if (value instanceof Error) {
+      return {
+        name: value.name,
+        message: value.message,
+        stack: value.stack?.split('\n').slice(0, 3).join('\n'), // Solo primeras 3 líneas
+        type: 'Error'
+      };
+    }
+    
+    // Manejar objetos con constructor personalizado
+    if (value && value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
+      return {
+        type: value.constructor.name,
+        keys: Object.keys(value).slice(0, 10), // Solo primeras 10 propiedades
+        hasCustomConstructor: true
+      };
+    }
+    
+    return value;
+  }
+  
+  try {
+    return JSON.stringify(obj, replacer);
+  } catch (error) {
+    // Fallback: crear objeto simplificado
+    const fallback = {};
+    if (obj && typeof obj === 'object') {
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === 'object' && value !== null) {
+          fallback[key] = {
+            type: value.constructor?.name || 'Object',
+            keys: Object.keys(value).slice(0, 5),
+            hasComplexValue: true
+          };
+        } else {
+          fallback[key] = value;
+        }
+      }
+    }
+    return JSON.stringify(fallback);
+  }
+}
+
 // Importar LogMonitorService para integración
 let logMonitor;
 try {
@@ -121,7 +189,8 @@ const logger = winston.createLogger({
         winston.format.colorize(),
         winston.format.simple(),
         winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+          // 🔧 SOLUCIÓN: Usar función segura para serializar objetos con referencias circulares
+          const metaStr = Object.keys(meta).length ? ` ${safeStringify(meta)}` : '';
           return `${timestamp} [${level}]: ${message}${metaStr}`;
         })
       )
