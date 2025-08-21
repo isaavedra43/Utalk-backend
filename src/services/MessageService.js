@@ -2166,55 +2166,23 @@ class MessageService {
    */
   async findOrCreateConversation(conversationId, customerPhone, agentPhone, contactInfo) {
     try {
-      // Buscar conversación existente
-      const conversationRef = firestore.collection('conversations').doc(conversationId);
-      const conversationDoc = await conversationRef.get();
-
-      if (conversationDoc.exists) {
-        logger.info('📋 Conversación existente encontrada', { conversationId });
-        
-        // Actualizar contadores
-        await conversationRef.update({
-          messageCount: FieldValue.increment(1),
-          unreadCount: FieldValue.increment(1),
-          updatedAt: Timestamp.now(),
-        });
-
-        return {
-          id: conversationId,
-          exists: true,
-          ...conversationDoc.data(),
-        };
-      }
-
-      // Crear nueva conversación con asignación automática de agente
-
-      // 🔄 Asegurar también conversación ANIDADA bajo contacts/{contactId}
-      try {
-        const contact = await Contact.getByPhone(customerPhone);
-        if (contact) {
-          const nestedConvRef = firestore
-            .collection('contacts')
-            .doc(contact.id)
-            .collection('conversations')
-            .doc(conversationId);
-          await nestedConvRef.set({
-            id: conversationId,
-            customerPhone,
-            participants: [customerPhone, agentPhone].filter(Boolean),
-            status: 'open',
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-          }, { merge: true });
-
-          // Mantener índice inverso en contacto
-          await firestore.collection('contacts').doc(contact.id).update({
-            conversationIds: FieldValue.arrayUnion(conversationId),
-            updatedAt: Timestamp.now()
+      // Buscar conversación existente SOLO en contacts/{contactId}/conversations
+      const existingContact = await Contact.getByPhone(customerPhone);
+      if (existingContact) {
+        const nestedConvRef = firestore
+          .collection('contacts')
+          .doc(existingContact.id)
+          .collection('conversations')
+          .doc(conversationId);
+        const nestedDoc = await nestedConvRef.get();
+        if (nestedDoc.exists) {
+          await nestedConvRef.update({
+            messageCount: FieldValue.increment(1),
+            unreadCount: FieldValue.increment(1),
+            updatedAt: Timestamp.now(),
           });
+          return { id: conversationId, exists: true, ...nestedDoc.data() };
         }
-      } catch (nestedErr) {
-        logger.error('❌ Error creando conversación anidada', { conversationId, customerPhone, error: nestedErr.message });
       }
       logger.info('🆕 Creando nueva conversación con información de contacto', { 
         conversationId, 
@@ -2347,7 +2315,12 @@ class MessageService {
         tenantId: 'default_tenant'
       };
 
-      // Usar el repositorio para crear la conversación con participantes por defecto
+      // Inyectar agentEmail (si se resolvió) para asegurar participants por EMAIL
+      if (assignedTo?.id) {
+        messageForRepo.agentEmail = assignedTo.id;
+      }
+
+      // Usar el repositorio para crear la conversación con participants email-only
       const result = await conversationsRepo.upsertFromInbound(messageForRepo);
       
       logger.info('✅ Conversación creada usando ConversationsRepository', {
@@ -2433,7 +2406,8 @@ class MessageService {
           await nestedConvRef.set({
             id: conversationId,
             customerPhone,
-            participants: [messageData.senderIdentifier, messageData.recipientIdentifier].filter(Boolean),
+            // participants solo emails; no teléfonos
+            participants: [messageData.senderIdentifier].filter(Boolean).map(e => String(e).toLowerCase()),
             status: 'open',
             updatedAt: Timestamp.now(),
             createdAt: FieldValue.serverTimestamp()
