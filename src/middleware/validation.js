@@ -120,7 +120,7 @@ function validateSchema(data, schema, fieldType) {
     const { error, value } = schema.validate(data, {
       abortEarly: false,
       stripUnknown: true,
-      allowUnknown: false
+      allowUnknown: true  // 🔧 CAMBIADO: Permitir campos desconocidos
     });
 
     if (error) {
