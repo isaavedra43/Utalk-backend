@@ -71,12 +71,6 @@ const messageValidators = {
         mimetype: Joi.string().optional(),
         size: Joi.number().integer().min(1).max(100 * 1024 * 1024).optional(), // 100MB max
         fieldname: Joi.string().optional()
-      }).custom((value, helpers) => {
-        // Validación personalizada: debe tener id O buffer
-        if (!value.id && !value.buffer) {
-          return helpers.error('any.invalid', { message: 'Attachment must have either id or buffer' });
-        }
-        return value;
       })).min(1).max(10).required(), // Mínimo 1, máximo 10 archivos
       metadata: Joi.object().optional()
     })
