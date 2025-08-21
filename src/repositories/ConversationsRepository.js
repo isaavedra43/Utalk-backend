@@ -692,6 +692,28 @@ class ConversationsRepository {
         // Guardar mensaje
         transaction.set(messageRef, messageFirestoreData);
 
+        // 🔄 Escritura anidada en contacts/{contactId}/conversations/{conversationId}/messages
+        try {
+          const customerPhone = msg.recipientIdentifier; // outbound → cliente es recipient
+          const contactSnap = await firestore.collection('contacts').where('phone', '==', customerPhone).limit(1).get();
+          if (!contactSnap.empty) {
+            const contactId = contactSnap.docs[0].id;
+            const nestedConvRef = firestore.collection('contacts').doc(contactId).collection('conversations').doc(msg.conversationId);
+            transaction.set(nestedConvRef, {
+              id: msg.conversationId,
+              customerPhone,
+              participants: [msg.senderIdentifier, msg.recipientIdentifier].filter(Boolean),
+              status: 'open',
+              updatedAt: new Date(),
+              createdAt: new Date()
+            }, { merge: true });
+            const nestedMsgRef = nestedConvRef.collection('messages').doc(msg.messageId);
+            transaction.set(nestedMsgRef, messageFirestoreData);
+          }
+        } catch (_) {
+          // no-op nested write
+        }
+
         // Preparar actualización de conversación
         const lastMessage = {
           messageId: msg.messageId,
@@ -746,6 +768,20 @@ class ConversationsRepository {
 
         // Actualizar conversación
         transaction.set(conversationRef, conversationUpdate, { merge: true });
+
+        // 🔄 También actualizar lastMessage en conversación anidada si existe contacto
+        try {
+          const contactSnap2 = await firestore.collection('contacts').where('phone', '==', msg.recipientIdentifier).limit(1).get();
+          if (!contactSnap2.empty) {
+            const contactId = contactSnap2.docs[0].id;
+            const nestedConvRef = firestore.collection('contacts').doc(contactId).collection('conversations').doc(msg.conversationId);
+            transaction.set(nestedConvRef, {
+              lastMessage,
+              lastMessageAt,
+              updatedAt: new Date()
+            }, { merge: true });
+          }
+        } catch (_) {}
 
         return { 
           message: messageFirestoreData, 

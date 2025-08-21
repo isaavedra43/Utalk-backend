@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const MessageRepository = require('../repositories/MessageRepository');
 const ContactService = require('./ContactService');
+const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
 const twilio = require('twilio');
 const logger = require('../utils/logger');
@@ -2187,6 +2188,34 @@ class MessageService {
       }
 
       // Crear nueva conversación con asignación automática de agente
+
+      // 🔄 Asegurar también conversación ANIDADA bajo contacts/{contactId}
+      try {
+        const contact = await Contact.getByPhone(customerPhone);
+        if (contact) {
+          const nestedConvRef = firestore
+            .collection('contacts')
+            .doc(contact.id)
+            .collection('conversations')
+            .doc(conversationId);
+          await nestedConvRef.set({
+            id: conversationId,
+            customerPhone,
+            participants: [customerPhone, agentPhone].filter(Boolean),
+            status: 'open',
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          }, { merge: true });
+
+          // Mantener índice inverso en contacto
+          await firestore.collection('contacts').doc(contact.id).update({
+            conversationIds: FieldValue.arrayUnion(conversationId),
+            updatedAt: Timestamp.now()
+          });
+        }
+      } catch (nestedErr) {
+        logger.error('❌ Error creando conversación anidada', { conversationId, customerPhone, error: nestedErr.message });
+      }
       logger.info('🆕 Creando nueva conversación con información de contacto', { 
         conversationId, 
         customerPhone, 
@@ -2383,8 +2412,42 @@ class MessageService {
         updatedAt: Timestamp.now(),
       };
 
-      // Guardar en Firestore
+      // Guardar en Firestore (colección existente)
       await messageRef.set(messageToSave);
+
+      // 🔄 ESCRITURA ANIDADA: contacts/{contactId}/conversations/{conversationId}/messages/{messageId}
+      try {
+        const customerPhone = messageData.direction === 'inbound' 
+          ? messageData.senderIdentifier 
+          : messageData.recipientIdentifier;
+
+        const contact = await Contact.getByPhone(customerPhone);
+        if (contact) {
+          const nestedConvRef = firestore
+            .collection('contacts')
+            .doc(contact.id)
+            .collection('conversations')
+            .doc(conversationId);
+
+          // Asegurar conversación anidada
+          await nestedConvRef.set({
+            id: conversationId,
+            customerPhone,
+            participants: [messageData.senderIdentifier, messageData.recipientIdentifier].filter(Boolean),
+            status: 'open',
+            updatedAt: Timestamp.now(),
+            createdAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          // Guardar mensaje anidado
+          const nestedMsgRef = nestedConvRef.collection('messages').doc(messageData.id);
+          await nestedMsgRef.set(messageToSave);
+        } else {
+          logger.warn('⚠️ Contacto no encontrado para escritura anidada', { conversationId, customerPhone });
+        }
+      } catch (nestedErr) {
+        logger.error('❌ Error en escritura anidada de mensaje', { conversationId, messageId: messageData.id, error: nestedErr.message });
+      }
 
       logger.info('✅ Mensaje guardado exitosamente con metadatos avanzados', {
         conversationId,
@@ -2429,6 +2492,26 @@ class MessageService {
         lastMessageAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
+
+      // 🔄 Actualizar conversación anidada bajo contacts/{contactId}
+      try {
+        const customerPhone = savedMessage.direction === 'inbound' 
+          ? savedMessage.senderIdentifier 
+          : savedMessage.recipientIdentifier;
+        const contact = await Contact.getByPhone(customerPhone);
+        if (contact) {
+          const nestedConvRef = firestore.collection('contacts').doc(contact.id).collection('conversations').doc(conversationId);
+          await nestedConvRef.set({
+            id: conversationId,
+            customerPhone,
+            lastMessage: lastMessageData,
+            lastMessageAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          }, { merge: true });
+        }
+      } catch (nestedErr) {
+        logger.error('❌ Error actualizando lastMessage anidado', { conversationId, error: nestedErr.message });
+      }
 
       logger.info('✅ Conversación actualizada con último mensaje', {
         conversationId,
