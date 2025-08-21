@@ -255,10 +255,55 @@ class ConversationsRepository {
 
       // Ejecutar query única (sin fallbacks)
       const snapshot = await query.get();
-      const conversations = snapshot.docs.map(doc => this.mapToConversationVM(doc));
+      let conversations = snapshot.docs.map(doc => this.mapToConversationVM(doc));
+
+      // 🔁 FALLBACK CRÍTICO: si la colección raíz está vacía, leer de contacts/{contactId}/conversations
+      if (conversations.length === 0) {
+        try {
+          const { default: _path } = { default: 'contacts/*/conversations' };
+          logger.warn('conversations_repo:root_empty_fallback', {
+            event: 'conversations_repo:root_empty_fallback',
+            collectionPath: this.collectionPath,
+            fallback: _path,
+            note: 'Leyendo desde contacts/{contactId}/conversations'
+          });
+
+          const ConversationService = require('../services/ConversationService');
+          const agg = await ConversationService.getConversations({
+            status: filters.status,
+            assignedTo: filters.assignedTo,
+            participants: filters.participantsContains,
+            limit: pagination.limit || 50,
+            sortBy: 'lastMessageAt',
+            sortOrder: 'desc'
+          });
+
+          // Mapear al mismo VM usado por el front
+          conversations = (agg || []).map(item => ({
+            id: item.id,
+            customerPhone: item.customerPhone,
+            lastMessage: item.lastMessage || {},
+            unreadCount: typeof item.unreadCount === 'number' ? item.unreadCount : 0,
+            status: item.status || 'open',
+            workspaceId: item.workspaceId,
+            tenantId: item.tenantId,
+            assignedTo: item.assignedTo || null,
+            participants: Array.isArray(item.participants) ? item.participants : [],
+            lastMessageAt: item.lastMessageAt || null,
+            contact: item.contact || (item.customerPhone ? { id: item.customerPhone, name: item.customerName || 'Cliente', phoneNumber: item.customerPhone, channel: 'whatsapp' } : undefined),
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            messageCount: item.messageCount,
+            priority: item.priority,
+            tags: item.tags
+          }));
+        } catch (fallbackError) {
+          logger.error('conversations_repo:fallback_error', { error: fallbackError.message });
+        }
+      }
 
       const duration = Date.now() - startTime;
-      const hasNext = conversations.length === pagination.limit;
+      const hasNext = conversations.length === (pagination.limit || 50);
       const nextCursor = hasNext ? conversations[conversations.length - 1]?.id : null;
 
       // --- LOGS DE DIAGNÓSTICO POST-QUERY (solo si LOG_CONV_DIAG=true) ---
