@@ -13,48 +13,96 @@ const logger = require('../utils/logger');
 class ConversationService {
   /**
    * Obtener conversaciones con filtros
+   * 🔧 CORREGIDO: Consultar en contacts/{contactId}/conversations
    */
   static async getConversations(filters = {}) {
     try {
-      let query = firestore.collection('conversations');
+      // 🔧 CORRECCIÓN CRÍTICA: Consultar en la estructura correcta
+      // Necesitamos obtener todas las conversaciones de todos los contactos
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      
+      let allConversations = [];
+      
+      // Iterar sobre todos los contactos y obtener sus conversaciones
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        const contactData = contactDoc.data();
+        
+        // Obtener conversaciones de este contacto
+        let conversationsQuery = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations');
 
-      // Aplicar filtros
-      if (filters.status && filters.status !== 'all') {
-        query = query.where('status', '==', filters.status);
-      }
-
-      if (filters.assignedTo) {
-        if (filters.assignedTo === 'unassigned') {
-          query = query.where('assignedTo', '==', null);
-        } else {
-          query = query.where('assignedTo', '==', filters.assignedTo);
+        // Aplicar filtros
+        if (filters.status && filters.status !== 'all') {
+          conversationsQuery = conversationsQuery.where('status', '==', filters.status);
         }
+
+        if (filters.assignedTo) {
+          if (filters.assignedTo === 'unassigned') {
+            conversationsQuery = conversationsQuery.where('assignedTo', '==', null);
+          } else {
+            conversationsQuery = conversationsQuery.where('assignedTo', '==', filters.assignedTo);
+          }
+        }
+
+        if (filters.participants) {
+          conversationsQuery = conversationsQuery.where('participants', 'array-contains', filters.participants);
+        }
+
+        // Ordenar
+        const sortBy = filters.sortBy || 'lastMessageAt';
+        const sortOrder = filters.sortOrder || 'desc';
+        conversationsQuery = conversationsQuery.orderBy(sortBy, sortOrder);
+
+        // Paginación
+        if (filters.limit) {
+          conversationsQuery = conversationsQuery.limit(filters.limit);
+        }
+
+        if (filters.cursor) {
+          conversationsQuery = conversationsQuery.startAfter(filters.cursor);
+        }
+
+        const conversationsSnapshot = await conversationsQuery.get();
+        
+        // Agregar conversaciones con información del contacto
+        const contactConversations = conversationsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          contactId: contactId,
+          contactName: contactData.name,
+          contactPhone: contactData.phone,
+          ...doc.data()
+        }));
+        
+        allConversations = allConversations.concat(contactConversations);
       }
 
-      if (filters.participants) {
-        query = query.where('participants', 'array-contains', filters.participants);
-      }
-
-      // Ordenar
+      // Ordenar todas las conversaciones por el criterio especificado
       const sortBy = filters.sortBy || 'lastMessageAt';
       const sortOrder = filters.sortOrder || 'desc';
-      query = query.orderBy(sortBy, sortOrder);
-
-      // Paginación
-      if (filters.limit) {
-        query = query.limit(filters.limit);
-      }
-
-      if (filters.cursor) {
-        query = query.startAfter(filters.cursor);
-      }
-
-      const snapshot = await query.get();
       
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      allConversations.sort((a, b) => {
+        const valA = a[sortBy] || new Date(0);
+        const valB = b[sortBy] || new Date(0);
+        const timeA = valA.toMillis ? valA.toMillis() : new Date(valA).getTime();
+        const timeB = valB.toMillis ? valB.toMillis() : new Date(valB).getTime();
+        return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+      });
+
+      // Aplicar límite final si se especifica
+      if (filters.limit) {
+        allConversations = allConversations.slice(0, filters.limit);
+      }
+
+      logger.info('✅ Conversaciones obtenidas de estructura contacts/{contactId}/conversations', {
+        totalConversations: allConversations.length,
+        filters: filters,
+        structure: 'contacts/{contactId}/conversations'
+      });
+      
+      return allConversations;
 
     } catch (error) {
       logger.error('Error obteniendo conversaciones:', error);
@@ -64,6 +112,7 @@ class ConversationService {
 
   /**
    * Obtener conversación por ID
+   * 🔧 CORREGIDO: Buscar en contacts/{contactId}/conversations
    */
   static async getConversationById(id) {
     try {
@@ -73,71 +122,54 @@ class ConversationService {
         timestamp: new Date().toISOString()
       });
 
-      const doc = await firestore.collection('conversations').doc(id).get();
+      // 🔧 CORRECCIÓN CRÍTICA: Buscar en la estructura correcta
+      // Necesitamos buscar en todos los contactos para encontrar la conversación
+      const contactsSnapshot = await firestore.collection('contacts').get();
       
-      // 🔧 SOLUCIÓN SEGURA: Verificación completa del documento
-      if (!doc || !doc.exists) {
-        logger.warn('Conversación no encontrada en Firestore', { 
-          conversationId: id,
-          docExists: doc?.exists,
-          docType: typeof doc
-        });
-        return null;
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        
+        const conversationDoc = await firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations')
+          .doc(id)
+          .get();
+        
+        if (conversationDoc.exists) {
+          const conversationData = {
+            id: conversationDoc.id,
+            contactId: contactId,
+            ...conversationDoc.data()
+          };
+          
+          logger.info('✅ Conversación encontrada en contacts/{contactId}/conversations', {
+            conversationId: id,
+            contactId: contactId,
+            structure: 'contacts/{contactId}/conversations'
+          });
+          
+          return conversationData;
+        }
       }
 
-      // 🔍 DEBUGGING: Logging del documento obtenido
-      logger.debug('Documento de Firestore obtenido', {
+      // Si no se encuentra en ningún contacto
+      logger.warn('Conversación no encontrada en ningún contacto', { 
         conversationId: id,
-        docId: doc.id,
-        docExists: doc.exists,
-        hasData: !!doc.data(),
-        dataKeys: Object.keys(doc.data() || {})
+        searchedStructure: 'contacts/{contactId}/conversations'
       });
-
-      const conversationData = {
-        id: doc.id,
-        ...doc.data()
-      };
-
-      // ✅ SINCRONIZAR INFORMACIÓN DEL CONTACTO SI ES NECESARIO
-      if (conversationData.contact && conversationData.contact.profileName) {
-        // Asegurar que el nombre se use correctamente
-        conversationData.contact.name = conversationData.contact.profileName;
-      } else if (conversationData.customerName && conversationData.customerPhone) {
-        // Si no hay contact.profileName pero sí hay customerName, crear estructura de contacto
-        conversationData.contact = {
-          id: conversationData.customerPhone,
-          name: conversationData.customerName,
-          profileName: conversationData.customerName,
-          phoneNumber: conversationData.customerPhone,
-          waId: null,
-          hasProfilePhoto: false,
-          avatar: null,
-          channel: 'whatsapp',
-          lastSeen: conversationData.lastMessageAt
-        };
-      }
-
-      logger.info('Conversación obtenida exitosamente', {
-        conversationId: id,
-        hasData: !!conversationData,
-        dataKeys: Object.keys(conversationData)
-      });
-
-      return conversationData;
+      
+      return null;
 
     } catch (error) {
-      logger.error('Error obteniendo conversación de Firestore', {
-        conversationId: id,
-        error: error.message,
-        stack: error.stack
-      });
+      logger.error('Error obteniendo conversación por ID:', error);
       throw error;
     }
   }
 
   /**
    * Crear nueva conversación
+   * 🔧 CORREGIDO: Crear en contacts/{contactId}/conversations en lugar de conversations
    */
   static async createConversation(conversationData) {
     try {
@@ -161,11 +193,20 @@ class ConversationService {
         conversation.participants.push(conversationData.createdBy);
       }
 
-      const conversationRef = firestore.collection('conversations').doc(conversation.id);
+      // 🔧 CORRECCIÓN CRÍTICA: Crear en contacts/{contactId}/conversations
+      // Primero, buscar o crear el contacto
+      const contactId = await this.getOrCreateContactId(conversationData.customerPhone, conversationData.customerName);
+      
+      // Crear la conversación en la subcolección del contacto
+      const conversationRef = firestore
+        .collection('contacts')
+        .doc(contactId)
+        .collection('conversations')
+        .doc(conversation.id);
       
       // 🔧 NUEVO: Crear la conversación y la subcolección messages en una transacción
       await firestore.runTransaction(async (transaction) => {
-        // Crear el documento de conversación
+        // Crear el documento de conversación en contacts/{contactId}/conversations
         transaction.set(conversationRef, conversation);
         
         // 🔧 CRÍTICO: Crear la subcolección messages con un documento inicial
@@ -192,12 +233,14 @@ class ConversationService {
         transaction.set(messagesRef.doc('initial_placeholder'), initialMessageDoc);
       });
 
-      logger.info('✅ Conversación creada exitosamente con subcolección messages', {
+      logger.info('✅ Conversación creada exitosamente en contacts/{contactId}/conversations', {
         conversationId: conversation.id,
+        contactId: contactId,
         customerPhone: conversation.customerPhone,
         participants: conversation.participants,
         createdBy: conversationData.createdBy,
-        hasMessagesSubcollection: true
+        hasMessagesSubcollection: true,
+        structure: 'contacts/{contactId}/conversations/{conversationId}/messages'
       });
 
       return conversation;
@@ -213,7 +256,65 @@ class ConversationService {
   }
 
   /**
+   * 🔧 NUEVO: Obtener o crear el ID del contacto
+   */
+  static async getOrCreateContactId(customerPhone, customerName) {
+    try {
+      // Buscar contacto existente por teléfono
+      const contactsSnapshot = await firestore
+        .collection('contacts')
+        .where('phone', '==', customerPhone)
+        .limit(1)
+        .get();
+
+      if (!contactsSnapshot.empty) {
+        const contactDoc = contactsSnapshot.docs[0];
+        logger.info('✅ Contacto existente encontrado', {
+          contactId: contactDoc.id,
+          customerPhone,
+          customerName
+        });
+        return contactDoc.id;
+      }
+
+      // Crear nuevo contacto si no existe
+      const newContactData = {
+        phone: customerPhone,
+        name: customerName || customerPhone,
+        email: null,
+        company: null,
+        tags: [],
+        metadata: {
+          createdVia: 'conversation_creation',
+          createdAt: new Date().toISOString()
+        },
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      };
+
+      const newContactRef = await firestore.collection('contacts').add(newContactData);
+      
+      logger.info('✅ Nuevo contacto creado', {
+        contactId: newContactRef.id,
+        customerPhone,
+        customerName
+      });
+
+      return newContactRef.id;
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo/creando contacto', {
+        customerPhone,
+        customerName,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Actualizar conversación
+   * 🔧 CORREGIDO: Actualizar en contacts/{contactId}/conversations
    */
   static async updateConversation(id, updates) {
     try {
@@ -222,9 +323,37 @@ class ConversationService {
         updatedAt: FieldValue.serverTimestamp()
       };
 
-      await firestore.collection('conversations').doc(id).update(updateData);
+      // 🔧 CORRECCIÓN CRÍTICA: Buscar la conversación en la estructura correcta
+      const contactsSnapshot = await firestore.collection('contacts').get();
       
-      return this.getConversationById(id);
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        
+        const conversationRef = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations')
+          .doc(id);
+        
+        const conversationDoc = await conversationRef.get();
+        
+        if (conversationDoc.exists) {
+          // Actualizar la conversación encontrada
+          await conversationRef.update(updateData);
+          
+          logger.info('✅ Conversación actualizada en contacts/{contactId}/conversations', {
+            conversationId: id,
+            contactId: contactId,
+            updates: Object.keys(updates),
+            structure: 'contacts/{contactId}/conversations'
+          });
+          
+          return this.getConversationById(id);
+        }
+      }
+
+      // Si no se encuentra la conversación
+      throw new Error(`Conversación con ID ${id} no encontrada en ningún contacto`);
 
     } catch (error) {
       logger.error('Error actualizando conversación:', error);
