@@ -96,21 +96,28 @@ function loggingMiddleware(req, res, next) {
   };
   
   // ✅ SUPER ROBUSTO: Logging de inicio de petición
-  logger.info('📥 Petición HTTP iniciada', {
-    category: 'HTTP_REQUEST_START',
-    requestId,
-    method: req.method,
-    url: req.originalUrl,
-    path: req.path,
-    ip: req.ip,
-    userAgent: req.headers['user-agent']?.substring(0, 100),
-    origin: req.headers.origin,
-    referer: req.headers.referer,
-    contentType: req.headers['content-type'],
-    contentLength: req.headers['content-length'],
-    authorization: req.headers.authorization ? 'Bearer ***' : 'none',
-    timestamp: new Date().toISOString()
-  });
+  // 🔧 CORRECCIÓN CRÍTICA: Evitar logging en endpoints de exportación para prevenir ciclo infinito
+  const isLogExportEndpoint = req.path.includes('/logs/export') || 
+                             req.path.includes('/api/logs/export') ||
+                             req.originalUrl.includes('export') && req.path.includes('/logs');
+  
+  if (!isLogExportEndpoint) {
+    logger.info('📥 Petición HTTP iniciada', {
+      category: 'HTTP_REQUEST_START',
+      requestId,
+      method: req.method,
+      url: req.originalUrl,
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']?.substring(0, 100),
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      contentType: req.headers['content-type'],
+      contentLength: req.headers['content-length'],
+      authorization: req.headers.authorization ? 'Bearer ***' : 'none',
+      timestamp: new Date().toISOString()
+    });
+  }
 
   // ✅ SUPER ROBUSTO: Interceptar respuesta para logging
   const originalSend = res.send;
@@ -142,6 +149,11 @@ function loggingMiddleware(req, res, next) {
 
   // ✅ SUPER ROBUSTO: Logging de fin de petición
   res.on('finish', () => {
+    // 🔧 CORRECCIÓN CRÍTICA: Evitar logging en endpoints de exportación para prevenir ciclo infinito
+    if (isLogExportEndpoint) {
+      return; // No generar logs para endpoints de exportación
+    }
+    
     const duration = Date.now() - startTime;
     const statusCode = res?.statusCode || 0;
     const statusMessage = res?.statusMessage || 'Unknown';

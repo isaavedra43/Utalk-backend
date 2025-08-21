@@ -385,7 +385,59 @@ class LogDashboardController {
       } = req.query;
 
       const filters = { level, category, timeRange };
-      const exportData = logMonitor.exportLogs(format, filters);
+      
+      // 🔧 CORRECCIÓN CRÍTICA: Filtrar logs de exportación para evitar ciclo infinito
+      let logs = logMonitor.getLogs(filters);
+      
+      // Filtrar logs relacionados con exportación para evitar ciclo infinito
+      logs = logs.filter(log => {
+        // Excluir logs de exportación
+        if (log.category === 'HTTP_REQUEST_START' && log.data?.url?.includes('/logs/export')) {
+          return false;
+        }
+        if (log.category === 'HTTP_SUCCESS' && log.data?.url?.includes('/logs/export')) {
+          return false;
+        }
+        if (log.category === 'HTTP_REQUEST_COMPLETE' && log.data?.url?.includes('/logs/export')) {
+          return false;
+        }
+        // Excluir logs del dashboard de logs
+        if (log.data?.url?.includes('/logs') && log.data?.url?.includes('export')) {
+          return false;
+        }
+        return true;
+      });
+      
+      // Crear datos de exportación filtrados
+      let exportData;
+      if (format === 'json') {
+        exportData = {
+          format: 'json',
+          data: JSON.stringify(logs, null, 2),
+          filename: `logs-${new Date().toISOString().split('T')[0]}.json`
+        };
+      } else {
+        const csvHeaders = ['timestamp', 'level', 'category', 'message', 'userId', 'endpoint', 'ip'];
+        const csvData = logs.map(log => [
+          log.timestamp,
+          log.level,
+          log.category,
+          typeof log.message === 'string' ? log.message.replace(/"/g, '""') : JSON.stringify(log.message).replace(/"/g, '""'),
+          log.userId || 'system',
+          log.endpoint || 'unknown',
+          log.ip || 'unknown'
+        ]);
+        
+        const csvContent = [csvHeaders, ...csvData]
+          .map(row => row.map(cell => `"${cell}"`).join(','))
+          .join('\n');
+        
+        exportData = {
+          format: 'csv',
+          data: csvContent,
+          filename: `logs-${new Date().toISOString().split('T')[0]}.csv`
+        };
+      }
 
       res.set({
         'Content-Type': format === 'json' ? 'application/json' : 'text/csv',
@@ -431,6 +483,80 @@ class LogDashboardController {
         success: false,
         error: 'CLEAR_ERROR',
         message: 'Error limpiando logs'
+      });
+    }
+  }
+
+  /**
+   * 🧹 CLEAN DUPLICATE LOGS
+   * Limpia logs duplicados y el ciclo infinito de exportación
+   */
+  static async cleanDuplicateLogs(req, res) {
+    try {
+      // 🔧 CORRECCIÓN CRÍTICA: Limpiar logs duplicados y ciclo infinito
+      const logs = logMonitor.getLogs({ limit: 10000 }); // Obtener todos los logs
+      
+      // Filtrar logs duplicados basados en timestamp y mensaje
+      const uniqueLogs = [];
+      const seenLogs = new Set();
+      let duplicateCount = 0;
+      let exportCycleCount = 0;
+      
+      for (const log of logs) {
+        // Crear clave única para detectar duplicados
+        const logKey = `${log.timestamp}_${log.category}_${log.message}_${log.ip}`;
+        
+        // Detectar logs del ciclo infinito de exportación
+        const isExportCycleLog = (
+          log.category === 'HTTP_REQUEST_START' && 
+          log.data?.url?.includes('/logs/export')
+        ) || (
+          log.category === 'HTTP_SUCCESS' && 
+          log.data?.url?.includes('/logs/export')
+        );
+        
+        if (isExportCycleLog) {
+          exportCycleCount++;
+          continue; // Saltar logs del ciclo de exportación
+        }
+        
+        if (seenLogs.has(logKey)) {
+          duplicateCount++;
+          continue; // Saltar duplicados
+        }
+        
+        seenLogs.add(logKey);
+        uniqueLogs.push(log);
+      }
+      
+      // Reemplazar logs con versión limpia
+      logMonitor.clearLogs();
+      uniqueLogs.forEach(log => {
+        logMonitor.addLog(log.level, log.category, log.message, log.data);
+      });
+      
+      const totalCleaned = duplicateCount + exportCycleCount;
+      
+      res.json({
+        success: true,
+        data: {
+          message: `Limpieza completada: ${duplicateCount} duplicados y ${exportCycleCount} logs de ciclo de exportación eliminados`,
+          duplicateCount,
+          exportCycleCount,
+          totalCleaned,
+          remainingLogs: uniqueLogs.length
+        }
+      });
+    } catch (error) {
+      logger.error('Error limpiando logs duplicados', {
+        category: 'LOG_DASHBOARD_ERROR',
+        error: error.message
+      });
+      
+      res.status(500).json({
+        success: false,
+        error: 'CLEAN_ERROR',
+        message: 'Error limpiando logs duplicados'
       });
     }
   }

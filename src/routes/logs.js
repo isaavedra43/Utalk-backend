@@ -110,6 +110,16 @@ router.post('/clear',
 );
 
 /**
+ * 🧹 CLEAN DUPLICATE LOGS
+ * @route POST /api/logs/clean-duplicates
+ * @desc Limpiar logs duplicados y ciclo infinito de exportación
+ * @access Public
+ */
+router.post('/clean-duplicates',
+  LogDashboardController.cleanDuplicateLogs
+);
+
+/**
  * 📈 GET RATE LIMIT METRICS
  * @route GET /api/logs/rate-limit-metrics
  * @desc Métricas de rate limiting

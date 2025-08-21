@@ -1794,21 +1794,26 @@ class MediaUploadController {
    */
   emitUploadStart(file, userEmail, conversationId) {
     try {
-      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-      const socketManager = new EnterpriseSocketManager();
+      // 🔧 CORRECCIÓN CRÍTICA: No instanciar SocketManager sin servidor
+      const socketIndex = require('../socket');
+      const socketManager = socketIndex.getSocketManager();
       
-      socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-start', {
-        fileId: `temp_${Date.now()}`,
-        fileName: file.originalname,
-        fileSize: file.size,
-        uploadedBy: userEmail,
-        timestamp: new Date().toISOString()
-      });
+      if (socketManager?.io) {
+        socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-start', {
+          fileId: `temp_${Date.now()}`,
+          fileName: file.originalname,
+          fileSize: file.size,
+          uploadedBy: userEmail,
+          timestamp: new Date().toISOString()
+        });
 
-      logger.debug('📡 Evento file-upload-start emitido', {
-        fileName: file.originalname,
-        userEmail
-      });
+        logger.debug('📡 Evento file-upload-start emitido', {
+          fileName: file.originalname,
+          userEmail
+        });
+      } else {
+        logger.warn('⚠️ SocketManager no disponible para emitir file-upload-start');
+      }
     } catch (error) {
       logger.warn('⚠️ Error emitiendo file-upload-start', { error: error.message });
     }
@@ -1819,22 +1824,27 @@ class MediaUploadController {
    */
   emitUploadProgress(fileId, progress, bytesUploaded, userEmail, conversationId) {
     try {
-      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-      const socketManager = new EnterpriseSocketManager();
+      // 🔧 CORRECCIÓN CRÍTICA: No instanciar SocketManager sin servidor
+      const socketIndex = require('../socket');
+      const socketManager = socketIndex.getSocketManager();
       
-      socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-progress', {
-        fileId,
-        progress,
-        bytesUploaded,
-        uploadedBy: userEmail,
-        timestamp: new Date().toISOString()
-      });
+      if (socketManager?.io) {
+        socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-progress', {
+          fileId,
+          progress,
+          bytesUploaded,
+          uploadedBy: userEmail,
+          timestamp: new Date().toISOString()
+        });
 
-      logger.debug('📡 Evento file-upload-progress emitido', {
-        fileId,
-        progress: `${progress}%`,
-        userEmail
-      });
+        logger.debug('📡 Evento file-upload-progress emitido', {
+          fileId,
+          progress: `${progress}%`,
+          userEmail
+        });
+      } else {
+        logger.warn('⚠️ SocketManager no disponible para emitir file-upload-progress');
+      }
     } catch (error) {
       logger.warn('⚠️ Error emitiendo file-upload-progress', { error: error.message });
     }
@@ -1845,26 +1855,31 @@ class MediaUploadController {
    */
   emitUploadComplete(result, userEmail, conversationId) {
     try {
-      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-      const socketManager = new EnterpriseSocketManager();
+      // 🔧 CORRECCIÓN CRÍTICA: No instanciar SocketManager sin servidor
+      const socketIndex = require('../socket');
+      const socketManager = socketIndex.getSocketManager();
       
-      socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-complete', {
-        fileId: result.id,
-        url: result.url,
-        fileName: result.originalName,
-        fileSize: result.size,
-        type: this.getFileType(result.mimetype),
-        thumbnail: result.thumbnailUrl,
-        metadata: result.metadata,
-        uploadedBy: userEmail,
-        timestamp: new Date().toISOString()
-      });
+      if (socketManager?.io) {
+        socketManager.io.to(`conversation_${conversationId || 'general'}`).emit('file-upload-complete', {
+          fileId: result.id,
+          url: result.url,
+          fileName: result.originalName,
+          fileSize: result.size,
+          type: this.getFileType(result.mimetype),
+          thumbnail: result.thumbnailUrl,
+          metadata: result.metadata,
+          uploadedBy: userEmail,
+          timestamp: new Date().toISOString()
+        });
 
-      logger.debug('📡 Evento file-upload-complete emitido', {
-        fileId: result.id,
-        fileName: result.originalName,
-        userEmail
-      });
+        logger.debug('📡 Evento file-upload-complete emitido', {
+          fileId: result.id,
+          fileName: result.originalName,
+          userEmail
+        });
+      } else {
+        logger.warn('⚠️ SocketManager no disponible para emitir file-upload-complete');
+      }
     } catch (error) {
       logger.warn('⚠️ Error emitiendo file-upload-complete', { error: error.message });
     }
@@ -1875,22 +1890,27 @@ class MediaUploadController {
    */
   emitUploadError(file, errorMessage, userEmail) {
     try {
-      const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-      const socketManager = new EnterpriseSocketManager();
+      // 🔧 CORRECCIÓN CRÍTICA: No instanciar SocketManager sin servidor
+      const socketIndex = require('../socket');
+      const socketManager = socketIndex.getSocketManager();
       
-      socketManager.io.emit('file-upload-error', {
-        fileId: `temp_${Date.now()}`,
-        fileName: file?.originalname,
-        error: errorMessage,
-        uploadedBy: userEmail,
-        timestamp: new Date().toISOString()
-      });
+      if (socketManager?.io) {
+        socketManager.io.emit('file-upload-error', {
+          fileId: `temp_${Date.now()}`,
+          fileName: file?.originalname,
+          error: errorMessage,
+          uploadedBy: userEmail,
+          timestamp: new Date().toISOString()
+        });
 
-      logger.debug('📡 Evento file-upload-error emitido', {
-        fileName: file?.originalname,
-        error: errorMessage,
-        userEmail
-      });
+        logger.debug('📡 Evento file-upload-error emitido', {
+          fileName: file?.originalname,
+          error: errorMessage,
+          userEmail
+        });
+      } else {
+        logger.warn('⚠️ SocketManager no disponible para emitir file-upload-error');
+      }
     } catch (error) {
       logger.warn('⚠️ Error emitiendo file-upload-error', { error: error.message });
     }

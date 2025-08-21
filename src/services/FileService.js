@@ -434,8 +434,10 @@ class FileService {
 
       // 🆕 EMITIR EVENTO DE PROCESAMIENTO INICIADO CON MANEJO DE ERRORES
       try {
-        const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-        const socketManager = new EnterpriseSocketManager();
+        // 🔧 CORRECCIÓN CRÍTICA: No instanciar SocketManager sin servidor
+        // En su lugar, usar el singleton global si está disponible
+        const socketIndex = require('../socket');
+        const socketManager = socketIndex.getSocketManager();
         
         if (socketManager && typeof socketManager.emitFileProcessing === 'function') {
           socketManager.emitFileProcessing({
@@ -578,8 +580,9 @@ class FileService {
 
       // 🆕 EMITIR EVENTO DE ARCHIVO LISTO CON MANEJO DE ERRORES
       try {
-        const { EnterpriseSocketManager } = require('../socket/enterpriseSocketManager');
-        const socketManager = new EnterpriseSocketManager();
+        // 🔧 CORRECCIÓN CRÍTICA: No instanciar SocketManager sin servidor
+        const socketIndex = require('../socket');
+        const socketManager = socketIndex.getSocketManager();
         
         if (socketManager && typeof socketManager.emitFileReady === 'function') {
           socketManager.emitFileReady({

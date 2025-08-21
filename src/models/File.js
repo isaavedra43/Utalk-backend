@@ -42,15 +42,6 @@ class File {
    * Crear un nuevo archivo con indexación
    */
   static async create(fileData) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        fileId: fileData.id || 'unknown'
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const file = new File(fileData);
 
     // Preparar datos para Firestore
@@ -73,15 +64,6 @@ class File {
    * Crear índices para consultas eficientes
    */
   static async createIndexes(file) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para crear índices', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        fileId: file.id
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const batch = firestore.batch();
 
     // Índice por conversación (solo si conversationId existe y no es temporal)
@@ -194,15 +176,6 @@ class File {
    * Obtener archivo por ID
    */
   static async getById(id) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para getById', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        fileId: id
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const doc = await firestore.collection('files').doc(id).get();
     if (!doc.exists) {
       return null;
@@ -214,15 +187,6 @@ class File {
    * Buscar archivo por storage path
    */
   static async getByStoragePath(storagePath) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para getByStoragePath', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        storagePath
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const snapshot = await firestore
       .collection('files')
       .where('storagePath', '==', storagePath)
@@ -242,15 +206,6 @@ class File {
    * Listar archivos por conversación (eficiente)
    */
   static async listByConversation(conversationId, options = {}) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para listByConversation', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        conversationId
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const {
       limit = 50,
       startAfter = null,
@@ -293,15 +248,6 @@ class File {
    * Listar archivos por usuario (eficiente)
    */
   static async listByUser(userId, options = {}) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para listByUser', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        userId
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const {
       limit = 50,
       startAfter = null,
@@ -344,15 +290,6 @@ class File {
    * Listar archivos por categoría (eficiente)
    */
   static async listByCategory(category, options = {}) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para listByCategory', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        fileCategory: category
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const {
       limit = 50,
       startAfter = null,
@@ -390,15 +327,6 @@ class File {
    * Listar archivos por fecha (eficiente)
    */
   static async listByDate(date, options = {}) {
-    // 🔧 CORRECCIÓN CRÍTICA: Verificar que firestore esté inicializado
-    if (!firestore) {
-      logger.error('❌ Firestore no está inicializado para listByDate', {
-        category: 'FIRESTORE_NOT_INITIALIZED',
-        date
-      });
-      throw new Error('Firestore no está inicializado. Verifica la configuración de Firebase.');
-    }
-
     const {
       limit = 50,
       startAfter = null,
