@@ -529,7 +529,24 @@ class ConversationController {
         }
       }
 
-      // 🆕 CREAR CONVERSACIÓN
+      // 🆕 GENERAR CONVERSATION ID CORRECTO
+      const { generateConversationId } = require('../utils/conversation');
+      const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM || process.env.WHATSAPP_FROM;
+      
+      if (!whatsappNumber) {
+        throw new Error('TWILIO_WHATSAPP_NUMBER no configurado');
+      }
+
+      const conversationId = generateConversationId(whatsappNumber, customerPhone);
+      
+      logger.info('🔧 Conversation ID generado correctamente', {
+        whatsappNumber,
+        customerPhone,
+        conversationId,
+        generatedBy: 'ConversationController.createConversation'
+      });
+
+      // 🆕 CREAR CONVERSACIÓN CON ID CORRECTO
       // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
       const Conversation = require('../models/Conversation');
       const participants = Conversation.ensureParticipantsArray(
@@ -538,6 +555,7 @@ class ConversationController {
       );
       
       const conversationData = {
+        id: conversationId, // 🔧 CRÍTICO: Usar el ID generado correctamente
         customerPhone: customerPhone,
         assignedTo: assignedAgent?.email || null,
         assignedToName: assignedAgent?.name || null,
@@ -551,18 +569,46 @@ class ConversationController {
 
       // �� CREAR MENSAJE INICIAL SI SE PROPORCIONA
       if (initialMessage) {
-        const messageData = {
-          conversationId: conversation.id,
-          content: initialMessage,
-          senderIdentifier: req.user.email,
-          recipientIdentifier: customerPhone,
-          direction: 'outbound',
-          type: 'text',
-          status: 'sent',
-          metadata: { createdWithConversation: true }
-        };
+        try {
+          // Crear mensaje en base de datos
+          const messageData = {
+            conversationId: conversation.id,
+            content: initialMessage,
+            senderIdentifier: req.user.email,
+            recipientIdentifier: customerPhone,
+            direction: 'outbound',
+            type: 'text',
+            status: 'sent',
+            metadata: { createdWithConversation: true }
+          };
 
-        await Message.create(messageData);
+          await Message.create(messageData);
+
+          // Enviar mensaje por WhatsApp
+          const { getMessageService } = require('../services/MessageService');
+          const messageService = getMessageService();
+          
+          const sentMessage = await messageService.sendWhatsAppMessage({
+            from: whatsappNumber,
+            to: customerPhone,
+            body: initialMessage
+          });
+
+          logger.info('✅ Mensaje inicial enviado por WhatsApp', {
+            conversationId: conversation.id,
+            customerPhone,
+            messageContent: initialMessage,
+            twilioSid: sentMessage?.sid
+          });
+
+        } catch (whatsappError) {
+          logger.error('❌ Error enviando mensaje inicial por WhatsApp', {
+            conversationId: conversation.id,
+            customerPhone,
+            error: whatsappError.message
+          });
+          // No fallar la creación de conversación si falla el envío de WhatsApp
+        }
       }
 
       // 📡 EMITIR EVENTOS WEBSOCKET

@@ -153,10 +153,24 @@ class ConversationService {
         unreadCount: 0
       };
 
-      const docRef = await firestore.collection('conversations').add(conversation);
+      // 🔧 CRÍTICO: Usar el ID proporcionado en lugar de generar uno automático
+      const conversationId = conversationData.id;
+      
+      if (!conversationId) {
+        throw new Error('ID de conversación requerido para crear conversación');
+      }
+
+      // Usar set() con ID específico en lugar de add()
+      await firestore.collection('conversations').doc(conversationId).set(conversation);
+      
+      logger.info('✅ Conversación creada con ID específico', {
+        conversationId,
+        customerPhone: conversationData.customerPhone,
+        createdBy: conversationData.createdBy
+      });
       
       return {
-        id: docRef.id,
+        id: conversationId,
         ...conversation
       };
 
