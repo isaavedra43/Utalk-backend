@@ -371,4 +371,63 @@ router.post('/send-file-to-whatsapp',
   MessageController.sendFileToWhatsApp
 );
 
+// 🆕 ENDPOINT SIMPLE PARA ENVIAR MENSAJES CON ARCHIVOS (SIN VALIDACIÓN COMPLEJA)
+router.post('/send-with-file-ids', authMiddleware, async (req, res) => {
+  try {
+    const { conversationId, content, attachments } = req.body;
+    
+    // Validación simple manual
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'MISSING_CONVERSATION_ID',
+        message: 'conversationId es requerido'
+      });
+    }
+    
+    if (!attachments || !Array.isArray(attachments) || attachments.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'MISSING_ATTACHMENTS',
+        message: 'attachments es requerido y debe ser un array no vacío'
+      });
+    }
+    
+    // Validar cada attachment
+    for (const attachment of attachments) {
+      if (!attachment.id || !attachment.type) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_ATTACHMENT',
+          message: 'Cada attachment debe tener id y type'
+        });
+      }
+    }
+    
+    // Llamar al controlador existente
+    const result = await MessageController.sendMessageWithAttachments(req, res);
+    return result;
+    
+  } catch (error) {
+    logger.error('Error en endpoint simple send-with-file-ids:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'INTERNAL_ERROR',
+      message: 'Error interno del servidor'
+    });
+  }
+});
+
+/**
+ * 📎 @route POST /api/messages/send-file-to-whatsapp
+ * @desc Enviar archivo específico a WhatsApp (FASE 6)
+ * @access Private (Agent, Admin)
+ */
+router.post('/send-file-to-whatsapp',
+  authMiddleware,
+  requireWriteAccess,
+  messageValidators.validateSendFileToWhatsApp,
+  MessageController.sendFileToWhatsApp
+);
+
 module.exports = router;
