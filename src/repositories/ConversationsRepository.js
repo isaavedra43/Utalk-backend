@@ -726,9 +726,19 @@ class ConversationsRepository {
         logger.info('message_write_diag', diagnosticLog);
       }
 
-      // Transacción atómica: mensaje + conversación
+      // Resolver contactId por teléfono del cliente (outbound → recipient)
+      const recipientPhone = msg.recipientIdentifier;
+      const contactSnap = await firestore.collection('contacts').where('phone', '==', recipientPhone).limit(1).get();
+      if (contactSnap.empty) {
+        throw new Error('Contacto no encontrado para outbound');
+      }
+      const contactId = contactSnap.docs[0].id;
+
+      // Transacción atómica: mensaje + conversación (solo en contacts/{contactId}/conversations)
       const result = await firestore.runTransaction(async (transaction) => {
-        const conversationRef = firestore.collection(this.collectionPath).doc(msg.conversationId);
+        const conversationRef = firestore
+          .collection('contacts').doc(contactId)
+          .collection('conversations').doc(msg.conversationId);
         const messageRef = conversationRef.collection('messages').doc(msg.messageId);
 
         // Verificar si el mensaje ya existe (idempotencia)
@@ -771,28 +781,6 @@ class ConversationsRepository {
         // Guardar mensaje
         transaction.set(messageRef, messageFirestoreData);
 
-        // 🔄 Escritura anidada en contacts/{contactId}/conversations/{conversationId}/messages
-        try {
-          const customerPhone = msg.recipientIdentifier; // outbound → cliente es recipient
-          const contactSnap = await firestore.collection('contacts').where('phone', '==', customerPhone).limit(1).get();
-          if (!contactSnap.empty) {
-            const contactId = contactSnap.docs[0].id;
-            const nestedConvRef = firestore.collection('contacts').doc(contactId).collection('conversations').doc(msg.conversationId);
-            transaction.set(nestedConvRef, {
-              id: msg.conversationId,
-              customerPhone,
-              participants: [msg.senderIdentifier, msg.recipientIdentifier].filter(Boolean),
-              status: 'open',
-              updatedAt: new Date(),
-              createdAt: new Date()
-            }, { merge: true });
-            const nestedMsgRef = nestedConvRef.collection('messages').doc(msg.messageId);
-            transaction.set(nestedMsgRef, messageFirestoreData);
-          }
-        } catch (_) {
-          // no-op nested write
-        }
-
         // Preparar actualización de conversación
         const lastMessage = {
           messageId: msg.messageId,
@@ -804,12 +792,11 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // Asegurar que participants incluya sender (agente/email) y recipient (cliente)
+        // Asegurar que participants incluya sender (agente/email) y viewers; no teléfonos
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
-        const participantsSet = new Set(existingParticipants);
-        if (msg.senderIdentifier) participantsSet.add(msg.senderIdentifier);
-        if (msg.recipientIdentifier) participantsSet.add(msg.recipientIdentifier);
-        if (msg.agentEmail) participantsSet.add(msg.agentEmail);
+        const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
+        if (msg.senderIdentifier) participantsSet.add(String(msg.senderIdentifier).toLowerCase());
+        if (msg.agentEmail) participantsSet.add(String(msg.agentEmail).toLowerCase());
 
         // NEW: mergear viewers por defecto (sin duplicar)
         const viewers_out = getDefaultViewerEmails();
@@ -847,20 +834,6 @@ class ConversationsRepository {
 
         // Actualizar conversación
         transaction.set(conversationRef, conversationUpdate, { merge: true });
-
-        // 🔄 También actualizar lastMessage en conversación anidada si existe contacto
-        try {
-          const contactSnap2 = await firestore.collection('contacts').where('phone', '==', msg.recipientIdentifier).limit(1).get();
-          if (!contactSnap2.empty) {
-            const contactId = contactSnap2.docs[0].id;
-            const nestedConvRef = firestore.collection('contacts').doc(contactId).collection('conversations').doc(msg.conversationId);
-            transaction.set(nestedConvRef, {
-              lastMessage,
-              lastMessageAt,
-              updatedAt: new Date()
-            }, { merge: true });
-          }
-        } catch (_) {}
 
         return { 
           message: messageFirestoreData, 
@@ -944,9 +917,12 @@ class ConversationsRepository {
         result.message.twilioSid = resp?.sid;
         result.message.status = resp?.status || 'queued';
 
-        // persiste actualización de twilioSid/status en Firestore
-        const messageRef = firestore.collection(this.collectionPath).doc(msg.conversationId).collection('messages').doc(msg.messageId);
-        await messageRef.update({ 
+        // persiste actualización de twilioSid/status en Firestore (ruta anidada)
+        const msgRef = firestore
+          .collection('contacts').doc(contactId)
+          .collection('conversations').doc(msg.conversationId)
+          .collection('messages').doc(msg.messageId);
+        await msgRef.update({ 
           status: result.message.status, 
           twilioSid: result.message.twilioSid,
           metadata: {
@@ -966,9 +942,12 @@ class ConversationsRepository {
           more: err?.moreInfo 
         });
         
-        // Persistir error en el documento de mensaje
-        const messageRef = firestore.collection(this.collectionPath).doc(msg.conversationId).collection('messages').doc(msg.messageId);
-        await messageRef.update({ 
+        // Persistir error en el documento de mensaje (ruta anidada)
+        const msgRef = firestore
+          .collection('contacts').doc(contactId)
+          .collection('conversations').doc(msg.conversationId)
+          .collection('messages').doc(msg.messageId);
+        await msgRef.update({ 
           status: 'failed', 
           error: String(err?.message || err),
           metadata: {
