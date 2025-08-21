@@ -55,11 +55,11 @@ const contactValidators = {
   validateSearch: validateRequest({
     query: Joi.object({
       phone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).optional(),
-      q: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).optional(),
+      q: Joi.string().min(1).max(100).optional(),
       tags: Joi.string().optional(),
       page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(20)
-    }).or('phone', 'q') // Requerir al menos uno de los dos parámetros
+    })
   }),
 
   validateStats: validateRequest({

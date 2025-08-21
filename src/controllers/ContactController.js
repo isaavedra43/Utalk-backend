@@ -84,8 +84,7 @@ class ContactController {
    */
   static async searchContactByPhone(req, res, next) {
     try {
-      // Manejar tanto 'phone' como 'q' para compatibilidad
-      const phone = req.query.phone || req.query.q;
+      const { phone } = req.query;
 
       if (!phone) {
         throw CommonErrors.BAD_REQUEST('Teléfono es requerido', 'contact_search');
@@ -123,7 +122,7 @@ class ContactController {
         stack: error.stack,
         userEmail: req.user?.email,
         query: req.query,
-        phone: req.query.phone || req.query.q
+        phone: req.query.phone
       });
       return ResponseHandler.error(res, error);
     }
