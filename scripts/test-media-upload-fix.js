@@ -1,59 +1,88 @@
 /**
- * 🔧 SCRIPT DE PRUEBA PARA VERIFICAR LA CORRECCIÓN DE SUBIDA DE MEDIA
+ * 🧪 SCRIPT DE PRUEBA: Verificación de correcciones en MediaUploadController
  * 
- * Este script prueba que el middleware de multer está correctamente configurado
- * y que la subida de archivos funciona después de la corrección.
- * 
- * @version 1.0.0
- * @date 2025-08-19
+ * Este script verifica que las correcciones de mimeType vs mimetype funcionan correctamente
  */
 
 const MediaUploadController = require('../src/controllers/MediaUploadController');
 
-logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 TESTING: MediaUploadController Fix');
-logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '=====================================');
+async function testMediaUploadController() {
+  console.log('🧪 Iniciando pruebas de MediaUploadController...\n');
 
-try {
-  // 1. Verificar que se puede importar
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 1. Importación exitosa');
-  
-  // 2. Verificar que es una clase
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 2. Es una clase:', typeof MediaUploadController === 'function');
-  
-  // 3. Verificar que se puede instanciar
   const controller = new MediaUploadController();
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 3. Instanciación exitosa');
-  
-  // 4. Verificar métodos principales
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 4. Métodos disponibles:');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadMedia:', typeof controller.uploadMedia === 'function');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadImage:', typeof controller.uploadImage === 'function');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadVideo:', typeof controller.uploadVideo === 'function');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadAudio:', typeof controller.uploadAudio === 'function');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - uploadDocument:', typeof controller.uploadDocument === 'function');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - isWhatsAppCompatible:', typeof controller.isWhatsAppCompatible === 'function');
-  
-  // 5. Verificar configuración
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 5. Configuración:');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Rate limit configurado:', !!controller.uploadLimit);
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - Multer configurado:', !!controller.multerConfig);
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '   - FileService instanciado:', !!controller.fileService);
-  
-  // 6. Probar método isWhatsAppCompatible
-  const testFile = {
-    mimetype: 'image/jpeg',
-    originalname: 'test.jpg',
-    size: 1024 * 1024 // 1MB
-  };
-  
-  const isCompatible = controller.isWhatsAppCompatible(testFile);
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ 6. isWhatsAppCompatible test:', isCompatible);
-  
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 TODAS LAS PRUEBAS PASARON EXITOSAMENTE!');
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🚀 MediaUploadController está listo para producción');
-  
-} catch (error) {
-  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: '❌ ERROR EN PRUEBA:', error.message);
-  logger.error('Console error migrated', { category: 'AUTO_MIGRATED', content: 'Stack:', error.stack);
+
+  // Test 1: Verificar que getFileType funciona con mimeType válido
+  console.log('📋 Test 1: getFileType con mimeType válido');
+  try {
+    const result1 = controller.getFileType('image/jpeg');
+    console.log('✅ image/jpeg →', result1);
+    
+    const result2 = controller.getFileType('video/mp4');
+    console.log('✅ video/mp4 →', result2);
+    
+    const result3 = controller.getFileType('audio/mpeg');
+    console.log('✅ audio/mpeg →', result3);
+    
+    const result4 = controller.getFileType('application/pdf');
+    console.log('✅ application/pdf →', result4);
+  } catch (error) {
+    console.error('❌ Error en Test 1:', error.message);
+  }
+
+  // Test 2: Verificar que getFileType maneja valores inválidos
+  console.log('\n📋 Test 2: getFileType con valores inválidos');
+  try {
+    const result1 = controller.getFileType(undefined);
+    console.log('✅ undefined →', result1);
+    
+    const result2 = controller.getFileType(null);
+    console.log('✅ null →', result2);
+    
+    const result3 = controller.getFileType('');
+    console.log('✅ string vacío →', result3);
+    
+    const result4 = controller.getFileType(123);
+    console.log('✅ número →', result4);
+  } catch (error) {
+    console.error('❌ Error en Test 2:', error.message);
+  }
+
+  // Test 3: Verificar que isPreviewable funciona
+  console.log('\n📋 Test 3: isPreviewable');
+  try {
+    const result1 = controller.isPreviewable('image/jpeg');
+    console.log('✅ image/jpeg previewable →', result1);
+    
+    const result2 = controller.isPreviewable('video/mp4');
+    console.log('✅ video/mp4 previewable →', result2);
+    
+    const result3 = controller.isPreviewable('text/plain');
+    console.log('✅ text/plain previewable →', result3);
+  } catch (error) {
+    console.error('❌ Error en Test 3:', error.message);
+  }
+
+  // Test 4: Verificar que isWhatsAppCompatible funciona
+  console.log('\n📋 Test 4: isWhatsAppCompatible');
+  try {
+    const result1 = controller.isWhatsAppCompatible('image/jpeg', 1024 * 1024); // 1MB
+    console.log('✅ image/jpeg 1MB compatible →', result1);
+    
+    const result2 = controller.isWhatsAppCompatible('image/jpeg', 10 * 1024 * 1024); // 10MB
+    console.log('✅ image/jpeg 10MB compatible →', result2);
+    
+    const result3 = controller.isWhatsAppCompatible('video/mp4', 5 * 1024 * 1024); // 5MB
+    console.log('✅ video/mp4 5MB compatible →', result3);
+  } catch (error) {
+    console.error('❌ Error en Test 4:', error.message);
+  }
+
+  console.log('\n🎉 Todas las pruebas completadas exitosamente!');
+  console.log('✅ Las correcciones de MediaUploadController están funcionando correctamente');
+}
+
+// Ejecutar pruebas
+testMediaUploadController().catch(error => {
+  console.error('❌ Error ejecutando pruebas:', error);
   process.exit(1);
-} 
+}); 

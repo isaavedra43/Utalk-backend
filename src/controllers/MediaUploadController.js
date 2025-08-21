@@ -252,6 +252,18 @@ class MediaUploadController {
       // 🔧 SUBIR ARCHIVO CON MANEJO ROBUSTO DE ERRORES
       const result = await this.fileService.uploadFile(uploadData);
 
+      // 🔧 LOGS DE DEBUGGING PARA VERIFICAR RESULTADO
+      logger.debug('🔍 Resultado de FileService.uploadFile:', {
+        hasResult: !!result,
+        resultType: typeof result,
+        resultKeys: result ? Object.keys(result) : [],
+        hasId: !!result?.id,
+        hasMimeType: !!result?.mimeType,
+        hasMimetype: !!result?.mimetype,
+        mimeType: result?.mimeType,
+        mimetype: result?.mimetype
+      });
+
       // Generar preview automático si es compatible
       let previewUrl = null;
       if (this.isPreviewable(file.mimetype)) {
@@ -277,13 +289,24 @@ class MediaUploadController {
       }
 
       // Formato canónico de respuesta mejorado
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que result.mimeType existe antes de usarlo
+      if (!result.mimeType) {
+        logger.error('❌ mimeType es undefined en resultado de subida', {
+          fileId: result.id,
+          resultKeys: Object.keys(result),
+          hasMimeType: !!result.mimeType,
+          hasMimetype: !!result.mimetype
+        });
+        throw new Error('Tipo MIME no disponible en resultado de subida de archivo');
+      }
+
       const attachment = {
         id: result.id,
         url: result.url,
-        mime: result.mimetype,
+        mime: result.mimeType, // ✅ CORREGIDO: mimeType con M mayúscula
         name: result.originalName,
         size: result.size,
-        type: this.getFileType(result.mimetype),
+        type: this.getFileType(result.mimeType), // ✅ CORREGIDO: mimeType con M mayúscula
         previewUrl: previewUrl,
         whatsappCompatible: isWhatsAppCompatible,
         tags: tags,
@@ -312,7 +335,7 @@ class MediaUploadController {
             fileId: result.id,
             conversationId: conversationId || 'general',
             fileName: result.originalName,
-            fileType: result.mimetype,
+            fileType: result.mimeType, // ✅ CORREGIDO: mimeType con M mayúscula
             fileSize: result.size,
             uploadedBy: userEmail,
             previewUrl: previewUrl,
@@ -1168,6 +1191,17 @@ class MediaUploadController {
    * Obtener tipo de archivo basado en MIME type
    */
   getFileType(mimetype) {
+    // 🔧 VALIDACIÓN ROBUSTA: Verificar que mimetype existe y es string
+    if (!mimetype || typeof mimetype !== 'string') {
+      logger.error('❌ getFileType recibió mimetype inválido:', {
+        mimetype,
+        type: typeof mimetype,
+        isNull: mimetype === null,
+        isUndefined: mimetype === undefined
+      });
+      return 'file'; // Fallback seguro
+    }
+
     if (mimetype.startsWith('image/')) return 'image';
     if (mimetype.startsWith('video/')) return 'video';
     if (mimetype.startsWith('audio/')) return 'audio';
@@ -1865,7 +1899,7 @@ class MediaUploadController {
           url: result.url,
           fileName: result.originalName,
           fileSize: result.size,
-          type: this.getFileType(result.mimetype),
+          type: this.getFileType(result.mimeType), // ✅ CORREGIDO: mimeType con M mayúscula
           thumbnail: result.thumbnailUrl,
           metadata: result.metadata,
           uploadedBy: userEmail,
