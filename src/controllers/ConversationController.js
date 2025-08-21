@@ -567,7 +567,8 @@ class ConversationController {
         throw new Error('TWILIO_WHATSAPP_NUMBER no configurado');
       }
 
-      const conversationId = frontendId || generateConversationId(whatsappNumber, customerPhone);
+      // ⚠️ IGNORAR ID DEL FRONTEND: siempre generar ID canónico cliente-primero
+      const conversationId = generateConversationId(whatsappNumber, customerPhone);
       
       logger.info('🔧 Conversation ID procesado', {
         frontendId,
@@ -578,23 +579,22 @@ class ConversationController {
 
       // 🆕 CREAR CONVERSACIÓN CON ID CORRECTO
       const Conversation = require('../models/Conversation');
+      const { getDefaultViewerEmails } = require('../config/defaultViewers');
       
       // 🔧 CRÍTICO: Asegurar que el usuario creador esté en participants
       const creatorEmail = frontendCreatedBy || req.user.email;
       
-      // 🔧 EXPANDIDO: Usar participants del frontend o generar los correctos
-      let participants;
-      if (frontendParticipants && Array.isArray(frontendParticipants)) {
-        participants = frontendParticipants;
-        logger.info('🔧 Usando participants del frontend', { participants });
-      } else {
-        participants = Conversation.ensureParticipantsArray(
-          customerPhone,
-          assignedAgent?.email || creatorEmail,
-          [creatorEmail]
-        );
-        logger.info('🔧 Generando participants automáticamente', { participants });
+      // 🔧 PARTICIPANTS EMAIL-ONLY: incluir creador y asignado; agregar viewers por defecto
+      const participantsSet = new Set();
+      if (creatorEmail) participantsSet.add(String(creatorEmail).toLowerCase());
+      if (assignedAgent?.email) participantsSet.add(String(assignedAgent.email).toLowerCase());
+      const defaultViewers = getDefaultViewerEmails();
+      if (Array.isArray(defaultViewers)) {
+        for (const v of defaultViewers) {
+          if (v) participantsSet.add(String(v).toLowerCase());
+        }
       }
+      const participants = Array.from(participantsSet);
       
       // 🔧 EXPANDIDO: Construir objeto de conversación con todos los campos
       const conversationData = {

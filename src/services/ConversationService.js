@@ -206,8 +206,63 @@ class ConversationService {
       
       // 🔧 NUEVO: Crear la conversación y la subcolección messages en una transacción
       await firestore.runTransaction(async (transaction) => {
+        // Verificar si la conversación existe
+        const conversationDoc = await transaction.get(conversationRef);
+        const conversationExists = conversationDoc.exists;
+
+        // Preparar datos del mensaje para Firestore
+        const messageFirestoreData = {
+          id: msg.messageId,
+          conversationId: msg.conversationId,
+          content: msg.content || '',
+          type: msg.type || 'text',
+          direction: 'outbound',
+          status: 'queued', // Inicialmente queued, se actualizará después de Twilio
+          senderIdentifier: msg.senderIdentifier, // email del agente
+          recipientIdentifier: msg.recipientIdentifier, // teléfono del cliente
+          timestamp: msg.timestamp || new Date(),
+          metadata: msg.metadata || {},
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        // Asegurar que participants incluya sender (agente/email) y recipient (cliente)
+        const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
+        const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
+        if (msg.senderIdentifier) participantsSet.add(String(msg.senderIdentifier).toLowerCase()); // email
+        if (msg.agentEmail) participantsSet.add(String(msg.agentEmail).toLowerCase()); // redundante pero seguro
+        // viewers por defecto
+        const viewers_out = getDefaultViewerEmails();
+        const sizeBefore_out = participantsSet.size;
+        for (const v of viewers_out) participantsSet.add(String(v || '').toLowerCase().trim());
+        const participants = Array.from(participantsSet);
+
+        // Preparar datos de la conversación para Firestore
+        const conversationUpdate = {
+          id: conversation.id,
+          customerPhone: conversation.customerPhone,
+          customerName: conversation.customerName,
+          status: conversation.status,
+          unreadCount: conversation.unreadCount,
+          messageCount: conversation.messageCount,
+          workspaceId: conversation.workspaceId,
+          tenantId: conversation.tenantId,
+          priority: conversation.priority,
+          tags: conversation.tags,
+          participants: participants,
+          updatedAt: FieldValue.serverTimestamp(),
+          lastMessageAt: FieldValue.serverTimestamp()
+        };
+
+        if (!conversationExists) {
+          conversationUpdate.id = msg.conversationId;
+          conversationUpdate.customerPhone = msg.recipientIdentifier; // cliente (teléfono)
+          conversationUpdate.status = 'open';
+          conversationUpdate.createdAt = new Date();
+        }
+
         // Crear el documento de conversación en contacts/{contactId}/conversations
-        transaction.set(conversationRef, conversation);
+        transaction.set(conversationRef, conversationUpdate);
         
         // 🔧 CRÍTICO: Crear la subcolección messages con un documento inicial
         const messagesRef = conversationRef.collection('messages');
