@@ -3926,6 +3926,72 @@ class FileService {
            mimetype.includes('presentation');
   }
 
+  /**
+   * 🆕 🖼️ GENERAR PREVIEW GENÉRICO
+   * Genera preview para archivos que no son imágenes, videos o audio
+   */
+  async generateGenericPreview(file, fileId, conversationId) {
+    try {
+      logger.info('🖼️ Generando preview genérico', {
+        fileId,
+        fileName: file.originalName,
+        fileType: file.mimeType
+      });
+
+      // Para archivos genéricos, usar el archivo original como preview
+      const previewData = {
+        previewUrl: file.url,
+        thumbnail: {
+          url: file.url,
+          width: 200,
+          height: 200,
+          format: 'original'
+        },
+        metadata: {
+          type: 'generic',
+          originalName: file.originalName,
+          fileSize: file.size,
+          mimeType: file.mimeType,
+          generatedAt: new Date().toISOString(),
+          previewType: 'original_file'
+        }
+      };
+
+      logger.info('✅ Preview genérico generado exitosamente', {
+        fileId,
+        previewUrl: previewData.previewUrl?.substring(0, 50) + '...'
+      });
+
+      return previewData;
+
+    } catch (error) {
+      logger.error('❌ Error generando preview genérico', {
+        fileId,
+        error: error.message
+      });
+      
+      // Fallback: devolver datos básicos sin preview
+      return {
+        previewUrl: file.url,
+        thumbnail: {
+          url: file.url,
+          width: 200,
+          height: 200,
+          format: 'fallback'
+        },
+        metadata: {
+          type: 'generic',
+          originalName: file.originalName,
+          fileSize: file.size,
+          mimeType: file.mimeType,
+          generatedAt: new Date().toISOString(),
+          previewType: 'fallback',
+          error: error.message
+        }
+      };
+    }
+  }
+
 
 
   /**
