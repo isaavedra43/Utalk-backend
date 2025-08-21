@@ -154,8 +154,17 @@ class LogMonitorTransport extends winston.Transport {
         delete data.secret;
         delete data.key;
 
-        // Capturar en LogMonitorService
-        this.logMonitor.addLog(level, category, message, data);
+        // 🔧 OPTIMIZACIÓN: Usar nueva estructura del LogMonitorService
+        this.logMonitor.addLog({
+          level,
+          category,
+          message,
+          data,
+          timestamp: info.timestamp,
+          userId: data.userId,
+          endpoint: data.endpoint,
+          ip: data.ip
+        });
         
         // Debug: confirmar que se está capturando
         if (process.env.NODE_ENV === 'development') {

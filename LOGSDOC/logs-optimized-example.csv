@@ -1,0 +1,6 @@
+"timestamp","level","category","message","userId","endpoint","ip"
+"2025-08-21T18:34:20.879Z","info","SYSTEM_OPTIMIZATION","Sistema de logs optimizado iniciado","system","unknown","unknown"
+"2025-08-21T18:34:20.889Z","info","CONFIG_UPDATE","Configuración de exportación actualizada","system","unknown","unknown"
+"2025-08-21T18:34:20.898Z","info","WHATSAPP_SERVICE","WhatsApp service funcionando correctamente","system","unknown","unknown"
+"2025-08-21T18:34:20.907Z","info","CONVERSATION_CREATED","Conversación creada exitosamente","admin@company.com","unknown","unknown"
+"2025-08-21T18:34:20.916Z","info","MESSAGE_SENT","Mensaje enviado por WhatsApp","admin@company.com","unknown","unknown"

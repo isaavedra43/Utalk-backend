@@ -21,13 +21,31 @@ logger = {
 class LogMonitorService {
   constructor() {
     this.logs = [];
-    this.maxLogs = 10000; // Máximo 10,000 logs en memoria
+    this.maxLogs = 5000; // Reducido de 10,000 a 5,000 para optimizar memoria
     this.filters = {
       level: 'all',
       category: 'all',
       search: '',
-      timeRange: '1h' // 1h, 6h, 24h, 7d
+      timeRange: '1h'
     };
+    
+    // 🔧 OPTIMIZACIÓN: Configuración de filtros para reducir redundancias
+    this.excludedCategories = [
+      'CORS_ALLOWED',
+      'CORS_ORIGIN_ALLOWED_',
+      '_CORS_ORIGIN_CHECK_',
+      'SOCKET_CORS_ALLOWED',
+      'SOCKET_CORS_ORIGIN_ALLOWED_',
+      '_SOCKET_CORS_ORIGIN_CHECK_',
+      'SOCKET_HEARTBEAT_SETUP',
+      'SOCKET_CLEANUP_SUCCESS',
+      'RT:CONNECT',
+      'RT:DISCONNECT'
+    ];
+    
+    // 🔧 OPTIMIZACIÓN: Configuración de rate limiting para logs
+    this.logRateLimiter = new Map(); // Para evitar logs duplicados
+    this.rateLimitWindow = 5000; // 5 segundos
     
     // Limpiar logs antiguos cada 5 minutos
     setInterval(() => {
@@ -45,30 +63,61 @@ class LogMonitorService {
   }
 
   /**
-   * 📝 ADD LOG
+   * ➕ ADD LOG - OPTIMIZADO
+   * Agrega log con filtros para evitar redundancias
    */
-  addLog(level, category, message, data = {}) {
-    const logEntry = {
-      id: Date.now() + Math.random(),
-      timestamp: new Date().toISOString(),
-      level: level, // 'info', 'warn', 'error', 'debug'
-      category: category, // 'RATE_LIMIT', 'WEBSOCKET', 'CACHE', 'DB', etc.
-      message: message,
-      data: data,
-      userAgent: data.userAgent || 'unknown',
-      ip: data.ip || 'unknown',
-      userId: data.userId || 'anonymous',
-      endpoint: data.endpoint || 'unknown'
-    };
-
-    this.logs.unshift(logEntry); // Agregar al inicio
-
-    // Mantener límite de logs
-    if (this.logs.length > this.maxLogs) {
-      this.logs = this.logs.slice(0, this.maxLogs);
+  addLog(logData) {
+    try {
+      // 🔧 OPTIMIZACIÓN: Filtrar logs redundantes
+      if (this.excludedCategories.includes(logData.category)) {
+        return; // No agregar logs de categorías excluidas
+      }
+      
+      // 🔧 OPTIMIZACIÓN: Rate limiting para evitar logs duplicados
+      const logKey = `${logData.category}:${logData.message}`;
+      const now = Date.now();
+      const lastLog = this.logRateLimiter.get(logKey);
+      
+      if (lastLog && (now - lastLog) < this.rateLimitWindow) {
+        return; // Evitar logs duplicados en ventana de tiempo
+      }
+      
+      this.logRateLimiter.set(logKey, now);
+      
+      // 🔧 OPTIMIZACIÓN: Limpiar rate limiter periódicamente
+      if (this.logRateLimiter.size > 1000) {
+        const cutoff = now - this.rateLimitWindow;
+        for (const [key, timestamp] of this.logRateLimiter.entries()) {
+          if (timestamp < cutoff) {
+            this.logRateLimiter.delete(key);
+          }
+        }
+      }
+      
+      // 🔧 OPTIMIZACIÓN: Simplificar estructura del log
+      const simplifiedLog = {
+        timestamp: logData.timestamp || new Date().toISOString(),
+        level: logData.level || 'info',
+        category: logData.category || 'SYSTEM',
+        message: typeof logData.message === 'string' ? logData.message : JSON.stringify(logData.message),
+        userId: logData.userId || 'system',
+        endpoint: logData.endpoint || 'unknown',
+        ip: logData.ip || 'unknown',
+        // Solo incluir data si es relevante y no es muy grande
+        data: logData.data && Object.keys(logData.data).length > 0 && 
+              JSON.stringify(logData.data).length < 1000 ? logData.data : undefined
+      };
+      
+      this.logs.push(simplifiedLog);
+      
+      // 🔧 OPTIMIZACIÓN: Mantener solo los últimos logs
+      if (this.logs.length > this.maxLogs) {
+        this.logs = this.logs.slice(-this.maxLogs);
+      }
+      
+    } catch (error) {
+      console.error('Error agregando log:', error);
     }
-
-    return logEntry;
   }
 
   /**
@@ -189,7 +238,7 @@ class LogMonitorService {
   }
 
   /**
-   * 📤 EXPORT LOGS
+   * 📤 EXPORT LOGS - OPTIMIZADO
    */
   exportLogs(format = 'json', filters = {}) {
     const logs = this.getLogs(filters);
@@ -199,7 +248,7 @@ class LogMonitorService {
         return {
           format: 'json',
           data: JSON.stringify(logs, null, 2),
-          filename: `logs-${new Date().toISOString().split('T')[0]}.json`
+          filename: `logs-${new Date().toISOString().split('T')[0]}-optimized.json`
         };
 
       case 'csv':
@@ -208,25 +257,24 @@ class LogMonitorService {
           log.timestamp,
           log.level,
           log.category,
-          this._getMessageString(log.message).replace(/"/g, '""'), // Escapar comillas
+          log.message.replace(/"/g, '""'),
           log.userId,
           log.endpoint,
           log.ip
         ]);
-
-        const csv = [
-          csvHeaders.join(','),
-          ...csvData.map(row => row.map(field => `"${field}"`).join(','))
-        ].join('\n');
-
+        
+        const csvContent = [csvHeaders, ...csvData]
+          .map(row => row.map(cell => `"${cell}"`).join(','))
+          .join('\n');
+        
         return {
           format: 'csv',
-          data: csv,
-          filename: `logs-${new Date().toISOString().split('T')[0]}.csv`
+          data: csvContent,
+          filename: `logs-${new Date().toISOString().split('T')[0]}-optimized.csv`
         };
 
       default:
-        throw new Error('Formato no soportado. Use "json" o "csv"');
+        throw new Error(`Formato no soportado: ${format}`);
     }
   }
 

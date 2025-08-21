@@ -373,7 +373,8 @@ class LogDashboardController {
   }
 
   /**
-   * 📤 EXPORT LOGS
+   * 📤 EXPORT LOGS - OPTIMIZADO
+   * Exporta solo los logs esenciales sin redundancias
    */
   static async exportLogs(req, res) {
     try {
@@ -381,17 +382,18 @@ class LogDashboardController {
         format = 'json',
         level = 'all',
         category = 'all',
-        timeRange = '24h'
+        timeRange = '24h',
+        limit = 1000 // Límite por defecto para evitar archivos enormes
       } = req.query;
 
       const filters = { level, category, timeRange };
       
-      // 🔧 CORRECCIÓN CRÍTICA: Filtrar logs de exportación para evitar ciclo infinito
+      // 🔧 OPTIMIZACIÓN: Obtener logs con límite
       let logs = logMonitor.getLogs(filters);
       
-      // Filtrar logs relacionados con exportación para evitar ciclo infinito
+      // 🔧 OPTIMIZACIÓN: Filtrar logs redundantes y de exportación
       logs = logs.filter(log => {
-        // Excluir logs de exportación
+        // Excluir logs de exportación para evitar ciclo infinito
         if (log.category === 'HTTP_REQUEST_START' && log.data?.url?.includes('/logs/export')) {
           return false;
         }
@@ -401,31 +403,69 @@ class LogDashboardController {
         if (log.category === 'HTTP_REQUEST_COMPLETE' && log.data?.url?.includes('/logs/export')) {
           return false;
         }
-        // Excluir logs del dashboard de logs
         if (log.data?.url?.includes('/logs') && log.data?.url?.includes('export')) {
           return false;
         }
+        
+        // 🔧 OPTIMIZACIÓN: Excluir logs redundantes del sistema
+        if (log.category === 'CORS_ALLOWED' || 
+            log.category === 'CORS_ORIGIN_ALLOWED_' ||
+            log.category === '_CORS_ORIGIN_CHECK_' ||
+            log.category === 'SOCKET_CORS_ALLOWED' ||
+            log.category === 'SOCKET_CORS_ORIGIN_ALLOWED_' ||
+            log.category === '_SOCKET_CORS_ORIGIN_CHECK_') {
+          return false;
+        }
+        
+        // 🔧 OPTIMIZACIÓN: Excluir logs de heartbeat y mantenimiento
+        if (log.category === 'SOCKET_HEARTBEAT_SETUP' ||
+            log.category === 'SOCKET_CLEANUP_SUCCESS' ||
+            log.category === 'RT:CONNECT' ||
+            log.category === 'RT:DISCONNECT') {
+          return false;
+        }
+        
         return true;
       });
       
-      // Crear datos de exportación filtrados
+      // 🔧 OPTIMIZACIÓN: Limitar cantidad de logs
+      const maxLogs = parseInt(limit);
+      if (logs.length > maxLogs) {
+        logs = logs.slice(-maxLogs); // Tomar los últimos N logs
+      }
+      
+      // 🔧 OPTIMIZACIÓN: Simplificar estructura de logs para reducir tamaño
+      const simplifiedLogs = logs.map(log => ({
+        timestamp: log.timestamp,
+        level: log.level,
+        category: log.category,
+        message: typeof log.message === 'string' ? log.message : JSON.stringify(log.message),
+        userId: log.userId || 'system',
+        endpoint: log.endpoint || 'unknown',
+        ip: log.ip || 'unknown',
+        // Solo incluir data si es relevante y no es muy grande
+        data: log.data && Object.keys(log.data).length > 0 && 
+              JSON.stringify(log.data).length < 500 ? log.data : undefined
+      }));
+      
+      // Crear datos de exportación optimizados
       let exportData;
       if (format === 'json') {
         exportData = {
           format: 'json',
-          data: JSON.stringify(logs, null, 2),
-          filename: `logs-${new Date().toISOString().split('T')[0]}.json`
+          data: JSON.stringify(simplifiedLogs, null, 2),
+          filename: `logs-${new Date().toISOString().split('T')[0]}-optimized.json`
         };
       } else {
         const csvHeaders = ['timestamp', 'level', 'category', 'message', 'userId', 'endpoint', 'ip'];
-        const csvData = logs.map(log => [
+        const csvData = simplifiedLogs.map(log => [
           log.timestamp,
           log.level,
           log.category,
-          typeof log.message === 'string' ? log.message.replace(/"/g, '""') : JSON.stringify(log.message).replace(/"/g, '""'),
-          log.userId || 'system',
-          log.endpoint || 'unknown',
-          log.ip || 'unknown'
+          log.message.replace(/"/g, '""'),
+          log.userId,
+          log.endpoint,
+          log.ip
         ]);
         
         const csvContent = [csvHeaders, ...csvData]
@@ -435,9 +475,19 @@ class LogDashboardController {
         exportData = {
           format: 'csv',
           data: csvContent,
-          filename: `logs-${new Date().toISOString().split('T')[0]}.csv`
+          filename: `logs-${new Date().toISOString().split('T')[0]}-optimized.csv`
         };
       }
+
+      // 🔧 OPTIMIZACIÓN: Log de exportación con estadísticas
+      logger.info('📤 Logs exportados optimizados', {
+        category: 'LOGS_EXPORT_OPTIMIZED',
+        originalCount: logs.length,
+        simplifiedCount: simplifiedLogs.length,
+        format,
+        filename: exportData.filename,
+        dataSize: exportData.data.length
+      });
 
       res.set({
         'Content-Type': format === 'json' ? 'application/json' : 'text/csv',
@@ -446,7 +496,7 @@ class LogDashboardController {
 
       res.send(exportData.data);
     } catch (error) {
-      logger.error('Error exportando logs', {
+      logger.error('Error exportando logs optimizados', {
         category: 'LOG_DASHBOARD_ERROR',
         error: error.message
       });

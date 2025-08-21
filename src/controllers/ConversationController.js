@@ -584,6 +584,14 @@ class ConversationController {
       // 🔧 CREAR MENSAJE INICIAL SI SE PROPORCIONA
       if (initialMessage) {
         try {
+          logger.info('🆕 Procesando mensaje inicial', {
+            conversationId: conversation.id,
+            customerPhone,
+            initialMessage,
+            creatorEmail,
+            timestamp: new Date().toISOString()
+          });
+
           // Crear mensaje en base de datos
           const messageData = {
             conversationId: conversation.id,
@@ -596,11 +604,29 @@ class ConversationController {
             metadata: { createdWithConversation: true }
           };
 
+          logger.info('📝 Creando mensaje en base de datos', {
+            messageData,
+            timestamp: new Date().toISOString()
+          });
+
           await Message.create(messageData);
+
+          logger.info('✅ Mensaje creado en base de datos', {
+            conversationId: conversation.id,
+            timestamp: new Date().toISOString()
+          });
 
           // Enviar mensaje por WhatsApp
           const { getMessageService } = require('../services/MessageService');
           const messageService = getMessageService();
+          
+          logger.info('📤 Enviando mensaje por WhatsApp', {
+            conversationId: conversation.id,
+            customerPhone,
+            whatsappNumber,
+            initialMessage,
+            timestamp: new Date().toISOString()
+          });
           
           const sentMessage = await messageService.sendWhatsAppMessage({
             from: whatsappNumber,
@@ -612,17 +638,31 @@ class ConversationController {
             conversationId: conversation.id,
             customerPhone,
             messageContent: initialMessage,
-            twilioSid: sentMessage?.sid
+            twilioSid: sentMessage?.sid,
+            twilioStatus: sentMessage?.status,
+            timestamp: new Date().toISOString()
           });
 
         } catch (whatsappError) {
           logger.error('❌ Error enviando mensaje inicial por WhatsApp', {
             conversationId: conversation.id,
             customerPhone,
-            error: whatsappError.message
+            initialMessage,
+            error: whatsappError.message,
+            errorCode: whatsappError.code,
+            stack: whatsappError.stack?.split('\n').slice(0, 3),
+            timestamp: new Date().toISOString()
           });
+          
           // No fallar la creación de conversación si falla el envío de WhatsApp
+          // Pero registrar el error para debugging
         }
+      } else {
+        logger.info('ℹ️ No hay mensaje inicial para enviar', {
+          conversationId: conversation.id,
+          customerPhone,
+          timestamp: new Date().toISOString()
+        });
       }
 
       // 📡 EMITIR EVENTOS WEBSOCKET
