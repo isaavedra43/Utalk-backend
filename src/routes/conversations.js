@@ -18,10 +18,10 @@ const conversationValidators = {
     body: Joi.object({
       // Campos básicos requeridos
       customerPhone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
-      customerName: Joi.string().min(1).max(100).optional(),
+      customerName: Joi.string().max(100).allow('', null).optional(),
       
       // Campos opcionales básicos
-      subject: Joi.string().min(1).max(200).optional(),
+      subject: Joi.string().max(200).allow('', null).optional(),
       priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
       tags: Joi.array().items(Joi.string()).max(10).optional(),
       metadata: Joi.object().optional(),
@@ -32,7 +32,7 @@ const conversationValidators = {
       participants: Joi.array().items(Joi.string()).optional(),
       createdBy: Joi.string().email().optional(),
       assignedTo: Joi.string().email().optional(),
-      assignedToName: Joi.string().optional().allow(null),
+      assignedToName: Joi.string().optional().allow(null, ''),
       createdAt: Joi.string().isoDate().optional(),
       updatedAt: Joi.string().isoDate().optional(),
       lastMessageAt: Joi.string().isoDate().optional(),
@@ -44,7 +44,7 @@ const conversationValidators = {
       lastMessage: Joi.object().optional().allow(null),
       
       // Campos adicionales para compatibilidad
-      initialMessage: Joi.string().optional(),
+      initialMessage: Joi.string().allow('', null).optional(),
       channel: Joi.string().optional(),
       source: Joi.string().optional(),
       externalId: Joi.string().optional(),
