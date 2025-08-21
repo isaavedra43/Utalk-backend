@@ -1,84 +1,90 @@
-// Simular el entorno sin Firebase para probar las correcciones
-const { logger } = require('../src/utils/logger');
+/**
+ * 🧪 SCRIPT DE PRUEBA: Verificación de correcciones en FileService
+ * 
+ * Este script verifica que las correcciones de mimeType y métodos faltantes funcionan correctamente
+ */
 
-async function testFileServiceFix() {
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '🧪 Probando correcciones del FileService...\n' });
+const FileService = require('../src/services/FileService');
+const File = require('../src/models/File');
 
-  // Test 1: Simular el error original que estaba ocurriendo
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '1. Simulando el error original "Cannot read properties of undefined (reading \'error\')"...');
-  
-  // Simular un objeto result que es undefined
-  const result = undefined;
-  
+async function testFileServiceFixes() {
+  console.log('🧪 Iniciando pruebas de FileService...\\n');
+
+  const fileService = new FileService();
+
+  // Test 1: Verificar que los métodos de validación funcionan
+  console.log('📋 Test 1: Métodos de validación de tipos de archivo');
   try {
-    // Esto es lo que estaba causando el error original
-    if (result && result.success) {
-      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Resultado exitoso' });
+    const imageResult = fileService.isImage('image/jpeg');
+    console.log('✅ isImage("image/jpeg") →', imageResult);
+    
+    const audioResult = fileService.isAudio('audio/mp3');
+    console.log('✅ isAudio("audio/mp3") →', audioResult);
+    
+    const videoResult = fileService.isVideo('video/mp4');
+    console.log('✅ isVideo("video/mp4") →', videoResult);
+    
+    const invalidResult = fileService.isImage('invalid/mime');
+    console.log('✅ isImage("invalid/mime") →', invalidResult);
+    
+  } catch (error) {
+    console.log('❌ Error en métodos de validación:', error.message);
+  }
+
+  // Test 2: Verificar que el método getCountByConversation existe
+  console.log('\\n📋 Test 2: Método getCountByConversation');
+  try {
+    if (typeof File.getCountByConversation === 'function') {
+      console.log('✅ File.getCountByConversation existe');
+      
+      // Probar con una conversación de prueba
+      const count = await File.getCountByConversation('test-conversation');
+      console.log('✅ getCountByConversation("test-conversation") →', count);
     } else {
-      const errorMessage = result && result.error ? result.error : 'Error desconocido en procesamiento';
-      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error manejado correctamente:', errorMessage });
+      console.log('❌ File.getCountByConversation NO existe');
     }
   } catch (error) {
-    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error inesperado:', error.message });
+    console.log('❌ Error en getCountByConversation:', error.message);
   }
 
-  // Test 2: Simular el error en getMediaUrl
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n2. Simulando el error en getMediaUrl...' });
-  
-  const mediaInfo = undefined;
-  
+  // Test 3: Verificar que el método saveFileToDatabase usa mimeType correcto
+  console.log('\\n📋 Test 3: Verificar estructura de datos en saveFileToDatabase');
   try {
-    if (!mediaInfo || !mediaInfo.success) {
-      const errorMessage = mediaInfo && mediaInfo.error ? mediaInfo.error : 'Error desconocido obteniendo URL del media';
-      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error en getMediaUrl manejado correctamente:', errorMessage });
+    // Simular datos de archivo
+    const testFileData = {
+      fileId: 'test-file-id',
+      conversationId: 'test-conversation',
+      userId: 'test-user',
+      uploadedBy: 'test-user',
+      originalName: 'test-image.jpg',
+      mimetype: 'image/jpeg',
+      size: 1024,
+      url: 'https://example.com/test.jpg',
+      category: 'image',
+      storagePath: 'test/path',
+      publicUrl: 'https://example.com/public/test.jpg'
+    };
+
+    // Verificar que el método existe
+    if (typeof fileService.saveFileToDatabase === 'function') {
+      console.log('✅ fileService.saveFileToDatabase existe');
+      
+      // Verificar la estructura interna (sin ejecutar realmente)
+      const methodSource = fileService.saveFileToDatabase.toString();
+      if (methodSource.includes('mimeType: mimetype')) {
+        console.log('✅ saveFileToDatabase usa mimeType correcto');
+      } else {
+        console.log('❌ saveFileToDatabase NO usa mimeType correcto');
+      }
+    } else {
+      console.log('❌ fileService.saveFileToDatabase NO existe');
     }
   } catch (error) {
-    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error inesperado en getMediaUrl:', error.message });
+    console.log('❌ Error verificando saveFileToDatabase:', error.message);
   }
 
-  // Test 3: Simular el error en validateFile
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n3. Simulando el error en validateFile...' });
-  
-  const validation = undefined;
-  
-  try {
-    if (!validation || !validation.valid) {
-      const errorMessage = validation && validation.error ? validation.error : 'Error de validación desconocido';
-      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error en validateFile manejado correctamente:', errorMessage });
-    }
-  } catch (error) {
-    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error inesperado en validateFile:', error.message });
-  }
-
-  // Test 4: Simular el error en processFileByCategory
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n4. Simulando el error en processFileByCategory...' });
-  
-  const processedFile = undefined;
-  
-  try {
-    if (!processedFile) {
-      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error en processFileByCategory manejado correctamente: No se pudo procesar el archivo. Resultado indefinido.' });
-    }
-  } catch (error) {
-    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error inesperado en processFileByCategory:', error.message });
-  }
-
-  // Test 5: Simular el error en processIndividualWebhookMedia
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n5. Simulando el error en processIndividualWebhookMedia...' });
-  
-  const processedFile2 = { id: null, fileId: null };
-  
-  try {
-    if (!processedFile2.id && !processedFile2.fileId) {
-      logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ Error en processIndividualWebhookMedia manejado correctamente: FileService.uploadFile no retornó un ID válido' });
-    }
-  } catch (error) {
-    logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '❌ Error inesperado en processIndividualWebhookMedia:', error.message });
-  }
-
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '\n🎉 Todas las correcciones de manejo de errores funcionan correctamente.' });
-  logger.info('Console log migrated', { category: 'AUTO_MIGRATED', content: '✅ El error "Cannot read properties of undefined (reading \'error\')" ya no debería ocurrir.');
+  console.log('\\n🎉 Pruebas completadas');
 }
 
 // Ejecutar pruebas
-testFileServiceFix().catch(console.error); 
+testFileServiceFixes().catch(console.error); 

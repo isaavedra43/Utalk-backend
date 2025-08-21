@@ -245,6 +245,35 @@ class File {
   }
 
   /**
+   * Obtener conteo de archivos por conversación
+   */
+  static async getCountByConversation(conversationId, options = {}) {
+    try {
+      const { category = null, isActive = true } = options;
+
+      let query = firestore
+        .collection('files_by_conversation')
+        .doc(conversationId)
+        .collection('files')
+        .where('isActive', '==', isActive);
+
+      if (category) {
+        query = query.where('category', '==', category);
+      }
+
+      const snapshot = await query.get();
+      return snapshot.size;
+    } catch (error) {
+      logger.error('❌ Error obteniendo conteo de archivos por conversación', {
+        conversationId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+      return 0;
+    }
+  }
+
+  /**
    * Listar archivos por usuario (eficiente)
    */
   static async listByUser(userId, options = {}) {

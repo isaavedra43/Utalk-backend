@@ -3879,6 +3879,36 @@ class FileService {
     return extensions[mimetype] || 'mp4';
   }
 
+  /**
+   * 🆕 📷 VERIFICAR SI ES IMAGEN
+   */
+  isImage(mimetype) {
+    if (!mimetype || typeof mimetype !== 'string') {
+      return false;
+    }
+    return mimetype.startsWith('image/');
+  }
+
+  /**
+   * 🆕 🎵 VERIFICAR SI ES AUDIO
+   */
+  isAudio(mimetype) {
+    if (!mimetype || typeof mimetype !== 'string') {
+      return false;
+    }
+    return mimetype.startsWith('audio/');
+  }
+
+  /**
+   * 🆕 🎥 VERIFICAR SI ES VIDEO
+   */
+  isVideo(mimetype) {
+    if (!mimetype || typeof mimetype !== 'string') {
+      return false;
+    }
+    return mimetype.startsWith('video/');
+  }
+
 
 
   /**
@@ -4340,7 +4370,7 @@ class FileService {
         userId,
         uploadedBy,
         originalName,
-        mimetype,
+        mimeType: mimetype, // ✅ CORRECCIÓN CRÍTICA: Usar mimeType (M mayúscula) para el modelo File
         size,
         sizeBytes: size,
         url,
