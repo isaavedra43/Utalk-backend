@@ -3909,6 +3909,23 @@ class FileService {
     return mimetype.startsWith('video/');
   }
 
+  /**
+   * 🆕 📄 VERIFICAR SI ES DOCUMENTO
+   */
+  isDocument(mimetype) {
+    if (!mimetype || typeof mimetype !== 'string') {
+      return false;
+    }
+    return mimetype.startsWith('application/') || 
+           mimetype.startsWith('text/') ||
+           mimetype.includes('pdf') ||
+           mimetype.includes('document') ||
+           mimetype.includes('word') ||
+           mimetype.includes('excel') ||
+           mimetype.includes('powerpoint') ||
+           mimetype.includes('presentation');
+  }
+
 
 
   /**
@@ -4787,9 +4804,16 @@ class FileService {
       await firestore.collection('file_usage').add(usageRecord);
 
       // Actualizar métricas en tiempo real
-      const fileMonitoringSystem = require('./monitoring');
-      if (fileMonitoringSystem && fileMonitoringSystem.recordFileAction) {
-        fileMonitoringSystem.recordFileAction(fileId, action, userId);
+      try {
+        const fileMonitoringSystem = require('../utils/monitoring');
+        if (fileMonitoringSystem && fileMonitoringSystem.recordFileAction) {
+          fileMonitoringSystem.recordFileAction(fileId, action, userId);
+        }
+      } catch (monitoringError) {
+        logger.warn('⚠️ No se pudo cargar sistema de monitoreo', {
+          error: monitoringError.message,
+          fileId: fileId?.substring(0, 20) + '...'
+        });
       }
 
       logger.info('📊 Uso de archivo registrado', {
