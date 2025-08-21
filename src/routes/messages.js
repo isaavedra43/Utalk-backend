@@ -60,7 +60,7 @@ const messageValidators = {
         Joi.string().uuid(),
         Joi.string().pattern(/^conv_(\+?\d+)_(\+?\d+)$/)
       ).required(),
-      content: Joi.string().max(4096).optional(),
+      content: Joi.string().max(4096).allow('').optional(),
       attachments: Joi.array().items(Joi.object({
         // Opción 1: Archivo ya subido (ID)
         id: Joi.string().uuid().optional(),

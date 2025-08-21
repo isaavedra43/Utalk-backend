@@ -1459,8 +1459,24 @@ class MessageController {
       try {
         const messageService = getMessageService();
         
-        // Preparar URLs de medios para Twilio
-        const mediaUrls = processedFiles.attachments.map(attachment => attachment.url);
+        // Preparar URLs de medios para Twilio con validación robusta
+        const mediaUrls = processedFiles.attachments
+          .filter(attachment => attachment && attachment.url)
+          .map(attachment => attachment.url)
+          .filter(url => url && typeof url === 'string' && url.startsWith('http'));
+        
+        logger.info('🔍 URLs de medios preparadas para Twilio', {
+          conversationId,
+          totalAttachments: processedFiles.attachments.length,
+          validUrls: mediaUrls.length,
+          urls: mediaUrls.map(url => url.substring(0, 100) + '...'),
+          userEmail: req.user.email
+        });
+        
+        // Validar que tenemos URLs válidas
+        if (mediaUrls.length === 0) {
+          throw new Error('No se pudieron generar URLs válidas para los archivos adjuntos');
+        }
         
         const sentMessage = await messageService.sendWhatsAppMessage({
           from: process.env.TWILIO_WHATSAPP_NUMBER,

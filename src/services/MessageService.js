@@ -2545,17 +2545,45 @@ class MessageService {
       };
 
       if (body) payload.body = body;
-      if (mediaUrl) payload.mediaUrl = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
+      
+      // Validación robusta de media URLs
+      if (mediaUrl) {
+        const urls = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
+        const validUrls = urls.filter(url => url && typeof url === 'string' && url.startsWith('http'));
+        
+        if (validUrls.length > 0) {
+          payload.mediaUrl = validUrls;
+        }
+        
+        logger?.info?.('TWILIO:MEDIA_VALIDATION', {
+          originalUrls: urls.length,
+          validUrls: validUrls.length,
+          hasMediaInPayload: !!payload.mediaUrl
+        });
+      }
 
-      // Log de request (sin body completo)
-      logger?.info?.('TWILIO:REQUEST', { from: payload.from, to: payload.to, bodyLen: body?.length, hasMedia: !!mediaUrl });
+      // Log de request detallado
+      logger?.info?.('TWILIO:REQUEST', { 
+        from: payload.from, 
+        to: payload.to, 
+        bodyLen: body?.length, 
+        hasMedia: !!payload.mediaUrl,
+        mediaCount: payload.mediaUrl?.length || 0,
+        payloadKeys: Object.keys(payload)
+      });
 
       const resp = await this.client.messages.create(payload);
 
       logger?.info?.('TWILIO:RESPONSE_OK', { sid: resp?.sid, status: resp?.status });
       return resp;
     } catch (error) {
-      logger?.error?.('TWILIO:RESPONSE_ERR', { error: error.message, from, to });
+      logger?.error?.('TWILIO:RESPONSE_ERR', { 
+        error: error.message, 
+        errorCode: error.code,
+        from, 
+        to,
+        hasMedia: !!mediaUrl
+      });
       throw error;
     }
   }

@@ -796,6 +796,20 @@ class ConversationsRepository {
         const from = messageService.ensureFrom(rawFrom);
         const to = messageService.ensureWhatsApp(msg.recipientIdentifier);
         
+        // Extraer URLs de medios desde metadata.attachments para envío con archivos
+        let mediaUrls = null;
+        if (msg.metadata?.attachments && Array.isArray(msg.metadata.attachments) && msg.metadata.attachments.length > 0) {
+          mediaUrls = msg.metadata.attachments
+            .filter(attachment => attachment && attachment.url)
+            .map(attachment => attachment.url)
+            .filter(url => url && typeof url === 'string' && url.startsWith('http'));
+        }
+        
+        // Fallback para compatibilidad con formato anterior
+        if (!mediaUrls && msg.media?.mediaUrl) {
+          mediaUrls = Array.isArray(msg.media.mediaUrl) ? msg.media.mediaUrl : [msg.media.mediaUrl];
+        }
+
         logger.info('TWILIO:REQUEST', { 
           correlationId: requestId, 
           conversationId: msg.conversationId, 
@@ -803,12 +817,13 @@ class ConversationsRepository {
           from, 
           to, 
           type: msg.type, 
-          hasMedia: !!(msg.media?.mediaUrl), 
+          hasMedia: !!(mediaUrls && mediaUrls.length > 0), 
+          mediaCount: mediaUrls?.length || 0,
           bodyLen: msg.content?.length 
         });
 
         const resp = await messageService.sendWhatsAppMessage({
-          from, to, body: msg.content, mediaUrl: msg.media?.mediaUrl
+          from, to, body: msg.content, mediaUrl: mediaUrls
         });
 
         result.message.twilioSid = resp?.sid;
