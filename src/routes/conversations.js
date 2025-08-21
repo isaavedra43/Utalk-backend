@@ -10,7 +10,7 @@ const { validateId, validateConversationId } = require('../middleware/validation
 const { intelligentRateLimit, cacheMiddleware } = require('../middleware/intelligentRateLimit');
 const Joi = require('joi');
 
-// Validadores específicos para conversaciones
+// 🔧 FORZAR REDEPLOY RAILWAY - Esquema de validación expandido para frontend
 const logger = require('../utils/logger');
 
 const conversationValidators = {
