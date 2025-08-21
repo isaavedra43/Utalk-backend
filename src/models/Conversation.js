@@ -70,6 +70,7 @@ class Conversation {
    * Garantiza que el array participants siempre contenga:
    * 1. El número de teléfono del cliente
    * 2. El email del agente/admin (si está asignado)
+   * 3. El email del creador (siempre)
    * Sin duplicados
    */
   static ensureParticipantsArray(customerPhone, agentEmail = null, existingParticipants = []) {
@@ -83,6 +84,21 @@ class Conversation {
     // AGREGAR EMAIL DEL AGENTE (si no existe)
     if (agentEmail && !participants.includes(agentEmail)) {
       participants.push(agentEmail);
+    }
+    
+    // 🔧 CRÍTICO: Agregar variantes del agente para compatibilidad
+    if (agentEmail) {
+      const agentVariants = [
+        agentEmail,
+        `agent:${agentEmail}`,
+        `whatsapp:${customerPhone}`
+      ];
+      
+      agentVariants.forEach(variant => {
+        if (!participants.includes(variant)) {
+          participants.push(variant);
+        }
+      });
     }
     
     logger.info('🔧 Array de participants actualizado', {
@@ -139,12 +155,22 @@ class Conversation {
 
     // Si no existe, crear una nueva.
     logger.info(`No se encontró conversación abierta. Creando nueva para ${normalizedPhone}`);
-    const conversationId = uuidv4();
+    
+    // 🔧 CRÍTICO: Generar conversationId con formato correcto
+    const { generateConversationId } = require('../utils/conversation');
+    const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM || process.env.WHATSAPP_FROM;
+    
+    if (!whatsappNumber) {
+      throw new Error('TWILIO_WHATSAPP_NUMBER no configurado');
+    }
+
+    const conversationId = generateConversationId(whatsappNumber, normalizedPhone);
     
     // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
     const participants = Conversation.ensureParticipantsArray(
       normalizedPhone, 
-      agentEmail
+      agentEmail,
+      [agentEmail] // Incluir explícitamente al agente
     );
     
     const conversationData = {
@@ -153,12 +179,23 @@ class Conversation {
       participants: participants, // 🔧 CORREGIDO: Array completo con cliente y agente
       status: 'open',
       assignedTo: agentEmail, // EMAIL del agente (puede ser null)
+      createdBy: agentEmail, // 🔧 AGREGAR: Campo createdBy
+      workspaceId: 'default_workspace',
+      tenantId: 'default_tenant',
+      unreadCount: 0,
+      messageCount: 0,
+      priority: 'normal',
+      tags: [],
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
+      lastMessageAt: Timestamp.now()
     };
 
     const conversation = new Conversation(conversationData);
-    await conversation.save();
+    
+    // 🔧 NUEVO: Crear conversación con subcolección messages
+    await conversation.saveWithMessagesSubcollection();
+    
     return conversation;
   }
 
@@ -193,6 +230,52 @@ class Conversation {
 
     await firestore.collection('conversations').doc(this.id).set(data, { merge: true });
     logger.info('Conversación guardada.', { id: this.id });
+  }
+
+  /**
+   * 🔧 NUEVO: Guarda la conversación y crea la subcolección messages
+   */
+  async saveWithMessagesSubcollection() {
+    const data = prepareForFirestore({
+      ...this,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    const conversationRef = firestore.collection('conversations').doc(this.id);
+    
+    // 🔧 CRÍTICO: Crear conversación y subcolección messages en una transacción
+    await firestore.runTransaction(async (transaction) => {
+      // Crear el documento de conversación
+      transaction.set(conversationRef, data, { merge: true });
+      
+      // 🔧 CRÍTICO: Crear la subcolección messages con un documento inicial
+      const messagesRef = conversationRef.collection('messages');
+      const initialMessageDoc = {
+        id: 'initial_placeholder',
+        conversationId: this.id,
+        content: 'Conversación iniciada',
+        type: 'system',
+        direction: 'system',
+        status: 'sent',
+        senderIdentifier: this.createdBy || 'system',
+        recipientIdentifier: this.customerPhone,
+        timestamp: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        metadata: {
+          isInitialPlaceholder: true,
+          createdWithConversation: true
+        }
+      };
+      
+      // Crear documento inicial en la subcolección messages
+      transaction.set(messagesRef.doc('initial_placeholder'), initialMessageDoc);
+    });
+
+    logger.info('✅ Conversación guardada con subcolección messages', { 
+      id: this.id,
+      hasMessagesSubcollection: true 
+    });
   }
 
   /**

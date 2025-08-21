@@ -7,39 +7,33 @@ const logger = require('../utils/logger');
 
 /**
  * Genera un conversationId único y consistente para dos números de teléfono
- * @param {string} phone1 - Primer número de teléfono (ya validado)
- * @param {string} phone2 - Segundo número de teléfono (ya validado)
- * @returns {string} - conversationId único con formato conv_+phone1_+phone2
+ * @param {string} ourNumber - Nuestro número de WhatsApp (ya validado)
+ * @param {string} customerPhone - Número del cliente (ya validado)
+ * @returns {string} - conversationId único con formato conv_+customerPhone_+ourNumber
  */
-function generateConversationId (phone1, phone2) {
-  if (!phone1 || !phone2) {
+function generateConversationId (ourNumber, customerPhone) {
+  if (!ourNumber || !customerPhone) {
     throw new Error('Se requieren ambos números de teléfono para generar conversationId');
   }
   
-  const normalized1 = normalizePhoneNumber(phone1);
-  const normalized2 = normalizePhoneNumber(phone2);
+  const normalizedOurNumber = normalizePhoneNumber(ourNumber);
+  const normalizedCustomerPhone = normalizePhoneNumber(customerPhone);
   
-  if (!normalized1 || !normalized2) {
+  if (!normalizedOurNumber || !normalizedCustomerPhone) {
     throw new Error('Los números de teléfono deben tener al menos 10 dígitos');
   }
   
-  // Ordenar los números para asegurar consistencia
-  const sorted = [normalized1, normalized2].sort();
-  
-  // 🔧 CORRECCIÓN: Generar ID con formato conv_+phone1_+phone2 para mantener los símbolos +
-  // Asegurar que no se agregue + extra si ya está presente
-  const formattedPhone1 = sorted[0].startsWith('+') ? sorted[0] : `+${sorted[0]}`;
-  const formattedPhone2 = sorted[1].startsWith('+') ? sorted[1] : `+${sorted[1]}`;
-  const conversationId = `conv_${formattedPhone1}_${formattedPhone2}`;
+  // 🔧 CORRECCIÓN CRÍTICA: Formato conv_+customerPhone_+ourNumber
+  // Cliente primero, luego nuestro número (como se ve en las imágenes de referencia)
+  const formattedCustomerPhone = normalizedCustomerPhone.startsWith('+') ? normalizedCustomerPhone : `+${normalizedCustomerPhone}`;
+  const formattedOurNumber = normalizedOurNumber.startsWith('+') ? normalizedOurNumber : `+${normalizedOurNumber}`;
+  const conversationId = `conv_${formattedCustomerPhone}_${formattedOurNumber}`;
   
   // 🔧 VALIDACIÓN CRÍTICA: Prevenir IDs con doble ++
   if (conversationId.includes('++')) {
     logger.error('🚨 ERROR CRÍTICO: Se intentó generar ID con doble ++', { category: '_ERROR_CR_TICO_SE_INTENT_GENER', 
-      phone1: sorted[0],
-      phone2: sorted[1],
-      normalized1,
-      normalized2,
-      sorted,
+      ourNumber: normalizedOurNumber,
+      customerPhone: normalizedCustomerPhone,
       generatedId: conversationId,
       timestamp: new Date().toISOString()
      });
@@ -56,10 +50,8 @@ function generateConversationId (phone1, phone2) {
   
   // Log para debugging
   logger.info('ID de conversación generado correctamente:', { category: 'ID_DE_CONVERSACI_N_GENERADO_CO', 
-    phone1: sorted[0],
-    phone2: sorted[1],
-    normalized1,
-    normalized2,
+    ourNumber: normalizedOurNumber,
+    customerPhone: normalizedCustomerPhone,
     conversationId,
     hasDoublePlus: conversationId.includes('++')
    });

@@ -147,35 +147,67 @@ class ConversationService {
         updatedAt: FieldValue.serverTimestamp(),
         lastMessageAt: FieldValue.serverTimestamp(),
         status: conversationData.status || 'open',
+        unreadCount: conversationData.unreadCount || 0,
+        messageCount: conversationData.messageCount || 0,
+        workspaceId: conversationData.workspaceId || 'default_workspace',
+        tenantId: conversationData.tenantId || 'default_tenant',
         priority: conversationData.priority || 'normal',
-        participants: conversationData.participants || [],
-        messages: [],
-        unreadCount: 0
+        tags: Array.isArray(conversationData.tags) ? conversationData.tags : [],
+        participants: Array.isArray(conversationData.participants) ? conversationData.participants : []
       };
 
-      // 🔧 CRÍTICO: Usar el ID proporcionado en lugar de generar uno automático
-      const conversationId = conversationData.id;
-      
-      if (!conversationId) {
-        throw new Error('ID de conversación requerido para crear conversación');
+      // 🔧 CRÍTICO: Asegurar que participants incluya al creador
+      if (conversationData.createdBy && !conversation.participants.includes(conversationData.createdBy)) {
+        conversation.participants.push(conversationData.createdBy);
       }
 
-      // Usar set() con ID específico en lugar de add()
-      await firestore.collection('conversations').doc(conversationId).set(conversation);
+      const conversationRef = firestore.collection('conversations').doc(conversation.id);
       
-      logger.info('✅ Conversación creada con ID específico', {
-        conversationId,
-        customerPhone: conversationData.customerPhone,
-        createdBy: conversationData.createdBy
+      // 🔧 NUEVO: Crear la conversación y la subcolección messages en una transacción
+      await firestore.runTransaction(async (transaction) => {
+        // Crear el documento de conversación
+        transaction.set(conversationRef, conversation);
+        
+        // 🔧 CRÍTICO: Crear la subcolección messages con un documento inicial
+        const messagesRef = conversationRef.collection('messages');
+        const initialMessageDoc = {
+          id: 'initial_placeholder',
+          conversationId: conversation.id,
+          content: 'Conversación iniciada',
+          type: 'system',
+          direction: 'system',
+          status: 'sent',
+          senderIdentifier: conversationData.createdBy || 'system',
+          recipientIdentifier: conversationData.customerPhone,
+          timestamp: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          metadata: {
+            isInitialPlaceholder: true,
+            createdWithConversation: true
+          }
+        };
+        
+        // Crear documento inicial en la subcolección messages
+        transaction.set(messagesRef.doc('initial_placeholder'), initialMessageDoc);
       });
-      
-      return {
-        id: conversationId,
-        ...conversation
-      };
+
+      logger.info('✅ Conversación creada exitosamente con subcolección messages', {
+        conversationId: conversation.id,
+        customerPhone: conversation.customerPhone,
+        participants: conversation.participants,
+        createdBy: conversationData.createdBy,
+        hasMessagesSubcollection: true
+      });
+
+      return conversation;
 
     } catch (error) {
-      logger.error('Error creando conversación:', error);
+      logger.error('❌ Error creando conversación', {
+        conversationId: conversationData.id,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }

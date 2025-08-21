@@ -549,32 +549,46 @@ class ConversationController {
       // 🆕 CREAR CONVERSACIÓN CON ID CORRECTO
       // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
       const Conversation = require('../models/Conversation');
+      
+      // 🔧 CRÍTICO: Asegurar que el usuario creador esté en participants
+      const creatorEmail = req.user.email;
       const participants = Conversation.ensureParticipantsArray(
         customerPhone,
-        assignedAgent?.email || null
+        assignedAgent?.email || creatorEmail, // Usar creatorEmail si no hay assignedAgent
+        [creatorEmail] // Incluir explícitamente al creador
       );
       
+      // 🔧 AGREGAR CAMPOS FALTANTES según las imágenes de referencia
       const conversationData = {
-        id: conversationId, // 🔧 CRÍTICO: Usar el ID generado correctamente
+        id: conversationId,
         customerPhone: customerPhone,
         assignedTo: assignedAgent?.email || null,
         assignedToName: assignedAgent?.name || null,
         priority,
         tags,
-        participants: participants, // 🔧 CORREGIDO: Array completo con cliente y agente
-        createdBy: req.user.email
+        participants: participants, // 🔧 CORREGIDO: Array completo con cliente, agente y creador
+        createdBy: creatorEmail,
+        // 🔧 AGREGAR CAMPOS FALTANTES
+        workspaceId: req.user.workspaceId || 'default_workspace',
+        tenantId: req.user.tenantId || 'default_tenant',
+        status: 'open',
+        unreadCount: 0,
+        messageCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastMessageAt: new Date()
       };
 
       const conversation = await ConversationService.createConversation(conversationData);
 
-      // �� CREAR MENSAJE INICIAL SI SE PROPORCIONA
+      // 🔧 CREAR MENSAJE INICIAL SI SE PROPORCIONA
       if (initialMessage) {
         try {
           // Crear mensaje en base de datos
           const messageData = {
             conversationId: conversation.id,
             content: initialMessage,
-            senderIdentifier: req.user.email,
+            senderIdentifier: creatorEmail,
             recipientIdentifier: customerPhone,
             direction: 'outbound',
             type: 'text',
@@ -616,7 +630,7 @@ class ConversationController {
       if (socketManager) {
         socketManager.io.emit('conversation-created', {
           conversation: safeFirestoreToJSON(conversation),
-          createdBy: req.user.email,
+          createdBy: creatorEmail,
           timestamp: new Date().toISOString()
         });
 
@@ -636,7 +650,8 @@ class ConversationController {
         conversationId: conversation.id,
         customerPhone: customerPhone,
         assignedTo: assignedAgent?.email,
-        createdBy: req.user.email,
+        createdBy: creatorEmail,
+        participants: participants,
         hasInitialMessage: !!initialMessage
       });
 
