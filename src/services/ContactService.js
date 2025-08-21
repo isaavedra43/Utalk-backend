@@ -277,6 +277,16 @@ class ContactService {
 
       // Normalizar número de teléfono
       const normalizedPhone = phone.trim();
+      
+      // Validar que no esté vacío después del trim
+      if (!normalizedPhone) {
+        throw ErrorWrapper.createError(
+          'Número de teléfono no puede estar vacío',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+      
       if (!normalizedPhone.match(/^\+[1-9]\d{1,14}$/)) {
         throw ErrorWrapper.createError(
           'Formato de número de teléfono inválido',
