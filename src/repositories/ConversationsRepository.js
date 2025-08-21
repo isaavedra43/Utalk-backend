@@ -15,6 +15,7 @@ const logger = require('../utils/logger');
 const { FieldValue } = require('firebase-admin/firestore');
 const { redactQueryLog } = require('../utils/redact');
 const { getDefaultViewerEmails } = require('../config/defaultViewers');
+const { generateConversationId } = require('../utils/conversation');
 
 /**
  * ViewModel canónico para conversaciones
@@ -450,9 +451,43 @@ class ConversationsRepository {
         });
       }
 
-      // Transacción atómica: mensaje + conversación
+      // Calcular ID canónico cliente-primero (customer, then our)
+      const canonicalConversationId = (() => {
+        try {
+          const ourNumber = msg.recipientIdentifier; // inbound → nuestro número es el recipient
+          const customerPhone = msg.senderIdentifier; // cliente es el sender
+          return generateConversationId(ourNumber, customerPhone);
+        } catch (_) {
+          return msg.conversationId; // fallback
+        }
+      })();
+
+      // Buscar/crear contacto por teléfono del cliente
+      const contactSnap = await firestore
+        .collection('contacts')
+        .where('phone', '==', msg.senderIdentifier)
+        .limit(1)
+        .get();
+
+      let contactId;
+      if (!contactSnap.empty) {
+        contactId = contactSnap.docs[0].id;
+      } else {
+        const newContactRef = await firestore.collection('contacts').add({
+          phone: msg.senderIdentifier,
+          name: msg.profileName || msg.senderIdentifier,
+          metadata: { createdVia: 'inbound_message', createdAt: new Date().toISOString() },
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        contactId = newContactRef.id;
+      }
+
+      // Transacción atómica: mensaje + conversación (SOLO en contacts/{contactId}/conversations)
       const result = await firestore.runTransaction(async (transaction) => {
-        const conversationRef = firestore.collection(this.collectionPath).doc(msg.conversationId);
+        const conversationRef = firestore
+          .collection('contacts').doc(contactId)
+          .collection('conversations').doc(canonicalConversationId);
         const messageRef = conversationRef.collection('messages').doc(msg.messageId);
 
         // Verificar si el mensaje ya existe (idempotencia)
@@ -507,11 +542,10 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // Asegurar que participants incluya el cliente y el agente (email)
+        // Participants SOLO emails (agente/creador) + viewers por defecto
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
-        const participantsSet = new Set(existingParticipants);
-        if (msg.senderIdentifier) participantsSet.add(msg.senderIdentifier);
-        if (msg.agentEmail) participantsSet.add(msg.agentEmail);
+        const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
+        if (msg.agentEmail) participantsSet.add(String(msg.agentEmail).toLowerCase());
 
         // NEW: mergear viewers por defecto (sin duplicar)
         const viewers_in = getDefaultViewerEmails();
@@ -541,7 +575,7 @@ class ConversationsRepository {
 
         // Si la conversación no existe, agregar campos obligatorios
         if (!conversationExists) {
-          conversationUpdate.id = msg.conversationId;
+          conversationUpdate.id = canonicalConversationId;
           conversationUpdate.customerPhone = msg.senderIdentifier;
           conversationUpdate.status = 'open';
           conversationUpdate.createdAt = new Date();
@@ -556,13 +590,14 @@ class ConversationsRepository {
         if (msg.workspaceId) conversationUpdate.workspaceId = msg.workspaceId;
         if (msg.tenantId) conversationUpdate.tenantId = msg.tenantId;
 
-        // Actualizar conversación
+        // Actualizar conversación SOLO en estructura de contacts
         transaction.set(conversationRef, conversationUpdate, { merge: true });
 
         return { 
           message: messageFirestoreData, 
           conversation: conversationUpdate,
-          idempotent: false
+          idempotent: false,
+          contactId
         };
       });
 
@@ -582,8 +617,7 @@ class ConversationsRepository {
         });
       }
 
-      // Emitir eventos RT (sin tocar el manager)
-      // TODO: Implementar emisión de eventos RT aquí
+      // Emitir eventos RT (pendiente integrar con socket manager si aplica)
 
       return result;
 
