@@ -5,6 +5,57 @@ const { prepareForFirestore } = require('../utils/firestore');
 // const { isValidConversationId } = require('../utils/conversation'); // DEPRECATED
 const { createCursor, parseCursor } = require('../utils/pagination');
 const { safeDateToISOString } = require('../utils/dateHelpers');
+const { extractParticipants } = require('../utils/conversation');
+
+// === HELPERS PARA RESOLVER CONTACTO Y RUTAS ANIDADAS ===
+async function getOrCreateContactIdByPhone(phone, name = null) {
+  if (!phone) throw new Error('phone requerido para resolver contactId');
+  const snap = await firestore.collection('contacts').where('phone', '==', phone).limit(1).get();
+  if (!snap.empty) return snap.docs[0].id;
+  const ref = await firestore.collection('contacts').add({
+    phone,
+    name: name || phone,
+    metadata: { createdVia: 'message_model_autocreate', createdAt: new Date().toISOString() },
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  return ref.id;
+}
+
+async function getContactIdByConversationId(conversationId) {
+  // Primero por array conversationIds
+  const byConv = await firestore
+    .collection('contacts')
+    .where('conversationIds', 'array-contains', conversationId)
+    .limit(1)
+    .get();
+  if (!byConv.empty) return byConv.docs[0].id;
+  // Fallback: derivar teléfono cliente desde conversationId (cliente primero)
+  try {
+    const { phone1 } = extractParticipants(conversationId);
+    if (phone1) return await getOrCreateContactIdByPhone('+' + String(phone1).replace(/^\+/, ''));
+  } catch (_){ /* ignore */ }
+  return null;
+}
+
+async function getMessagesCollectionRef(conversationId) {
+  const contactId = await getContactIdByConversationId(conversationId);
+  if (!contactId) throw new Error('No se pudo resolver contactId para la conversación');
+  return firestore
+    .collection('contacts')
+    .doc(contactId)
+    .collection('conversations')
+    .doc(conversationId)
+    .collection('messages');
+}
+
+async function getConversationDocRefByIds(contactId, conversationId) {
+  return firestore
+    .collection('contacts')
+    .doc(contactId)
+    .collection('conversations')
+    .doc(conversationId);
+}
 
 class Message {
   constructor (data) {
@@ -101,37 +152,38 @@ class Message {
       try {
         const message = new Message(messageData);
 
-      // Check if conversation exists, if not, create it
-          const conversationRef = firestore.collection('conversations').doc(message.conversationId);
-          const conversationDoc = await conversationRef.get();
+      // Resolver contactId por teléfono del cliente y ruta anidada
+      const customerPhone = message.direction === 'inbound' ? message.senderIdentifier : message.recipientIdentifier;
+      const contactId = await getOrCreateContactIdByPhone(customerPhone);
+      const conversationRef = await getConversationDocRefByIds(contactId, message.conversationId);
+      const conversationDoc = await conversationRef.get();
 
-          if (!conversationDoc.exists) {
-        // Create the parent conversation document
-            await conversationRef.set({
-              id: message.conversationId,
-              customerPhone: message.senderIdentifier,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              lastMessage: {
-                content: message.content,
-                timestamp: new Date(),
-                sender: message.senderIdentifier
+      if (!conversationDoc.exists) {
+        await conversationRef.set({
+          id: message.conversationId,
+          customerPhone: customerPhone,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastMessage: {
+            content: message.content,
+            timestamp: new Date(),
+            sender: message.senderIdentifier
           },
-          messageCount: 1
-            });
-      }
-
-      // Update conversation with last message and increment count
-      await conversationRef.update({
-        lastMessage: {
-          content: message.content,
-          timestamp: new Date(),
+          messageCount: 1,
+          status: 'open'
+        }, { merge: true });
+      } else {
+        await conversationRef.update({
+          lastMessage: {
+            content: message.content,
+            timestamp: new Date(),
             sender: message.senderIdentifier,
-          messageId: uniqueMessageId
-        },
-        messageCount: admin.firestore.FieldValue.increment(1),
-        updatedAt: new Date()
-      });
+            messageId: uniqueMessageId
+          },
+          messageCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: new Date()
+        });
+      }
 
       // Prepare data for Firestore, ensuring no undefined values
       const cleanData = prepareForFirestore({ ...message });
@@ -149,8 +201,9 @@ class Message {
         throw new Error(`CRITICAL DATA MISSING: id=${!!firestoreData.id}, conversationId=${!!firestoreData.conversationId}`);
       }
 
-      // Save message to Firestore subcollection using the uniqueMessageId
-      await firestore.collection('conversations').doc(message.conversationId).collection('messages').doc(uniqueMessageId).set(firestoreData);
+      // Guardar mensaje en subcolección anidada contacts/{contactId}/conversations/{id}/messages
+      const messagesRef = await getMessagesCollectionRef(message.conversationId);
+      await messagesRef.doc(uniqueMessageId).set(firestoreData);
 
       // === LOG CRÍTICO DESPUÉS DE FIRESTORE SAVE ===
       logger.info('Message saved successfully', {
@@ -158,7 +211,7 @@ class Message {
         requestId,
         messageId: uniqueMessageId, 
           conversationId: message.conversationId,
-        firestorePath: `conversations/${message.conversationId}/messages/${uniqueMessageId}`,
+        firestorePath: `contacts/${contactId}/conversations/${message.conversationId}/messages/${uniqueMessageId}`,
         dataKeys: Object.keys(firestoreData),
         step: 'firestore_save_success' 
         });
@@ -210,36 +263,30 @@ class Message {
         step: 'search_start'
       });
 
-      // Buscar en todas las conversaciones
-      const conversationsRef = firestore.collection('conversations');
-      const conversationsSnapshot = await conversationsRef.get();
+      // Buscar en estructura contacts/{contactId}/conversations
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      for (const contactDoc of contactsSnapshot.docs) {
+        const convsSnapshot = await contactDoc.ref.collection('conversations').get();
+        for (const convDoc of convsSnapshot.docs) {
+          const messagesRef = convDoc.ref.collection('messages');
+          const messagesSnapshot = await messagesRef
+            .where('metadata.twilioSid', '==', twilioSid)
+            .limit(1)
+            .get();
 
-      logger.info('📋 MESSAGE.GETBYTWILIOSID - CONVERSACIONES ENCONTRADAS', {
-        twilioSid,
-        conversationsCount: conversationsSnapshot.size,
-        step: 'conversations_loaded'
-      });
+          if (!messagesSnapshot.empty) {
+            const messageDoc = messagesSnapshot.docs[0];
+            const message = new Message({ id: messageDoc.id, ...messageDoc.data() });
 
-      // Buscar en cada conversación
-      for (const conversationDoc of conversationsSnapshot.docs) {
-        const messagesRef = conversationDoc.ref.collection('messages');
-        const messagesSnapshot = await messagesRef
-          .where('metadata.twilioSid', '==', twilioSid)
-          .limit(1)
-          .get();
+            logger.info('✅ MESSAGE.GETBYTWILIOSID - MENSAJE ENCONTRADO', {
+              twilioSid,
+              messageId: message.id,
+              conversationId: message.conversationId,
+              step: 'message_found'
+            });
 
-        if (!messagesSnapshot.empty) {
-          const messageDoc = messagesSnapshot.docs[0];
-          const message = new Message({ id: messageDoc.id, ...messageDoc.data() });
-
-          logger.info('✅ MESSAGE.GETBYTWILIOSID - MENSAJE ENCONTRADO', {
-            twilioSid,
-            messageId: message.id,
-            conversationId: message.conversationId,
-            step: 'message_found'
-          });
-
-          return message;
+            return message;
+          }
         }
       }
 
@@ -303,10 +350,8 @@ class Message {
       order: validatedOrder,
     });
 
-    let query = firestore
-      .collection('conversations')
-      .doc(conversationId)
-      .collection('messages');
+    const messagesBaseRef = await getMessagesCollectionRef(conversationId);
+    let query = messagesBaseRef;
 
     // APLICAR FILTROS
     const appliedFilters = [];
@@ -424,12 +469,8 @@ class Message {
     // La validación isValidConversationId se elimina porque ahora son UUIDs.
     // ... el resto de la lógica de getById permanece igual
 
-    const doc = await firestore
-      .collection('conversations')
-      .doc(conversationId)
-      .collection('messages')
-      .doc(messageId)
-      .get();
+    const messagesRef = await getMessagesCollectionRef(conversationId);
+    const doc = await messagesRef.doc(messageId).get();
 
     if (!doc.exists) {
       return null;
@@ -447,12 +488,8 @@ class Message {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    await firestore
-      .collection('conversations')
-      .doc(this.conversationId)
-      .collection('messages')
-      .doc(this.id)
-      .update(cleanData);
+    const messagesRef2 = await getMessagesCollectionRef(this.conversationId);
+    await messagesRef2.doc(this.id).update(cleanData);
 
     // Actualizar instancia local
     Object.assign(this, updates);
@@ -463,12 +500,8 @@ class Message {
    * Eliminar mensaje
    */
   async delete () {
-    await firestore
-      .collection('conversations')
-      .doc(this.conversationId)
-      .collection('messages')
-      .doc(this.id)
-      .delete();
+    const messagesRef3 = await getMessagesCollectionRef(this.conversationId);
+    await messagesRef3.doc(this.id).delete();
 
     // Actualizar conversación
     const Conversation = require('./Conversation');
@@ -723,12 +756,8 @@ class Message {
     }
 
     // Construir referencias
-    const refs = messageIds.map(messageId => firestore
-      .collection('conversations')
-      .doc(conversationId)
-      .collection('messages')
-      .doc(messageId)
-    );
+    const baseRef = await getMessagesCollectionRef(conversationId);
+    const refs = messageIds.map(messageId => baseRef.doc(messageId));
 
     // Obtener documentos al vuelo y filtrar existentes (opción B)
     const snapshots = await firestore.getAll(...refs);
@@ -784,12 +813,8 @@ class Message {
    * 🗑️ Eliminación soft del mensaje
    */
   async softDelete(deletedBy) {
-    await firestore
-      .collection('conversations')
-      .doc(this.conversationId)
-      .collection('messages')
-      .doc(this.id)
-      .update({
+    const messagesRef4 = await getMessagesCollectionRef(this.conversationId);
+    await messagesRef4.doc(this.id).update({
         isDeleted: true,
         deletedBy,
         deletedAt: FieldValue.serverTimestamp(),
@@ -816,7 +841,8 @@ class Message {
     startDate.setDate(startDate.getDate() - daysToSubtract);
 
     // Obtener todas las conversaciones del agente o una específica
-    let conversationsQuery = firestore.collection('conversations');
+    // Migración: stats sobre nueva estructura no implementado aquí; mantener lógica fuera o adaptar en otro cambio
+    let conversationsQuery = firestore.collection('contacts');
     
     if (agentEmail) {
       conversationsQuery = conversationsQuery.where('assignedTo', '==', agentEmail);
