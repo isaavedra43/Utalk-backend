@@ -518,7 +518,37 @@ class ConversationController {
    */
   static async createConversation(req, res, next) {
     try {
-      const { customerPhone, assignedTo, initialMessage, priority = 'normal', tags = [] } = req.body;
+      // 🔧 EXPANDIDO: Extraer todos los campos que puede enviar el frontend
+      const { 
+        customerPhone, 
+        customerName,
+        assignedTo, 
+        initialMessage, 
+        priority = 'medium', 
+        tags = [],
+        // Campos adicionales del frontend
+        id: frontendId,
+        status = 'open',
+        participants: frontendParticipants,
+        createdBy: frontendCreatedBy,
+        assignedToName,
+        createdAt: frontendCreatedAt,
+        updatedAt: frontendUpdatedAt,
+        lastMessageAt: frontendLastMessageAt,
+        unreadCount = 0,
+        messageCount = 0,
+        tenantId,
+        workspaceId,
+        messages = [],
+        lastMessage,
+        metadata: frontendMetadata,
+        subject,
+        channel,
+        source,
+        externalId,
+        notes,
+        customFields
+      } = req.body;
 
       // 🔍 VALIDAR AGENTE ASIGNADO
       let assignedAgent = null;
@@ -537,47 +567,77 @@ class ConversationController {
         throw new Error('TWILIO_WHATSAPP_NUMBER no configurado');
       }
 
-      const conversationId = generateConversationId(whatsappNumber, customerPhone);
+      const conversationId = frontendId || generateConversationId(whatsappNumber, customerPhone);
       
-      logger.info('🔧 Conversation ID generado correctamente', {
-        whatsappNumber,
+      logger.info('🔧 Conversation ID procesado', {
+        frontendId,
+        generatedId: conversationId,
         customerPhone,
-        conversationId,
         generatedBy: 'ConversationController.createConversation'
       });
 
       // 🆕 CREAR CONVERSACIÓN CON ID CORRECTO
-      // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
       const Conversation = require('../models/Conversation');
       
       // 🔧 CRÍTICO: Asegurar que el usuario creador esté en participants
-      const creatorEmail = req.user.email;
-      const participants = Conversation.ensureParticipantsArray(
-        customerPhone,
-        assignedAgent?.email || creatorEmail, // Usar creatorEmail si no hay assignedAgent
-        [creatorEmail] // Incluir explícitamente al creador
-      );
+      const creatorEmail = frontendCreatedBy || req.user.email;
       
-      // 🔧 AGREGAR CAMPOS FALTANTES según las imágenes de referencia
+      // 🔧 EXPANDIDO: Usar participants del frontend o generar los correctos
+      let participants;
+      if (frontendParticipants && Array.isArray(frontendParticipants)) {
+        participants = frontendParticipants;
+        logger.info('🔧 Usando participants del frontend', { participants });
+      } else {
+        participants = Conversation.ensureParticipantsArray(
+          customerPhone,
+          assignedAgent?.email || creatorEmail,
+          [creatorEmail]
+        );
+        logger.info('🔧 Generando participants automáticamente', { participants });
+      }
+      
+      // 🔧 EXPANDIDO: Construir objeto de conversación con todos los campos
       const conversationData = {
         id: conversationId,
         customerPhone: customerPhone,
-        assignedTo: assignedAgent?.email || null,
-        assignedToName: assignedAgent?.name || null,
+        customerName: customerName || '',
+        assignedTo: assignedAgent?.email || assignedTo || null,
+        assignedToName: assignedToName || assignedAgent?.name || null,
         priority,
         tags,
-        participants: participants, // 🔧 CORREGIDO: Array completo con cliente, agente y creador
+        participants: participants,
         createdBy: creatorEmail,
-        // 🔧 AGREGAR CAMPOS FALTANTES
-        workspaceId: req.user.workspaceId || 'default_workspace',
-        tenantId: req.user.tenantId || 'default_tenant',
-        status: 'open',
-        unreadCount: 0,
-        messageCount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastMessageAt: new Date()
+        status,
+        unreadCount,
+        messageCount,
+        workspaceId: workspaceId || req.user.workspaceId || 'default_workspace',
+        tenantId: tenantId || req.user.tenantId || 'default_tenant',
+        createdAt: frontendCreatedAt ? new Date(frontendCreatedAt) : new Date(),
+        updatedAt: frontendUpdatedAt ? new Date(frontendUpdatedAt) : new Date(),
+        lastMessageAt: frontendLastMessageAt ? new Date(frontendLastMessageAt) : new Date(),
+        // Campos adicionales
+        subject,
+        channel: channel || 'whatsapp',
+        source: source || 'manual',
+        externalId,
+        notes,
+        customFields,
+        // Metadata expandida
+        metadata: {
+          ...frontendMetadata,
+          channel: channel || 'whatsapp',
+          createdVia: source || 'manual',
+          frontendData: true
+        }
       };
+
+      logger.info('🔧 Datos de conversación preparados', {
+        conversationId,
+        customerPhone,
+        participantsCount: participants.length,
+        hasMetadata: !!frontendMetadata,
+        timestamp: new Date().toISOString()
+      });
 
       const conversation = await ConversationService.createConversation(conversationData);
 

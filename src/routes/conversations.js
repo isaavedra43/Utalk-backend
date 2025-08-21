@@ -16,13 +16,41 @@ const logger = require('../utils/logger');
 const conversationValidators = {
   validateCreate: validateRequest({
     body: Joi.object({
+      // Campos básicos requeridos
       customerPhone: Joi.string().pattern(/^\+[1-9]\d{1,14}$/).required(),
       customerName: Joi.string().min(1).max(100).optional(),
+      
+      // Campos opcionales básicos
       subject: Joi.string().min(1).max(200).optional(),
       priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
       tags: Joi.array().items(Joi.string()).max(10).optional(),
-      metadata: Joi.object().optional()
-    })
+      metadata: Joi.object().optional(),
+      
+      // Campos adicionales que envía el frontend
+      id: Joi.string().optional(),
+      status: Joi.string().valid('open', 'pending', 'resolved', 'closed').optional(),
+      participants: Joi.array().items(Joi.string()).optional(),
+      createdBy: Joi.string().email().optional(),
+      assignedTo: Joi.string().email().optional(),
+      assignedToName: Joi.string().optional().allow(null),
+      createdAt: Joi.string().isoDate().optional(),
+      updatedAt: Joi.string().isoDate().optional(),
+      lastMessageAt: Joi.string().isoDate().optional(),
+      unreadCount: Joi.number().integer().min(0).optional(),
+      messageCount: Joi.number().integer().min(0).optional(),
+      tenantId: Joi.string().optional(),
+      workspaceId: Joi.string().optional(),
+      messages: Joi.array().optional(),
+      lastMessage: Joi.object().optional().allow(null),
+      
+      // Campos adicionales para compatibilidad
+      initialMessage: Joi.string().optional(),
+      channel: Joi.string().optional(),
+      source: Joi.string().optional(),
+      externalId: Joi.string().optional(),
+      notes: Joi.string().optional(),
+      customFields: Joi.object().optional()
+    }).unknown(true) // Permitir campos adicionales no definidos
   }),
 
   validateUpdate: validateRequest({

@@ -26,6 +26,7 @@ class Conversation {
 
     // CUSTOMER: Identificador del cliente externo.
     this.customerPhone = data.customerPhone || '';
+    this.customerName = data.customerName || '';
 
     // DEPRECATED: agentPhone se elimina, se usa assignedTo (EMAIL).
     // this.agentPhone = data.agentPhone;
@@ -33,7 +34,7 @@ class Conversation {
     // CONTACT: Info del cliente.
     this.contact = data.contact && typeof data.contact === 'object' 
       ? data.contact 
-      : { id: this.customerPhone, name: this.customerPhone };
+      : { id: this.customerPhone, name: this.customerName || this.customerPhone };
 
     // CAMPOS OBLIGATORIOS CON VALORES POR DEFECTO
     this.lastMessage = data.lastMessage || null;
@@ -49,8 +50,33 @@ class Conversation {
     this.assignedTo = data.assignedTo || null;
     this.assignedToName = data.assignedToName || null;
     
+    // CAMPOS DE CREACIÓN Y ACTUALIZACIÓN
     this.createdAt = data.createdAt || Timestamp.now();
     this.updatedAt = data.updatedAt || Timestamp.now();
+    this.createdBy = data.createdBy || null;
+    
+    // CAMPOS DE WORKSPACE Y TENANT
+    this.workspaceId = data.workspaceId || 'default_workspace';
+    this.tenantId = data.tenantId || 'default_tenant';
+    
+    // CAMPOS ADICIONALES DEL FRONTEND
+    this.subject = data.subject || null;
+    this.channel = data.channel || 'whatsapp';
+    this.source = data.source || 'manual';
+    this.externalId = data.externalId || null;
+    this.notes = data.notes || null;
+    this.customFields = data.customFields || {};
+    
+    // METADATA EXPANDIDA
+    this.metadata = {
+      ...(data.metadata || {}),
+      channel: this.channel,
+      createdVia: this.source,
+      frontendData: true
+    };
+    
+    // CAMPOS DE MENSAJES (para compatibilidad)
+    this.messages = Array.isArray(data.messages) ? data.messages : [];
   }
 
   /**
