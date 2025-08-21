@@ -531,7 +531,8 @@ class ConversationController {
 
       // 🆕 CREAR CONVERSACIÓN
       // 🔧 CORREGIDO: Usar ensureParticipantsArray para garantizar participants correcto
-      const participants = ConversationService.ensureParticipantsArray(
+      const Conversation = require('../models/Conversation');
+      const participants = Conversation.ensureParticipantsArray(
         customerPhone,
         assignedAgent?.email || null
       );
