@@ -164,20 +164,23 @@ class StorageConfig {
    */
   static async generateSignedUrl(filePath, expirationMs = null) {
     try {
-      const config = this.getConfig();
-      const expiration = Date.now() + (expirationMs || config.signedUrlExpiration);
       const bucket = this.getBucket();
-      
-      const [url] = await bucket
-        .file(filePath)
-        .getSignedUrl({
-          action: 'read',
-          expires: expiration,
-        });
+      const file = bucket.file(filePath);
+
+      // Asegurar token de descarga en metadatos
+      const [meta] = await file.getMetadata();
+      let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+      if (!token) {
+        const existingMeta = (meta && meta.metadata) || {};
+        token = require('uuid').v4();
+        await file.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+      }
+
+      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
 
       return {
         url,
-        expiresAt: new Date(expiration).toISOString()
+        expiresAt: null
       };
     } catch (error) {
       logger.error('Error generando URL firmada:', error);

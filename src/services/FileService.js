@@ -733,16 +733,19 @@ class FileService {
         return null;
       }
 
-      // Generar nueva URL firmada si es necesario
+      // Asegurar URL de descarga estable (si no hay token, crearlo)
       if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
-        const [newSignedUrl] = await storageFile.getSignedUrl({
-          action: 'read',
-          expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-        });
-
+        const [meta] = await storageFile.getMetadata();
+        let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+        if (!token) {
+          const existingMeta = (meta && meta.metadata) || {};
+          token = uuidv4();
+          await storageFile.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+        }
+        const stableUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.storagePath)}?alt=media&token=${token}`;
         await file.update({ 
-          publicUrl: newSignedUrl,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          publicUrl: stableUrl,
+          expiresAt: null
         });
       }
 
@@ -1188,13 +1191,17 @@ class FileService {
       // Incrementar contador de descargas
       await file.incrementDownloadCount();
 
-      // Generar nueva URL firmada
+      // Construir download URL estable para descarga directa
       const bucket = this.getBucket();
       const storageFile = bucket.file(file.storagePath);
-      const [signedUrl] = await storageFile.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 1 * 60 * 60 * 1000 // 1 hora
-      });
+      const [meta] = await storageFile.getMetadata();
+      let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+      if (!token) {
+        const existingMeta = (meta && meta.metadata) || {};
+        token = uuidv4();
+        await storageFile.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+      }
+      const signedUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.storagePath)}?alt=media&token=${token}`;
 
       logger.info('✅ Archivo preparado para descarga', {
         fileId,
@@ -1373,16 +1380,21 @@ class FileService {
         }
       });
 
-      const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-      });
+      const [meta] = await file.getMetadata();
+      let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+      if (!token) {
+        const existingMeta = (meta && meta.metadata) || {};
+        token = uuidv4();
+        await file.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+      }
+
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 
       const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
-        publicUrl: signedUrl,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        publicUrl: downloadUrl,
+        expiresAt: null,
         metadata: processedAudio.metadata || {}
       };
 
@@ -1445,16 +1457,21 @@ class FileService {
         }
       });
 
-      const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-      });
+      // Generar URL de descarga estable de Firebase (download URL)
+      const [meta] = await file.getMetadata();
+      let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+      if (!token) {
+        const existingMeta = (meta && meta.metadata) || {};
+        token = uuidv4();
+        await file.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+      }
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 
       const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
-        publicUrl: signedUrl,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        publicUrl: downloadUrl,
+        expiresAt: null,
         metadata: {
           originalSize: buffer.length,
           optimizedSize: optimizedBuffer.length,
@@ -1515,16 +1532,20 @@ class FileService {
         }
       });
 
-      const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-      });
+      const [meta] = await file.getMetadata();
+      let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+      if (!token) {
+        const existingMeta = (meta && meta.metadata) || {};
+        token = uuidv4();
+        await file.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+      }
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 
       const result = {
         storagePath,
         storageUrl: `gs://${bucket.name}/${storagePath}`,
-        publicUrl: signedUrl,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        publicUrl: downloadUrl,
+        expiresAt: null,
         metadata: {
           originalSize: buffer.length
         }

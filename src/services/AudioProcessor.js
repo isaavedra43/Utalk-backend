@@ -1011,11 +1011,15 @@ class AudioProcessor {
         }
       });
 
-      // Generar URL firmada
-      const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-      });
+      // Generar URL estable de descarga
+      const [meta] = await file.getMetadata();
+      let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+      if (!token) {
+        const existingMeta = (meta && meta.metadata) || {};
+        token = uuidv4();
+        await file.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+      }
+      const signedUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 
       logger.info('✅ Audio grabado guardado', {
         recordingId,

@@ -2309,18 +2309,22 @@ class MediaUploadController {
           const bucket = fileService.getBucket();
           const storageFile = bucket.file(file.storagePath);
           
-          const [newSignedUrl] = await storageFile.getSignedUrl({
-            action: 'read',
-            expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-          });
+          const [meta] = await storageFile.getMetadata();
+          let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+          if (!token) {
+            const existingMeta = (meta && meta.metadata) || {};
+            token = uuidv4();
+            await storageFile.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+          }
+          const stableUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.storagePath)}?alt=media&token=${token}`;
           
           // Actualizar archivo en base de datos
           await file.update({
-            publicUrl: newSignedUrl,
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            publicUrl: stableUrl,
+            expiresAt: null
           });
           
-          publicUrl = newSignedUrl;
+          publicUrl = stableUrl;
           
           logger.info('✅ URL firmada regenerada exitosamente', {
             requestId,
@@ -2424,10 +2428,14 @@ class MediaUploadController {
       let publicUrl = file.publicUrl;
       
       if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
-        const [newSignedUrl] = await storageFile.getSignedUrl({
-          action: 'read',
-          expires: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-        });
+        const [meta] = await storageFile.getMetadata();
+        let token = (meta && meta.metadata && meta.metadata.firebaseStorageDownloadTokens) || null;
+        if (!token) {
+          const existingMeta = (meta && meta.metadata) || {};
+          token = uuidv4();
+          await storageFile.setMetadata({ metadata: { ...existingMeta, firebaseStorageDownloadTokens: token } });
+        }
+        const newSignedUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.storagePath)}?alt=media&token=${token}`;
         
         await file.update({
           publicUrl: newSignedUrl,
