@@ -56,15 +56,22 @@ const messageValidators = {
 
   validateSendWithAttachments: validateRequest({
     body: Joi.object({
-      conversationId: Joi.string().uuid().required(),
+      conversationId: Joi.alternatives().try(
+        Joi.string().uuid(),
+        Joi.string().pattern(/^conv_(\+?\d+)_(\+?\d+)$/)
+      ).required(),
       content: Joi.string().max(4096).optional(),
       attachments: Joi.array().items(Joi.object({
+        // Opción 1: Archivo ya subido (ID)
+        id: Joi.string().uuid().optional(),
+        type: Joi.string().valid('image', 'document', 'video', 'audio').optional(),
+        // Opción 2: Archivo crudo (para compatibilidad)
         buffer: Joi.binary().optional(),
         originalname: Joi.string().optional(),
-        mimetype: Joi.string().required(),
+        mimetype: Joi.string().optional(),
         size: Joi.number().integer().min(1).max(100 * 1024 * 1024).optional(), // 100MB max
         fieldname: Joi.string().optional()
-      })).min(1).max(10).required(), // Mínimo 1, máximo 10 archivos
+      }).or('id', 'buffer')).min(1).max(10).required(), // Mínimo 1, máximo 10 archivos
       metadata: Joi.object().optional()
     })
   }),

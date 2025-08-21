@@ -1777,6 +1777,7 @@ class FileService {
   /**
    * 🆕 PROCESAR ARCHIVOS ADJUNTOS EN MENSAJES
    * Método crítico para integrar archivos con el sistema de mensajes
+   * Ahora soporta tanto archivos crudos como IDs de archivos ya subidos
    */
   async processMessageAttachments(attachments, userEmail, conversationId = null) {
     try {
@@ -1792,10 +1793,105 @@ class FileService {
         const attachment = attachments[i];
         
         try {
-          // Validar que el attachment tenga los datos necesarios
-          if (!attachment.buffer || !attachment.type || !attachment.name) {
+          // 🔍 DETECTAR TIPO DE ATTACHMENT
+          const hasId = attachment.id && typeof attachment.id === 'string';
+          const hasBuffer = attachment.buffer && Buffer.isBuffer(attachment.buffer);
+          
+          if (hasId) {
+            // 📁 CASO 1: Attachment con ID (archivo ya subido)
+            logger.info('📁 Procesando attachment con ID', {
+              index: i,
+              fileId: attachment.id,
+              type: attachment.type
+            });
+            
+            // Obtener información del archivo desde la base de datos
+            const fileInfo = await this.getFileById(attachment.id);
+            
+            if (!fileInfo) {
+              logger.warn('⚠️ Archivo no encontrado, saltando', {
+                index: i,
+                fileId: attachment.id
+              });
+              continue;
+            }
+            
+            // Formatear respuesta para el mensaje
+            const processedAttachment = {
+              id: fileInfo.id,
+              url: fileInfo.publicUrl || fileInfo.url,
+              mime: fileInfo.mimeType,
+              name: fileInfo.originalName,
+              size: fileInfo.size,
+              type: attachment.type || this.getFileType(fileInfo.mimeType),
+              category: fileInfo.category,
+              metadata: fileInfo.metadata || {}
+            };
+
+            processedAttachments.push(processedAttachment);
+
+            logger.info('✅ Attachment con ID procesado exitosamente', {
+              index: i,
+              fileId: fileInfo.id,
+              type: processedAttachment.type,
+              size: fileInfo.size
+            });
+            
+          } else if (hasBuffer) {
+            // 📁 CASO 2: Attachment crudo (compatibilidad hacia atrás)
+            logger.info('📁 Procesando attachment crudo', {
+              index: i,
+              hasType: !!attachment.type,
+              hasName: !!attachment.name
+            });
+            
+            // Validar que el attachment tenga los datos necesarios
+            if (!attachment.type || !attachment.name) {
+              logger.warn('⚠️ Attachment crudo inválido, saltando', {
+                index: i,
+                hasType: !!attachment.type,
+                hasName: !!attachment.name
+              });
+              continue;
+            }
+
+            // Procesar archivo usando el método existente
+            const result = await this.uploadFile({
+              buffer: attachment.buffer,
+              originalName: attachment.name,
+              mimetype: attachment.type,
+              size: attachment.size || attachment.buffer.length,
+              conversationId,
+              uploadedBy: userEmail,
+              tags: ['message-attachment']
+            });
+
+            // Formatear respuesta para el mensaje
+            const processedAttachment = {
+              id: result.id,
+              url: result.publicUrl,
+              mime: result.mimeType,
+              name: result.originalName,
+              size: result.size,
+              type: this.getFileType(result.mimeType),
+              category: result.category,
+              metadata: result.metadata || {}
+            };
+
+            processedAttachments.push(processedAttachment);
+
+            logger.info('✅ Attachment crudo procesado exitosamente', {
+              index: i,
+              fileId: result.id,
+              type: processedAttachment.type,
+              size: result.size
+            });
+            
+          } else {
+            // ❌ CASO 3: Attachment inválido
             logger.warn('⚠️ Attachment inválido, saltando', {
               index: i,
+              hasId: !!attachment.id,
               hasBuffer: !!attachment.buffer,
               hasType: !!attachment.type,
               hasName: !!attachment.name
@@ -1803,41 +1899,10 @@ class FileService {
             continue;
           }
 
-          // Procesar archivo usando el método existente
-          const result = await this.uploadFile({
-            buffer: attachment.buffer,
-            originalName: attachment.name,
-            mimetype: attachment.type,
-            size: attachment.size || attachment.buffer.length,
-            conversationId,
-            uploadedBy: userEmail,
-            tags: ['message-attachment']
-          });
-
-          // Formatear respuesta para el mensaje
-          const processedAttachment = {
-            id: result.id,
-            url: result.publicUrl,
-            mime: result.mimeType,
-            name: result.originalName,
-            size: result.size,
-            type: this.getFileType(result.mimeType),
-            category: result.category,
-            metadata: result.metadata || {}
-          };
-
-          processedAttachments.push(processedAttachment);
-
-          logger.info('✅ Attachment procesado exitosamente', {
-            index: i,
-            fileId: result.id,
-            type: processedAttachment.type,
-            size: result.size
-          });
-
         } catch (attachmentError) {
           logger.error('❌ Error procesando attachment individual', {
             index: i,
+            attachmentId: attachment.id,
             attachmentName: attachment.name,
             error: attachmentError.message
           });
