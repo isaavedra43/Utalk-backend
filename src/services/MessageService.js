@@ -364,8 +364,8 @@ class MessageService {
         throw new Error('Números de teléfono inválidos después de normalización');
       }
 
-      // Generar conversationId
-        const conversationId = generateConversationId(fromPhone, toPhone);
+      // Generar conversationId (cliente primero) → función requiere (ourNumber, customerPhone)
+        const conversationId = generateConversationId(toPhone, fromPhone);
         
       // Derivar workspace/tenant (nunca undefined)
       const derivedWorkspaceId = process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace';
@@ -1877,8 +1877,8 @@ class MessageService {
         }
       }
 
-      // PASO 5: Generar ID de conversación
-      const conversationId = generateConversationId(normalizedFromPhone, normalizedToPhone);
+      // PASO 5: Generar ID de conversación (cliente primero)
+      const conversationId = generateConversationId(normalizedToPhone, normalizedFromPhone);
 
       // PASO 6: Crear datos del mensaje
       const messageData = {
