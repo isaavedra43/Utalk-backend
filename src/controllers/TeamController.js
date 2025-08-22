@@ -906,9 +906,9 @@ class TeamController {
             email: user.email,
             role: user.role || 'agent',
             phone: user.phone || null,
-            avatar: this.generateAvatar(user.name),
+            avatar: TeamController.generateAvatar(user.name),
             isActive: user.isActive !== false,
-            permissions: this.generatePermissions(user.role),
+            permissions: TeamController.generatePermissions(user.role),
             performance: {
               totalChats: kpis.summary?.totalChats || 0,
               csat: kpis.summary?.averageRating || 4.5,
@@ -1031,9 +1031,9 @@ class TeamController {
         email: newUser.email,
         role: newUser.role,
         phone: newUser.phone,
-        avatar: this.generateAvatar(newUser.name),
+        avatar: TeamController.generateAvatar(newUser.name),
         isActive: newUser.isActive,
-        permissions: this.generatePermissions(newUser.role),
+        permissions: TeamController.generatePermissions(newUser.role),
         performance: {
           totalChats: 0,
           csat: 0,
