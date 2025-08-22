@@ -104,7 +104,7 @@ class TeamController {
       }
 
       // CREAR usuario directamente en Firestore (EMAIL-FIRST)
-      const temporaryPassword = this.generateTemporaryPassword();
+      const temporaryPassword = TeamController.generateTemporaryPassword();
       
       const user = await User.create({
         email,
@@ -376,7 +376,7 @@ class TeamController {
       }
 
       // Generar nueva contraseña temporal
-      const temporaryPassword = this.generateTemporaryPassword();
+      const temporaryPassword = TeamController.generateTemporaryPassword();
 
       // Actualizar contraseña directamente en Firestore (EMAIL-FIRST)
       await user.update({ password: temporaryPassword });
@@ -839,7 +839,7 @@ class TeamController {
 
     if (!hasLower || !hasUpper || !hasNumber || !hasSpecial) {
       // Regenerar si no cumple con los requisitos mínimos
-      return this.generateTemporaryPassword();
+      return TeamController.generateTemporaryPassword();
     }
 
     return password;
@@ -1002,7 +1002,7 @@ class TeamController {
       }
 
       // 🔧 Generar contraseña temporal si no se proporciona
-      const finalPassword = password || this.generateTemporaryPassword();
+      const finalPassword = password || TeamController.generateTemporaryPassword();
 
       // 📝 Crear usuario
       const userData = {
@@ -1015,7 +1015,7 @@ class TeamController {
         metadata: {
           createdBy: req.user.email,
           createdVia: 'admin_panel',
-          permissions: this.normalizePermissions(permissions, role)
+          permissions: TeamController.normalizePermissions(permissions, role)
         }
       };
 
