@@ -971,7 +971,10 @@ class ConversationController {
       }
 
       // 🔄 TRANSFERIR
-      await conversation.assignTo(targetAgent.email, targetAgent.name);
+      // Obtener la conversación como instancia de Conversation
+      const Conversation = require('../models/Conversation');
+      const conversationInstance = new Conversation(conversation);
+      await conversationInstance.assignTo(targetAgent.email, targetAgent.name);
 
       // 💬 CREAR MENSAJE DE TRANSFERENCIA
       const transferMessage = {
@@ -1158,7 +1161,10 @@ class ConversationController {
       }
 
       // 📝 MARCAR MENSAJES COMO LEÍDOS
-      const markedCount = await conversation.markAllAsRead(req.user.email);
+      // Primero obtener la conversación como instancia de Conversation
+      const Conversation = require('../models/Conversation');
+      const conversationInstance = new Conversation(conversation);
+      const markedCount = await conversationInstance.markAllAsRead(req.user.email);
 
       // 📡 EMITIR EVENTO WEBSOCKET usando facade
       const { getSocketManager } = require('../socket');

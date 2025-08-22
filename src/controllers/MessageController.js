@@ -300,9 +300,10 @@ class MessageController {
         }
 
         // Actualizar mensaje con datos de Twilio
-        await Message.getById(conversationId, result.message.id).then(msg => {
+        try {
+          const msg = await Message.getById(conversationId, result.message.id);
           if (msg) {
-            msg.update({
+            await msg.update({
               status: 'sent',
               metadata: {
                 ...msg.metadata,
@@ -311,7 +312,9 @@ class MessageController {
               }
             });
           }
-        });
+        } catch (updateError) {
+          logger.warn('Error actualizando mensaje con datos de Twilio', updateError);
+        }
 
       } catch (twilioError) {
         logger.error('Error enviando mensaje por Twilio', {
@@ -321,9 +324,10 @@ class MessageController {
         });
 
         // Actualizar mensaje como fallido
-        await Message.getById(conversationId, result.message.id).then(msg => {
+        try {
+          const msg = await Message.getById(conversationId, result.message.id);
           if (msg) {
-            msg.update({
+            await msg.update({
               status: 'failed',
               metadata: {
                 ...msg.metadata,
@@ -332,7 +336,9 @@ class MessageController {
               }
             });
           }
-        });
+        } catch (updateError) {
+          logger.warn('Error actualizando mensaje fallido', updateError);
+        }
       }
 
       // Emitir eventos websocket
@@ -591,9 +597,10 @@ class MessageController {
         }
 
         // Actualizar mensaje con datos de Twilio
-        await Message.getById(conversation.id, result.message.id).then(msg => {
+        try {
+          const msg = await Message.getById(conversation.id, result.message.id);
           if (msg) {
-            msg.update({
+            await msg.update({
               status: 'sent',
               metadata: {
                 ...msg.metadata,
@@ -602,7 +609,9 @@ class MessageController {
               }
             });
           }
-        });
+        } catch (updateError) {
+          logger.warn('Error actualizando mensaje con datos de Twilio', updateError);
+        }
         
       } catch (twilioError) {
         logger.error('Error enviando mensaje por Twilio', {
@@ -1527,9 +1536,10 @@ class MessageController {
         });
 
         // Actualizar mensaje con datos de Twilio
-        await Message.getById(conversationId, result.message.id).then(msg => {
+        try {
+          const msg = await Message.getById(conversationId, result.message.id);
           if (msg) {
-            msg.update({
+            await msg.update({
               status: 'sent',
               metadata: {
                 ...msg.metadata,
@@ -1539,7 +1549,9 @@ class MessageController {
               }
             });
           }
-        });
+        } catch (updateError) {
+          logger.warn('Error actualizando mensaje con datos de Twilio', updateError);
+        }
 
         logger.info('✅ Mensaje enviado por Twilio exitosamente', {
           conversationId,
@@ -1557,9 +1569,10 @@ class MessageController {
         });
 
         // Actualizar mensaje como fallido
-        await Message.getById(conversationId, result.message.id).then(msg => {
+        try {
+          const msg = await Message.getById(conversationId, result.message.id);
           if (msg) {
-            msg.update({
+            await msg.update({
               status: 'failed',
               metadata: {
                 ...msg.metadata,
@@ -1568,7 +1581,9 @@ class MessageController {
               }
             });
           }
-        });
+        } catch (updateError) {
+          logger.warn('Error actualizando mensaje fallido', updateError);
+        }
       }
 
       // 📡 5. EMITIR EVENTOS WEBSOCKET

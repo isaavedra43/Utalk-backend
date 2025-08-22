@@ -183,6 +183,119 @@ class Conversation {
   hasUnreadMessages() {
     return this.unreadCount > 0;
   }
+
+  /**
+   * 🔧 MÉTODOS CRÍTICOS FALTANTES - Implementados para compatibilidad
+   */
+
+  /**
+   * Marcar todos los mensajes como leídos
+   */
+  async markAllAsRead(userEmail) {
+    try {
+      const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+      const conversationsRepo = getConversationsRepository();
+      
+      // Marcar conversación como leída
+      await conversationsRepo.markAsRead(this.id, userEmail);
+      
+      // Actualizar instancia local
+      this.unreadCount = 0;
+      this.lastReadBy = userEmail;
+      this.lastReadAt = new Date();
+      
+      logger.info('✅ Todos los mensajes marcados como leídos', {
+        conversationId: this.id,
+        userEmail,
+        method: 'Conversation.markAllAsRead'
+      });
+      
+      return this.unreadCount; // Retorna 0 para compatibilidad
+      
+    } catch (error) {
+      logger.error('❌ Error marcando mensajes como leídos', {
+        conversationId: this.id,
+        userEmail,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Asignar conversación a un agente
+   */
+  async assignTo(agentEmail, agentName = null) {
+    try {
+      const ConversationService = require('../services/ConversationService');
+      
+      // Actualizar conversación usando ConversationService
+      const updatedConversation = await ConversationService.updateConversation(this.id, {
+        assignedTo: agentEmail,
+        assignedAt: new Date()
+      });
+      
+      // Actualizar instancia local
+      this.assignedTo = agentEmail;
+      this.assignedAt = new Date();
+      
+      logger.info('✅ Conversación asignada', {
+        conversationId: this.id,
+        agentEmail,
+        agentName,
+        method: 'Conversation.assignTo'
+      });
+      
+      return updatedConversation;
+      
+    } catch (error) {
+      logger.error('❌ Error asignando conversación', {
+        conversationId: this.id,
+        agentEmail,
+        agentName,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar último mensaje (compatibilidad)
+   */
+  async updateLastMessage(messageData) {
+    try {
+      const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+      const conversationsRepo = getConversationsRepository();
+      
+      await conversationsRepo.updateLastMessage(this.id, messageData);
+      
+      // Actualizar instancia local
+      this.lastMessage = {
+        id: messageData.id,
+        content: messageData.content,
+        timestamp: messageData.timestamp,
+        direction: messageData.direction,
+        type: messageData.type,
+        senderIdentifier: messageData.senderIdentifier
+      };
+      this.lastMessageAt = messageData.timestamp;
+      this.updatedAt = new Date();
+      
+      logger.info('✅ Último mensaje actualizado', {
+        conversationId: this.id,
+        messageId: messageData.id,
+        method: 'Conversation.updateLastMessage'
+      });
+      
+    } catch (error) {
+      logger.error('❌ Error actualizando último mensaje', {
+        conversationId: this.id,
+        messageId: messageData.id,
+        error: error.message
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = Conversation;
