@@ -55,6 +55,34 @@ const teamValidators = {
     body: Joi.object({
       confirm: Joi.boolean().valid(true).required()
     })
+  }),
+
+  // 🆕 Validar creación de agente
+  validateCreateAgent: validateRequest({
+    body: Joi.object({
+      name: Joi.string().min(2).max(100).required().messages({
+        'string.min': 'El nombre debe tener al menos 2 caracteres',
+        'string.max': 'El nombre no puede exceder 100 caracteres',
+        'any.required': 'El nombre es requerido'
+      }),
+      email: Joi.string().email({ minDomainSegments: 2 }).max(254).required().messages({
+        'string.email': 'Debe ser un email válido',
+        'any.required': 'El email es requerido'
+      }),
+      role: Joi.string().valid('admin', 'supervisor', 'agent', 'viewer').default('agent'),
+      phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).optional().messages({
+        'string.pattern.base': 'El teléfono debe ser un número válido'
+      }),
+      password: Joi.string().min(6).max(128).optional().messages({
+        'string.min': 'La contraseña debe tener al menos 6 caracteres'
+      }),
+      permissions: Joi.object({
+        read: Joi.boolean().default(true),
+        write: Joi.boolean().default(true),
+        approve: Joi.boolean().default(false),
+        configure: Joi.boolean().default(false)
+      }).optional()
+    })
   })
 };
 
@@ -66,6 +94,28 @@ const teamValidators = {
 router.get('/',
   authMiddleware,
   TeamController.list
+);
+
+/**
+ * 🆕 @route GET /api/team/agents
+ * @desc Listar agentes para módulo frontend (estructura específica)
+ * @access Private (Admin, Agent, Viewer)
+ */
+router.get('/agents',
+  authMiddleware,
+  TeamController.listAgents
+);
+
+/**
+ * 🆕 @route POST /api/team/agents
+ * @desc Crear nuevo agente para módulo frontend
+ * @access Private (Admin)
+ */
+router.post('/agents',
+  authMiddleware,
+  requireAdmin,
+  teamValidators.validateCreateAgent,
+  TeamController.createAgent
 );
 
 /**

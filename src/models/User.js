@@ -477,6 +477,32 @@ class User {
   async setActive(isActive) {
     await this.update({ isActive });
   }
+
+  /**
+   * 🆕 BUSCAR usuario por email
+   */
+  static async findByEmail(email) {
+    try {
+      const snapshot = await firestore
+        .collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const doc = snapshot.docs[0];
+      return new User({ id: doc.id, ...doc.data() });
+    } catch (error) {
+      logger.error('Error buscando usuario por email:', {
+        email,
+        error: error.message
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = User;

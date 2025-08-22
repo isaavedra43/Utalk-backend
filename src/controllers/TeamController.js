@@ -844,6 +844,296 @@ class TeamController {
 
     return password;
   }
+  /**
+   * 🆕 LISTAR AGENTES (Para módulo frontend)
+   * GET /api/team/agents
+   */
+  static async listAgents(req, res, next) {
+    try {
+      const {
+        page = 1,
+        limit = 20,
+        status = 'all',
+        search,
+        role
+      } = req.query;
+
+      logger.info('📋 TeamController.listAgents - Obteniendo lista de agentes', {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        status,
+        search,
+        role,
+        userEmail: req.user?.email
+      });
+
+      // 🔧 Determinar filtro de estado
+      let isActiveFilter;
+      if (status === 'active') {
+        isActiveFilter = true;
+      } else if (status === 'inactive') {
+        isActiveFilter = false;
+      } else {
+        isActiveFilter = undefined; // Todos
+      }
+
+      // 🔍 Obtener usuarios
+      let users;
+      if (search) {
+        // Búsqueda por nombre o email
+        const allUsers = await User.list({ isActive: isActiveFilter, role });
+        const searchLower = search.toLowerCase();
+        users = allUsers.filter(user =>
+          user.name?.toLowerCase().includes(searchLower) ||
+          user.email?.toLowerCase().includes(searchLower)
+        );
+      } else {
+        users = await User.list({
+          limit: parseInt(limit) * 2, // Obtener más para filtrar localmente
+          role,
+          isActive: isActiveFilter
+        });
+      }
+
+      // 📊 Obtener KPIs para cada usuario
+      const usersWithKPIs = await Promise.all(
+        users.map(async (user) => {
+          const kpis = await TeamController.getUserKPIs(user.email, '30d');
+          
+          return {
+            id: user.id || user.email,
+            name: user.name,
+            email: user.email,
+            role: user.role || 'agent',
+            phone: user.phone || null,
+            avatar: this.generateAvatar(user.name),
+            isActive: user.isActive !== false,
+            permissions: this.generatePermissions(user.role),
+            performance: {
+              totalChats: kpis.summary?.totalChats || 0,
+              csat: kpis.summary?.averageRating || 4.5,
+              conversionRate: kpis.summary?.conversionRate || 0,
+              responseTime: kpis.summary?.avgResponseTime || '0s'
+            },
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt || user.createdAt
+          };
+        })
+      );
+
+      // 🔧 Aplicar límite después del procesamiento
+      const paginatedUsers = usersWithKPIs.slice(0, parseInt(limit));
+
+      // 📊 Calcular estadísticas
+      const summary = {
+        total: usersWithKPIs.length,
+        active: usersWithKPIs.filter(u => u.isActive).length,
+        inactive: usersWithKPIs.filter(u => !u.isActive).length
+      };
+
+      const response = {
+        agents: paginatedUsers,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: usersWithKPIs.length,
+          totalPages: Math.ceil(usersWithKPIs.length / parseInt(limit))
+        },
+        summary
+      };
+
+      logger.info('✅ Lista de agentes obtenida exitosamente', {
+        totalAgents: paginatedUsers.length,
+        activeAgents: summary.active,
+        inactiveAgents: summary.inactive,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, response, 'Agentes listados exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error listando agentes:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🆕 CREAR AGENTE (Para módulo frontend)
+   * POST /api/team/agents
+   */
+  static async createAgent(req, res, next) {
+    try {
+      const {
+        name,
+        email,
+        role = 'agent',
+        phone,
+        permissions = {},
+        password
+      } = req.body;
+
+      logger.info('👤 TeamController.createAgent - Creando nuevo agente', {
+        name,
+        email,
+        role,
+        hasPhone: !!phone,
+        userEmail: req.user?.email
+      });
+
+      // 🔧 Validar que el email no exista
+      const existingUser = await User.findByEmail(email);
+      if (existingUser) {
+        logger.warn('⚠️ Intento de crear agente con email existente', {
+          email,
+          existingUserId: existingUser.id,
+          userEmail: req.user?.email
+        });
+        
+        return ResponseHandler.error(res, {
+          type: 'EMAIL_ALREADY_EXISTS',
+          message: 'Ya existe un usuario con este email',
+          code: 'DUPLICATE_EMAIL',
+          statusCode: 400
+        });
+      }
+
+      // 🔧 Generar contraseña temporal si no se proporciona
+      const finalPassword = password || this.generateTemporaryPassword();
+
+      // 📝 Crear usuario
+      const userData = {
+        name,
+        email,
+        password: finalPassword,
+        role,
+        phone: phone || null,
+        isActive: true,
+        metadata: {
+          createdBy: req.user.email,
+          createdVia: 'admin_panel',
+          permissions: this.normalizePermissions(permissions, role)
+        }
+      };
+
+      const newUser = await User.create(userData);
+
+      // 📊 Obtener KPIs iniciales
+      const kpis = await TeamController.getUserKPIs(newUser.email, '30d');
+
+      // 🔧 Formatear respuesta para frontend
+      const agentResponse = {
+        id: newUser.id || newUser.email,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        phone: newUser.phone,
+        avatar: this.generateAvatar(newUser.name),
+        isActive: newUser.isActive,
+        permissions: this.generatePermissions(newUser.role),
+        performance: {
+          totalChats: 0,
+          csat: 0,
+          conversionRate: 0,
+          responseTime: '0s'
+        },
+        createdAt: newUser.createdAt,
+        updatedAt: newUser.createdAt
+      };
+
+      logger.info('✅ Agente creado exitosamente', {
+        agentId: newUser.id,
+        agentEmail: newUser.email,
+        agentName: newUser.name,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, agentResponse, 'Agente creado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error creando agente:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        requestBody: {
+          name: req.body?.name,
+          email: req.body?.email,
+          role: req.body?.role
+        },
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔧 MÉTODOS AUXILIARES PARA EL MÓDULO DE AGENTES
+   */
+
+  // Generar avatar con iniciales
+  static generateAvatar(name) {
+    if (!name) return 'AG';
+    const words = name.trim().split(' ');
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  // Generar permisos basados en rol
+  static generatePermissions(role) {
+    const permissionsByRole = {
+      'admin': {
+        read: true,
+        write: true,
+        approve: true,
+        configure: true
+      },
+      'supervisor': {
+        read: true,
+        write: true,
+        approve: true,
+        configure: false
+      },
+      'agent': {
+        read: true,
+        write: true,
+        approve: false,
+        configure: false
+      },
+      'viewer': {
+        read: true,
+        write: false,
+        approve: false,
+        configure: false
+      }
+    };
+
+    return permissionsByRole[role] || permissionsByRole['agent'];
+  }
+
+  // Normalizar permisos del frontend
+  static normalizePermissions(permissions, role) {
+    const defaultPermissions = this.generatePermissions(role);
+    return {
+      ...defaultPermissions,
+      ...permissions
+    };
+  }
+
+  // Generar contraseña temporal
+  static generateTemporaryPassword() {
+    const length = 12;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
+  }
+
 }
 
 module.exports = TeamController;
