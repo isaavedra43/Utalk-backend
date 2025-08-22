@@ -641,7 +641,29 @@ class ConversationController {
         timestamp: new Date().toISOString()
       });
 
-      const conversation = await ConversationService.createConversation(conversationData);
+      let conversation;
+      try {
+        conversation = await ConversationService.createConversation(conversationData);
+      } catch (createError) {
+        if (createError.message && createError.message.startsWith('CONVERSATION_EXISTS:')) {
+          const existingConversationId = createError.message.split(':')[1];
+          
+          logger.warn('⚠️ Conversación ya existe - recuperando conversación existente', {
+            requestedId: conversationId,
+            existingId: existingConversationId,
+            customerPhone
+          });
+          
+          // Obtener la conversación existente
+          conversation = await ConversationService.getConversationById(existingConversationId);
+          
+          if (!conversation) {
+            throw CommonErrors.CONVERSATION_NOT_FOUND(existingConversationId);
+          }
+        } else {
+          throw createError;
+        }
+      }
 
       // 🔧 CREAR MENSAJE INICIAL SI SE PROPORCIONA
       if (initialMessage) {
@@ -654,54 +676,44 @@ class ConversationController {
             timestamp: new Date().toISOString()
           });
 
-          // Crear mensaje en base de datos
+          // 🔧 USAR CONVERSATIONSREPOSITORY PARA ENVÍO COMPLETO (BD + WHATSAPP)
+          const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+          const conversationsRepo = getConversationsRepository();
+          
           const messageData = {
             conversationId: conversation.id,
+            messageId: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             content: initialMessage,
             senderIdentifier: creatorEmail,
             recipientIdentifier: customerPhone,
             direction: 'outbound',
             type: 'text',
-            status: 'sent',
-            metadata: { createdWithConversation: true }
+            workspaceId: req.user.workspaceId || 'default_workspace',
+            tenantId: req.user.tenantId || 'default_tenant',
+            metadata: { 
+              createdWithConversation: true,
+              source: 'conversation_form'
+            }
           };
 
-          logger.info('📝 Creando mensaje en base de datos', {
-            messageData,
-            timestamp: new Date().toISOString()
-          });
-
-          await Message.create(messageData);
-
-          logger.info('✅ Mensaje creado en base de datos', {
-            conversationId: conversation.id,
-            timestamp: new Date().toISOString()
-          });
-
-          // Enviar mensaje por WhatsApp
-          const { getMessageService } = require('../services/MessageService');
-          const messageService = getMessageService();
-          
-          logger.info('📤 Enviando mensaje por WhatsApp', {
+          logger.info('📤 Enviando mensaje inicial usando ConversationsRepository', {
             conversationId: conversation.id,
             customerPhone,
-            whatsappNumber,
             initialMessage,
+            messageId: messageData.messageId,
             timestamp: new Date().toISOString()
           });
-          
-          const sentMessage = await messageService.sendWhatsAppMessage({
-            from: whatsappNumber,
-            to: customerPhone,
-            body: initialMessage
-          });
 
-          logger.info('✅ Mensaje inicial enviado por WhatsApp', {
+          const sendResult = await conversationsRepo.appendOutbound(messageData);
+
+          logger.info('✅ Mensaje inicial enviado completamente', {
             conversationId: conversation.id,
             customerPhone,
             messageContent: initialMessage,
-            twilioSid: sentMessage?.sid,
-            twilioStatus: sentMessage?.status,
+            messageId: sendResult.message?.id,
+            twilioSid: sendResult.message?.twilioSid,
+            status: sendResult.message?.status,
+            success: !!sendResult.success,
             timestamp: new Date().toISOString()
           });
 

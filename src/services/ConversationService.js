@@ -162,15 +162,20 @@ class ConversationService {
    */
   static async createConversation(conversationData) {
     try {
-      // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
+      // 🔧 Obtener todos los usuarios activos SIN USAR ÍNDICES
       let allUserEmails = [];
       try {
-        const User = require('../models/User');
-        const users = await User.list({ isActive: true, limit: 1000 });
-        allUserEmails = (users || [])
-          .map(u => String(u.email || '').toLowerCase().trim())
+        const usersSnapshot = await firestore.collection('users').get();
+        allUserEmails = usersSnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return data.isActive === true ? String(data.email || '').toLowerCase().trim() : null;
+          })
           .filter(Boolean);
-      } catch (_) {
+      } catch (userError) {
+        logger.warn('⚠️ Error obteniendo usuarios - continuando sin usuarios automáticos', {
+          error: userError.message
+        });
         // No bloquear creación si falla el listado de usuarios
       }
 
@@ -220,7 +225,18 @@ class ConversationService {
         const conversationDoc = await transaction.get(conversationRef);
         const conversationExists = conversationDoc.exists;
 
-        // Crear el documento de conversación en contacts/{contactId}/conversations
+        if (conversationExists) {
+          logger.warn('⚠️ Conversación ya existe - no se creará duplicado', {
+            conversationId: conversation.id,
+            contactId: contactId,
+            customerPhone: conversation.customerPhone
+          });
+          
+          // Retornar la conversación existente en lugar de crear duplicado
+          throw new Error(`CONVERSATION_EXISTS:${conversation.id}`);
+        }
+
+        // Crear el documento de conversación en contacts/{contactId}/conversations SOLO si no existe
         transaction.set(conversationRef, conversation);
         
         // Crear la subcolección messages con un documento inicial
@@ -274,12 +290,24 @@ class ConversationService {
    */
   static async getOrCreateContactId(customerPhone, customerName) {
     try {
-      // Buscar contacto existente por teléfono
-      const contactsSnapshot = await firestore
+      // 🔧 NORMALIZAR TELÉFONO para evitar duplicados
+      const normalizedPhone = this.normalizePhoneNumber(customerPhone);
+      
+      // Buscar contacto existente por teléfono normalizado Y original
+      let contactsSnapshot = await firestore
         .collection('contacts')
-        .where('phone', '==', customerPhone)
+        .where('phone', '==', normalizedPhone)
         .limit(1)
         .get();
+      
+      // Si no se encuentra con el normalizado, buscar con el original
+      if (contactsSnapshot.empty && normalizedPhone !== customerPhone) {
+        contactsSnapshot = await firestore
+          .collection('contacts')
+          .where('phone', '==', customerPhone)
+          .limit(1)
+          .get();
+      }
 
       if (!contactsSnapshot.empty) {
         const contactDoc = contactsSnapshot.docs[0];
@@ -293,7 +321,7 @@ class ConversationService {
 
       // Crear nuevo contacto si no existe
       const newContactData = {
-        phone: customerPhone,
+        phone: normalizedPhone, // Usar teléfono normalizado para contacto nuevo
         name: customerName || customerPhone,
         email: null,
         company: null,
@@ -375,6 +403,37 @@ class ConversationService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Normalizar número de teléfono para evitar duplicados
+   */
+  static normalizePhoneNumber(phone) {
+    if (!phone) return phone;
+    
+    // Convertir a string y limpiar
+    let normalized = String(phone).trim();
+    
+    // Remover espacios, guiones, paréntesis
+    normalized = normalized.replace(/[\s\-\(\)]/g, '');
+    
+    // Si empieza con + ya está normalizado
+    if (normalized.startsWith('+')) {
+      return normalized;
+    }
+    
+    // Si empieza con 52 (México), agregar +
+    if (normalized.startsWith('52') && normalized.length >= 12) {
+      return '+' + normalized;
+    }
+    
+    // Si no tiene código de país, asumir México
+    if (normalized.length === 10) {
+      return '+52' + normalized;
+    }
+    
+    // Retornar como está si no se puede normalizar
+    return normalized;
   }
 
   // 🗑️ MÉTODOS OBSOLETOS ELIMINADOS - Ahora se usan ConversationsRepository y estructura contacts/{contactId}/conversations
