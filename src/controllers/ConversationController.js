@@ -31,6 +31,7 @@ const { cacheService } = require('../services/CacheService');
 const { logMonitor } = require('../services/LogMonitorService');
 const Message = require('../models/Message');
 const User = require('../models/User');
+const Conversation = require('../models/Conversation');
 const { safeFirestoreToJSON, analyzeFirestoreDocument } = require('../utils/firestore');
 const { getConversationsRepository } = require('../repositories/ConversationsRepository');
 const { firestore } = require('../config/firebase');
@@ -892,8 +893,13 @@ class ConversationController {
         throw CommonErrors.CONVERSATION_ALREADY_ASSIGNED(id, assignedTo);
       }
 
-      // 📋 ASIGNAR
-      await conversation.assignTo(agent.email, agent.name);
+      // 📋 ASIGNAR - Usar modelo Conversation con método assignTo
+      const conversationModel = new Conversation({
+        id: conversation.id,
+        contactId: conversation.contactId,
+        ...conversation
+      });
+      await conversationModel.assignTo(agent.email, agent.name);
 
       // 📡 EMITIR EVENTOS WEBSOCKET (ESPECÍFICOS POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
@@ -955,7 +961,14 @@ class ConversationController {
       }
 
       const previousAgent = conversation.assignedTo;
-      await conversation.unassign();
+      
+      // 📋 DESASIGNAR - Usar modelo Conversation con método unassign
+      const conversationModel = new Conversation({
+        id: conversation.id,
+        contactId: conversation.contactId,
+        ...conversation
+      });
+      await conversationModel.unassign();
 
       // 📡 EMITIR EVENTO WEBSOCKET (ESPECÍFICO POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
