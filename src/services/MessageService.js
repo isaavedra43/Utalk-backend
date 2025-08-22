@@ -1976,25 +1976,38 @@ class MessageService {
           step: 'message_data_prepared'
         });
 
-      // PASO 7: Buscar o crear conversación
-      const conversation = await this.findOrCreateConversation(
+      // PASO 7: Guardar mensaje usando ConversationsRepository (NUEVA ESTRUCTURA)
+      // upsertFromInbound maneja automáticamente la creación de conversación y contacto
+      const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+      const conversationsRepo = getConversationsRepository();
+      
+      logger.info('💾 Guardando mensaje inbound con ConversationsRepository', {
+        requestId,
         conversationId,
-        normalizedFromPhone,
-        normalizedToPhone,
-        contactInfo
-      );
+        messageId: messageData.id,
+        from: normalizedFromPhone,
+        to: normalizedToPhone
+      });
 
-      // PASO 8: Guardar mensaje en Firestore
-      const savedMessage = await this.saveMessageToFirestore(conversationId, messageData);
+      const savedResult = await conversationsRepo.upsertFromInbound({
+        conversationId,
+        messageId: messageData.id,
+        content: messageData.content,
+        senderIdentifier: messageData.senderIdentifier,
+        recipientIdentifier: messageData.recipientIdentifier,
+        type: messageData.type,
+        direction: messageData.direction,
+        status: messageData.status,
+        metadata: messageData.metadata,
+        attachments: messageData.attachments,
+        twilioSid: messageData.twilioSid,
+        workspaceId: 'default_workspace', // TODO: obtener del contexto
+        tenantId: 'default_tenant' // TODO: obtener del contexto
+      });
 
-      // PASO 9: Actualizar conversación con último mensaje
-      await this.updateConversationLastMessage(conversationId, savedMessage);
+      const savedMessage = savedResult.message;
 
-      // PASO 10: Sincronizar conversación con contacto
-      const ContactConversationSyncService = require('./ContactConversationSyncService');
-      await ContactConversationSyncService.syncConversationWithContact(conversationId, normalizedFromPhone);
-
-      // PASO 11: Emitir evento en tiempo real
+      // PASO 9: Emitir evento en tiempo real
       await this.emitRealTimeEvent(conversationId, savedMessage);
 
       logger.info('✅ MESSAGESERVICE - PROCESAMIENTO COMPLETADO', {
