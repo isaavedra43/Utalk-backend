@@ -2022,7 +2022,7 @@ class MessageService {
 
       return {
         message: savedMessage,
-        conversation,
+        conversation: savedResult.conversation, // Usar conversación de upsertFromInbound
         contactInfo,
         success: true
       };
