@@ -950,16 +950,23 @@ class ConversationsRepository {
         const from = messageService.ensureFrom(rawFrom);
         const to = messageService.ensureWhatsApp(msg.recipientIdentifier);
         
-        // Extraer URLs de medios desde metadata.attachments para envío con archivos
+        // Extraer URLs de medios para envío con archivos (múltiples fuentes)
         let mediaUrls = null;
-        if (msg.metadata?.attachments && Array.isArray(msg.metadata.attachments) && msg.metadata.attachments.length > 0) {
+        
+        // 1. Desde msg.mediaUrls (usado por sendMessageWithAttachments)
+        if (msg.mediaUrls && Array.isArray(msg.mediaUrls) && msg.mediaUrls.length > 0) {
+          mediaUrls = msg.mediaUrls.filter(url => url && typeof url === 'string' && url.startsWith('http'));
+        }
+        
+        // 2. Desde metadata.attachments para envío con archivos
+        if (!mediaUrls && msg.metadata?.attachments && Array.isArray(msg.metadata.attachments) && msg.metadata.attachments.length > 0) {
           mediaUrls = msg.metadata.attachments
             .filter(attachment => attachment && attachment.url)
             .map(attachment => attachment.url)
             .filter(url => url && typeof url === 'string' && url.startsWith('http'));
         }
         
-        // Fallback para compatibilidad con formato anterior
+        // 3. Fallback para compatibilidad con formato anterior
         if (!mediaUrls && msg.media?.mediaUrl) {
           mediaUrls = Array.isArray(msg.media.mediaUrl) ? msg.media.mediaUrl : [msg.media.mediaUrl];
         }

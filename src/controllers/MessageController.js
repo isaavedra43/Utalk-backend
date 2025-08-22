@@ -1507,97 +1507,44 @@ class MessageController {
         }
       };
 
-      // 💾 3. GUARDAR MENSAJE EN BASE DE DATOS
-      logger.info('💾 Guardando mensaje en base de datos', {
+      // 💾 3. GUARDAR Y ENVIAR MENSAJE CON ARCHIVOS (UNIFICADO)
+      // Agregar URLs de archivos al messageData para que appendOutbound los envíe por Twilio
+      const mediaUrls = processedFiles.attachments
+        .filter(attachment => attachment && attachment.url)
+        .map(attachment => attachment.url)
+        .filter(url => url && typeof url === 'string' && url.startsWith('http'));
+      
+      // Validar que tenemos URLs válidas
+      if (mediaUrls.length === 0) {
+        throw new Error('No se pudieron generar URLs válidas para los archivos adjuntos');
+      }
+      
+      // Preparar messageData con archivos para envío unificado
+      messageData.mediaUrls = mediaUrls;  // appendOutbound enviará por Twilio automáticamente
+      messageData.content = content.trim() || null; // Sin texto automático si está vacío
+
+      logger.info('💾 Guardando y enviando mensaje con archivos (unificado)', {
         conversationId,
         messageId: messageData.messageId,
         attachmentCount: processedFiles.attachments.length,
+        mediaUrlCount: mediaUrls.length,
+        hasContent: !!messageData.content,
         userEmail: req.user.email
       });
 
       const conversationsRepo = getConversationsRepository();
       const result = await conversationsRepo.appendOutbound(messageData);
 
-      // 📤 4. ENVIAR POR TWILIO CON ARCHIVOS
-      try {
-        const messageService = getMessageService();
-        
-        // Preparar URLs de medios para Twilio con validación robusta
-        const mediaUrls = processedFiles.attachments
-          .filter(attachment => attachment && attachment.url)
-          .map(attachment => attachment.url)
-          .filter(url => url && typeof url === 'string' && url.startsWith('http'));
-        
-        logger.info('🔍 URLs de medios preparadas para Twilio', {
-          conversationId,
-          totalAttachments: processedFiles.attachments.length,
-          validUrls: mediaUrls.length,
-          urls: mediaUrls.map(url => url.substring(0, 100) + '...'),
-          userEmail: req.user.email
-        });
-        
-        // Validar que tenemos URLs válidas
-        if (mediaUrls.length === 0) {
-          throw new Error('No se pudieron generar URLs válidas para los archivos adjuntos');
-        }
-        
-        const sentMessage = await messageService.sendWhatsAppMessage({
-          from: process.env.TWILIO_WHATSAPP_NUMBER,
-          to: conversation.customerPhone,
-          body: content || 'Archivos adjuntos',
-          mediaUrl: mediaUrls
-        });
+      logger.info('✅ Mensaje con archivos enviado exitosamente (sin duplicados)', {
+        conversationId,
+        messageId: result.message?.id,
+        twilioSid: result.message?.twilioSid,
+        mediaCount: mediaUrls.length,
+        userEmail: req.user.email
+      });
 
-        // Actualizar mensaje con datos de Twilio
-        try {
-          const msg = await Message.getById(conversationId, result.message.id);
-          if (msg) {
-            await msg.update({
-              status: 'sent',
-              metadata: {
-                ...msg.metadata,
-                twilioSid: sentMessage.sid,
-                sentAt: new Date().toISOString(),
-                mediaUrls: mediaUrls
-              }
-            });
-          }
-        } catch (updateError) {
-          logger.warn('Error actualizando mensaje con datos de Twilio', updateError);
-        }
-
-        logger.info('✅ Mensaje enviado por Twilio exitosamente', {
-          conversationId,
-          messageId: result.message.id,
-          twilioSid: sentMessage.sid,
-          mediaCount: mediaUrls.length,
-          userEmail: req.user.email
-        });
-
-      } catch (twilioError) {
-        logger.error('❌ Error enviando mensaje por Twilio', {
-          conversationId,
-          error: twilioError.message,
-          userEmail: req.user.email
-        });
-
-        // Actualizar mensaje como fallido
-        try {
-          const msg = await Message.getById(conversationId, result.message.id);
-          if (msg) {
-            await msg.update({
-              status: 'failed',
-              metadata: {
-                ...msg.metadata,
-                failureReason: twilioError.message,
-                failedAt: new Date().toISOString()
-              }
-            });
-          }
-        } catch (updateError) {
-          logger.warn('Error actualizando mensaje fallido', updateError);
-        }
-      }
+      // 🗑️ CÓDIGO DUPLICADO ELIMINADO: 
+      // appendOutbound ya maneja el envío por Twilio y actualización de status automáticamente
 
       // 📡 5. EMITIR EVENTOS WEBSOCKET
       try {
