@@ -39,13 +39,21 @@ const teamValidators = {
       body: Joi.object({
         name: Joi.string().min(1).max(100).optional(),
         email: Joi.string().email({ minDomainSegments: 2 }).max(254).optional(),
-        role: Joi.string().valid('admin', 'agent', 'viewer').optional(),
+        role: Joi.string().valid('admin', 'agent', 'viewer', 'supervisor').optional(),
         status: Joi.string().valid('active', 'inactive').optional(),
         permissions: Joi.object({
           read: Joi.boolean().optional(),
           write: Joi.boolean().optional(),
           approve: Joi.boolean().optional(),
-          configure: Joi.boolean().optional()
+          configure: Joi.boolean().optional(),
+          modules: Joi.object().pattern(
+            Joi.string(),
+            Joi.object({
+              read: Joi.boolean().optional(),
+              write: Joi.boolean().optional(),
+              configure: Joi.boolean().optional()
+            })
+          ).optional()
         }).optional()
       })
     }),
@@ -90,7 +98,15 @@ const teamValidators = {
         read: Joi.boolean().default(true),
         write: Joi.boolean().default(true),
         approve: Joi.boolean().default(false),
-        configure: Joi.boolean().default(false)
+        configure: Joi.boolean().default(false),
+        modules: Joi.object().pattern(
+          Joi.string(),
+          Joi.object({
+            read: Joi.boolean().optional(),
+            write: Joi.boolean().optional(),
+            configure: Joi.boolean().optional()
+          })
+        ).optional()
       }).optional()
     })
   })

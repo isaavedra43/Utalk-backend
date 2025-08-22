@@ -23,7 +23,7 @@ class User {
     
     // Metadata y permisos de Firestore únicamente
     this.role = data.role || 'viewer';
-    this.permissions = data.permissions || [];
+    this.permissions = data.permissions || {};
     this.department = data.department || null;
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.lastLoginAt = data.lastLoginAt || null;
@@ -114,6 +114,34 @@ class User {
       logger.error('Error obteniendo usuario por email', {
         email,
         error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * OBTENER todos los usuarios activos
+   */
+  static async getAllActive() {
+    try {
+      logger.info('🔍 Obteniendo todos los usuarios activos');
+
+      const usersQuery = await firestore
+        .collection('users')
+        .where('isActive', '==', true)
+        .get();
+
+      const users = [];
+      usersQuery.forEach(doc => {
+        const userData = doc.data();
+        users.push(new User(userData));
+      });
+
+      logger.info('✅ Usuarios activos obtenidos', { count: users.length });
+      return users;
+    } catch (error) {
+      logger.error('Error obteniendo usuarios activos', {
+        error: error.message
       });
       throw error;
     }

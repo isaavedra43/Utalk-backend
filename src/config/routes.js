@@ -19,6 +19,7 @@ const ragRoutes = require('../routes/rag');
 const aiOpsRoutes = require('../routes/aiOps');
 const logRoutes = require('../routes/logs');
 const clientRoutes = require('../routes/clients');
+const modulePermissionsRoutes = require('../routes/modulePermissions');
 
 function registerRoutes(app, { PORT, socketManager, healthService }) {
   logger.info('🛣️ Configurando rutas de la aplicación...', {
@@ -104,6 +105,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/messages', messageRoutes);
     app.use('/api/campaigns', campaignRoutes);
     app.use('/api/team', teamRoutes);
+    app.use('/api/module-permissions', modulePermissionsRoutes);
     app.use('/api/knowledge', knowledgeRoutes);
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
