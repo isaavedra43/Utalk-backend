@@ -229,6 +229,7 @@ class User {
 
   /**
    * LISTAR usuarios con filtros
+   * 🔧 ACTUALIZADO: Sin dependencia de índices compuestos
    */
   static async list(options = {}) {
     try {
@@ -239,43 +240,69 @@ class User {
         isActive = true,
       } = options;
 
-      logger.info('📋 Listando usuarios', { options });
+      logger.info('📋 User.list - Listando usuarios', { options });
 
-      let query = firestore.collection('users');
+      // 🔧 SOLUCIÓN SIN ÍNDICES: Consulta simple y filtrado local
+      let query = firestore.collection('users').limit(limit * 2);
 
-      // Aplicar filtros
-      if (role) {
-        query = query.where('role', '==', role);
-      }
-      if (department) {
-        query = query.where('department', '==', department);
-      }
-      if (isActive !== null) {
-        query = query.where('isActive', '==', isActive);
-      }
-
-      query = query.limit(limit).orderBy('createdAt', 'desc');
+      // SOLO aplicar filtros que NO requieren índices compuestos
+      // Evitar .where() + .orderBy() que requiere índices
 
       const snapshot = await query.get();
-      const users = [];
-
-      snapshot.forEach(doc => {
-        const userData = doc.data();
-        // No incluir contraseña en listados
-        delete userData.password;
-        users.push(new User(userData));
+      
+      logger.info('📋 User.list - Consulta ejecutada', {
+        totalFound: snapshot.docs.length,
+        isEmpty: snapshot.empty
       });
 
-      logger.info('Usuarios listados', {
-        count: users.length,
-        filters: options,
+      // 🔧 FILTRADO LOCAL: Aplicar filtros sin usar índices
+      let users = snapshot.docs
+        .map(doc => {
+          const userData = doc.data();
+          // No incluir contraseña en listados
+          delete userData.password;
+          return new User(userData);
+        })
+        .filter(user => {
+          // Filtrar por isActive
+          if (isActive !== null && user.isActive !== isActive) {
+            return false;
+          }
+          
+          // Filtrar por role si se especifica
+          if (role && user.role !== role) {
+            return false;
+          }
+          
+          // Filtrar por department si se especifica
+          if (department && user.department !== department) {
+            return false;
+          }
+          
+          return true;
+        })
+        .sort((a, b) => {
+          // Ordenar por createdAt desc (más recientes primero)
+          const dateA = a.createdAt instanceof Date ? a.createdAt : 
+                       (a.createdAt && typeof a.createdAt.toDate === 'function') ? a.createdAt.toDate() : new Date(a.createdAt);
+          const dateB = b.createdAt instanceof Date ? b.createdAt : 
+                       (b.createdAt && typeof b.createdAt.toDate === 'function') ? b.createdAt.toDate() : new Date(b.createdAt);
+          return dateB.getTime() - dateA.getTime();
+        })
+        .slice(0, limit); // Aplicar límite después del filtrado y ordenamiento
+
+      logger.info('✅ User.list - Usuarios listados exitosamente', {
+        totalFound: snapshot.docs.length,
+        afterFiltering: users.length,
+        filters: options
       });
 
       return users;
     } catch (error) {
-      logger.error('Error listando usuarios', {
+      logger.error('❌ User.list - Error listando usuarios', {
         error: error.message,
-        options,
+        stack: error.stack?.split('\n').slice(0, 3),
+        options
       });
       throw error;
     }
