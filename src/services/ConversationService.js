@@ -1,9 +1,10 @@
 /**
- * 💬 CONVERSATION SERVICE
+ * 💬 CONVERSATION SERVICE - NUEVA ESTRUCTURA ÚNICAMENTE
  * 
  * Servicio para manejo de conversaciones con Firestore
+ * SOLO usa la estructura contacts/{contactId}/conversations
  * 
- * @version 1.0.0
+ * @version 2.0.0 - Nueva estructura únicamente
  * @author Backend Team
  */
 
@@ -13,12 +14,11 @@ const logger = require('../utils/logger');
 class ConversationService {
   /**
    * Obtener conversaciones con filtros
-   * 🔧 CORREGIDO: Consultar en contacts/{contactId}/conversations
+   * 🔧 ESTRUCTURA NUEVA: contacts/{contactId}/conversations únicamente
    */
   static async getConversations(filters = {}) {
     try {
-      // 🔧 CORRECCIÓN CRÍTICA: Consultar en la estructura correcta
-      // Necesitamos obtener todas las conversaciones de todos los contactos
+      // Consultar en la estructura contacts/{contactId}/conversations
       const contactsSnapshot = await firestore.collection('contacts').get();
       
       let allConversations = [];
@@ -112,23 +112,15 @@ class ConversationService {
 
   /**
    * Obtener conversación por ID
-   * 🔧 CORREGIDO: Buscar en contacts/{contactId}/conversations
+   * 🔧 ESTRUCTURA NUEVA: contacts/{contactId}/conversations únicamente
    */
   static async getConversationById(id) {
     try {
-      // 🔍 LOGGING MEJORADO PARA DEBUG
-      logger.debug('ConversationService.getConversationById - Iniciando consulta', {
-        conversationId: id,
-        timestamp: new Date().toISOString()
-      });
-
-      // 🔧 CORRECCIÓN CRÍTICA: Buscar en la estructura correcta
-      // Necesitamos buscar en todos los contactos para encontrar la conversación
+      // Buscar en todos los contactos ya que no tenemos el contactId
       const contactsSnapshot = await firestore.collection('contacts').get();
       
       for (const contactDoc of contactsSnapshot.docs) {
         const contactId = contactDoc.id;
-        
         const conversationDoc = await firestore
           .collection('contacts')
           .doc(contactId)
@@ -137,26 +129,23 @@ class ConversationService {
           .get();
         
         if (conversationDoc.exists) {
-          const conversationData = {
-            id: conversationDoc.id,
-            contactId: contactId,
-            ...conversationDoc.data()
-          };
-          
           logger.info('✅ Conversación encontrada en contacts/{contactId}/conversations', {
             conversationId: id,
             contactId: contactId,
             structure: 'contacts/{contactId}/conversations'
           });
           
-          return conversationData;
+          return {
+            id: conversationDoc.id,
+            contactId: contactId,
+            ...conversationDoc.data()
+          };
         }
       }
-
-      // Si no se encuentra en ningún contacto
-      logger.warn('Conversación no encontrada en ningún contacto', { 
+      
+      logger.warn('⚠️ Conversación no encontrada en ningún contacto', {
         conversationId: id,
-        searchedStructure: 'contacts/{contactId}/conversations'
+        structure: 'contacts/{contactId}/conversations'
       });
       
       return null;
@@ -169,10 +158,23 @@ class ConversationService {
 
   /**
    * Crear nueva conversación
-   * 🔧 CORREGIDO: Crear en contacts/{contactId}/conversations en lugar de conversations
+   * 🔧 ESTRUCTURA NUEVA: contacts/{contactId}/conversations únicamente
    */
   static async createConversation(conversationData) {
     try {
+      // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
+      let allUserEmails = [];
+      try {
+        const User = require('../models/User');
+        const users = await User.list({ isActive: true, limit: 1000 });
+        allUserEmails = (users || [])
+          .map(u => String(u.email || '').toLowerCase().trim())
+          .filter(Boolean);
+      } catch (_) {
+        // No bloquear creación si falla el listado de usuarios
+      }
+
+      // Preparar datos de la conversación
       const conversation = {
         ...conversationData,
         createdAt: FieldValue.serverTimestamp(),
@@ -188,25 +190,21 @@ class ConversationService {
         participants: Array.isArray(conversationData.participants) ? conversationData.participants : []
       };
 
-      // 🔧 CRÍTICO: Asegurar que participants incluya al creador
-      if (conversationData.createdBy && !conversation.participants.includes(conversationData.createdBy)) {
-        conversation.participants.push(conversationData.createdBy);
-      }
-
-      // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
-      let allUserEmails = [];
+      // Construir lista de participantes: todos los usuarios activos + creador + viewers por defecto
+      const participantsSet = new Set(conversation.participants.map(p => String(p || '').toLowerCase().trim()));
+      // agregar todos los usuarios activos
+      for (const email of allUserEmails) participantsSet.add(email);
+      // agregar creador si existe
+      if (conversationData.createdBy) participantsSet.add(String(conversationData.createdBy).toLowerCase().trim());
+      // viewers por defecto
       try {
-        const User = require('../models/User');
-        const users = await User.list({ isActive: true, limit: 1000 });
-        allUserEmails = (users || [])
-          .map(u => String(u.email || '').toLowerCase().trim())
-          .filter(Boolean);
-      } catch (_) {
-        // No bloquear creación si falla el listado de usuarios
-      }
+        const { getDefaultViewerEmails } = require('../config/defaultViewers');
+        const viewers = getDefaultViewerEmails();
+        for (const v of viewers) participantsSet.add(String(v || '').toLowerCase().trim());
+      } catch (_) {}
+      conversation.participants = Array.from(participantsSet);
 
-      // 🔧 CORRECCIÓN CRÍTICA: Crear en contacts/{contactId}/conversations
-      // Primero, buscar o crear el contacto
+      // Buscar o crear el contacto
       const contactId = await this.getOrCreateContactId(conversationData.customerPhone, conversationData.customerName);
       
       // Crear la conversación en la subcolección del contacto
@@ -216,71 +214,16 @@ class ConversationService {
         .collection('conversations')
         .doc(conversation.id);
       
-      // 🔧 NUEVO: Crear la conversación y la subcolección messages en una transacción
+      // Crear la conversación y la subcolección messages en una transacción
       await firestore.runTransaction(async (transaction) => {
         // Verificar si la conversación existe
         const conversationDoc = await transaction.get(conversationRef);
         const conversationExists = conversationDoc.exists;
 
-        // Preparar datos del mensaje para Firestore
-        const messageFirestoreData = {
-          id: msg.messageId,
-          conversationId: msg.conversationId,
-          content: msg.content || '',
-          type: msg.type || 'text',
-          direction: 'outbound',
-          status: 'queued', // Inicialmente queued, se actualizará después de Twilio
-          senderIdentifier: msg.senderIdentifier, // email del agente
-          recipientIdentifier: msg.recipientIdentifier, // teléfono del cliente
-          timestamp: msg.timestamp || new Date(),
-          metadata: msg.metadata || {},
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-
-        // Construir lista de participantes: todos los usuarios activos + creador + viewers por defecto
-        const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
-        const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase().trim()));
-        // agregar todos los usuarios activos
-        for (const email of allUserEmails) participantsSet.add(email);
-        // agregar creador si existe
-        if (conversationData.createdBy) participantsSet.add(String(conversationData.createdBy).toLowerCase().trim());
-        // viewers por defecto
-        try {
-          const { getDefaultViewerEmails } = require('../config/defaultViewers');
-          const viewers = getDefaultViewerEmails();
-          for (const v of viewers) participantsSet.add(String(v || '').toLowerCase().trim());
-        } catch (_) {}
-        const participants = Array.from(participantsSet);
-
-        // Preparar datos de la conversación para Firestore
-        const conversationUpdate = {
-          id: conversation.id,
-          customerPhone: conversation.customerPhone,
-          customerName: conversation.customerName,
-          status: conversation.status,
-          unreadCount: conversation.unreadCount,
-          messageCount: conversation.messageCount,
-          workspaceId: conversation.workspaceId,
-          tenantId: conversation.tenantId,
-          priority: conversation.priority,
-          tags: conversation.tags,
-          participants: participants,
-          updatedAt: FieldValue.serverTimestamp(),
-          lastMessageAt: FieldValue.serverTimestamp()
-        };
-
-        if (!conversationExists) {
-          conversationUpdate.id = msg.conversationId;
-          conversationUpdate.customerPhone = msg.recipientIdentifier; // cliente (teléfono)
-          conversationUpdate.status = 'open';
-          conversationUpdate.createdAt = new Date();
-        }
-
         // Crear el documento de conversación en contacts/{contactId}/conversations
-        transaction.set(conversationRef, conversationUpdate);
+        transaction.set(conversationRef, conversation);
         
-        // 🔧 CRÍTICO: Crear la subcolección messages con un documento inicial
+        // Crear la subcolección messages con un documento inicial
         const messagesRef = conversationRef.collection('messages');
         const initialMessageDoc = {
           id: 'initial_placeholder',
@@ -327,7 +270,7 @@ class ConversationService {
   }
 
   /**
-   * 🔧 NUEVO: Obtener o crear el ID del contacto
+   * Obtener o crear el ID del contacto
    */
   static async getOrCreateContactId(customerPhone, customerName) {
     try {
@@ -385,7 +328,8 @@ class ConversationService {
 
   /**
    * Actualizar conversación
-   * 🔧 CORREGIDO: Actualizar en contacts/{contactId}/conversations
+   * 🔧 ESTRUCTURA NUEVA: contacts/{contactId}/conversations únicamente
+   * Requiere encontrar primero el contactId
    */
   static async updateConversation(id, updates) {
     try {
@@ -394,12 +338,11 @@ class ConversationService {
         updatedAt: FieldValue.serverTimestamp()
       };
 
-      // 🔧 CORRECCIÓN CRÍTICA: Buscar la conversación en la estructura correcta
+      // Buscar la conversación en todos los contactos para obtener el contactId
       const contactsSnapshot = await firestore.collection('contacts').get();
       
       for (const contactDoc of contactsSnapshot.docs) {
         const contactId = contactDoc.id;
-        
         const conversationRef = firestore
           .collection('contacts')
           .doc(contactId)
@@ -409,7 +352,6 @@ class ConversationService {
         const conversationDoc = await conversationRef.get();
         
         if (conversationDoc.exists) {
-          // Actualizar la conversación encontrada
           await conversationRef.update(updateData);
           
           logger.info('✅ Conversación actualizada en contacts/{contactId}/conversations', {
@@ -422,202 +364,24 @@ class ConversationService {
           return this.getConversationById(id);
         }
       }
-
-      // Si no se encuentra la conversación
-      throw new Error(`Conversación con ID ${id} no encontrada en ningún contacto`);
-
-    } catch (error) {
-      logger.error('Error actualizando conversación:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Asignar conversación
-   */
-  static async assignConversation(id, assignedTo) {
-    try {
-      await firestore.collection('conversations').doc(id).update({
-        assignedTo,
-        assignedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      return this.getConversationById(id);
-
-    } catch (error) {
-      logger.error('Error asignando conversación:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Desasignar conversación
-   */
-  static async unassignConversation(id) {
-    try {
-      await firestore.collection('conversations').doc(id).update({
-        assignedTo: null,
-        assignedAt: null,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      return this.getConversationById(id);
-
-    } catch (error) {
-      logger.error('Error desasignando conversación:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cambiar estado de conversación
-   */
-  static async changeConversationStatus(id, status) {
-    try {
-      await firestore.collection('conversations').doc(id).update({
-        status,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      return this.getConversationById(id);
-
-    } catch (error) {
-      logger.error('Error cambiando estado de conversación:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cambiar prioridad de conversación
-   */
-  static async changeConversationPriority(id, priority) {
-    try {
-      await firestore.collection('conversations').doc(id).update({
-        priority,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      return this.getConversationById(id);
-
-    } catch (error) {
-      logger.error('Error cambiando prioridad de conversación:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Marcar conversación como leída
-   */
-  static async markConversationAsRead(id, userEmail) {
-    try {
-      await firestore.collection('conversations').doc(id).update({
-        unreadCount: 0,
-        lastReadBy: userEmail,
-        lastReadAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      return this.getConversationById(id);
-
-    } catch (error) {
-      logger.error('Error marcando conversación como leída:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener estadísticas de conversaciones
-   */
-  static async getConversationStats(filters = {}) {
-    try {
-      let query = firestore.collection('conversations');
-
-      if (filters.assignedTo) {
-        query = query.where('assignedTo', '==', filters.assignedTo);
-      }
-
-      const snapshot = await query.get();
       
-      const stats = {
-        total: 0,
-        open: 0,
-        closed: 0,
-        pending: 0,
-        archived: 0,
-        unassigned: 0,
-        urgent: 0,
-        high: 0,
-        normal: 0,
-        low: 0
-      };
+      throw new Error(`Conversación ${id} no encontrada en ningún contacto`);
 
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        stats.total++;
-        
-        if (data.status) {
-          stats[data.status] = (stats[data.status] || 0) + 1;
-        }
-        
-        if (data.priority) {
-          stats[data.priority] = (stats[data.priority] || 0) + 1;
-        }
-        
-        if (!data.assignedTo) {
-          stats.unassigned++;
-        }
+    } catch (error) {
+      logger.error('❌ Error actualizando conversación', {
+        conversationId: id,
+        error: error.message,
+        stack: error.stack
       });
-
-      return stats;
-
-    } catch (error) {
-      logger.error('Error obteniendo estadísticas de conversaciones:', error);
       throw error;
     }
   }
 
-  /**
-   * Buscar conversaciones
-   */
-  static async searchConversations(searchTerm, filters = {}) {
-    try {
-      let query = firestore.collection('conversations');
-
-      // Aplicar filtros base
-      if (filters.assignedTo) {
-        query = query.where('assignedTo', '==', filters.assignedTo);
-      }
-
-      if (filters.status) {
-        query = query.where('status', '==', filters.status);
-      }
-
-      const snapshot = await query.get();
-      
-      // Filtrar por término de búsqueda
-      const results = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-        .filter(conversation => {
-          const searchLower = searchTerm.toLowerCase();
-          
-          return (
-            conversation.customerPhone?.toLowerCase().includes(searchLower) ||
-            conversation.contact?.name?.toLowerCase().includes(searchLower) ||
-            conversation.tags?.some(tag => tag.toLowerCase().includes(searchLower))
-          );
-        });
-
-      return results;
-
-    } catch (error) {
-      logger.error('Error buscando conversaciones:', error);
-      throw error;
-    }
-  }
+  // 🗑️ MÉTODOS OBSOLETOS ELIMINADOS - Ahora se usan ConversationsRepository y estructura contacts/{contactId}/conversations
+  // Los siguientes métodos fueron eliminados porque usaban la estructura antigua:
+  // - assignConversation, unassignConversation, changeConversationStatus
+  // - changeConversationPriority, markConversationAsRead, getConversationStats, searchConversations
+  // Usar ConversationsRepository en su lugar para operaciones CRUD
 }
 
-module.exports = ConversationService; 
+module.exports = ConversationService;

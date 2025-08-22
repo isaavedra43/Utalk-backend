@@ -2370,12 +2370,20 @@ class MessageService {
         hasTwilioMetadata: !!(messageData.metadata.twilio)
       });
 
-      // Referencia a la subcolección de mensajes
-      const messageRef = firestore
-        .collection('conversations')
-        .doc(conversationId)
-        .collection('messages')
-        .doc(messageData.id);
+      // 🔧 ELIMINAR: Esta ruta usa la estructura antigua
+      // const messageRef = firestore
+      //   .collection('conversations')
+      //   .doc(conversationId)
+      //   .collection('messages')
+      //   .doc(messageData.id);
+      
+      logger.warn('🗑️ OBSOLETO: Intento de guardar mensaje en colección conversations antigua', {
+        conversationId,
+        messageId: messageData.id,
+        error: 'Esta funcionalidad fue eliminada - usar ConversationsRepository'
+      });
+      
+      throw new Error('Guardado en colección conversations antigua ELIMINADO - usar ConversationsRepository');
 
       // Agregar conversationId al mensaje
       const messageToSave = {

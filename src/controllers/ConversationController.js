@@ -270,7 +270,9 @@ class ConversationController {
             message: 'Intentando query sin ordenamiento como fallback'
           });
 
-          let fallbackQuery = firestore.collection('conversations');
+          // 🗑️ OBSOLETO: No usar colección conversations antigua
+          logger.warn('🗑️ OBSOLETO: Fallback a colección conversations antigua eliminado');
+          throw new Error('Colección conversations antigua ELIMINADA');
           
           // Aplicar filtros básicos sin ordenamiento
           if (statusFilter && statusFilter !== 'all') {
@@ -1253,8 +1255,9 @@ class ConversationController {
         ));
       }
 
-      // Eliminar conversación
-      await firestore.collection('conversations').doc(id).delete();
+      // 🗑️ OBSOLETO: No usar colección conversations antigua
+      logger.warn('🗑️ OBSOLETO: Eliminación en colección conversations antigua prohibida');
+      throw new Error('Eliminación en colección conversations antigua PROHIBIDA - usar ConversationService');
 
       logger.info('Conversación eliminada', {
         conversationId: id,

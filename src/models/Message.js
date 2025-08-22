@@ -915,8 +915,9 @@ class Message {
   static async searchInUserConversations(options = {}) {
     const { searchTerm, limit = 20, userEmail = null } = options;
     
-    // Obtener conversaciones del usuario
-    let conversationsQuery = firestore.collection('conversations');
+    // 🗑️ OBSOLETO: No usar colección conversations antigua
+    logger.warn('🗑️ OBSOLETO: Búsqueda en colección conversations antigua eliminada');
+    throw new Error('Búsqueda en colección conversations antigua ELIMINADA - usar ConversationService');
     
     if (userEmail) {
       conversationsQuery = conversationsQuery.where('assignedTo', '==', userEmail);

@@ -62,8 +62,9 @@ class MessageStatus {
    */
   static async updateMessageStatus(messageId, statusData) {
     try {
-      // Buscar el mensaje en todas las conversaciones
-      const conversationsSnapshot = await firestore.collection('conversations').get();
+      // 🗑️ OBSOLETO: No usar colección conversations antigua
+      logger.warn('🗑️ OBSOLETO: Búsqueda en colección conversations antigua eliminada');
+      throw new Error('Búsqueda en colección conversations antigua ELIMINADA - usar estructura contacts/{contactId}/conversations');
       
       for (const convDoc of conversationsSnapshot.docs) {
         const messageRef = convDoc.ref.collection('messages').doc(messageId);
@@ -422,7 +423,9 @@ class MessageStatus {
    */
   static async findMessageByTwilioSid(twilioSid) {
     try {
-      const conversationsSnapshot = await firestore.collection('conversations').get();
+      // 🗑️ OBSOLETO: No usar colección conversations antigua
+      logger.warn('🗑️ OBSOLETO: findMessageByTwilioSid en colección conversations antigua eliminado');
+      throw new Error('findMessageByTwilioSid en colección conversations antigua ELIMINADO - usar ConversationsRepository');
       
       for (const convDoc of conversationsSnapshot.docs) {
         const messagesQuery = convDoc.ref
