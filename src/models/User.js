@@ -256,29 +256,75 @@ class User {
       });
 
       // 🔧 FILTRADO LOCAL: Aplicar filtros sin usar índices
-      let users = snapshot.docs
-        .map(doc => {
-          const userData = doc.data();
-          // No incluir contraseña en listados
-          delete userData.password;
-          return new User(userData);
-        })
+      let rawUsers = snapshot.docs.map(doc => {
+        const userData = doc.data();
+        // No incluir contraseña en listados
+        delete userData.password;
+        return new User(userData);
+      });
+
+      logger.info('🔍 User.list - Usuarios RAW obtenidos', {
+        totalRaw: rawUsers.length,
+        sampleUser: rawUsers.length > 0 ? {
+          email: rawUsers[0].email,
+          isActive: rawUsers[0].isActive,
+          role: rawUsers[0].role,
+          department: rawUsers[0].department
+        } : null,
+        allUsersData: rawUsers.map(u => ({
+          email: u.email,
+          isActive: u.isActive,
+          role: u.role,
+          department: u.department
+        }))
+      });
+
+      let users = rawUsers
         .filter(user => {
+          // 🔍 DEBUGGING: Log cada filtro individual
+          logger.info('🔍 User.list - Evaluando filtros para usuario', {
+            userEmail: user.email,
+            userIsActive: user.isActive,
+            filterIsActive: isActive,
+            userRole: user.role,
+            filterRole: role,
+            userDepartment: user.department,
+            filterDepartment: department
+          });
+
           // Filtrar por isActive
           if (isActive !== null && user.isActive !== isActive) {
+            logger.info('🚫 Usuario filtrado por isActive', {
+              userEmail: user.email,
+              userIsActive: user.isActive,
+              filterIsActive: isActive
+            });
             return false;
           }
           
           // Filtrar por role si se especifica
           if (role && user.role !== role) {
+            logger.info('🚫 Usuario filtrado por role', {
+              userEmail: user.email,
+              userRole: user.role,
+              filterRole: role
+            });
             return false;
           }
           
           // Filtrar por department si se especifica
           if (department && user.department !== department) {
+            logger.info('🚫 Usuario filtrado por department', {
+              userEmail: user.email,
+              userDepartment: user.department,
+              filterDepartment: department
+            });
             return false;
           }
           
+          logger.info('✅ Usuario PASÓ todos los filtros', {
+            userEmail: user.email
+          });
           return true;
         })
         .sort((a, b) => {
