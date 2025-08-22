@@ -390,6 +390,28 @@ class ConversationsRepository {
     const startTime = Date.now();
     const requestId = msg.requestId || `upsert_inbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // 🔧 CORRECCIÓN CRÍTICA: Obtener usuarios activos ANTES de la transacción
+    let allUserEmails = [];
+    try {
+      const User = require('../models/User');
+      const users = await User.list({ isActive: true, limit: 1000 });
+      allUserEmails = (users || [])
+        .map(u => String(u.email || '').toLowerCase().trim())
+        .filter(Boolean);
+      
+      logger.info('Usuarios activos obtenidos para participants (inbound)', {
+        requestId,
+        userCount: allUserEmails.length,
+        users: allUserEmails
+      });
+    } catch (userError) {
+      logger.error('Error obteniendo usuarios activos para participants (inbound)', {
+        requestId,
+        error: userError.message,
+        stack: userError.stack
+      });
+    }
+
     // Helper para enmascarar PII
     const maskEmail = (email) => {
       if (!email) return null;
@@ -542,19 +564,7 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
-        let allUserEmails = [];
-        try {
-          const User = require('../models/User');
-          const users = await User.list({ isActive: true, limit: 1000 });
-          allUserEmails = (users || [])
-            .map(u => String(u.email || '').toLowerCase().trim())
-            .filter(Boolean);
-        } catch (_) {
-          // No bloquear creación si falla el listado de usuarios
-        }
-
-        // Participants: todos los usuarios activos + agente/creador + viewers por defecto
+        // Participants: todos los usuarios activos (ya obtenidos) + agente/creador + viewers por defecto
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
         const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
         // agregar todos los usuarios activos
@@ -661,6 +671,28 @@ class ConversationsRepository {
   async appendOutbound(msg) {
     const startTime = Date.now();
     const requestId = `append_outbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 🔧 CORRECCIÓN CRÍTICA: Obtener usuarios activos ANTES de la transacción
+    let allUserEmails = [];
+    try {
+      const User = require('../models/User');
+      const users = await User.list({ isActive: true, limit: 1000 });
+      allUserEmails = (users || [])
+        .map(u => String(u.email || '').toLowerCase().trim())
+        .filter(Boolean);
+      
+      logger.info('Usuarios activos obtenidos para participants (outbound)', {
+        requestId,
+        userCount: allUserEmails.length,
+        users: allUserEmails
+      });
+    } catch (userError) {
+      logger.error('Error obteniendo usuarios activos para participants (outbound)', {
+        requestId,
+        error: userError.message,
+        stack: userError.stack
+      });
+    }
 
     // Helper para enmascarar PII
     const maskEmail = (email) => {
@@ -805,19 +837,7 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
-        let allUserEmails = [];
-        try {
-          const User = require('../models/User');
-          const users = await User.list({ isActive: true, limit: 1000 });
-          allUserEmails = (users || [])
-            .map(u => String(u.email || '').toLowerCase().trim())
-            .filter(Boolean);
-        } catch (_) {
-          // No bloquear creación si falla el listado de usuarios
-        }
-
-        // Participants: todos los usuarios activos + sender/agente + viewers por defecto
+        // Participants: todos los usuarios activos (ya obtenidos) + sender/agente + viewers por defecto
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
         const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
         // agregar todos los usuarios activos
