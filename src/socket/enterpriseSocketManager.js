@@ -574,8 +574,10 @@ class EnterpriseSocketManager {
               userRole = 'agent'; // Role por defecto
             } else {
               // 🔧 FIX: Inicializar Firebase de forma segura antes de intentar obtener usuario
+              // Definir firestoreInstance fuera del try para usarlo después en este mismo bloque
+              let firestoreInstance = null;
               try {
-                const firestoreInstance = await initializeFirebaseForSocket();
+                firestoreInstance = await initializeFirebaseForSocket();
                 if (!firestoreInstance) {
                   logger.warn('Socket.IO: Firebase no disponible, usando role por defecto', {
                     category: 'SOCKET_AUTH_FIREBASE_UNAVAILABLE',

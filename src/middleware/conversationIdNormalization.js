@@ -45,6 +45,14 @@ function normalizeConversationId(req, res, next) {
     try {
       // 🔧 NUEVA LÓGICA: Manejar doble encoding y casos edge
       let decodedId = rawConversationId;
+      // Corregir casos donde los "+" llegaron convertidos en espacios por el querystring
+      // y eliminar espacios accidentales antes/después
+      decodedId = decodedId.trim().replace(/\s+/g, ' ');
+      // Si el patrón coincide con "conv_ <num>_ <num>", restaurar los "+"
+      decodedId = decodedId
+        .replace(/^conv_\s*(\d+)/, 'conv_+$1')
+        .replace(/_(\s*)(\d+)$/, '_+$2')
+        .replace(/_\s*(\d+)_\s*(\d+)/, '_+$1_+$2');
       
       // Intentar decodificar múltiples veces para manejar doble encoding
       let previousDecoded = null;
@@ -162,6 +170,12 @@ function normalizeConversationIdQuery(req, res, next) {
     try {
       // 🔧 NUEVA LÓGICA: Manejar doble encoding y casos edge
       let decodedId = rawConversationId;
+      // Corregir casos donde los "+" llegaron como espacios y limpiar espacios
+      decodedId = decodedId.trim().replace(/\s+/g, ' ');
+      decodedId = decodedId
+        .replace(/^conv_\s*(\d+)/, 'conv_+$1')
+        .replace(/_(\s*)(\d+)$/, '_+$2')
+        .replace(/_\s*(\d+)_\s*(\d+)/, '_+$1_+$2');
       
       // Intentar decodificar múltiples veces para manejar doble encoding
       let previousDecoded = null;
