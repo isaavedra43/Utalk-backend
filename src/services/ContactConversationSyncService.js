@@ -222,7 +222,8 @@ class ContactConversationSyncService {
       
       for (const conversationId of conversationIds) {
         try {
-          const conversation = await Conversation.getById(conversationId);
+          const ConversationService = require('./ConversationService');
+          const conversation = await ConversationService.getConversationById(conversationId);
           if (conversation) {
             conversations.push(conversation);
           }
@@ -262,7 +263,8 @@ class ContactConversationSyncService {
       });
 
       // Obtener conversación
-      const conversation = await Conversation.getById(conversationId);
+      const ConversationService = require('./ConversationService');
+      const conversation = await ConversationService.getConversationById(conversationId);
       
       if (!conversation) {
         logger.warn('⚠️ Conversación no encontrada', { conversationId });

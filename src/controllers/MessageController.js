@@ -80,7 +80,8 @@ class MessageController {
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
       // Verificar que el usuario tenga acceso a la conversación
-      const conversation = await Conversation.getById(conversationId);
+      const ConversationService = require('../services/ConversationService');
+      const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
@@ -191,7 +192,8 @@ class MessageController {
       }
 
       // Obtener conversación
-      const conversation = await Conversation.getById(conversationId);
+      const ConversationService = require('../services/ConversationService');
+      const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
@@ -419,7 +421,8 @@ class MessageController {
 
       // 🔍 DETERMINAR CONVERSACIÓN Y DESTINATARIO
       if (conversationId) {
-        conversation = await Conversation.getById(conversationId);
+        const ConversationService = require('../services/ConversationService');
+        conversation = await ConversationService.getConversationById(conversationId);
         if (!conversation) {
           throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
         }
@@ -456,8 +459,16 @@ class MessageController {
             targetPhone,
             userEmail: req.user.email
           });
-          // Fallback al método anterior si falla el repositorio
-          conversation = await Conversation.findOrCreate(targetPhone, req.user.email);
+          // Fallback: crear conversación usando ConversationService
+          const ConversationService = require('../services/ConversationService');
+          conversation = await ConversationService.createConversation({
+            id: `conv_${process.env.TWILIO_WHATSAPP_NUMBER || '+1234567890'}_${targetPhone}`.replace(/[^\w+]/g, '_'),
+            customerPhone: targetPhone,
+            customerName: targetPhone,
+            createdBy: req.user.email,
+            status: 'open',
+            priority: 'normal'
+          });
         }
       } else {
         throw new ApiError(
@@ -686,7 +697,8 @@ class MessageController {
       }
 
       // 🔍 VERIFICAR QUE LA CONVERSACIÓN EXISTE
-      const conversation = await Conversation.getById(conversationId);
+      const ConversationService = require('../services/ConversationService');
+      const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }
@@ -1400,7 +1412,8 @@ class MessageController {
       }
 
       // 🔍 VERIFICAR CONVERSACIÓN
-      const conversation = await Conversation.getById(conversationId);
+      const ConversationService = require('../services/ConversationService');
+      const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
         throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
       }

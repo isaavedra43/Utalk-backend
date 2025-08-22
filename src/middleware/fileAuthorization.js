@@ -126,7 +126,8 @@ const fileAuthorizationMiddleware = async (req, res, next) => {
       userId
     });
 
-    const conversation = await Conversation.getById(fileData.conversationId);
+    const ConversationService = require('../services/ConversationService');
+    const conversation = await ConversationService.getConversationById(fileData.conversationId);
     
     if (!conversation) {
       logger.warn('Conversación no encontrada en autorización de archivo', {
@@ -291,7 +292,8 @@ const conversationFileAuthorizationMiddleware = async (req, res, next) => {
     }
 
     // 💬 OBTENER INFORMACIÓN DE LA CONVERSACIÓN
-    const conversation = await Conversation.getById(conversationId);
+    const ConversationService = require('../services/ConversationService');
+    const conversation = await ConversationService.getConversationById(conversationId);
     
     if (!conversation) {
       logger.warn('Conversación no encontrada en autorización', {

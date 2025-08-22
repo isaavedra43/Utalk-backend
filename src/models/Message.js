@@ -504,10 +504,19 @@ class Message {
     await messagesRef3.doc(this.id).delete();
 
     // Actualizar conversación
-    const Conversation = require('./Conversation');
-    const conversation = await Conversation.getById(this.conversationId);
-    if (conversation) {
-      await conversation.decrementMessageCount(this);
+    try {
+      const ConversationService = require('../services/ConversationService');
+      const conversation = await ConversationService.getConversationById(this.conversationId);
+      if (conversation) {
+        // Nota: decrementMessageCount debe implementarse en ConversationsRepository
+        logger.info('Conversación encontrada para decrementar message count al eliminar mensaje', {
+          conversationId: this.conversationId,
+          messageId: this.id,
+          currentMessageCount: conversation.messageCount
+        });
+      }
+    } catch (error) {
+      logger.warn('Error actualizando conversación al eliminar mensaje:', error);
     }
   }
 

@@ -2792,8 +2792,9 @@ class EnterpriseSocketManager {
         hasConversationModel: !!this.Conversation
       });
       
-      const result = await this.Conversation.list({
-        participantEmail: userEmail,
+      const ConversationService = require('../services/ConversationService');
+      const result = await ConversationService.getConversations({
+        participants: userEmail,
         limit: 100,
         includeMessages: false
       });
@@ -3095,8 +3096,9 @@ class EnterpriseSocketManager {
         return true;
       }
 
-      // Use existing Conversation model method if available
-      const conversation = await this.Conversation.getById(decodedConversationId);
+      // Use ConversationService to get conversation
+      const ConversationService = require('../services/ConversationService');
+      const conversation = await ConversationService.getConversationById(decodedConversationId);
       if (!conversation) {
         logger.warn('Conversación no encontrada', {
           category: 'SOCKET_PERMISSION_CONVERSATION_NOT_FOUND',
