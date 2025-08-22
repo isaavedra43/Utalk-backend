@@ -390,14 +390,13 @@ class ConversationsRepository {
     const startTime = Date.now();
     const requestId = msg.requestId || `upsert_inbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 🔧 OBTENER USUARIOS ACTIVOS CON FALLBACK ROBUSTO
+    // 🔧 OBTENER USUARIOS SIN ÍNDICES - FALLBACK DIRECTO
     let allUserEmails = [];
     try {
-      const User = require('../models/User');
-      
-      // Estrategia simple: Obtener todos los usuarios sin filtros complejos
-      const allUsers = await User.list({ limit: 1000 });
-      allUserEmails = (allUsers || [])
+      // Estrategia simple: Query directa sin límites ni ordenación
+      const usersSnapshot = await firestore.collection('users').get();
+      allUserEmails = usersSnapshot.docs
+        .map(doc => doc.data())
         .filter(u => u.isActive !== false) // Incluir true y undefined como activos
         .map(u => String(u.email || '').toLowerCase().trim())
         .filter(Boolean);
@@ -678,14 +677,13 @@ class ConversationsRepository {
     const startTime = Date.now();
     const requestId = `append_outbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 🔧 OBTENER USUARIOS ACTIVOS CON FALLBACK ROBUSTO
+    // 🔧 OBTENER USUARIOS SIN ÍNDICES - FALLBACK DIRECTO
     let allUserEmails = [];
     try {
-      const User = require('../models/User');
-      
-      // Estrategia simple: Obtener todos los usuarios sin filtros complejos
-      const allUsers = await User.list({ limit: 1000 });
-      allUserEmails = (allUsers || [])
+      // Estrategia simple: Query directa sin límites ni ordenación
+      const usersSnapshot = await firestore.collection('users').get();
+      allUserEmails = usersSnapshot.docs
+        .map(doc => doc.data())
         .filter(u => u.isActive !== false) // Incluir true y undefined como activos
         .map(u => String(u.email || '').toLowerCase().trim())
         .filter(Boolean);
