@@ -1012,6 +1012,14 @@ class TeamController {
         role,
         phone: phone || null,
         isActive: true,
+        department: 'general', // Departamento por defecto
+        permissions: TeamController.generatePermissions(role), // Permisos principales
+        performance: {
+          totalChats: 0,
+          csat: 0,
+          conversionRate: 0,
+          responseTime: '0s'
+        },
         metadata: {
           createdBy: req.user.email,
           createdVia: 'admin_panel',

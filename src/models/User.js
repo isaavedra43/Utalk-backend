@@ -120,8 +120,8 @@ class User {
   }
 
   /**
-   * 🚨 VALIDAR contraseña del usuario (TEXTO PLANO - SOLO PRUEBAS)
-   * ACEPTA password O passwordHash en texto plano
+   * 🔐 VALIDAR contraseña del usuario (HASH SEGURO)
+   * Prioriza passwordHash (hash bcrypt) sobre password (texto plano)
    */
   static async validatePassword(email, passwordInput) {
     try {
@@ -129,7 +129,7 @@ class User {
         throw new Error('Email y contraseña son requeridos');
       }
 
-      logger.info('🔐 Validando contraseña para usuario (TEXTO PLANO)', { email });
+      logger.info('🔐 Validando contraseña para usuario', { email });
 
       // Obtener usuario completo
       const userData = await this.getByEmail(email);
@@ -138,17 +138,29 @@ class User {
         return false;
       }
 
-      // 🚨 ACEPTAR password O passwordHash en texto plano
+      // 🔐 VALIDAR CON HASH SEGURO (prioridad)
       let isValid = false;
       
-      if (userData.password && userData.password === passwordInput) {
+      if (userData.passwordHash && userData.passwordHash !== userData.password) {
+        // Si passwordHash es diferente de password, es un hash bcrypt
+        try {
+          isValid = await bcrypt.compare(passwordInput, userData.passwordHash);
+          if (isValid) {
+            logger.info('Contraseña válida (hash bcrypt)', { email });
+          }
+        } catch (bcryptError) {
+          logger.warn('Error comparando hash bcrypt', { email, error: bcryptError.message });
+        }
+      }
+      
+      // 🔄 FALLBACK: Validar contra password en texto plano (compatibilidad)
+      if (!isValid && userData.password && userData.password === passwordInput) {
         isValid = true;
-        logger.info('Contraseña válida (campo password)', { email });
-      } else if (userData.passwordHash && userData.passwordHash === passwordInput) {
-        isValid = true;
-        logger.info('Contraseña válida (campo passwordHash)', { email });
-      } else {
-        logger.warn('Contraseña inválida (TEXTO PLANO)', { 
+        logger.info('Contraseña válida (texto plano - compatibilidad)', { email });
+      }
+
+      if (!isValid) {
+        logger.warn('Contraseña inválida', { 
           email,
           hasPassword: !!userData.password,
           hasPasswordHash: !!userData.passwordHash,
@@ -183,14 +195,14 @@ class User {
         throw new Error('Usuario ya existe');
       }
 
-      // 🚨 GUARDAR CONTRASEÑA EN TEXTO PLANO (SOLO PRUEBAS)
-      // const saltRounds = 12;
-      // const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      // 🔐 GENERAR HASH SEGURO DE CONTRASEÑA
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
       const newUserData = {
         email: userData.email,
-        password: userData.password, // 🚨 TEXTO PLANO
-        passwordHash: userData.password, // 🚨 TEXTO PLANO (ambos campos)
+        password: userData.password, // Mantener texto plano para compatibilidad temporal
+        passwordHash: hashedPassword, // 🔐 HASH SEGURO
         name: userData.name || userData.email.split('@')[0],
         phone: userData.phone || null,
         role: userData.role || 'viewer',
@@ -205,7 +217,12 @@ class User {
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         lastLoginAt: null,
-        performance: null,
+        performance: userData.performance || {
+          totalChats: 0,
+          csat: 0,
+          conversionRate: 0,
+          responseTime: '0s'
+        },
       };
 
       // Usar email como document ID para facilitar búsquedas
