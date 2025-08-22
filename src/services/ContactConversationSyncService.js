@@ -84,11 +84,13 @@ class ContactConversationSyncService {
         customerPhone
       });
 
-      // Buscar todas las conversaciones del cliente
-      const conversationsSnapshot = await firestore
-        .collection('conversations')
-        .where('customerPhone', '==', customerPhone)
-        .get();
+      // 🗑️ OBSOLETO: syncConversationWithContact deshabilitado
+      logger.warn('🗑️ OBSOLETO: syncConversationWithContact usa estructura antigua', {
+        customerPhone,
+        note: 'Las conversaciones ya están en contacts/{contactId}/conversations'
+      });
+      
+      return true; // Simular éxito - la sincronización ya no es necesaria
 
       if (conversationsSnapshot.empty) {
         logger.warn('⚠️ No se encontraron conversaciones para el contacto', {
@@ -143,10 +145,12 @@ class ContactConversationSyncService {
     try {
       logger.info('🔄 Iniciando sincronización masiva conversaciones-contactos');
 
-      // Obtener todas las conversaciones
-      const conversationsSnapshot = await firestore
-        .collection('conversations')
-        .get();
+      // 🗑️ OBSOLETO: syncAllConversationsToContacts deshabilitado
+      logger.warn('🗑️ OBSOLETO: syncAllConversationsToContacts usa estructura antigua', {
+        note: 'Las conversaciones ya están en contacts/{contactId}/conversations'
+      });
+      
+      return { success: 0, failed: 0 }; // Simular éxito - la sincronización ya no es necesaria
 
       if (conversationsSnapshot.empty) {
         logger.info('ℹ️ No hay conversaciones para sincronizar');

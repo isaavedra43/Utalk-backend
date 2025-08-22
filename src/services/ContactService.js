@@ -390,15 +390,15 @@ class ContactService {
     try {
       const Conversation = require('../models/Conversation');
       
-      // Buscar conversaciones donde el contacto participa
-      const snapshot = await firestore
+      // 🔧 ACTUALIZADO: Buscar conversaciones en la nueva estructura
+      const contactRef = firestore.collection('contacts').doc(contactId);
+      const conversationsSnapshot = await contactRef
         .collection('conversations')
-        .where('participants', 'array-contains', contactId)
         .orderBy('updatedAt', 'desc')
         .limit(limit)
         .get();
 
-      const conversations = snapshot.docs.map(doc => ({
+      const conversations = conversationsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));

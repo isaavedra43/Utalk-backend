@@ -40,11 +40,20 @@ async function loadConversationContext(conversationId, options = {}) {
       workspaceId
     });
 
-    // Obtener mensajes de la conversación
-    const messagesRef = firestore
-      .collection('conversations')
-      .doc(conversationId)
-      .collection('messages');
+    // 🗑️ OBSOLETO: contextLoader deshabilitado temporalmente
+    logger.warn('🗑️ OBSOLETO: contextLoader usa estructura antigua', {
+      conversationId: conversationId?.substring(0, 20),
+      note: 'Deshabilitar hasta migrar a nueva estructura'
+    });
+    
+    return {
+      messages: [],
+      summary: 'Context loader deshabilitado - estructura antigua',
+      totalMessages: 0,
+      timestamp: new Date().toISOString(),
+      conversationId,
+      workspaceId
+    };
 
     const snapshot = await messagesRef
       .orderBy('timestamp', 'desc')
@@ -175,12 +184,13 @@ async function loadConversationContextWithMetadata(conversationId, options = {})
       includeMetadata: true
     });
 
-    // Obtener información adicional de la conversación
-    const conversationRef = firestore
-      .collection('conversations')
-      .doc(conversationId);
-
-    const conversationDoc = await conversationRef.get();
+    // 🗑️ OBSOLETO: loadConversationContextWithMetadata deshabilitado
+    logger.warn('🗑️ OBSOLETO: loadConversationContextWithMetadata usa estructura antigua', {
+      conversationId: conversationId?.substring(0, 20),
+      note: 'Retornando contexto básico sin metadata adicional'
+    });
+    
+    return context; // Retornar solo el contexto básico (ya deshabilitado arriba)
 
     if (conversationDoc.exists) {
       const conversationData = conversationDoc.data();

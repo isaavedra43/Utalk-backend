@@ -530,13 +530,16 @@ class Message {
   }
 
   /**
-   * Obtener estadísticas de mensajes
+   * Obtener estadísticas de mensajes - ELIMINADO
+   * 🗑️ OBSOLETO: Usar MessageService.getMessageStats en su lugar
    */
   static async getStats (conversationId, options = {}) {
-    // La validación isValidConversationId se elimina porque ahora son UUIDs.
-    // ... el resto de la lógica de getStats permanece igual
-
-    const { startDate = null, endDate = null } = options;
+    logger.warn('🗑️ OBSOLETO: Message.getStats eliminado', {
+      conversationId,
+      note: 'Usar MessageService.getMessageStats que soporta nueva estructura'
+    });
+    
+    throw new Error('Message.getStats ELIMINADO - usar MessageService.getMessageStats');
 
     let query = firestore
       .collection('conversations')
@@ -724,20 +727,30 @@ class Message {
   }
 
   /**
-   * Marcar mensaje como leído por un usuario específico
+   * Marcar mensaje como leído por un usuario específico - ACTUALIZADO PARA NUEVA ESTRUCTURA
    */
   async markAsReadBy(userEmail, readTimestamp = new Date()) {
-    await firestore
-      .collection('conversations')
-      .doc(this.conversationId)
-      .collection('messages')
-      .doc(this.id)
-      .update({
-        status: 'read',
-        readBy: FieldValue.arrayUnion(userEmail),
-        readAt: Timestamp.fromDate(readTimestamp),
-        updatedAt: FieldValue.serverTimestamp()
-      });
+    // Buscar contacto que contiene esta conversación
+    const contactsSnapshot = await firestore.collection('contacts').get();
+    
+    for (const contactDoc of contactsSnapshot.docs) {
+      const messageRef = contactDoc.ref
+        .collection('conversations')
+        .doc(this.conversationId)
+        .collection('messages')
+        .doc(this.id);
+      
+      const messageDoc = await messageRef.get();
+      if (messageDoc.exists) {
+        await messageRef.update({
+          status: 'read',
+          readBy: FieldValue.arrayUnion(userEmail),
+          readAt: Timestamp.fromDate(readTimestamp),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        break;
+      }
+    }
 
     this.status = 'read';
     this.readBy = this.readBy || [];
@@ -840,9 +853,20 @@ class Message {
   }
 
   /**
-   * 📊 Obtener estadísticas de mensajes
+   * 📊 Obtener estadísticas de mensajes - ELIMINADO
+   * 🗑️ OBSOLETO: Usar MessageService.getMessageStatsOptimized en su lugar
    */
   static async getStats(agentEmail = null, period = '7d', conversationId = null) {
+    logger.warn('🗑️ OBSOLETO: Message.getStats eliminado', {
+      agentEmail,
+      period,
+      conversationId,
+      note: 'Usar MessageService.getMessageStatsOptimized que soporta nueva estructura'
+    });
+    
+    throw new Error('Message.getStats ELIMINADO - usar MessageService.getMessageStatsOptimized');
+    
+    // Código comentado - no ejecutar
     const startDate = new Date();
     const daysToSubtract = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 7;
     startDate.setDate(startDate.getDate() - daysToSubtract);
@@ -981,13 +1005,14 @@ class Message {
         return 0;
       }
 
-      // Obtener mensajes no leídos de la conversación
-      const messagesQuery = firestore
-        .collection('conversations')
-        .doc(conversationId)
-        .collection('messages')
-        .where('status', '==', 'received')
-        .where('direction', '==', 'inbound');
+      // 🗑️ OBSOLETO: Usar ConversationsRepository.getUnreadCount en su lugar
+      logger.warn('🗑️ OBSOLETO: Message.getUnreadCount usa estructura antigua', {
+        conversationId: conversationId?.substring(0, 20),
+        userEmail: userEmail?.substring(0, 20),
+        note: 'Usar ConversationsRepository.getUnreadCount'
+      });
+      
+      return 0; // Retornar 0 por defecto hasta migrar
 
       const snapshot = await messagesQuery.get();
       

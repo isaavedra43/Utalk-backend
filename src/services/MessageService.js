@@ -2191,9 +2191,18 @@ class MessageService {
   }
 
   /**
-   * Buscar o crear conversación
+   * Buscar o crear conversación - ELIMINADO
+   * 🗑️ OBSOLETO: Esta funcionalidad ahora es manejada por ConversationsRepository.upsertFromInbound
    */
   async findOrCreateConversation(conversationId, customerPhone, agentPhone, contactInfo) {
+    logger.warn('🗑️ OBSOLETO: findOrCreateConversation eliminado', {
+      conversationId,
+      customerPhone,
+      note: 'Usar ConversationsRepository.upsertFromInbound en su lugar'
+    });
+    
+    throw new Error('findOrCreateConversation ELIMINADO - usar ConversationsRepository.upsertFromInbound');
+    
     try {
       // Buscar conversación existente SOLO en contacts/{contactId}/conversations
       const existingContact = await Contact.getByPhone(customerPhone);
@@ -2487,55 +2496,27 @@ class MessageService {
    */
   async updateConversationLastMessage(conversationId, savedMessage) {
     try {
-      const conversationRef = firestore.collection('conversations').doc(conversationId);
-
-      const lastMessageData = {
-        id: savedMessage.id,
-        content: savedMessage.content,
-        timestamp: savedMessage.timestamp,
-        sender: savedMessage.sender,
-        type: savedMessage.type,
-      };
-
-      await conversationRef.update({
-        lastMessage: lastMessageData,
-        lastMessageId: savedMessage.id,
-        lastMessageAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-
-      // 🔄 Actualizar conversación anidada bajo contacts/{contactId}
-      try {
-        const customerPhone = savedMessage.direction === 'inbound' 
-          ? savedMessage.senderIdentifier 
-          : savedMessage.recipientIdentifier;
-        const contact = await Contact.getByPhone(customerPhone);
-        if (contact) {
-          const nestedConvRef = firestore.collection('contacts').doc(contact.id).collection('conversations').doc(conversationId);
-          await nestedConvRef.set({
-            id: conversationId,
-            customerPhone,
-            lastMessage: lastMessageData,
-            lastMessageAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-          }, { merge: true });
-        }
-      } catch (nestedErr) {
-        logger.error('❌ Error actualizando lastMessage anidado', { conversationId, error: nestedErr.message });
-      }
-
-      logger.info('✅ Conversación actualizada con último mensaje', {
-        conversationId,
-        lastMessageId: savedMessage.id,
-      });
-
-    } catch (error) {
-      logger.error('❌ Error actualizando último mensaje de conversación', {
-        error: error.message,
+      // 🗑️ OBSOLETO: Esta funcionalidad ahora es manejada automáticamente por:
+      // - ConversationsRepository.upsertFromInbound (para mensajes entrantes)  
+      // - ConversationsRepository.appendOutbound (para mensajes salientes)
+      // - ConversationsRepository.updateLastMessage (método específico)
+      
+      logger.warn('🗑️ OBSOLETO: updateConversationLastMessage ya no es necesario', {
         conversationId,
         messageId: savedMessage.id,
+        note: 'ConversationsRepository maneja automáticamente lastMessage/lastMessageAt'
       });
-      // No lanzar error, es una operación secundaria
+      
+      // No hacer nada - ConversationsRepository ya actualiza automáticamente
+      return;
+
+    } catch (error) {
+      logger.warn('🗑️ OBSOLETO: updateConversationLastMessage eliminado', {
+        conversationId,
+        messageId: savedMessage.id,
+        note: 'ConversationsRepository ya maneja automáticamente el lastMessage'
+      });
+      // No lanzar error - método obsoleto
     }
   }
 
