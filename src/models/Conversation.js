@@ -211,7 +211,7 @@ class Conversation {
       });
       
       return this.unreadCount; // Retorna 0 para compatibilidad
-      
+
     } catch (error) {
       logger.error('❌ Error marcando mensajes como leídos', {
         conversationId: this.id,
@@ -240,7 +240,7 @@ class Conversation {
       this.assignedAt = new Date();
       
       logger.info('✅ Conversación asignada', {
-        conversationId: this.id,
+      conversationId: this.id,
         agentEmail,
         agentName,
         method: 'Conversation.assignTo'
@@ -248,12 +248,12 @@ class Conversation {
       
       return updatedConversation;
       
-    } catch (error) {
+          } catch (error) {
       logger.error('❌ Error asignando conversación', {
         conversationId: this.id,
         agentEmail,
         agentName,
-        error: error.message
+              error: error.message
       });
       throw error;
     }

@@ -394,15 +394,32 @@ class ConversationsRepository {
     let allUserEmails = [];
     try {
       const User = require('../models/User');
-      const users = await User.list({ isActive: true, limit: 1000 });
-      allUserEmails = (users || [])
-        .map(u => String(u.email || '').toLowerCase().trim())
-        .filter(Boolean);
+      
+      // 🔧 INTENTAR MÚLTIPLES ESTRATEGIAS PARA OBTENER USUARIOS
+      try {
+        // Estrategia 1: Con filtro isActive (requiere índice)
+        const users = await User.list({ isActive: true, limit: 1000 });
+        allUserEmails = (users || [])
+          .map(u => String(u.email || '').toLowerCase().trim())
+          .filter(Boolean);
+      } catch (indexError) {
+        logger.warn('Estrategia 1 falló (índice faltante), usando estrategia 2', {
+          requestId,
+          error: indexError.message
+        });
+        
+        // Estrategia 2: Obtener todos y filtrar localmente
+        const allUsers = await User.list({ limit: 1000 });
+        allUserEmails = (allUsers || [])
+          .filter(u => u.isActive !== false) // Incluir true y undefined como activos
+          .map(u => String(u.email || '').toLowerCase().trim())
+          .filter(Boolean);
+      }
       
       logger.info('Usuarios activos obtenidos para participants (inbound)', {
         requestId,
         userCount: allUserEmails.length,
-        users: allUserEmails
+        users: allUserEmails.map(email => email.substring(0, 10) + '...')
       });
     } catch (userError) {
       logger.error('Error obteniendo usuarios activos para participants (inbound)', {
@@ -410,6 +427,10 @@ class ConversationsRepository {
         error: userError.message,
         stack: userError.stack
       });
+      // Fallback: usar al menos el agente si existe
+      if (msg.agentEmail && msg.agentEmail.includes('@')) {
+        allUserEmails = [msg.agentEmail.toLowerCase()];
+      }
     }
 
     // Helper para enmascarar PII
@@ -681,15 +702,32 @@ class ConversationsRepository {
     let allUserEmails = [];
     try {
       const User = require('../models/User');
-      const users = await User.list({ isActive: true, limit: 1000 });
-      allUserEmails = (users || [])
-        .map(u => String(u.email || '').toLowerCase().trim())
-        .filter(Boolean);
+      
+      // 🔧 INTENTAR MÚLTIPLES ESTRATEGIAS PARA OBTENER USUARIOS
+      try {
+        // Estrategia 1: Con filtro isActive (requiere índice)
+        const users = await User.list({ isActive: true, limit: 1000 });
+        allUserEmails = (users || [])
+          .map(u => String(u.email || '').toLowerCase().trim())
+          .filter(Boolean);
+      } catch (indexError) {
+        logger.warn('Estrategia 1 falló (índice faltante), usando estrategia 2', {
+          requestId,
+          error: indexError.message
+        });
+        
+        // Estrategia 2: Obtener todos y filtrar localmente
+        const allUsers = await User.list({ limit: 1000 });
+        allUserEmails = (allUsers || [])
+          .filter(u => u.isActive !== false) // Incluir true y undefined como activos
+          .map(u => String(u.email || '').toLowerCase().trim())
+          .filter(Boolean);
+      }
       
       logger.info('Usuarios activos obtenidos para participants (outbound)', {
         requestId,
         userCount: allUserEmails.length,
-        users: allUserEmails
+        users: allUserEmails.map(email => email.substring(0, 10) + '...')
       });
     } catch (userError) {
       logger.error('Error obteniendo usuarios activos para participants (outbound)', {
@@ -697,6 +735,10 @@ class ConversationsRepository {
         error: userError.message,
         stack: userError.stack
       });
+      // Fallback: usar al menos el usuario actual
+      if (msg.senderIdentifier && msg.senderIdentifier.includes('@')) {
+        allUserEmails = [msg.senderIdentifier.toLowerCase()];
+      }
     }
 
     // Helper para enmascarar PII
@@ -778,11 +820,53 @@ class ConversationsRepository {
 
       // Resolver contactId por teléfono del cliente (outbound → recipient)
       const recipientPhone = msg.recipientIdentifier;
-      const contactSnap = await firestore.collection('contacts').where('phone', '==', recipientPhone).limit(1).get();
+      
+      // 🔧 BÚSQUEDA ROBUSTA: Primero buscar contacto existente
+      let contactSnap = await firestore.collection('contacts').where('phone', '==', recipientPhone).limit(1).get();
+      let contactId;
+      
       if (contactSnap.empty) {
-        throw new Error('Contacto no encontrado para outbound');
+        // 🔧 CREAR CONTACTO SI NO EXISTE (igual que inbound)
+        logger.info('Contacto no encontrado para outbound, creando nuevo contacto', {
+          requestId,
+          recipientPhone,
+          step: 'create_missing_contact'
+        });
+        
+        const newContactData = {
+          phone: recipientPhone,
+          name: recipientPhone, // Nombre temporal basado en teléfono
+          email: null,
+          company: null,
+          tags: [],
+          metadata: {
+            createdVia: 'outbound_message',
+            createdAt: new Date().toISOString()
+          },
+          isActive: true,
+          lastContactAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        const newContactRef = await firestore.collection('contacts').add(newContactData);
+        contactId = newContactRef.id;
+        
+        logger.info('✅ Nuevo contacto creado para outbound', {
+          requestId,
+          contactId,
+          recipientPhone,
+          step: 'contact_created'
+        });
+      } else {
+        contactId = contactSnap.docs[0].id;
+        logger.info('✅ Contacto encontrado para outbound', {
+          requestId,
+          contactId,
+          recipientPhone,
+          step: 'contact_found'
+        });
       }
-      const contactId = contactSnap.docs[0].id;
 
       // Transacción atómica: mensaje + conversación (solo en contacts/{contactId}/conversations)
       const result = await firestore.runTransaction(async (transaction) => {
