@@ -238,6 +238,23 @@ class File {
         isEmpty: snapshot.empty
       });
 
+      // 🔍 DEBUG: Log de archivos encontrados para detectar el problema
+      if (snapshot.docs.length > 0) {
+        const fileDetails = snapshot.docs.slice(0, 5).map(doc => ({
+          id: doc.id,
+          conversationId: doc.data().conversationId,
+          fileName: doc.data().originalName,
+          uploadedAt: doc.data().uploadedAt,
+          isActive: doc.data().isActive
+        }));
+        
+        logger.warn('🔍 DEBUG: Archivos encontrados en conversación', {
+          conversationId,
+          totalFound: snapshot.docs.length,
+          firstFiveFiles: fileDetails
+        });
+      }
+
       // 🔧 FILTRADO LOCAL: Aplicar filtros sin usar índices
       let files = snapshot.docs
         .map(doc => new File({ id: doc.id, ...doc.data() }))
@@ -269,6 +286,21 @@ class File {
         category,
         isActive
       });
+
+      // 🔍 DEBUG: Log de archivos finales devueltos
+      if (files.length > 0) {
+        logger.warn('🔍 DEBUG: Archivos finales devueltos al frontend', {
+          conversationId,
+          finalCount: files.length,
+          fileNames: files.slice(0, 5).map(f => f.originalName),
+          firstFileDetails: files[0] ? {
+            id: files[0].id,
+            conversationId: files[0].conversationId,
+            name: files[0].originalName,
+            isActive: files[0].isActive
+          } : null
+        });
+      }
 
       return files;
 
