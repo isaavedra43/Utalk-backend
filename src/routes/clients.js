@@ -166,6 +166,22 @@ router.get('/health/public',
   }
 );
 
+/**
+ * 🧪 Test endpoint simple (sin autenticación)
+ * GET /api/clients/test
+ */
+router.get('/test', 
+  async (req, res) => {
+    return res.status(200).json({
+      success: true,
+      message: 'Test endpoint funcionando correctamente',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method
+    });
+  }
+);
+
 // 🛡️ MIDDLEWARE DE AUTENTICACIÓN
 // Todas las rutas requieren autenticación
 router.use(authMiddleware);
