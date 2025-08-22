@@ -30,11 +30,27 @@ class TeamController {
           user.name?.toLowerCase().includes(searchLower) ||
           user.email?.toLowerCase().includes(searchLower),
         );
+        
+        logger.info('🔍 TeamController.list - Búsqueda realizada', {
+          searchTerm: search,
+          totalFoundInDB: allUsers.length,
+          totalAfterSearch: users.length,
+          userEmails: users.map(u => u.email)
+        });
       } else {
+        // 🔧 FIX: Por defecto mostrar usuarios activos, a menos que se especifique 'inactive'
+        const isActiveFilter = status === 'inactive' ? false : (status === 'active' ? true : true);
+        
         users = await User.list({
           limit: parseInt(limit),
           role,
-          isActive: status === 'active',
+          isActive: isActiveFilter,
+        });
+        
+        logger.info('🔍 TeamController.list - Usuarios obtenidos', {
+          totalUsers: users.length,
+          filters: { limit: parseInt(limit), role, isActive: isActiveFilter },
+          userEmails: users.map(u => u.email)
         });
       }
 
