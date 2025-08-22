@@ -553,6 +553,11 @@ class ConversationsRepository {
         // Guardar mensaje
         transaction.set(messageRef, messageFirestoreData);
 
+        // Actualizar contadores de conversación (INBOUND)
+        const currentData = conversationExists ? conversationDoc.data() : {};
+        const newMessageCount = (currentData.messageCount || 0) + 1;
+        const newUnreadCount = (currentData.unreadCount || 0) + 1;
+
         // Preparar actualización de conversación
         const lastMessage = {
           messageId: msg.messageId,
@@ -1073,6 +1078,242 @@ class ConversationsRepository {
         logger.error('message_write_diag', errorLog);
       }
 
+      throw error;
+    }
+  }
+
+  /**
+   * 🔧 MÉTODOS CRÍTICOS PARA FUNCIONALIDAD COMPLETA
+   * Implementan las funcionalidades que se perdieron en la migración
+   */
+
+  /**
+   * Actualizar último mensaje de una conversación
+   */
+  async updateLastMessage(conversationId, messageData) {
+    try {
+      // Buscar la conversación en todos los contactos
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        const conversationRef = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations')
+          .doc(conversationId);
+        
+        const conversationDoc = await conversationRef.get();
+        
+        if (conversationDoc.exists) {
+          const lastMessageData = {
+            id: messageData.id,
+            content: messageData.content,
+            timestamp: messageData.timestamp,
+            direction: messageData.direction,
+            type: messageData.type,
+            senderIdentifier: messageData.senderIdentifier
+          };
+
+          await conversationRef.update({
+            lastMessage: lastMessageData,
+            lastMessageAt: messageData.timestamp,
+            updatedAt: FieldValue.serverTimestamp()
+          });
+
+          logger.info('✅ Último mensaje actualizado en conversación', {
+            conversationId,
+            contactId,
+            messageId: messageData.id,
+            structure: 'contacts/{contactId}/conversations'
+          });
+          
+          return true;
+        }
+      }
+      
+      logger.warn('⚠️ Conversación no encontrada para actualizar último mensaje', {
+        conversationId
+      });
+      
+      return false;
+
+    } catch (error) {
+      logger.error('❌ Error actualizando último mensaje', {
+        conversationId,
+        messageId: messageData.id,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar contador de mensajes no leídos
+   */
+  async updateUnreadCount(conversationId, increment = true) {
+    try {
+      // Buscar la conversación en todos los contactos
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        const conversationRef = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations')
+          .doc(conversationId);
+        
+        const conversationDoc = await conversationRef.get();
+        
+        if (conversationDoc.exists) {
+          const currentData = conversationDoc.data();
+          const currentUnreadCount = currentData.unreadCount || 0;
+          const newUnreadCount = increment 
+            ? currentUnreadCount + 1 
+            : Math.max(0, currentUnreadCount - 1);
+
+          await conversationRef.update({
+            unreadCount: newUnreadCount,
+            updatedAt: FieldValue.serverTimestamp()
+          });
+
+          logger.info('✅ Contador unread actualizado', {
+            conversationId,
+            contactId,
+            before: currentUnreadCount,
+            after: newUnreadCount,
+            increment
+          });
+          
+          return newUnreadCount;
+        }
+      }
+      
+      logger.warn('⚠️ Conversación no encontrada para actualizar unread count', {
+        conversationId
+      });
+      
+      return 0;
+
+    } catch (error) {
+      logger.error('❌ Error actualizando unread count', {
+        conversationId,
+        increment,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar contador de mensajes totales
+   */
+  async updateMessageCount(conversationId, increment = true) {
+    try {
+      // Buscar la conversación en todos los contactos
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        const conversationRef = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations')
+          .doc(conversationId);
+        
+        const conversationDoc = await conversationRef.get();
+        
+        if (conversationDoc.exists) {
+          const currentData = conversationDoc.data();
+          const currentMessageCount = currentData.messageCount || 0;
+          const newMessageCount = increment 
+            ? currentMessageCount + 1 
+            : Math.max(0, currentMessageCount - 1);
+
+          await conversationRef.update({
+            messageCount: newMessageCount,
+            updatedAt: FieldValue.serverTimestamp()
+          });
+
+          logger.info('✅ Contador messages actualizado', {
+            conversationId,
+            contactId,
+            before: currentMessageCount,
+            after: newMessageCount,
+            increment
+          });
+          
+          return newMessageCount;
+        }
+      }
+      
+      logger.warn('⚠️ Conversación no encontrada para actualizar message count', {
+        conversationId
+      });
+      
+      return 0;
+
+    } catch (error) {
+      logger.error('❌ Error actualizando message count', {
+        conversationId,
+        increment,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Marcar conversación como leída por un usuario
+   */
+  async markAsRead(conversationId, userEmail) {
+    try {
+      // Buscar la conversación en todos los contactos
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        const conversationRef = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations')
+          .doc(conversationId);
+        
+        const conversationDoc = await conversationRef.get();
+        
+        if (conversationDoc.exists) {
+          await conversationRef.update({
+            unreadCount: 0,
+            lastReadBy: userEmail,
+            lastReadAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+
+          logger.info('✅ Conversación marcada como leída', {
+            conversationId,
+            contactId,
+            userEmail,
+            structure: 'contacts/{contactId}/conversations'
+          });
+          
+          return true;
+        }
+      }
+      
+      logger.warn('⚠️ Conversación no encontrada para marcar como leída', {
+        conversationId,
+        userEmail
+      });
+      
+      return false;
+
+    } catch (error) {
+      logger.error('❌ Error marcando conversación como leída', {
+        conversationId,
+        userEmail,
+        error: error.message
+      });
       throw error;
     }
   }

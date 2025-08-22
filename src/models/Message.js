@@ -508,12 +508,10 @@ class Message {
       const ConversationService = require('../services/ConversationService');
       const conversation = await ConversationService.getConversationById(this.conversationId);
       if (conversation) {
-        // Nota: decrementMessageCount debe implementarse en ConversationsRepository
-        logger.info('Conversación encontrada para decrementar message count al eliminar mensaje', {
-          conversationId: this.conversationId,
-          messageId: this.id,
-          currentMessageCount: conversation.messageCount
-        });
+        // Decrementar message count usando ConversationsRepository
+        const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+        const conversationsRepo = getConversationsRepository();
+        await conversationsRepo.updateMessageCount(this.conversationId, false);
       }
     } catch (error) {
       logger.warn('Error actualizando conversación al eliminar mensaje:', error);

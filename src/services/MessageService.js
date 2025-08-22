@@ -1164,11 +1164,10 @@ class MessageService {
           const ConversationService = require('./ConversationService');
           const conversation = await ConversationService.getConversationById(conversationId);
           if (conversation) {
-            // Nota: updateUnreadCount debe implementarse en ConversationsRepository
-            logger.info('Conversación encontrada para actualizar unread count', {
-              conversationId,
-              currentUnreadCount: conversation.unreadCount
-            });
+            // Actualizar unread count usando ConversationsRepository
+            const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+            const conversationsRepo = getConversationsRepository();
+            await conversationsRepo.updateUnreadCount(conversationId, true);
           }
         } catch (error) {
           logger.warn(`Error actualizando contador de conversación ${conversationId}:`, error);
@@ -1253,7 +1252,10 @@ class MessageService {
         step: 'last_message_update_start'
       });
 
-      await conversation.updateLastMessage(message);
+      // Actualizar último mensaje usando ConversationsRepository
+      const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+      const conversationsRepo = getConversationsRepository();
+      await conversationsRepo.updateLastMessage(message.conversationId, message);
 
       logger.info('✅ UPDATECONVERSATION - ÚLTIMO MENSAJE ACTUALIZADO', {
         requestId,
@@ -1486,11 +1488,10 @@ class MessageService {
         const ConversationService = require('./ConversationService');
         const conversation = await ConversationService.getConversationById(conversationId);
         if (conversation) {
-          // Nota: decrementMessageCount debe implementarse en ConversationsRepository
-          logger.info('Conversación encontrada para decrementar message count', {
-            conversationId,
-            currentMessageCount: conversation.messageCount
-          });
+          // Decrementar message count usando ConversationsRepository
+          const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+          const conversationsRepo = getConversationsRepository();
+          await conversationsRepo.updateMessageCount(conversationId, false);
         }
       } catch (error) {
         logger.warn('Error actualizando contador al eliminar mensaje:', error);
@@ -2811,7 +2812,10 @@ class MessageService {
       const savedMessage = await Message.create(messageData);
 
       // 6. Actualizar conversación
-      await conversation.updateLastMessage(savedMessage);
+      // Actualizar último mensaje usando ConversationsRepository
+      const { getConversationsRepository } = require('../repositories/ConversationsRepository');
+      const conversationsRepo = getConversationsRepository();
+      await conversationsRepo.updateLastMessage(conversationId, savedMessage);
 
       logger.info('✅ Archivo de WhatsApp procesado exitosamente', {
         requestId,
