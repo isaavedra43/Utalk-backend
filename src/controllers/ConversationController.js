@@ -755,7 +755,8 @@ class ConversationController {
           }
         };
         
-        socketManager.broadcastToWorkspace(broadcastData);
+        // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
+        socketManager.io.emit(broadcastData.event, broadcastData.payload);
         
         logger.info('📡 Evento conversation-created emitido al workspace', {
           conversationId: conversation.id,
@@ -779,7 +780,8 @@ class ConversationController {
             }
           };
           
-          socketManager.broadcastToWorkspace(assignmentData);
+          // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
+          socketManager.io.emit(assignmentData.event, assignmentData.payload);
         }
       }
 
@@ -920,7 +922,8 @@ class ConversationController {
           }
         };
         
-        socketManager.broadcastToWorkspace(broadcastData);
+        // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
+        socketManager.io.emit(broadcastData.event, broadcastData.payload);
       }
 
       logger.info('Conversación asignada', {
@@ -985,7 +988,8 @@ class ConversationController {
           }
         };
         
-        socketManager.broadcastToWorkspace(broadcastData);
+        // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
+        socketManager.io.emit(broadcastData.event, broadcastData.payload);
       }
 
       logger.info('Conversación desasignada', {
@@ -1080,7 +1084,8 @@ class ConversationController {
           }
         };
         
-        socketManager.broadcastToWorkspace(broadcastData);
+        // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
+        socketManager.io.emit(broadcastData.event, broadcastData.payload);
       }
 
       logger.info('Conversación transferida', {
@@ -1205,7 +1210,8 @@ class ConversationController {
           }
         };
         
-        socketManager.broadcastToWorkspace(broadcastData);
+        // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
+        socketManager.io.emit(broadcastData.event, broadcastData.payload);
       }
 
       logger.info('Prioridad de conversación cambiada', {
