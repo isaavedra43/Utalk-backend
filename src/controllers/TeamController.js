@@ -173,7 +173,7 @@ class TeamController {
   static async update (req, res, next) {
     try {
       const { id } = req.params;
-      const { name, role, status } = req.body;
+      const { name, email, role, status, permissions } = req.body;
 
       // Verificar que es administrador
       if (req.user.role !== 'admin') {
@@ -195,6 +195,11 @@ class TeamController {
         role,
         status,
       };
+
+      // Agregar permisos si se proporcionan
+      if (permissions) {
+        updates.permissions = permissions;
+      }
 
       await user.update(updates);
       logger.info('Usuario actualizado', {

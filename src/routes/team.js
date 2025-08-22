@@ -8,11 +8,14 @@ const Joi = require('joi');
 
 // 🛡️ VALIDADORES ESPECÍFICOS PARA TEAM (ESTANDARIZADOS)
 const teamValidators = {
-  // Validador común para parámetros de ID
+  // Validador común para parámetros de ID (acepta email o UUID)
   validateIdParam: validateRequest({
     params: Joi.object({
-      id: Joi.string().uuid().required().messages({
-        'string.uuid': 'ID debe ser un UUID válido',
+      id: Joi.alternatives().try(
+        Joi.string().uuid(),
+        Joi.string().email({ minDomainSegments: 2 })
+      ).required().messages({
+        'alternatives.types': 'ID debe ser un UUID válido o email válido',
         'any.required': 'ID es requerido'
       })
     })
@@ -35,8 +38,15 @@ const teamValidators = {
     validateRequest({
       body: Joi.object({
         name: Joi.string().min(1).max(100).optional(),
+        email: Joi.string().email({ minDomainSegments: 2 }).max(254).optional(),
         role: Joi.string().valid('admin', 'agent', 'viewer').optional(),
-        status: Joi.string().valid('active', 'inactive').optional()
+        status: Joi.string().valid('active', 'inactive').optional(),
+        permissions: Joi.object({
+          read: Joi.boolean().optional(),
+          write: Joi.boolean().optional(),
+          approve: Joi.boolean().optional(),
+          configure: Joi.boolean().optional()
+        }).optional()
       })
     }),
     sanitizeProfileData
@@ -116,6 +126,19 @@ router.post('/agents',
   requireAdmin,
   teamValidators.validateCreateAgent,
   TeamController.createAgent
+);
+
+/**
+ * 🆕 @route PUT /api/team/agents/:id
+ * @desc Actualizar agente para módulo frontend
+ * @access Private (Admin)
+ */
+router.put('/agents/:id',
+  authMiddleware,
+  requireAdmin,
+  teamValidators.validateIdParam,
+  ...teamValidators.validateUpdate,
+  TeamController.update
 );
 
 /**
