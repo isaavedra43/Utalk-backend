@@ -826,46 +826,19 @@ class ConversationsRepository {
       let contactId;
       
       if (contactSnap.empty) {
-        // 🔧 CREAR CONTACTO SI NO EXISTE (igual que inbound)
-        logger.info('Contacto no encontrado para outbound, creando nuevo contacto', {
-          requestId,
-          recipientPhone,
-          step: 'create_missing_contact'
-        });
-        
+        // Crear contacto mínimo sin metadatos complejos
         const newContactData = {
           phone: recipientPhone,
-          name: recipientPhone, // Nombre temporal basado en teléfono
-          email: null,
-          company: null,
-          tags: [],
-          metadata: {
-            createdVia: 'outbound_message',
-            createdAt: new Date().toISOString()
-          },
+          name: recipientPhone,
           isActive: true,
-          lastContactAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date()
         };
         
         const newContactRef = await firestore.collection('contacts').add(newContactData);
         contactId = newContactRef.id;
-        
-        logger.info('✅ Nuevo contacto creado para outbound', {
-          requestId,
-          contactId,
-          recipientPhone,
-          step: 'contact_created'
-        });
       } else {
         contactId = contactSnap.docs[0].id;
-        logger.info('✅ Contacto encontrado para outbound', {
-          requestId,
-          contactId,
-          recipientPhone,
-          step: 'contact_found'
-        });
       }
 
       // Transacción atómica: mensaje + conversación (solo en contacts/{contactId}/conversations)
@@ -914,17 +887,6 @@ class ConversationsRepository {
 
         // Guardar mensaje
         transaction.set(messageRef, messageFirestoreData);
-        
-        // 🔍 LOG CRÍTICO: Verificar que el mensaje se está guardando
-        logger.info('🔥 GUARDANDO MENSAJE EN TRANSACCIÓN', {
-          requestId,
-          messageId: msg.messageId,
-          conversationId: msg.conversationId,
-          contactId,
-          messageContent: msg.content,
-          messageRef: `contacts/${contactId}/conversations/${msg.conversationId}/messages/${msg.messageId}`,
-          step: 'transaction_set_message'
-        });
 
         // Preparar actualización de conversación
         const lastMessage = {
@@ -986,18 +948,6 @@ class ConversationsRepository {
           conversation: conversationUpdate,
           idempotent: false
         };
-      });
-
-      // 🔍 LOG CRÍTICO: Transacción completada exitosamente
-      logger.info('✅ TRANSACCIÓN APPENDOUTBOUND COMPLETADA', {
-        requestId,
-        messageId: msg.messageId,
-        conversationId: msg.conversationId,
-        contactId,
-        messageSaved: true,
-        conversationUpdated: true,
-        messageCount: result.conversation.messageCount,
-        duration: Date.now() - startTime
       });
 
       const duration = Date.now() - startTime;
@@ -1166,26 +1116,21 @@ class ConversationsRepository {
       return result;
 
     } catch (error) {
-      // --- LOGS DE DIAGNÓSTICO DE ERROR (solo si LOG_MSG_WRITE=true) ---
-      if (process.env.LOG_MSG_WRITE === 'true') {
-        const errorLog = {
-          event: 'message_write_error',
-          direction: 'outbound',
-          conversationIdMasked: `conv_***${msg.conversationId?.slice(-4)}`,
-          messageIdMasked: `MSG_***${msg.messageId?.slice(-4)}`,
-          error: {
-            name: error.name,
-            message: error.message
-          },
-          stack: error.stack,
-          durationMs: Date.now() - startTime,
-          ts: new Date().toISOString()
-        };
+      // 🚨 MANEJO ROBUSTO DE ERRORES - NO CRASHEAR EL SERVIDOR
+      logger.error('Error en appendOutbound - manejo robusto', {
+        requestId,
+        conversationId: msg.conversationId?.substring(0, 20),
+        messageId: msg.messageId?.substring(0, 20),
+        errorName: error.name,
+        errorMessage: error.message,
+        duration: Date.now() - startTime
+      });
 
-        logger.error('message_write_diag', errorLog);
-      }
-
-      throw error;
+      // Re-lanzar error de forma controlada
+      const safeError = new Error(`Error en appendOutbound: ${error.message}`);
+      safeError.code = error.code || 'APPEND_OUTBOUND_ERROR';
+      safeError.statusCode = 500;
+      throw safeError;
     }
   }
 
