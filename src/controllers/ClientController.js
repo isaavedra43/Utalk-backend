@@ -1,5 +1,5 @@
 const { firestore } = require('../config/firebase');
-const ResponseHandler = require('../utils/responseHandler');
+const { ResponseHandler } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
 
 /**
@@ -495,6 +495,295 @@ class ClientController {
     }
     
     return 'freelancer';
+  }
+
+  /**
+   * ➕ Crear cliente
+   * POST /api/clients
+   */
+  static async create(req, res) {
+    try {
+      const clientData = req.body;
+      
+      logger.info('➕ ClientController.create - Creando nuevo cliente', {
+        clientName: clientData.name,
+        clientPhone: clientData.phone,
+        userEmail: req.user?.email
+      });
+
+      // Validar datos requeridos
+      if (!clientData.name || !clientData.phone) {
+        logger.warn('❌ Datos requeridos faltantes para crear cliente', {
+          hasName: !!clientData.name,
+          hasPhone: !!clientData.phone,
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'VALIDATION_ERROR',
+          message: 'Nombre y teléfono son requeridos',
+          statusCode: 400
+        });
+      }
+
+      // Verificar si ya existe un contacto con ese teléfono
+      const existingContact = await firestore
+        .collection('contacts')
+        .where('phone', '==', clientData.phone)
+        .limit(1)
+        .get();
+
+      if (!existingContact.empty) {
+        logger.warn('⚠️ Cliente ya existe con ese teléfono', {
+          phone: clientData.phone,
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'CLIENT_ALREADY_EXISTS',
+          message: 'Ya existe un cliente con ese teléfono',
+          statusCode: 409
+        });
+      }
+
+      // Crear contacto (que será el cliente)
+      const contactData = {
+        name: clientData.name,
+        phone: clientData.phone,
+        email: clientData.email || null,
+        company: clientData.company || null,
+        tags: clientData.tags || [],
+        metadata: {
+          ...clientData.metadata,
+          stage: clientData.stage || 'lead',
+          expectedValue: clientData.expectedValue || 0,
+          source: clientData.source || 'manual',
+          segment: clientData.segment || 'freelancer'
+        },
+        userId: req.user.email,
+        isActive: true,
+        lastContactAt: new Date(),
+        totalMessages: 0,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // Crear documento en Firestore
+      const contactRef = await firestore.collection('contacts').add(contactData);
+      const contactDoc = await contactRef.get();
+      
+      // Mapear a formato cliente
+      const client = {
+        id: contactDoc.id,
+        name: contactData.name,
+        company: contactData.company,
+        email: contactData.email,
+        phone: contactData.phone,
+        whatsapp: contactData.phone,
+        avatar: null,
+        initials: this.getInitials(contactData.name),
+        status: 'active',
+        stage: contactData.metadata.stage,
+        score: this.calculateScore(contactData),
+        winRate: 0,
+        expectedValue: contactData.metadata.expectedValue,
+        probability: this.calculateProbability(contactData),
+        source: this.mapSource(contactData.metadata.source),
+        segment: contactData.metadata.segment,
+        tags: contactData.tags,
+        createdAt: contactData.createdAt.toISOString(),
+        updatedAt: contactData.updatedAt.toISOString(),
+        lastContact: contactData.lastContactAt.toISOString(),
+        assignedTo: null,
+        assignedToName: null,
+        conversationCount: 0,
+        messageCount: 0,
+        channel: 'manual',
+        metadata: contactData.metadata
+      };
+
+      logger.info('✅ Cliente creado exitosamente', {
+        clientId: client.id,
+        clientName: client.name,
+        clientPhone: client.phone,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, client, 'Cliente creado exitosamente', 201);
+      
+    } catch (error) {
+      logger.error('❌ Error creando cliente:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        userEmail: req.user?.email,
+        clientData: req.body
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * ✏️ Actualizar cliente
+   * PUT /api/clients/:id
+   */
+  static async update(req, res) {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      logger.info('✏️ ClientController.update - Actualizando cliente', {
+        clientId: id,
+        updateFields: Object.keys(updateData),
+        userEmail: req.user?.email
+      });
+
+      const contactDoc = await firestore.collection('contacts').doc(id).get();
+      if (!contactDoc.exists) {
+        logger.warn('⚠️ Cliente no encontrado para actualizar', {
+          clientId: id,
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'CLIENT_NOT_FOUND',
+          message: 'Cliente no encontrado',
+          statusCode: 404
+        });
+      }
+
+      const existingData = contactDoc.data();
+
+      // Preparar campos de actualización
+      const updateFields = {
+        updatedAt: new Date()
+      };
+
+      // Campos básicos
+      if (updateData.name !== undefined) updateFields.name = updateData.name;
+      if (updateData.email !== undefined) updateFields.email = updateData.email;
+      if (updateData.company !== undefined) updateFields.company = updateData.company;
+      if (updateData.tags !== undefined) updateFields.tags = updateData.tags;
+
+      // Campos de metadata
+      const metadata = { ...existingData.metadata };
+      if (updateData.stage !== undefined) metadata.stage = updateData.stage;
+      if (updateData.expectedValue !== undefined) metadata.expectedValue = updateData.expectedValue;
+      if (updateData.source !== undefined) metadata.source = updateData.source;
+      if (updateData.segment !== undefined) metadata.segment = updateData.segment;
+      if (updateData.probability !== undefined) metadata.probability = updateData.probability;
+      if (updateData.score !== undefined) metadata.score = updateData.score;
+      if (updateData.metadata !== undefined) {
+        Object.assign(metadata, updateData.metadata);
+      }
+
+      updateFields.metadata = metadata;
+
+      // Actualizar en Firestore
+      await firestore.collection('contacts').doc(id).update(updateFields);
+      
+      // Obtener documento actualizado
+      const updatedDoc = await firestore.collection('contacts').doc(id).get();
+      const updatedData = updatedDoc.data();
+      
+      // Mapear a formato cliente
+      const client = {
+        id: updatedDoc.id,
+        name: updatedData.name,
+        company: updatedData.company,
+        email: updatedData.email,
+        phone: updatedData.phone,
+        whatsapp: updatedData.phone,
+        avatar: null,
+        initials: this.getInitials(updatedData.name),
+        status: updatedData.isActive !== false ? 'active' : 'inactive',
+        stage: this.calculateStage(updatedData),
+        score: this.calculateScore(updatedData),
+        winRate: 0,
+        expectedValue: updatedData.metadata?.expectedValue || 0,
+        probability: this.calculateProbability(updatedData),
+        source: this.mapSource(updatedData.metadata?.source),
+        segment: this.calculateSegment(updatedData),
+        tags: updatedData.tags || [],
+        createdAt: updatedData.createdAt?.toDate?.()?.toISOString() || updatedData.createdAt,
+        updatedAt: updateFields.updatedAt.toISOString(),
+        lastContact: updatedData.lastContactAt?.toDate?.()?.toISOString() || updatedData.lastContactAt,
+        assignedTo: updatedData.assignedTo || null,
+        assignedToName: updatedData.assignedToName || null,
+        conversationCount: 0,
+        messageCount: 0,
+        channel: updatedData.metadata?.source === 'whatsapp_webhook' ? 'whatsapp' : 'manual',
+        metadata: updatedData.metadata || {}
+      };
+
+      logger.info('✅ Cliente actualizado exitosamente', {
+        clientId: id,
+        clientName: client.name,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, client, 'Cliente actualizado exitosamente');
+      
+    } catch (error) {
+      logger.error('❌ Error actualizando cliente:', {
+        clientId: req.params?.id,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🗑️ Eliminar cliente
+   * DELETE /api/clients/:id
+   */
+  static async delete(req, res) {
+    try {
+      const { id } = req.params;
+      
+      logger.info('🗑️ ClientController.delete - Eliminando cliente', {
+        clientId: id,
+        userEmail: req.user?.email
+      });
+
+      const contactDoc = await firestore.collection('contacts').doc(id).get();
+      if (!contactDoc.exists) {
+        logger.warn('⚠️ Cliente no encontrado para eliminar', {
+          clientId: id,
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'CLIENT_NOT_FOUND',
+          message: 'Cliente no encontrado',
+          statusCode: 404
+        });
+      }
+
+      const contactData = contactDoc.data();
+
+      // Soft delete - marcar como inactivo en lugar de eliminar físicamente
+      await firestore.collection('contacts').doc(id).update({
+        isActive: false,
+        updatedAt: new Date(),
+        deletedAt: new Date(),
+        deletedBy: req.user.email
+      });
+
+      logger.info('✅ Cliente eliminado exitosamente (soft delete)', {
+        clientId: id,
+        clientName: contactData.name,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, null, 'Cliente eliminado exitosamente');
+      
+    } catch (error) {
+      logger.error('❌ Error eliminando cliente:', {
+        clientId: req.params?.id,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
   }
 }
 
