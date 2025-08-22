@@ -542,18 +542,31 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // Participants SOLO emails (agente/creador) + viewers por defecto
+        // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
+        let allUserEmails = [];
+        try {
+          const User = require('../models/User');
+          const users = await User.list({ isActive: true, limit: 1000 });
+          allUserEmails = (users || [])
+            .map(u => String(u.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        } catch (_) {
+          // No bloquear creación si falla el listado de usuarios
+        }
+
+        // Participants: todos los usuarios activos + agente/creador + viewers por defecto
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
         const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
+        // agregar todos los usuarios activos
+        for (const email of allUserEmails) participantsSet.add(email);
+        // agregar agente si existe
         if (msg.agentEmail) participantsSet.add(String(msg.agentEmail).toLowerCase());
-
-        // NEW: mergear viewers por defecto (sin duplicar)
+        // viewers por defecto
         const viewers_in = getDefaultViewerEmails();
-        const sizeBefore_in = participantsSet.size;
         for (const v of viewers_in) participantsSet.add(String(v || '').toLowerCase().trim());
         const participants = Array.from(participantsSet);
         if (process.env.LOG_MSG_WRITE === 'true') {
-          logger.info({ event: 'participants.merge', source: 'inbound', before: sizeBefore_in, after: participants.length, added: Math.max(0, participants.length - sizeBefore_in) });
+          logger.info({ event: 'participants.merge', source: 'inbound', allUsersCount: allUserEmails.length, totalParticipants: participants.length });
         }
 
         const conversationUpdate = {
@@ -792,19 +805,32 @@ class ConversationsRepository {
 
         const lastMessageAt = msg.timestamp || new Date();
 
-        // Asegurar que participants incluya sender (agente/email) y viewers; no teléfonos
+        // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
+        let allUserEmails = [];
+        try {
+          const User = require('../models/User');
+          const users = await User.list({ isActive: true, limit: 1000 });
+          allUserEmails = (users || [])
+            .map(u => String(u.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        } catch (_) {
+          // No bloquear creación si falla el listado de usuarios
+        }
+
+        // Participants: todos los usuarios activos + sender/agente + viewers por defecto
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
         const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
+        // agregar todos los usuarios activos
+        for (const email of allUserEmails) participantsSet.add(email);
+        // agregar sender si es email
         if (msg.senderIdentifier) participantsSet.add(String(msg.senderIdentifier).toLowerCase());
         if (msg.agentEmail) participantsSet.add(String(msg.agentEmail).toLowerCase());
-
-        // NEW: mergear viewers por defecto (sin duplicar)
+        // viewers por defecto
         const viewers_out = getDefaultViewerEmails();
-        const sizeBefore_out = participantsSet.size;
         for (const v of viewers_out) participantsSet.add(String(v || '').toLowerCase().trim());
         const participants = Array.from(participantsSet);
         if (process.env.LOG_MSG_WRITE === 'true') {
-          logger.info({ event: 'participants.merge', source: 'outbound', before: sizeBefore_out, after: participants.length, added: Math.max(0, participants.length - sizeBefore_out) });
+          logger.info({ event: 'participants.merge', source: 'outbound', allUsersCount: allUserEmails.length, totalParticipants: participants.length });
         }
 
         const conversationUpdate = {
