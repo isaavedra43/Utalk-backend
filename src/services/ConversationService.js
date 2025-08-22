@@ -193,6 +193,18 @@ class ConversationService {
         conversation.participants.push(conversationData.createdBy);
       }
 
+      // 🔧 Obtener todos los usuarios activos para agregarlos como participantes por defecto
+      let allUserEmails = [];
+      try {
+        const User = require('../models/User');
+        const users = await User.list({ isActive: true, limit: 1000 });
+        allUserEmails = (users || [])
+          .map(u => String(u.email || '').toLowerCase().trim())
+          .filter(Boolean);
+      } catch (_) {
+        // No bloquear creación si falla el listado de usuarios
+      }
+
       // 🔧 CORRECCIÓN CRÍTICA: Crear en contacts/{contactId}/conversations
       // Primero, buscar o crear el contacto
       const contactId = await this.getOrCreateContactId(conversationData.customerPhone, conversationData.customerName);
@@ -226,15 +238,19 @@ class ConversationService {
           updatedAt: new Date()
         };
 
-        // Asegurar que participants incluya sender (agente/email) y recipient (cliente)
+        // Construir lista de participantes: todos los usuarios activos + creador + viewers por defecto
         const existingParticipants = conversationExists ? (conversationDoc.data().participants || []) : [];
-        const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase()));
-        if (msg.senderIdentifier) participantsSet.add(String(msg.senderIdentifier).toLowerCase()); // email
-        if (msg.agentEmail) participantsSet.add(String(msg.agentEmail).toLowerCase()); // redundante pero seguro
+        const participantsSet = new Set(existingParticipants.map(p => String(p || '').toLowerCase().trim()));
+        // agregar todos los usuarios activos
+        for (const email of allUserEmails) participantsSet.add(email);
+        // agregar creador si existe
+        if (conversationData.createdBy) participantsSet.add(String(conversationData.createdBy).toLowerCase().trim());
         // viewers por defecto
-        const viewers_out = getDefaultViewerEmails();
-        const sizeBefore_out = participantsSet.size;
-        for (const v of viewers_out) participantsSet.add(String(v || '').toLowerCase().trim());
+        try {
+          const { getDefaultViewerEmails } = require('../config/defaultViewers');
+          const viewers = getDefaultViewerEmails();
+          for (const v of viewers) participantsSet.add(String(v || '').toLowerCase().trim());
+        } catch (_) {}
         const participants = Array.from(participantsSet);
 
         // Preparar datos de la conversación para Firestore
