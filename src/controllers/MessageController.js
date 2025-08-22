@@ -429,8 +429,36 @@ class MessageController {
         // La validación de teléfono debe realizarse en las rutas usando middleware
         targetPhone = to;
         
-        // Buscar o crear conversación
-        conversation = await Conversation.findOrCreate(targetPhone, req.user.email);
+        // 🔧 CORRECCIÓN: Usar ConversationsRepository en lugar de Conversation.findOrCreate
+        // para crear en contacts/{contactId}/conversations con todos los usuarios como participants
+        const conversationsRepo = getConversationsRepository();
+        const tempMessage = {
+          conversationId: `conv_${process.env.TWILIO_WHATSAPP_NUMBER || '+1234567890'}_${targetPhone}`.replace(/[^\w+]/g, '_'),
+          messageId: `temp_${Date.now()}`,
+          senderIdentifier: req.user.email,
+          recipientIdentifier: targetPhone,
+          content: 'Conversación iniciada desde frontend',
+          direction: 'outbound',
+          type: 'text',
+          status: 'pending',
+          timestamp: new Date(),
+          agentEmail: req.user.email,
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant'
+        };
+        
+        try {
+          const result = await conversationsRepo.appendOutbound(tempMessage);
+          conversation = { id: result.conversation.id, ...result.conversation };
+        } catch (repoError) {
+          logger.error('Error usando ConversationsRepository, fallback a método anterior', {
+            error: repoError.message,
+            targetPhone,
+            userEmail: req.user.email
+          });
+          // Fallback al método anterior si falla el repositorio
+          conversation = await Conversation.findOrCreate(targetPhone, req.user.email);
+        }
       } else {
         throw new ApiError(
           'MISSING_DESTINATION',
