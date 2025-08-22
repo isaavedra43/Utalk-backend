@@ -71,8 +71,23 @@ class ConversationService {
         const contactConversations = conversationsSnapshot.docs.map(doc => ({
           id: doc.id,
           contactId: contactId,
+          contact: {                     // 🔧 AGREGAR INFORMACIÓN COMPLETA DEL CONTACTO
+            id: contactId,
+            name: contactData.name,
+            profileName: contactData.profileName || contactData.name,
+            phone: contactData.phone,
+            phoneNumber: contactData.phone,
+            waId: contactData.waId,
+            channel: contactData.source === 'whatsapp_webhook' ? 'whatsapp' : 'unknown',
+            isActive: contactData.isActive !== false,
+            lastContactAt: contactData.lastContactAt,
+            createdAt: contactData.createdAt,
+            metadata: contactData.metadata || {}
+          },
+          // Mantener campos legacy para compatibilidad
           contactName: contactData.name,
           contactPhone: contactData.phone,
+          customerPhone: contactData.phone, // Para compatibilidad con logs
           ...doc.data()
         }));
         
@@ -129,15 +144,37 @@ class ConversationService {
           .get();
         
         if (conversationDoc.exists) {
+          // 🔧 OBTENER INFORMACIÓN COMPLETA DEL CONTACTO
+          const contactData = contactDoc.data();
+          
           logger.info('✅ Conversación encontrada en contacts/{contactId}/conversations', {
             conversationId: id,
             contactId: contactId,
+            contactName: contactData.name,
+            contactPhone: contactData.phone,
             structure: 'contacts/{contactId}/conversations'
           });
           
           return {
             id: conversationDoc.id,
             contactId: contactId,
+            contact: {                     // 🔧 AGREGAR INFORMACIÓN DEL CONTACTO
+              id: contactId,
+              name: contactData.name,
+              profileName: contactData.profileName || contactData.name,
+              phone: contactData.phone,
+              phoneNumber: contactData.phone,
+              waId: contactData.waId,
+              channel: contactData.source === 'whatsapp_webhook' ? 'whatsapp' : 'unknown',
+              isActive: contactData.isActive !== false,
+              lastContactAt: contactData.lastContactAt,
+              createdAt: contactData.createdAt,
+              metadata: contactData.metadata || {}
+            },
+            // Mantener campos legacy para compatibilidad
+            contactName: contactData.name,
+            contactPhone: contactData.phone,
+            customerPhone: contactData.phone, // Para compatibilidad con logs
             ...conversationDoc.data()
           };
         }
@@ -449,7 +486,7 @@ class ConversationService {
           return this.getConversationById(id);
         }
       }
-      
+
       throw new Error(`Conversación ${id} no encontrada en ningún contacto`);
 
     } catch (error) {
@@ -550,4 +587,4 @@ class ConversationService {
   // Usar ConversationsRepository en su lugar para operaciones CRUD
 }
 
-module.exports = ConversationService;
+module.exports = ConversationService; 
