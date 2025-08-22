@@ -739,24 +739,46 @@ class ConversationController {
         });
       }
 
-      // 📡 EMITIR EVENTOS WEBSOCKET
+      // 📡 EMITIR EVENTOS WEBSOCKET (ESPECÍFICOS POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.io.emit('conversation-created', {
-          conversation: safeFirestoreToJSON(conversation),
-          createdBy: creatorEmail,
-          timestamp: new Date().toISOString()
+        // 🔧 USAR broadcastToWorkspace EN VEZ DE io.emit GLOBAL
+        const broadcastData = {
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          event: 'conversation-created',
+          payload: {
+            conversation: safeFirestoreToJSON(conversation),
+            createdBy: creatorEmail,
+            timestamp: new Date().toISOString()
+          }
+        };
+        
+        socketManager.broadcastToWorkspace(broadcastData);
+        
+        logger.info('📡 Evento conversation-created emitido al workspace', {
+          conversationId: conversation.id,
+          workspaceId: broadcastData.workspaceId,
+          tenantId: broadcastData.tenantId,
+          participants: conversation.participants
         });
 
         if (assignedAgent) {
-          socketManager.io.emit('conversation-assigned', {
-            conversationId: conversation.id,
-            assignedTo: {
-              email: assignedAgent.email,
-              name: assignedAgent.name
-            },
-            timestamp: new Date().toISOString()
-          });
+          const assignmentData = {
+            workspaceId: req.user.workspaceId || 'default_workspace',
+            tenantId: req.user.tenantId || 'default_tenant',
+            event: 'conversation-assigned',
+            payload: {
+              conversationId: conversation.id,
+              assignedTo: {
+                email: assignedAgent.email,
+                name: assignedAgent.name
+              },
+              timestamp: new Date().toISOString()
+            }
+          };
+          
+          socketManager.broadcastToWorkspace(assignmentData);
         }
       }
 
@@ -873,19 +895,26 @@ class ConversationController {
       // 📋 ASIGNAR
       await conversation.assignTo(agent.email, agent.name);
 
-      // 📡 EMITIR EVENTOS WEBSOCKET
+      // 📡 EMITIR EVENTOS WEBSOCKET (ESPECÍFICOS POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.io.emit('conversation-assigned', {
-          conversationId: id,
-          assignedTo: {
-            email: agent.email,
-            name: agent.name
-          },
-          previousAssignedTo: conversation.assignedTo,
-          assignedBy: req.user.email,
-          timestamp: new Date().toISOString()
-        });
+        const broadcastData = {
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          event: 'conversation-assigned',
+          payload: {
+            conversationId: id,
+            assignedTo: {
+              email: agent.email,
+              name: agent.name
+            },
+            previousAssignedTo: conversation.assignedTo,
+            assignedBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
+        };
+        
+        socketManager.broadcastToWorkspace(broadcastData);
       }
 
       logger.info('Conversación asignada', {
@@ -928,15 +957,22 @@ class ConversationController {
       const previousAgent = conversation.assignedTo;
       await conversation.unassign();
 
-      // 📡 EMITIR EVENTO WEBSOCKET
+      // 📡 EMITIR EVENTO WEBSOCKET (ESPECÍFICO POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.io.emit('conversation-unassigned', {
-          conversationId: id,
-          previousAssignedTo: previousAgent,
-          unassignedBy: req.user.email,
-          timestamp: new Date().toISOString()
-        });
+        const broadcastData = {
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          event: 'conversation-unassigned',
+          payload: {
+            conversationId: id,
+            previousAssignedTo: previousAgent,
+            unassignedBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
+        };
+        
+        socketManager.broadcastToWorkspace(broadcastData);
       }
 
       logger.info('Conversación desasignada', {
@@ -1008,23 +1044,30 @@ class ConversationController {
 
       await Message.create(transferMessage);
 
-      // 📡 EMITIR EVENTOS WEBSOCKET
+      // 📡 EMITIR EVENTOS WEBSOCKET (ESPECÍFICO POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.io.emit('conversation-transferred', {
-          conversationId: id,
-          fromAgent: {
-            email: fromAgent,
-            name: sourceAgent.name
-          },
-          toAgent: {
-            email: toAgent,
-            name: targetAgent.name
-          },
-          reason,
-          transferredBy: req.user.email,
-          timestamp: new Date().toISOString()
-        });
+        const broadcastData = {
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          event: 'conversation-transferred',
+          payload: {
+            conversationId: id,
+            fromAgent: {
+              email: fromAgent,
+              name: sourceAgent.name
+            },
+            toAgent: {
+              email: toAgent,
+              name: targetAgent.name
+            },
+            reason,
+            transferredBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
+        };
+        
+        socketManager.broadcastToWorkspace(broadcastData);
       }
 
       logger.info('Conversación transferida', {
@@ -1132,17 +1175,24 @@ class ConversationController {
       const previousPriority = conversation.priority;
       await conversation.changePriority(priority);
 
-      // 📡 EMITIR EVENTO WEBSOCKET
+      // 📡 EMITIR EVENTO WEBSOCKET (ESPECÍFICO POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
       if (socketManager) {
-        socketManager.io.emit('conversation-priority-changed', {
-          conversationId: id,
-          previousPriority,
-          newPriority: priority,
-          reason,
-          changedBy: req.user.email,
-          timestamp: new Date().toISOString()
-        });
+        const broadcastData = {
+          workspaceId: req.user.workspaceId || 'default_workspace',
+          tenantId: req.user.tenantId || 'default_tenant',
+          event: 'conversation-priority-changed',
+          payload: {
+            conversationId: id,
+            previousPriority,
+            newPriority: priority,
+            reason,
+            changedBy: req.user.email,
+            timestamp: new Date().toISOString()
+          }
+        };
+        
+        socketManager.broadcastToWorkspace(broadcastData);
       }
 
       logger.info('Prioridad de conversación cambiada', {
