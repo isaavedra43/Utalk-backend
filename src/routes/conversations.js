@@ -66,7 +66,7 @@ const conversationValidators = {
 
   validateAssign: validateRequest({
     body: Joi.object({
-      agentEmail: Joi.string().email().required()
+      assignedTo: Joi.string().email().required()
     })
   }),
 
