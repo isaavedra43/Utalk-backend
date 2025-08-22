@@ -484,25 +484,106 @@ class ConversationsRepository {
         }
       })();
 
-      // Buscar/crear contacto por teléfono del cliente
-      const contactSnap = await firestore
-        .collection('contacts')
-        .where('phone', '==', msg.senderIdentifier)
+      // 🔒 BÚSQUEDA ROBUSTA DE CONTACTO: Normalizar teléfono y buscar múltiples variantes
+      let contactId = null;
+      const originalPhone = msg.senderIdentifier;
+      const normalizedPhone = this.normalizePhoneForContact(originalPhone);
+      
+      logger.info('🔍 ConversationsRepository.upsertFromInbound - Buscando contacto', {
+        originalPhone,
+        normalizedPhone,
+        requestId
+      });
+
+      // Buscar por teléfono normalizado primero
+      let contactSnap = await firestore.collection('contacts')
+        .where('phone', '==', normalizedPhone)
         .limit(1)
         .get();
 
-      let contactId;
+      // Si no se encuentra con normalizado, buscar con original
+      if (contactSnap.empty && normalizedPhone !== originalPhone) {
+        contactSnap = await firestore.collection('contacts')
+          .where('phone', '==', originalPhone)
+          .limit(1)
+          .get();
+      }
+
+      // Si aún no se encuentra, buscar variantes comunes
+      if (contactSnap.empty) {
+        const phoneVariants = this.generatePhoneVariants(originalPhone);
+        for (const variant of phoneVariants) {
+          if (variant !== normalizedPhone && variant !== originalPhone) {
+            const variantQuery = await firestore.collection('contacts')
+              .where('phone', '==', variant)
+              .limit(1)
+              .get();
+            
+            if (!variantQuery.empty) {
+              contactSnap = variantQuery;
+              logger.info('✅ Contacto encontrado con variante de teléfono', {
+                originalPhone,
+                foundWith: variant,
+                contactId: variantQuery.docs[0].id,
+                requestId
+              });
+              break;
+            }
+          }
+        }
+      }
+
       if (!contactSnap.empty) {
         contactId = contactSnap.docs[0].id;
+        logger.info('✅ Contacto existente encontrado', {
+          contactId,
+          originalPhone,
+          normalizedPhone,
+          requestId
+        });
       } else {
+        // 🔒 CREAR CONTACTO CON VALIDACIÓN ANTI-DUPLICADOS
+        logger.info('🆕 Creando nuevo contacto (no encontrado)', {
+          originalPhone,
+          normalizedPhone,
+          requestId
+        });
+
+        // ÚLTIMA VERIFICACIÓN antes de crear: buscar de nuevo por si hay condición de carrera
+        const finalCheck = await firestore.collection('contacts')
+          .where('phone', '==', normalizedPhone)
+          .limit(1)
+          .get();
+
+        if (!finalCheck.empty) {
+          contactId = finalCheck.docs[0].id;
+          logger.warn('⚠️ Contacto encontrado en verificación final (condición de carrera evitada)', {
+            contactId,
+            normalizedPhone,
+            requestId
+          });
+        } else {
+          // Crear contacto con teléfono NORMALIZADO
         const newContactRef = await firestore.collection('contacts').add({
-          phone: msg.senderIdentifier,
-          name: msg.profileName || msg.senderIdentifier,
-          metadata: { createdVia: 'inbound_message', createdAt: new Date().toISOString() },
+            phone: normalizedPhone, // USAR NORMALIZADO para evitar duplicados futuros
+            name: msg.profileName || originalPhone,
+            metadata: { 
+              createdVia: 'inbound_message', 
+              createdAt: new Date().toISOString(),
+              originalPhone: originalPhone // Guardar original por referencia
+            },
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         });
         contactId = newContactRef.id;
+          
+          logger.info('✅ Nuevo contacto creado exitosamente', {
+            contactId,
+            originalPhone,
+            normalizedPhone,
+            requestId
+          });
+        }
       }
 
       // Transacción atómica: mensaje + conversación (SOLO en contacts/{contactId}/conversations)
@@ -1333,6 +1414,87 @@ class ConversationsRepository {
       });
       throw error;
     }
+  }
+
+  /**
+   * 🔒 MÉTODOS ANTI-DUPLICADOS: Normalización robusta de teléfonos
+   */
+  normalizePhoneForContact(phone) {
+    if (!phone) return phone;
+    
+    // Convertir a string y limpiar
+    let normalized = String(phone).trim();
+    
+    // Remover prefijos de WhatsApp y limpiar caracteres especiales
+    normalized = normalized.replace(/^whatsapp:/, '');
+    normalized = normalized.replace(/[\s\-\(\)\.]/g, '');
+    
+    // Si empieza con + ya está internacionalizado
+    if (normalized.startsWith('+')) {
+      return normalized;
+    }
+    
+    // Si empieza con 52 (México), agregar +
+    if (normalized.startsWith('52') && normalized.length >= 12) {
+      return '+' + normalized;
+    }
+    
+    // Si no tiene código de país, asumir México
+    if (normalized.length === 10) {
+      return '+52' + normalized;
+    }
+    
+    // Retornar como está si no se puede normalizar
+    return normalized;
+  }
+
+  /**
+   * 🔒 GENERAR VARIANTES DE TELÉFONO para búsqueda exhaustiva
+   */
+  generatePhoneVariants(originalPhone) {
+    if (!originalPhone) return [];
+    
+    const variants = new Set();
+    const cleaned = originalPhone.replace(/[\s\-\(\)\.]/g, '');
+    
+    // Variante 1: Original limpio
+    variants.add(cleaned);
+    
+    // Variante 2: Sin prefijo whatsapp:
+    if (originalPhone.startsWith('whatsapp:')) {
+      variants.add(originalPhone.replace('whatsapp:', ''));
+    }
+    
+    // Variante 3: Con whatsapp: si no lo tiene
+    if (!originalPhone.startsWith('whatsapp:')) {
+      variants.add('whatsapp:' + originalPhone);
+    }
+    
+    // Variante 4: Con + si no lo tiene y parece internacional
+    if (!cleaned.startsWith('+') && cleaned.length >= 10) {
+      variants.add('+' + cleaned);
+    }
+    
+    // Variante 5: Sin + si lo tiene
+    if (cleaned.startsWith('+')) {
+      variants.add(cleaned.substring(1));
+    }
+    
+    // Variante 6: Con código México si parece local
+    if (!cleaned.startsWith('+') && !cleaned.startsWith('52') && cleaned.length === 10) {
+      variants.add('+52' + cleaned);
+      variants.add('52' + cleaned);
+    }
+    
+    // Variante 7: Sin código México si lo tiene
+    if (cleaned.startsWith('+52') && cleaned.length === 13) {
+      variants.add(cleaned.substring(3)); // Quitar +52
+    }
+    if (cleaned.startsWith('52') && cleaned.length === 12) {
+      variants.add(cleaned.substring(2)); // Quitar 52
+    }
+    
+    return Array.from(variants).filter(v => v && v !== originalPhone);
   }
 }
 

@@ -290,45 +290,101 @@ class ConversationService {
    */
   static async getOrCreateContactId(customerPhone, customerName) {
     try {
-      // 🔧 NORMALIZAR TELÉFONO para evitar duplicados
-      const normalizedPhone = this.normalizePhoneNumber(customerPhone);
+      // 🔒 BÚSQUEDA ROBUSTA DE CONTACTO: Normalizar teléfono y buscar múltiples variantes
+      const originalPhone = customerPhone;
+      const normalizedPhone = this.normalizePhoneNumber(originalPhone);
       
-      // Buscar contacto existente por teléfono normalizado Y original
+      logger.info('🔍 ConversationService.getOrCreateContactId - Buscando contacto', {
+        originalPhone,
+        normalizedPhone,
+        customerName
+      });
+
+      // Buscar por teléfono normalizado primero
       let contactsSnapshot = await firestore
         .collection('contacts')
         .where('phone', '==', normalizedPhone)
         .limit(1)
         .get();
       
-      // Si no se encuentra con el normalizado, buscar con el original
-      if (contactsSnapshot.empty && normalizedPhone !== customerPhone) {
+      // Si no se encuentra con normalizado, buscar con el original
+      if (contactsSnapshot.empty && normalizedPhone !== originalPhone) {
         contactsSnapshot = await firestore
           .collection('contacts')
-          .where('phone', '==', customerPhone)
+          .where('phone', '==', originalPhone)
           .limit(1)
           .get();
+      }
+
+      // Si aún no se encuentra, buscar variantes comunes
+      if (contactsSnapshot.empty) {
+        const phoneVariants = this.generatePhoneVariants(originalPhone);
+        for (const variant of phoneVariants) {
+          if (variant !== normalizedPhone && variant !== originalPhone) {
+            const variantQuery = await firestore
+              .collection('contacts')
+              .where('phone', '==', variant)
+              .limit(1)
+              .get();
+            
+            if (!variantQuery.empty) {
+              contactsSnapshot = variantQuery;
+              logger.info('✅ Contacto encontrado con variante de teléfono', {
+                originalPhone,
+                foundWith: variant,
+                contactId: variantQuery.docs[0].id
+              });
+              break;
+            }
+          }
+        }
       }
 
       if (!contactsSnapshot.empty) {
         const contactDoc = contactsSnapshot.docs[0];
         logger.info('✅ Contacto existente encontrado', {
           contactId: contactDoc.id,
-          customerPhone,
+          originalPhone,
+          normalizedPhone,
           customerName
         });
         return contactDoc.id;
       }
 
-      // Crear nuevo contacto si no existe
+      // 🔒 CREAR CONTACTO CON VALIDACIÓN ANTI-DUPLICADOS
+      logger.info('🆕 Creando nuevo contacto (no encontrado)', {
+        originalPhone,
+        normalizedPhone,
+        customerName
+      });
+
+      // ÚLTIMA VERIFICACIÓN antes de crear: buscar de nuevo por si hay condición de carrera
+      const finalCheck = await firestore
+        .collection('contacts')
+        .where('phone', '==', normalizedPhone)
+        .limit(1)
+        .get();
+
+      if (!finalCheck.empty) {
+        const contactDoc = finalCheck.docs[0];
+        logger.warn('⚠️ Contacto encontrado en verificación final (condición de carrera evitada)', {
+          contactId: contactDoc.id,
+          normalizedPhone
+        });
+        return contactDoc.id;
+      }
+
+      // Crear nuevo contacto con teléfono NORMALIZADO
       const newContactData = {
-        phone: normalizedPhone, // Usar teléfono normalizado para contacto nuevo
-        name: customerName || customerPhone,
+        phone: normalizedPhone, // USAR NORMALIZADO para evitar duplicados futuros
+        name: customerName || originalPhone,
         email: null,
         company: null,
         tags: [],
         metadata: {
           createdVia: 'conversation_creation',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          originalPhone: originalPhone // Guardar original por referencia
         },
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
@@ -336,9 +392,10 @@ class ConversationService {
 
       const newContactRef = await firestore.collection('contacts').add(newContactData);
       
-      logger.info('✅ Nuevo contacto creado', {
+      logger.info('✅ Nuevo contacto creado exitosamente', {
         contactId: newContactRef.id,
-        customerPhone,
+        originalPhone,
+        normalizedPhone,
         customerName
       });
 
@@ -406,7 +463,7 @@ class ConversationService {
   }
 
   /**
-   * Normalizar número de teléfono para evitar duplicados
+   * 🔒 Normalizar número de teléfono para evitar duplicados
    */
   static normalizePhoneNumber(phone) {
     if (!phone) return phone;
@@ -414,10 +471,11 @@ class ConversationService {
     // Convertir a string y limpiar
     let normalized = String(phone).trim();
     
-    // Remover espacios, guiones, paréntesis
-    normalized = normalized.replace(/[\s\-\(\)]/g, '');
+    // Remover prefijos de WhatsApp y limpiar caracteres especiales
+    normalized = normalized.replace(/^whatsapp:/, '');
+    normalized = normalized.replace(/[\s\-\(\)\.]/g, '');
     
-    // Si empieza con + ya está normalizado
+    // Si empieza con + ya está internacionalizado
     if (normalized.startsWith('+')) {
       return normalized;
     }
@@ -434,6 +492,55 @@ class ConversationService {
     
     // Retornar como está si no se puede normalizar
     return normalized;
+  }
+
+  /**
+   * 🔒 GENERAR VARIANTES DE TELÉFONO para búsqueda exhaustiva
+   */
+  static generatePhoneVariants(originalPhone) {
+    if (!originalPhone) return [];
+    
+    const variants = new Set();
+    const cleaned = originalPhone.replace(/[\s\-\(\)\.]/g, '');
+    
+    // Variante 1: Original limpio
+    variants.add(cleaned);
+    
+    // Variante 2: Sin prefijo whatsapp:
+    if (originalPhone.startsWith('whatsapp:')) {
+      variants.add(originalPhone.replace('whatsapp:', ''));
+    }
+    
+    // Variante 3: Con whatsapp: si no lo tiene
+    if (!originalPhone.startsWith('whatsapp:')) {
+      variants.add('whatsapp:' + originalPhone);
+    }
+    
+    // Variante 4: Con + si no lo tiene y parece internacional
+    if (!cleaned.startsWith('+') && cleaned.length >= 10) {
+      variants.add('+' + cleaned);
+    }
+    
+    // Variante 5: Sin + si lo tiene
+    if (cleaned.startsWith('+')) {
+      variants.add(cleaned.substring(1));
+    }
+    
+    // Variante 6: Con código México si parece local
+    if (!cleaned.startsWith('+') && !cleaned.startsWith('52') && cleaned.length === 10) {
+      variants.add('+52' + cleaned);
+      variants.add('52' + cleaned);
+    }
+    
+    // Variante 7: Sin código México si lo tiene
+    if (cleaned.startsWith('+52') && cleaned.length === 13) {
+      variants.add(cleaned.substring(3)); // Quitar +52
+    }
+    if (cleaned.startsWith('52') && cleaned.length === 12) {
+      variants.add(cleaned.substring(2)); // Quitar 52
+    }
+    
+    return Array.from(variants).filter(v => v && v !== originalPhone);
   }
 
   // 🗑️ MÉTODOS OBSOLETOS ELIMINADOS - Ahora se usan ConversationsRepository y estructura contacts/{contactId}/conversations
