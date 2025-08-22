@@ -57,7 +57,7 @@ class TeamController {
       // Obtener KPIs básicos para cada usuario
       const usersWithKPIs = await Promise.all(
         users.map(async (user) => {
-          const kpis = await this.getUserKPIs(user.email, '30d');
+          const kpis = await TeamController.getUserKPIs(user.email, '30d');
           return {
             ...user.toJSON(),
             kpis: kpis.summary,
@@ -153,7 +153,7 @@ class TeamController {
       }
 
       // Obtener KPIs detallados
-      const kpis = await this.getUserKPIs(user.email, '30d');
+      const kpis = await TeamController.getUserKPIs(user.email, '30d');
 
       return ResponseHandler.success(res, {
         user: {
@@ -340,7 +340,7 @@ class TeamController {
         return ResponseHandler.authorizationError(res, 'No tienes permisos para ver los KPIs de este miembro');
       }
 
-      const kpis = await this.getUserKPIs(user.email, period);
+      const kpis = await TeamController.getUserKPIs(user.email, period);
 
       return ResponseHandler.success(res, {
         user: {
