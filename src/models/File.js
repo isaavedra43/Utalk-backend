@@ -204,57 +204,91 @@ class File {
 
   /**
    * Listar archivos por conversación (eficiente)
+   * 🔧 ACTUALIZADO: Compatible con nueva estructura de base de datos
    */
   static async listByConversation(conversationId, options = {}) {
-    const {
-      limit = 50,
-      startAfter = null,
-      category = null,
-      isActive = true
-    } = options;
+    try {
+      const {
+        limit = 50,
+        startAfter = null,
+        category = null,
+        isActive = true
+      } = options;
 
-    let query = firestore
-      .collection('files_by_conversation')
-      .doc(conversationId)
-      .collection('files')
-      .where('isActive', '==', isActive)
-      .orderBy('uploadedAt', 'desc')
-      .limit(limit);
+      logger.info('📋 File.listByConversation - Iniciando búsqueda', {
+        conversationId,
+        limit,
+        category,
+        isActive
+      });
 
-    if (category) {
-      query = query.where('category', '==', category);
-    }
+      // 🔧 SOLUCIÓN: Buscar directamente en la colección 'files' por conversationId
+      let query = firestore
+        .collection('files')
+        .where('conversationId', '==', conversationId)
+        .where('isActive', '==', isActive)
+        .orderBy('uploadedAt', 'desc')
+        .limit(limit);
 
-    if (startAfter) {
-      query = query.startAfter(startAfter);
-    }
-
-    const snapshot = await query.get();
-    const fileIds = snapshot.docs.map(doc => doc.data().fileId);
-
-    // Obtener archivos completos
-    const files = [];
-    for (const fileId of fileIds) {
-      const file = await this.getById(fileId);
-      if (file) {
-        files.push(file);
+      // Aplicar filtro de categoría si se especifica
+      if (category) {
+        query = query.where('category', '==', category);
       }
-    }
 
-    return files;
+      // Aplicar cursor de paginación si se especifica
+      if (startAfter) {
+        query = query.startAfter(startAfter);
+      }
+
+      const snapshot = await query.get();
+      
+      logger.info('📋 File.listByConversation - Consulta ejecutada', {
+        conversationId,
+        foundFiles: snapshot.docs.length,
+        isEmpty: snapshot.empty
+      });
+
+      // Convertir documentos a instancias de File
+      const files = snapshot.docs.map(doc => {
+        return new File({ id: doc.id, ...doc.data() });
+      });
+
+      logger.info('✅ File.listByConversation - Archivos obtenidos exitosamente', {
+        conversationId,
+        count: files.length
+      });
+
+      return files;
+
+    } catch (error) {
+      logger.error('❌ File.listByConversation - Error crítico', {
+        conversationId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        options
+      });
+      throw error;
+    }
   }
 
   /**
    * Obtener conteo de archivos por conversación
+   * 🔧 ACTUALIZADO: Compatible con nueva estructura de base de datos
    */
   static async getCountByConversation(conversationId, options = {}) {
     try {
       const { category = null, isActive = true } = options;
 
+      logger.info('📊 File.getCountByConversation - Iniciando conteo', {
+        conversationId,
+        category,
+        isActive
+      });
+
+      // 🔧 SOLUCIÓN: Buscar directamente en la colección 'files' por conversationId
       let query = firestore
-        .collection('files_by_conversation')
-        .doc(conversationId)
         .collection('files')
+        .where('conversationId', '==', conversationId)
         .where('isActive', '==', isActive);
 
       if (category) {
@@ -262,6 +296,12 @@ class File {
       }
 
       const snapshot = await query.get();
+      
+      logger.info('✅ File.getCountByConversation - Conteo completado', {
+        conversationId,
+        count: snapshot.size
+      });
+
       return snapshot.size;
     } catch (error) {
       logger.error('❌ Error obteniendo conteo de archivos por conversación', {
