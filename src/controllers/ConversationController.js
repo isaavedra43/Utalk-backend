@@ -25,7 +25,7 @@
  */
 
 const logger = require('../utils/logger');
-const { ResponseHandler, CommonErrors } = require('../utils/responseHandler');
+const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const ConversationService = require('../services/ConversationService');
 const { cacheService } = require('../services/CacheService');
 const { logMonitor } = require('../services/LogMonitorService');

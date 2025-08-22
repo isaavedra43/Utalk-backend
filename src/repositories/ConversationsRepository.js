@@ -390,44 +390,24 @@ class ConversationsRepository {
     const startTime = Date.now();
     const requestId = msg.requestId || `upsert_inbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 🔧 CORRECCIÓN CRÍTICA: Obtener usuarios activos ANTES de la transacción
+    // 🔧 OBTENER USUARIOS ACTIVOS CON FALLBACK ROBUSTO
     let allUserEmails = [];
     try {
       const User = require('../models/User');
       
-      // 🔧 INTENTAR MÚLTIPLES ESTRATEGIAS PARA OBTENER USUARIOS
-      try {
-        // Estrategia 1: Con filtro isActive (requiere índice)
-        const users = await User.list({ isActive: true, limit: 1000 });
-        allUserEmails = (users || [])
-          .map(u => String(u.email || '').toLowerCase().trim())
-          .filter(Boolean);
-      } catch (indexError) {
-        logger.warn('Estrategia 1 falló (índice faltante), usando estrategia 2', {
-          requestId,
-          error: indexError.message
-        });
+      // Estrategia simple: Obtener todos los usuarios sin filtros complejos
+      const allUsers = await User.list({ limit: 1000 });
+      allUserEmails = (allUsers || [])
+        .filter(u => u.isActive !== false) // Incluir true y undefined como activos
+        .map(u => String(u.email || '').toLowerCase().trim())
+        .filter(Boolean);
         
-        // Estrategia 2: Obtener todos y filtrar localmente
-        const allUsers = await User.list({ limit: 1000 });
-        allUserEmails = (allUsers || [])
-          .filter(u => u.isActive !== false) // Incluir true y undefined como activos
-          .map(u => String(u.email || '').toLowerCase().trim())
-          .filter(Boolean);
+      // Fallback: Si no hay usuarios, usar al menos el agente
+      if (allUserEmails.length === 0 && msg.agentEmail && msg.agentEmail.includes('@')) {
+        allUserEmails = [msg.agentEmail.toLowerCase()];
       }
-      
-      logger.info('Usuarios activos obtenidos para participants (inbound)', {
-        requestId,
-        userCount: allUserEmails.length,
-        users: allUserEmails.map(email => email.substring(0, 10) + '...')
-      });
     } catch (userError) {
-      logger.error('Error obteniendo usuarios activos para participants (inbound)', {
-        requestId,
-        error: userError.message,
-        stack: userError.stack
-      });
-      // Fallback: usar al menos el agente si existe
+      // Fallback final: usar solo el agente
       if (msg.agentEmail && msg.agentEmail.includes('@')) {
         allUserEmails = [msg.agentEmail.toLowerCase()];
       }
@@ -698,44 +678,24 @@ class ConversationsRepository {
     const startTime = Date.now();
     const requestId = `append_outbound_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 🔧 CORRECCIÓN CRÍTICA: Obtener usuarios activos ANTES de la transacción
+    // 🔧 OBTENER USUARIOS ACTIVOS CON FALLBACK ROBUSTO
     let allUserEmails = [];
     try {
       const User = require('../models/User');
       
-      // 🔧 INTENTAR MÚLTIPLES ESTRATEGIAS PARA OBTENER USUARIOS
-      try {
-        // Estrategia 1: Con filtro isActive (requiere índice)
-        const users = await User.list({ isActive: true, limit: 1000 });
-        allUserEmails = (users || [])
-          .map(u => String(u.email || '').toLowerCase().trim())
-          .filter(Boolean);
-      } catch (indexError) {
-        logger.warn('Estrategia 1 falló (índice faltante), usando estrategia 2', {
-          requestId,
-          error: indexError.message
-        });
+      // Estrategia simple: Obtener todos los usuarios sin filtros complejos
+      const allUsers = await User.list({ limit: 1000 });
+      allUserEmails = (allUsers || [])
+        .filter(u => u.isActive !== false) // Incluir true y undefined como activos
+        .map(u => String(u.email || '').toLowerCase().trim())
+        .filter(Boolean);
         
-        // Estrategia 2: Obtener todos y filtrar localmente
-        const allUsers = await User.list({ limit: 1000 });
-        allUserEmails = (allUsers || [])
-          .filter(u => u.isActive !== false) // Incluir true y undefined como activos
-          .map(u => String(u.email || '').toLowerCase().trim())
-          .filter(Boolean);
+      // Fallback: Si no hay usuarios, usar al menos el sender
+      if (allUserEmails.length === 0 && msg.senderIdentifier && msg.senderIdentifier.includes('@')) {
+        allUserEmails = [msg.senderIdentifier.toLowerCase()];
       }
-      
-      logger.info('Usuarios activos obtenidos para participants (outbound)', {
-        requestId,
-        userCount: allUserEmails.length,
-        users: allUserEmails.map(email => email.substring(0, 10) + '...')
-      });
     } catch (userError) {
-      logger.error('Error obteniendo usuarios activos para participants (outbound)', {
-        requestId,
-        error: userError.message,
-        stack: userError.stack
-      });
-      // Fallback: usar al menos el usuario actual
+      // Fallback final: usar solo el sender
       if (msg.senderIdentifier && msg.senderIdentifier.includes('@')) {
         allUserEmails = [msg.senderIdentifier.toLowerCase()];
       }
