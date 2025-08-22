@@ -4,6 +4,7 @@ const ContactService = require('./ContactService');
 const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
 const twilio = require('twilio');
+const { client: twilioClient, twilioConfig } = require('../config/twilio');
 const logger = require('../utils/logger');
 const { generateConversationId, normalizePhoneNumber } = require('../utils/conversation');
 const { validateMessagesArrayResponse } = require('../middleware/validation');
@@ -25,7 +26,8 @@ class MessageService {
     const authToken  =
       process.env.TWILIO_AUTH_TOKEN  || process.env.TWILIO_TOKEN || process.env.TWILIO_SECRET;
 
-    this.whatsappNumber =
+    // 🔧 USAR CONFIGURACIÓN CENTRALIZADA PRIMERO
+    this.whatsappNumber = twilioConfig?.whatsappNumber || 
       process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM || process.env.WHATSAPP_FROM;
 
     this._diagLogBoot(accountSid, authToken, this.whatsappNumber);
@@ -47,7 +49,8 @@ class MessageService {
       e.code = 20003; // equivalente a auth fail para mapeo uniforme
       throw e;
     }
-    this.client = client || twilio(accountSid, authToken);
+    // 🔧 USAR CLIENTE CENTRALIZADO DE CONFIG/TWILIO.JS
+    this.client = client || twilioClient || twilio(accountSid, authToken);
   }
 
   ensureWhatsApp(number) {
