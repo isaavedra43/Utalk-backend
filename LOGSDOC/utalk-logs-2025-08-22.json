@@ -1,0 +1,554 @@
+{
+  "exportDate": "2025-08-22T22:01:36.397Z",
+  "totalLogs": 28,
+  "logs": [
+    {
+      "timestamp": "2025-08-22T21:59:42.615Z",
+      "level": "info",
+      "message": "[2025-08-22T21:59:42.615Z] [INFO] [SYSTEM] Iniciando aplicación UTALK | Data: {\n  \"version\": \"1.0.0\",\n  \"environment\": \"development\",\n  \"debug\": true,\n  \"timestamp\": \"2025-08-22T21:59:42.615Z\"\n}"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.639Z",
+      "level": "info",
+      "message": "🔐 useAuth - Tokens encontrados en localStorage, validando con backend..."
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.639Z",
+      "level": "info",
+      "message": "[2025-08-22T21:59:42.639Z] [INFO] [AUTH] Validando token con backend..."
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.640Z",
+      "level": "info",
+      "message": "🔐 useAuth - Tokens encontrados en localStorage, validando con backend..."
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.640Z",
+      "level": "info",
+      "message": "[2025-08-22T21:59:42.640Z] [INFO] [AUTH] Validando token con backend..."
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.873Z",
+      "level": "info",
+      "message": "[2025-08-22T21:59:42.873Z] [INFO] [AUTH] Token válido, usuario autenticado"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.874Z",
+      "level": "info",
+      "message": "🔐 useAuth - Autenticación inicial exitosa"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.875Z",
+      "level": "info",
+      "message": "No hay usuario autenticado, usando permisos por defecto"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.875Z",
+      "level": "info",
+      "message": "No hay usuario autenticado, usando permisos por defecto"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.875Z",
+      "level": "info",
+      "message": "No hay permisos cargados, usando fallback para todos los módulos"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.881Z",
+      "level": "info",
+      "message": "No hay usuario autenticado, usando permisos por defecto"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.881Z",
+      "level": "info",
+      "message": "No hay usuario autenticado, usando permisos por defecto"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:42.881Z",
+      "level": "info",
+      "message": "No hay permisos cargados, usando fallback para todos los módulos"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:43.102Z",
+      "level": "info",
+      "message": "[2025-08-22T21:59:43.101Z] [INFO] [AUTH] Token válido, usuario autenticado"
+    },
+    {
+      "timestamp": "2025-08-22T21:59:43.102Z",
+      "level": "info",
+      "message": "🔐 useAuth - Autenticación inicial exitosa"
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.124Z",
+      "level": "info",
+      "message": "Cargando clientes desde API {\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Cargando clientes desde API",
+        {
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.124Z",
+      "level": "info",
+      "message": "Obteniendo clientes desde API {\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Obteniendo clientes desde API",
+        {
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.125Z",
+      "level": "info",
+      "message": "Cargando clientes desde API {\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Cargando clientes desde API",
+        {
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.125Z",
+      "level": "info",
+      "message": "Obteniendo clientes desde API {\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Obteniendo clientes desde API",
+        {
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.398Z",
+      "level": "info",
+      "message": "Error al obtener clientes {\n  \"error\": {\n    \"message\": \"Request failed with status code 500\",\n    \"name\": \"AxiosError\",\n    \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\",\n    \"config\": {\n      \"transitional\": {\n        \"silentJSONParsing\": true,\n        \"forcedJSONParsing\": true,\n        \"clarifyTimeoutError\": false\n      },\n      \"adapter\": [\n        \"xhr\",\n        \"http\",\n        \"fetch\"\n      ],\n      \"transformRequest\": [\n        null\n      ],\n      \"transformResponse\": [\n        null\n      ],\n      \"timeout\": 30000,\n      \"xsrfCookieName\": \"XSRF-TOKEN\",\n      \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n      \"maxContentLength\": -1,\n      \"maxBodyLength\": -1,\n      \"env\": {},\n      \"headers\": {\n        \"Accept\": \"application/json, text/plain, */*\",\n        \"Content-Type\": \"application/json\",\n        \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI\"\n      },\n      \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n      \"params\": {\n        \"page\": 1,\n        \"limit\": 20,\n        \"sortBy\": \"createdAt\",\n        \"sortOrder\": \"desc\"\n      },\n      \"method\": \"get\",\n      \"url\": \"/api/clients\",\n      \"allowAbsoluteUrls\": true\n    },\n    \"code\": \"ERR_BAD_RESPONSE\",\n    \"status\": 500\n  },\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Error al obtener clientes",
+        {
+          "error": {
+            "message": "Request failed with status code 500",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "params": {
+                "page": 1,
+                "limit": 20,
+                "sortBy": "createdAt",
+                "sortOrder": "desc"
+              },
+              "method": "get",
+              "url": "/api/clients",
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_RESPONSE",
+            "status": 500
+          },
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.398Z",
+      "level": "info",
+      "message": "Error al cargar clientes {\n  \"error\": {\n    \"message\": \"Request failed with status code 500\",\n    \"name\": \"AxiosError\",\n    \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\",\n    \"config\": {\n      \"transitional\": {\n        \"silentJSONParsing\": true,\n        \"forcedJSONParsing\": true,\n        \"clarifyTimeoutError\": false\n      },\n      \"adapter\": [\n        \"xhr\",\n        \"http\",\n        \"fetch\"\n      ],\n      \"transformRequest\": [\n        null\n      ],\n      \"transformResponse\": [\n        null\n      ],\n      \"timeout\": 30000,\n      \"xsrfCookieName\": \"XSRF-TOKEN\",\n      \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n      \"maxContentLength\": -1,\n      \"maxBodyLength\": -1,\n      \"env\": {},\n      \"headers\": {\n        \"Accept\": \"application/json, text/plain, */*\",\n        \"Content-Type\": \"application/json\",\n        \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI\"\n      },\n      \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n      \"params\": {\n        \"page\": 1,\n        \"limit\": 20,\n        \"sortBy\": \"createdAt\",\n        \"sortOrder\": \"desc\"\n      },\n      \"method\": \"get\",\n      \"url\": \"/api/clients\",\n      \"allowAbsoluteUrls\": true\n    },\n    \"code\": \"ERR_BAD_RESPONSE\",\n    \"status\": 500\n  },\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Error al cargar clientes",
+        {
+          "error": {
+            "message": "Request failed with status code 500",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "params": {
+                "page": 1,
+                "limit": 20,
+                "sortBy": "createdAt",
+                "sortOrder": "desc"
+              },
+              "method": "get",
+              "url": "/api/clients",
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_RESPONSE",
+            "status": 500
+          },
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.657Z",
+      "level": "info",
+      "message": "Error al obtener clientes {\n  \"error\": {\n    \"message\": \"Request failed with status code 500\",\n    \"name\": \"AxiosError\",\n    \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\",\n    \"config\": {\n      \"transitional\": {\n        \"silentJSONParsing\": true,\n        \"forcedJSONParsing\": true,\n        \"clarifyTimeoutError\": false\n      },\n      \"adapter\": [\n        \"xhr\",\n        \"http\",\n        \"fetch\"\n      ],\n      \"transformRequest\": [\n        null\n      ],\n      \"transformResponse\": [\n        null\n      ],\n      \"timeout\": 30000,\n      \"xsrfCookieName\": \"XSRF-TOKEN\",\n      \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n      \"maxContentLength\": -1,\n      \"maxBodyLength\": -1,\n      \"env\": {},\n      \"headers\": {\n        \"Accept\": \"application/json, text/plain, */*\",\n        \"Content-Type\": \"application/json\",\n        \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI\"\n      },\n      \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n      \"params\": {\n        \"page\": 1,\n        \"limit\": 20,\n        \"sortBy\": \"createdAt\",\n        \"sortOrder\": \"desc\"\n      },\n      \"method\": \"get\",\n      \"url\": \"/api/clients\",\n      \"allowAbsoluteUrls\": true\n    },\n    \"code\": \"ERR_BAD_RESPONSE\",\n    \"status\": 500\n  },\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Error al obtener clientes",
+        {
+          "error": {
+            "message": "Request failed with status code 500",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "params": {
+                "page": 1,
+                "limit": 20,
+                "sortBy": "createdAt",
+                "sortOrder": "desc"
+              },
+              "method": "get",
+              "url": "/api/clients",
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_RESPONSE",
+            "status": 500
+          },
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:42.657Z",
+      "level": "info",
+      "message": "Error al cargar clientes {\n  \"error\": {\n    \"message\": \"Request failed with status code 500\",\n    \"name\": \"AxiosError\",\n    \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\",\n    \"config\": {\n      \"transitional\": {\n        \"silentJSONParsing\": true,\n        \"forcedJSONParsing\": true,\n        \"clarifyTimeoutError\": false\n      },\n      \"adapter\": [\n        \"xhr\",\n        \"http\",\n        \"fetch\"\n      ],\n      \"transformRequest\": [\n        null\n      ],\n      \"transformResponse\": [\n        null\n      ],\n      \"timeout\": 30000,\n      \"xsrfCookieName\": \"XSRF-TOKEN\",\n      \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n      \"maxContentLength\": -1,\n      \"maxBodyLength\": -1,\n      \"env\": {},\n      \"headers\": {\n        \"Accept\": \"application/json, text/plain, */*\",\n        \"Content-Type\": \"application/json\",\n        \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI\"\n      },\n      \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n      \"params\": {\n        \"page\": 1,\n        \"limit\": 20,\n        \"sortBy\": \"createdAt\",\n        \"sortOrder\": \"desc\"\n      },\n      \"method\": \"get\",\n      \"url\": \"/api/clients\",\n      \"allowAbsoluteUrls\": true\n    },\n    \"code\": \"ERR_BAD_RESPONSE\",\n    \"status\": 500\n  },\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Error al cargar clientes",
+        {
+          "error": {
+            "message": "Request failed with status code 500",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "params": {
+                "page": 1,
+                "limit": 20,
+                "sortBy": "createdAt",
+                "sortOrder": "desc"
+              },
+              "method": "get",
+              "url": "/api/clients",
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_RESPONSE",
+            "status": 500
+          },
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:53.849Z",
+      "level": "info",
+      "message": "Cargando clientes desde API {\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Cargando clientes desde API",
+        {
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:53.849Z",
+      "level": "info",
+      "message": "Obteniendo clientes desde API {\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Obteniendo clientes desde API",
+        {
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:54.198Z",
+      "level": "info",
+      "message": "Error al obtener clientes {\n  \"error\": {\n    \"message\": \"Request failed with status code 500\",\n    \"name\": \"AxiosError\",\n    \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\\n    at async handleRefresh (http://localhost:5173/src/modules/clients/ClientModule.tsx?t=1755900048398:106:7)\",\n    \"config\": {\n      \"transitional\": {\n        \"silentJSONParsing\": true,\n        \"forcedJSONParsing\": true,\n        \"clarifyTimeoutError\": false\n      },\n      \"adapter\": [\n        \"xhr\",\n        \"http\",\n        \"fetch\"\n      ],\n      \"transformRequest\": [\n        null\n      ],\n      \"transformResponse\": [\n        null\n      ],\n      \"timeout\": 30000,\n      \"xsrfCookieName\": \"XSRF-TOKEN\",\n      \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n      \"maxContentLength\": -1,\n      \"maxBodyLength\": -1,\n      \"env\": {},\n      \"headers\": {\n        \"Accept\": \"application/json, text/plain, */*\",\n        \"Content-Type\": \"application/json\",\n        \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI\"\n      },\n      \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n      \"params\": {\n        \"page\": 1,\n        \"limit\": 20,\n        \"sortBy\": \"createdAt\",\n        \"sortOrder\": \"desc\"\n      },\n      \"method\": \"get\",\n      \"url\": \"/api/clients\",\n      \"allowAbsoluteUrls\": true\n    },\n    \"code\": \"ERR_BAD_RESPONSE\",\n    \"status\": 500\n  },\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Error al obtener clientes",
+        {
+          "error": {
+            "message": "Request failed with status code 500",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\n    at async handleRefresh (http://localhost:5173/src/modules/clients/ClientModule.tsx?t=1755900048398:106:7)",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "params": {
+                "page": 1,
+                "limit": 20,
+                "sortBy": "createdAt",
+                "sortOrder": "desc"
+              },
+              "method": "get",
+              "url": "/api/clients",
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_RESPONSE",
+            "status": 500
+          },
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:54.198Z",
+      "level": "info",
+      "message": "Error al cargar clientes {\n  \"error\": {\n    \"message\": \"Request failed with status code 500\",\n    \"name\": \"AxiosError\",\n    \"stack\": \"AxiosError: Request failed with status code 500\\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\\n    at async handleRefresh (http://localhost:5173/src/modules/clients/ClientModule.tsx?t=1755900048398:106:7)\",\n    \"config\": {\n      \"transitional\": {\n        \"silentJSONParsing\": true,\n        \"forcedJSONParsing\": true,\n        \"clarifyTimeoutError\": false\n      },\n      \"adapter\": [\n        \"xhr\",\n        \"http\",\n        \"fetch\"\n      ],\n      \"transformRequest\": [\n        null\n      ],\n      \"transformResponse\": [\n        null\n      ],\n      \"timeout\": 30000,\n      \"xsrfCookieName\": \"XSRF-TOKEN\",\n      \"xsrfHeaderName\": \"X-XSRF-TOKEN\",\n      \"maxContentLength\": -1,\n      \"maxBodyLength\": -1,\n      \"env\": {},\n      \"headers\": {\n        \"Accept\": \"application/json, text/plain, */*\",\n        \"Content-Type\": \"application/json\",\n        \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI\"\n      },\n      \"baseURL\": \"https://utalk-backend-production.up.railway.app\",\n      \"params\": {\n        \"page\": 1,\n        \"limit\": 20,\n        \"sortBy\": \"createdAt\",\n        \"sortOrder\": \"desc\"\n      },\n      \"method\": \"get\",\n      \"url\": \"/api/clients\",\n      \"allowAbsoluteUrls\": true\n    },\n    \"code\": \"ERR_BAD_RESPONSE\",\n    \"status\": 500\n  },\n  \"filters\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"sortBy\": \"createdAt\",\n    \"sortOrder\": \"desc\"\n  }\n}",
+      "data": [
+        "Error al cargar clientes",
+        {
+          "error": {
+            "message": "Request failed with status code 500",
+            "name": "AxiosError",
+            "stack": "AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1253:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:1585:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=08b416d7:2143:41)\n    at async Object.getClients (http://localhost:5173/src/modules/clients/services/clientService.ts?t=1755895672940:8:24)\n    at async http://localhost:5173/src/modules/clients/hooks/useClients.ts?t=1755897001841:139:24\n    at async handleRefresh (http://localhost:5173/src/modules/clients/ClientModule.tsx?t=1755900048398:106:7)",
+            "config": {
+              "transitional": {
+                "silentJSONParsing": true,
+                "forcedJSONParsing": true,
+                "clarifyTimeoutError": false
+              },
+              "adapter": [
+                "xhr",
+                "http",
+                "fetch"
+              ],
+              "transformRequest": [
+                null
+              ],
+              "transformResponse": [
+                null
+              ],
+              "timeout": 30000,
+              "xsrfCookieName": "XSRF-TOKEN",
+              "xsrfHeaderName": "X-XSRF-TOKEN",
+              "maxContentLength": -1,
+              "maxBodyLength": -1,
+              "env": {},
+              "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NTg5OTkwOSwiZXhwIjoxNzU1OTAwODA5LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.giw1dPzRgxw80Ed0m1JQk6Q0pAuqkn47LbdL8NYZQBI"
+              },
+              "baseURL": "https://utalk-backend-production.up.railway.app",
+              "params": {
+                "page": 1,
+                "limit": 20,
+                "sortBy": "createdAt",
+                "sortOrder": "desc"
+              },
+              "method": "get",
+              "url": "/api/clients",
+              "allowAbsoluteUrls": true
+            },
+            "code": "ERR_BAD_RESPONSE",
+            "status": 500
+          },
+          "filters": {
+            "page": 1,
+            "limit": 20,
+            "sortBy": "createdAt",
+            "sortOrder": "desc"
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-08-22T22:00:54.198Z",
+      "level": "info",
+      "message": "Datos de clientes refrescados (métricas temporalmente deshabilitadas)"
+    }
+  ]
+}

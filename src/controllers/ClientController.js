@@ -68,15 +68,15 @@ class ClientController {
           phone: contactData.phone,
           whatsapp: contactData.waId || contactData.phone,
           avatar: contactData.profilePhotoUrl || null,
-          initials: this.getInitials(contactData.name || contactData.profileName),
+          initials: ClientController.getInitials(contactData.name || contactData.profileName),
           status: contactData.isActive !== false ? 'active' : 'inactive',
-          stage: this.calculateStage(contactData),
-          score: this.calculateScore(contactData),
+          stage: ClientController.calculateStage(contactData),
+          score: ClientController.calculateScore(contactData),
           winRate: 0, // Se puede calcular desde conversaciones
           expectedValue: contactData.expectedValue || 0,
-          probability: this.calculateProbability(contactData),
-          source: this.mapSource(contactData.source),
-          segment: this.calculateSegment(contactData),
+          probability: ClientController.calculateProbability(contactData),
+          source: ClientController.mapSource(contactData.source),
+          segment: ClientController.calculateSegment(contactData),
           tags: contactData.tags || [],
           createdAt: contactData.createdAt?.toDate?.()?.toISOString() || contactData.createdAt,
           updatedAt: contactData.updatedAt?.toDate?.()?.toISOString() || contactData.lastUpdated || contactData.createdAt,
@@ -286,7 +286,7 @@ class ClientController {
       // 📊 MÉTRICAS POR FUENTE
       const sourceMetrics = {};
       contacts.forEach(contact => {
-        const source = this.mapSource(contact.source);
+        const source = ClientController.mapSource(contact.source);
         if (!sourceMetrics[source]) {
           sourceMetrics[source] = { count: 0, value: 0, conversionRate: 0 };
         }
@@ -305,7 +305,7 @@ class ClientController {
       };
 
       contacts.forEach(contact => {
-        const stage = this.calculateStage(contact);
+        const stage = ClientController.calculateStage(contact);
         if (stageMetrics[stage]) {
           stageMetrics[stage].count++;
           stageMetrics[stage].value += contact.expectedValue || 0;
@@ -324,9 +324,9 @@ class ClientController {
       // 💰 VALORES TOTALES
       const totalValue = contacts.reduce((sum, contact) => sum + (contact.expectedValue || 0), 0);
       const projectedRevenue = contacts
-        .filter(contact => this.calculateStage(contact) !== 'perdido')
+        .filter(contact => ClientController.calculateStage(contact) !== 'perdido')
         .reduce((sum, contact) => {
-          const probability = this.calculateProbability(contact) / 100;
+          const probability = ClientController.calculateProbability(contact) / 100;
           return sum + ((contact.expectedValue || 0) * probability);
         }, 0);
 
@@ -442,15 +442,15 @@ class ClientController {
         phone: contactData.phone,
         whatsapp: contactData.waId || contactData.phone,
         avatar: contactData.profilePhotoUrl || null,
-        initials: this.getInitials(contactData.name || contactData.profileName),
+        initials: ClientController.getInitials(contactData.name || contactData.profileName),
         status: contactData.isActive !== false ? 'active' : 'inactive',
-        stage: this.calculateStage(contactData),
-        score: this.calculateScore(contactData),
+        stage: ClientController.calculateStage(contactData),
+        score: ClientController.calculateScore(contactData),
         winRate: 0,
         expectedValue: contactData.expectedValue || 0,
-        probability: this.calculateProbability(contactData),
-        source: this.mapSource(contactData.source),
-        segment: this.calculateSegment(contactData),
+        probability: ClientController.calculateProbability(contactData),
+        source: ClientController.mapSource(contactData.source),
+        segment: ClientController.calculateSegment(contactData),
         tags: contactData.tags || [],
         createdAt: contactData.createdAt?.toDate?.()?.toISOString() || contactData.createdAt,
         updatedAt: contactData.updatedAt?.toDate?.()?.toISOString() || contactData.lastUpdated || contactData.createdAt,
