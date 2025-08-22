@@ -106,6 +106,66 @@ const clientValidators = {
   })
 };
 
+/**
+ * 🔍 Health check para Firebase (sin autenticación)
+ * GET /api/clients/health/public
+ */
+router.get('/health/public', 
+  async (req, res) => {
+    try {
+      const { firestore } = require('../config/firebase');
+      
+      if (!firestore) {
+        return res.status(503).json({
+          success: false,
+          error: {
+            type: 'CONFIGURATION_ERROR',
+            code: 'FIREBASE_NOT_INITIALIZED',
+            message: 'Firebase no está inicializado',
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+
+      // Test de conectividad
+      try {
+        await firestore.collection('_health_check').doc('test').get();
+        
+        return res.status(200).json({
+          success: true,
+          data: {
+            firebase: 'OK',
+            firestore: 'CONNECTED',
+            timestamp: new Date().toISOString()
+          },
+          message: 'Firebase funcionando correctamente'
+        });
+      } catch (firebaseError) {
+        return res.status(503).json({
+          success: false,
+          error: {
+            type: 'CONFIGURATION_ERROR',
+            code: 'FIREBASE_CONNECTION_ERROR',
+            message: 'Error conectando a Firebase',
+            details: firebaseError.message,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          type: 'INTERNAL_SERVER_ERROR',
+          code: 'UNKNOWN_ERROR',
+          message: 'Error interno del servidor',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
+);
+
 // 🛡️ MIDDLEWARE DE AUTENTICACIÓN
 // Todas las rutas requieren autenticación
 router.use(authMiddleware);
