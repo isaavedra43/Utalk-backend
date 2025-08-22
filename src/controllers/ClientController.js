@@ -558,7 +558,7 @@ class ClientController {
   static calculateProbability(contactData) {
     if (contactData.probability) return contactData.probability;
     
-    const stage = this.calculateStage(contactData);
+    const stage = ClientController.calculateStage(contactData);
     const stageProbabilities = {
       'lead': 20,
       'prospect': 35,
