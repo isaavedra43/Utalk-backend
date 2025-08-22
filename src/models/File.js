@@ -222,23 +222,13 @@ class File {
         isActive
       });
 
-      // 🔧 SOLUCIÓN: Buscar directamente en la colección 'files' por conversationId
+      // 🔧 SOLUCIÓN SIN ÍNDICES: Consulta simple y filtrado local
       let query = firestore
         .collection('files')
         .where('conversationId', '==', conversationId)
-        .where('isActive', '==', isActive)
-        .orderBy('uploadedAt', 'desc')
-        .limit(limit);
+        .limit(limit * 2); // Obtener más para filtrar localmente
 
-      // Aplicar filtro de categoría si se especifica
-      if (category) {
-        query = query.where('category', '==', category);
-      }
-
-      // Aplicar cursor de paginación si se especifica
-      if (startAfter) {
-        query = query.startAfter(startAfter);
-      }
+      // NO agregar .where('isActive') ni .orderBy() para evitar índices compuestos
 
       const snapshot = await query.get();
       
@@ -248,14 +238,36 @@ class File {
         isEmpty: snapshot.empty
       });
 
-      // Convertir documentos a instancias de File
-      const files = snapshot.docs.map(doc => {
-        return new File({ id: doc.id, ...doc.data() });
-      });
+      // 🔧 FILTRADO LOCAL: Aplicar filtros sin usar índices
+      let files = snapshot.docs
+        .map(doc => new File({ id: doc.id, ...doc.data() }))
+        .filter(file => {
+          // Filtrar por isActive
+          if (isActive !== undefined && file.isActive !== isActive) {
+            return false;
+          }
+          
+          // Filtrar por categoría si se especifica
+          if (category && file.category !== category) {
+            return false;
+          }
+          
+          return true;
+        })
+        .sort((a, b) => {
+          // Ordenar por uploadedAt desc (más recientes primero)
+          const dateA = a.uploadedAt instanceof Date ? a.uploadedAt : new Date(a.uploadedAt);
+          const dateB = b.uploadedAt instanceof Date ? b.uploadedAt : new Date(b.uploadedAt);
+          return dateB.getTime() - dateA.getTime();
+        })
+        .slice(0, limit); // Aplicar límite después del filtrado y ordenamiento
 
       logger.info('✅ File.listByConversation - Archivos obtenidos exitosamente', {
         conversationId,
-        count: files.length
+        totalFound: snapshot.docs.length,
+        afterFiltering: files.length,
+        category,
+        isActive
       });
 
       return files;
@@ -285,24 +297,40 @@ class File {
         isActive
       });
 
-      // 🔧 SOLUCIÓN: Buscar directamente en la colección 'files' por conversationId
+      // 🔧 SOLUCIÓN SIN ÍNDICES: Consulta simple y conteo local
       let query = firestore
         .collection('files')
-        .where('conversationId', '==', conversationId)
-        .where('isActive', '==', isActive);
-
-      if (category) {
-        query = query.where('category', '==', category);
-      }
+        .where('conversationId', '==', conversationId);
 
       const snapshot = await query.get();
       
+      // 🔧 CONTEO LOCAL: Aplicar filtros sin usar índices
+      const count = snapshot.docs
+        .filter(doc => {
+          const data = doc.data();
+          
+          // Filtrar por isActive
+          if (isActive !== undefined && data.isActive !== isActive) {
+            return false;
+          }
+          
+          // Filtrar por categoría si se especifica
+          if (category && data.category !== category) {
+            return false;
+          }
+          
+          return true;
+        }).length;
+      
       logger.info('✅ File.getCountByConversation - Conteo completado', {
         conversationId,
-        count: snapshot.size
+        totalFound: snapshot.size,
+        afterFiltering: count,
+        category,
+        isActive
       });
 
-      return snapshot.size;
+      return count;
     } catch (error) {
       logger.error('❌ Error obteniendo conteo de archivos por conversación', {
         conversationId,
