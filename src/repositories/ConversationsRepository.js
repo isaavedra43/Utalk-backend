@@ -914,6 +914,17 @@ class ConversationsRepository {
 
         // Guardar mensaje
         transaction.set(messageRef, messageFirestoreData);
+        
+        // 🔍 LOG CRÍTICO: Verificar que el mensaje se está guardando
+        logger.info('🔥 GUARDANDO MENSAJE EN TRANSACCIÓN', {
+          requestId,
+          messageId: msg.messageId,
+          conversationId: msg.conversationId,
+          contactId,
+          messageContent: msg.content,
+          messageRef: `contacts/${contactId}/conversations/${msg.conversationId}/messages/${msg.messageId}`,
+          step: 'transaction_set_message'
+        });
 
         // Preparar actualización de conversación
         const lastMessage = {
@@ -975,6 +986,18 @@ class ConversationsRepository {
           conversation: conversationUpdate,
           idempotent: false
         };
+      });
+
+      // 🔍 LOG CRÍTICO: Transacción completada exitosamente
+      logger.info('✅ TRANSACCIÓN APPENDOUTBOUND COMPLETADA', {
+        requestId,
+        messageId: msg.messageId,
+        conversationId: msg.conversationId,
+        contactId,
+        messageSaved: true,
+        conversationUpdated: true,
+        messageCount: result.conversation.messageCount,
+        duration: Date.now() - startTime
       });
 
       const duration = Date.now() - startTime;

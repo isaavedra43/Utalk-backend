@@ -269,11 +269,31 @@ class MessageController {
 
       // Usar el repositorio para escritura canónica
       const conversationsRepo = getConversationsRepository();
+      const messageId = `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      logger.info('🚀 INICIANDO APPENDOUTBOUND desde MessageController', {
+        conversationId,
+        messageId,
+        senderEmail: req.user.email,
+        recipientPhone: conversation.customerPhone,
+        content: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
+        hasAttachments: attachmentsData.length > 0
+      });
+      
       const result = await conversationsRepo.appendOutbound({
         ...messageData,
-        messageId: `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        messageId,
         workspaceId: req.user.workspaceId,
         tenantId: req.user.tenantId
+      });
+      
+      logger.info('✅ APPENDOUTBOUND RESPUESTA', {
+        conversationId,
+        messageId,
+        resultMessageId: result?.message?.id,
+        resultStatus: result?.message?.status,
+        resultIdempotent: result?.idempotent,
+        conversationMessageCount: result?.conversation?.messageCount
       });
 
       // Enviar por Twilio
