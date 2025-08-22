@@ -1893,6 +1893,65 @@ class MessageService {
         }
       }
 
+      // PASO 4.5: 🔧 GUARDAR ARCHIVOS ENTRANTES EN FIRESTORE
+      let attachments = [];
+      if (mediaData && mediaData.processed && mediaData.processed.length > 0) {
+        const FileService = require('./FileService');
+        const fileService = new FileService();
+        
+        logger.info('💾 GUARDANDO archivos entrantes en Firestore', {
+          requestId,
+          processedFiles: mediaData.processed.length,
+          primaryType: mediaData.primaryType
+        });
+
+        for (const processedFile of mediaData.processed) {
+          try {
+            // Crear entrada en colección files para archivo entrante
+            const fileRecord = await fileService.saveIncomingFileToDatabase({
+              fileId: processedFile.fileId,
+              conversationId: generateConversationId(normalizedToPhone, normalizedFromPhone),
+              originalName: `incoming_${messageType}_${Date.now()}.${processedFile.mimetype?.split('/')?.pop() || 'file'}`,
+              mimetype: processedFile.mimetype,
+              category: processedFile.category,
+              url: processedFile.url,
+              metadata: {
+                source: 'twilio_webhook',
+                twilioSid: twilioSid,
+                webhookReceivedAt: new Date().toISOString(),
+                senderPhone: normalizedFromPhone,
+                profileName: profileName
+              }
+            });
+
+            attachments.push({
+              id: fileRecord.id,
+              url: processedFile.url,
+              mime: processedFile.mimetype,
+              name: fileRecord.originalName,
+              type: processedFile.category,
+              category: processedFile.category,
+              metadata: fileRecord.metadata
+            });
+
+            logger.info('✅ Archivo entrante guardado en Firestore', {
+              requestId,
+              fileId: fileRecord.id,
+              category: processedFile.category,
+              twilioSid
+            });
+
+          } catch (fileError) {
+            logger.error('❌ Error guardando archivo entrante en Firestore', {
+              requestId,
+              fileId: processedFile.fileId,
+              error: fileError.message
+            });
+            // No fallar todo el mensaje por error de archivo
+          }
+        }
+      }
+
       // PASO 5: Generar ID de conversación (cliente primero)
       const conversationId = generateConversationId(normalizedToPhone, normalizedFromPhone);
 
@@ -1909,6 +1968,7 @@ class MessageService {
         sender: 'customer',
         timestamp: new Date().toISOString(),
         mediaUrl: mediaData?.urls?.[0] || mediaData?.url || null,
+        attachments: attachments, // 🔧 AGREGAR ATTACHMENTS
         metadata: {
           twilio: {
             sid: twilioSid,

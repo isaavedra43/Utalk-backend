@@ -6182,6 +6182,75 @@ class FileService {
       throw error;
     }
   }
+
+  /**
+   * 💾 Guardar archivo entrante (desde webhook) en Firestore
+   * 🔧 NUEVO MÉTODO para manejar archivos de mensajes entrantes
+   */
+  async saveIncomingFileToDatabase(fileData) {
+    try {
+      const { 
+        fileId, 
+        conversationId, 
+        originalName, 
+        mimetype, 
+        category, 
+        url, 
+        metadata = {} 
+      } = fileData;
+
+      logger.info('💾 Guardando archivo entrante en base de datos', {
+        fileId,
+        conversationId,
+        originalName,
+        category,
+        source: metadata.source
+      });
+
+      // Crear registro en colección files usando modelo File
+      const File = require('../models/File');
+      
+      const fileRecord = await File.create({
+        id: fileId,
+        conversationId,
+        originalName,
+        mimetype,
+        category,
+        sizeBytes: null, // No disponible desde webhook
+        storagePath: url, // URL de Twilio como path
+        downloadUrl: url,
+        isActive: true,
+        downloadCount: 0,
+        uploadedBy: metadata.senderPhone || 'unknown_sender',
+        uploadedAt: new Date(),
+        metadata: {
+          ...metadata,
+          incomingFile: true,
+          processingCompleted: true
+        },
+        tags: [],
+        processingStatus: 'completed'
+      });
+
+      logger.info('✅ Archivo entrante guardado exitosamente', {
+        fileId: fileRecord.id,
+        conversationId,
+        category,
+        originalName
+      });
+
+      return fileRecord;
+
+    } catch (error) {
+      logger.error('❌ Error guardando archivo entrante', {
+        fileId: fileData.fileId,
+        conversationId: fileData.conversationId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = FileService; 
