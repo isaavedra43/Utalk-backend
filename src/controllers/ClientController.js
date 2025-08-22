@@ -38,6 +38,20 @@ class ClientController {
         userEmail: req.user?.email
       });
 
+      // 🔍 VERIFICAR FIREBASE
+      if (!firestore) {
+        logger.error('❌ Firebase no está inicializado', {
+          category: 'CLIENT_FIREBASE_ERROR',
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'CONFIGURATION_ERROR',
+          code: 'FIREBASE_NOT_INITIALIZED',
+          message: 'Base de datos no disponible',
+          statusCode: 503
+        });
+      }
+
       // 🔍 OBTENER TODOS LOS CONTACTOS
       const contactsSnapshot = await firestore.collection('contacts').get();
       
@@ -185,6 +199,54 @@ class ClientController {
   }
 
   /**
+   * 🔍 Health check para Firebase
+   * GET /api/clients/health
+   */
+  static async healthCheck(req, res) {
+    try {
+      logger.info('🔍 ClientController.healthCheck - Verificando estado de Firebase', {
+        userEmail: req.user?.email
+      });
+
+      // Verificar Firebase
+      if (!firestore) {
+        return ResponseHandler.error(res, {
+          type: 'CONFIGURATION_ERROR',
+          code: 'FIREBASE_NOT_INITIALIZED',
+          message: 'Firebase no está inicializado',
+          statusCode: 503
+        });
+      }
+
+      // Test de conectividad
+      try {
+        await firestore.collection('_health_check').doc('test').get();
+        
+        return ResponseHandler.success(res, {
+          firebase: 'OK',
+          firestore: 'CONNECTED',
+          timestamp: new Date().toISOString()
+        }, 'Firebase funcionando correctamente');
+      } catch (firebaseError) {
+        return ResponseHandler.error(res, {
+          type: 'CONFIGURATION_ERROR',
+          code: 'FIREBASE_CONNECTION_ERROR',
+          message: 'Error conectando a Firebase',
+          details: firebaseError.message,
+          statusCode: 503
+        });
+      }
+    } catch (error) {
+      logger.error('❌ Error en health check:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
    * 📊 Obtener métricas de clientes
    * GET /api/clients/metrics
    */
@@ -193,6 +255,20 @@ class ClientController {
       logger.info('📊 ClientController.getMetrics - Obteniendo métricas de clientes', {
         userEmail: req.user?.email
       });
+
+      // 🔍 VERIFICAR FIREBASE
+      if (!firestore) {
+        logger.error('❌ Firebase no está inicializado para métricas', {
+          category: 'CLIENT_METRICS_FIREBASE_ERROR',
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'CONFIGURATION_ERROR',
+          code: 'FIREBASE_NOT_INITIALIZED',
+          message: 'Base de datos no disponible para métricas',
+          statusCode: 503
+        });
+      }
 
       // 🔍 OBTENER TODOS LOS CONTACTOS
       const contactsSnapshot = await firestore.collection('contacts').get();
@@ -328,6 +404,21 @@ class ClientController {
         clientId: id,
         userEmail: req.user?.email
       });
+
+      // 🔍 VERIFICAR FIREBASE
+      if (!firestore) {
+        logger.error('❌ Firebase no está inicializado para getById', {
+          category: 'CLIENT_GETBYID_FIREBASE_ERROR',
+          clientId: id,
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'CONFIGURATION_ERROR',
+          code: 'FIREBASE_NOT_INITIALIZED',
+          message: 'Base de datos no disponible',
+          statusCode: 503
+        });
+      }
 
       const contactDoc = await firestore.collection('contacts').doc(id).get();
       

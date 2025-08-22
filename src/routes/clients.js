@@ -122,6 +122,14 @@ router.get('/',
 );
 
 /**
+ * 🔍 Health check para Firebase
+ * GET /api/clients/health
+ */
+router.get('/health', 
+  ClientController.healthCheck
+);
+
+/**
  * 📈 Obtener métricas de clientes
  * GET /api/clients/metrics
  */
