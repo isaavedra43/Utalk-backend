@@ -891,10 +891,24 @@ class ConversationController {
       }
 
       // 🔄 VERIFICAR SI YA ESTÁ ASIGNADA
+      logger.info('🔍 Verificando asignación existente', {
+        conversationId: id,
+        assignedTo,
+        hasAssignedAgents: !!conversation.assignedAgents,
+        assignedAgentsCount: conversation.assignedAgents?.length || 0,
+        assignedAgents: conversation.assignedAgents || [],
+        legacyAssignedTo: conversation.assignedTo
+      });
+      
       const isAlreadyAssigned = conversation.assignedAgents && 
                                conversation.assignedAgents.some(agent => agent.email === assignedTo);
       
       if (isAlreadyAssigned) {
+        logger.warn('⚠️ Agente ya asignado', {
+          conversationId: id,
+          assignedTo,
+          existingAgents: conversation.assignedAgents.map(a => a.email)
+        });
         throw CommonErrors.CONVERSATION_ALREADY_ASSIGNED(id, assignedTo);
       }
 
@@ -961,6 +975,14 @@ class ConversationController {
 
       // Obtener información completa de los agentes
       const assignedAgents = [];
+      
+      logger.info('🔍 Obteniendo agentes asignados', {
+        conversationId: id,
+        hasAssignedAgents: !!conversation.assignedAgents,
+        assignedAgentsCount: conversation.assignedAgents?.length || 0,
+        assignedAgents: conversation.assignedAgents || [],
+        legacyAssignedTo: conversation.assignedTo
+      });
       
       if (conversation.assignedAgents && conversation.assignedAgents.length > 0) {
         for (const agentData of conversation.assignedAgents) {
