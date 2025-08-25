@@ -23,7 +23,12 @@ class Conversation {
     this.customerName = data.customerName || null;
     this.status = data.status || 'open';
     this.priority = data.priority || 'normal';
-    this.assignedTo = data.assignedTo || null; // EMAIL del agente
+    
+    // 🔧 NUEVO: Soporte para múltiples agentes
+    this.assignedTo = data.assignedTo || null; // EMAIL del agente principal (legacy)
+    this.assignedAgents = Array.isArray(data.assignedAgents) ? data.assignedAgents : [];
+    this.primaryAgent = data.primaryAgent || data.assignedTo || null;
+    
     this.participants = Array.isArray(data.participants) ? data.participants : [];
     this.tags = Array.isArray(data.tags) ? data.tags : [];
     this.metadata = data.metadata || {};
@@ -136,7 +141,9 @@ class Conversation {
       customerName: this.customerName,
       status: this.status,
       priority: this.priority,
-      assignedTo: this.assignedTo,
+      assignedTo: this.assignedTo, // Legacy support
+      assignedAgents: this.assignedAgents,
+      primaryAgent: this.primaryAgent,
       participants: this.participants,
       tags: this.tags,
       metadata: this.metadata,
@@ -223,37 +230,135 @@ class Conversation {
   }
 
   /**
-   * Asignar conversación a un agente
+   * Asignar conversación a un agente (soporte múltiples agentes)
    */
-  async assignTo(agentEmail, agentName = null) {
+  async assignTo(agentEmail, agentName = null, role = 'principal', assignedBy = null) {
     try {
       const ConversationService = require('../services/ConversationService');
       
+      // Crear objeto del agente asignado
+      const assignedAgent = {
+        email: agentEmail,
+        name: agentName || agentEmail.split('@')[0],
+        role: role,
+        assignedAt: new Date(),
+        assignedBy: assignedBy || 'system'
+      };
+      
+      // Verificar si el agente ya está asignado
+      const existingAgentIndex = this.assignedAgents.findIndex(agent => agent.email === agentEmail);
+      
+      let updatedAssignedAgents = [...this.assignedAgents];
+      
+      if (existingAgentIndex >= 0) {
+        // Actualizar agente existente
+        updatedAssignedAgents[existingAgentIndex] = {
+          ...updatedAssignedAgents[existingAgentIndex],
+          ...assignedAgent
+        };
+      } else {
+        // Agregar nuevo agente
+        updatedAssignedAgents.push(assignedAgent);
+      }
+      
+      // Si es el primer agente o es principal, establecer como agente principal
+      const isPrimary = role === 'principal' || updatedAssignedAgents.length === 1;
+      
       // Actualizar conversación usando ConversationService
-      const updatedConversation = await ConversationService.updateConversation(this.id, {
-        assignedTo: agentEmail,
+      const updateData = {
+        assignedAgents: updatedAssignedAgents,
         assignedAt: new Date()
-      });
+      };
+      
+      if (isPrimary) {
+        updateData.primaryAgent = agentEmail;
+        updateData.assignedTo = agentEmail; // Legacy support
+      }
+      
+      const updatedConversation = await ConversationService.updateConversation(this.id, updateData);
       
       // Actualizar instancia local
-      this.assignedTo = agentEmail;
+      this.assignedAgents = updatedAssignedAgents;
+      this.primaryAgent = isPrimary ? agentEmail : this.primaryAgent;
+      this.assignedTo = isPrimary ? agentEmail : this.assignedTo;
       this.assignedAt = new Date();
       
       logger.info('✅ Conversación asignada', {
-      conversationId: this.id,
+        conversationId: this.id,
         agentEmail,
         agentName,
+        role,
+        totalAgents: updatedAssignedAgents.length,
+        isPrimary,
         method: 'Conversation.assignTo'
       });
       
       return updatedConversation;
       
-          } catch (error) {
+    } catch (error) {
       logger.error('❌ Error asignando conversación', {
         conversationId: this.id,
         agentEmail,
         agentName,
-              error: error.message
+        role,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Desasignar agente de conversación
+   */
+  async unassignAgent(agentEmail) {
+    try {
+      const ConversationService = require('../services/ConversationService');
+      
+      // Remover agente de la lista
+      const updatedAssignedAgents = this.assignedAgents.filter(agent => agent.email !== agentEmail);
+      
+      // Si era el agente principal, asignar el siguiente como principal
+      let newPrimaryAgent = this.primaryAgent;
+      if (this.primaryAgent === agentEmail && updatedAssignedAgents.length > 0) {
+        newPrimaryAgent = updatedAssignedAgents[0].email;
+      }
+      
+      // Si no quedan agentes, limpiar campos
+      if (updatedAssignedAgents.length === 0) {
+        newPrimaryAgent = null;
+      }
+      
+      // Actualizar conversación
+      const updateData = {
+        assignedAgents: updatedAssignedAgents,
+        primaryAgent: newPrimaryAgent,
+        assignedTo: newPrimaryAgent, // Legacy support
+        updatedAt: new Date()
+      };
+      
+      const updatedConversation = await ConversationService.updateConversation(this.id, updateData);
+      
+      // Actualizar instancia local
+      this.assignedAgents = updatedAssignedAgents;
+      this.primaryAgent = newPrimaryAgent;
+      this.assignedTo = newPrimaryAgent;
+      this.updatedAt = new Date();
+      
+      logger.info('✅ Agente desasignado', {
+        conversationId: this.id,
+        agentEmail,
+        remainingAgents: updatedAssignedAgents.length,
+        newPrimaryAgent,
+        method: 'Conversation.unassignAgent'
+      });
+      
+      return updatedConversation;
+      
+    } catch (error) {
+      logger.error('❌ Error desasignando agente', {
+        conversationId: this.id,
+        agentEmail,
+        error: error.message
       });
       throw error;
     }

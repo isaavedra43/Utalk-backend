@@ -891,7 +891,10 @@ class ConversationController {
       }
 
       // 🔄 VERIFICAR SI YA ESTÁ ASIGNADA
-      if (conversation.assignedTo === assignedTo) {
+      const isAlreadyAssigned = conversation.assignedAgents && 
+                               conversation.assignedAgents.some(agent => agent.email === assignedTo);
+      
+      if (isAlreadyAssigned) {
         throw CommonErrors.CONVERSATION_ALREADY_ASSIGNED(id, assignedTo);
       }
 
@@ -901,7 +904,9 @@ class ConversationController {
         contactId: conversation.contactId,
         ...conversation
       });
-      await conversationModel.assignTo(agent.email, agent.name);
+      
+      const { role = 'principal' } = req.body;
+      await conversationModel.assignTo(agent.email, agent.name, role, req.user.email);
 
       // 📡 EMITIR EVENTOS WEBSOCKET (ESPECÍFICOS POR WORKSPACE/TENANT)
       const socketManager = req.app.get('socketManager');
@@ -914,15 +919,16 @@ class ConversationController {
             conversationId: id,
             assignedTo: {
               email: agent.email,
-              name: agent.name
+              name: agent.name,
+              role: role
             },
-            previousAssignedTo: conversation.assignedTo,
+            assignedAgents: conversationModel.assignedAgents,
+            primaryAgent: conversationModel.primaryAgent,
             assignedBy: req.user.email,
             timestamp: new Date().toISOString()
           }
         };
         
-        // 🔧 FIX: usar io.emit global ya que broadcastToWorkspace no existe
         socketManager.io.emit(broadcastData.event, broadcastData.payload);
       }
 
@@ -933,7 +939,61 @@ class ConversationController {
         previousAssignedTo: conversation.assignedTo
       });
 
-      return ResponseHandler.success(res, safeFirestoreToJSON(conversation), `Conversación asignada a ${agent.name}`);
+      return ResponseHandler.success(res, safeFirestoreToJSON(conversationModel), `Conversación asignada a ${agent.name}`);
+
+    } catch (error) {
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 👥 GET /api/conversations/:id/assigned-agents
+   * Obtener lista de agentes asignados a una conversación
+   */
+  static async getAssignedAgents(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const conversation = await ConversationService.getConversationById(id);
+      if (!conversation) {
+        throw CommonErrors.CONVERSATION_NOT_FOUND(id);
+      }
+
+      // Obtener información completa de los agentes
+      const assignedAgents = [];
+      
+      if (conversation.assignedAgents && conversation.assignedAgents.length > 0) {
+        for (const agentData of conversation.assignedAgents) {
+          try {
+            const agent = await User.getByEmail(agentData.email);
+            if (agent) {
+              assignedAgents.push({
+                email: agentData.email,
+                name: agentData.name || agent.name,
+                role: agentData.role || 'agent',
+                assignedAt: agentData.assignedAt,
+                assignedBy: agentData.assignedBy,
+                isActive: agent.isActive,
+                isOnline: agent.isOnline || false,
+                avatar: agent.avatar || null,
+                isPrimary: conversation.primaryAgent === agentData.email
+              });
+            }
+          } catch (error) {
+            logger.warn('Agente no encontrado', {
+              agentEmail: agentData.email,
+              conversationId: id
+            });
+          }
+        }
+      }
+
+      return ResponseHandler.success(res, {
+        conversationId: id,
+        assignedAgents,
+        primaryAgent: conversation.primaryAgent,
+        totalAgents: assignedAgents.length
+      }, 'Agentes asignados obtenidos exitosamente');
 
     } catch (error) {
       return ResponseHandler.error(res, error);

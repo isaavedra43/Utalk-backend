@@ -196,6 +196,24 @@ router.put('/:id/assign',
 );
 
 /**
+ * @route GET /api/conversations/:id/assigned-agents
+ * @desc Obtener agentes asignados a una conversación
+ * @access Private (Agent, Admin)
+ */
+router.get('/:id/assigned-agents',
+  authMiddleware,
+  requireReadAccess,
+  normalizeConversationId,
+  (req, res, next) => {
+    if (req.normalizedConversationId) {
+      req.params.id = req.normalizedConversationId;
+    }
+    next();
+  },
+  ConversationController.getAssignedAgents
+);
+
+/**
  * @route PUT /api/conversations/:id/unassign
  * @desc Desasignar conversación
  * @access Private (Agent, Admin)
