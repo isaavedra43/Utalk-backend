@@ -17,50 +17,19 @@ class CopilotOrchestratorService {
     const start = Date.now();
 
     try {
-      // DEBUGGING EXTREMO - Log inicial
-      logger.info('🔍 DEBUGGING EXTREMO - Inicio processMessage', {
-        userMessage: userMessage?.substring(0, 50),
-        conversationId,
-        agentId,
-        workspaceId,
-        workspaceIdType: typeof workspaceId,
-        workspaceIdLength: workspaceId?.length,
-        workspaceIdIsUndefined: workspaceId === undefined,
-        workspaceIdIsNull: workspaceId === null,
-        workspaceIdIsEmpty: workspaceId === ''
-      });
-
-      // Validación crítica
+      // Validación simple
       if (!workspaceId) {
-        logger.error('🚨 CRÍTICO: workspaceId es falsy en orquestador', {
-          workspaceId,
-          workspaceIdType: typeof workspaceId,
-          userMessage: userMessage?.substring(0, 50),
-          conversationId,
-          agentId
-        });
-        throw new Error('workspaceId is not defined in orchestrator');
+        throw new Error('workspaceId is required');
       }
 
-      // 1. Verificar cache
-      logger.info('🔍 DEBUGGING - Antes de cache', { workspaceId });
-      const cached = await copilotCacheService.getCachedResponse(userMessage, { conversationId, agentId });
-      if (cached) {
-        logger.info('✅ Respuesta cacheada encontrada', { conversationId, agentId });
-        return { ok: true, text: cached, source: 'cache' };
-      }
+      // 1. Crear prompt simple
+      const simplePrompt = `Eres un asistente de atención al cliente. Responde directamente al mensaje del cliente de manera útil y profesional.
 
-      // 2. Crear prompt ultra simple y directo
-      logger.info('🔍 DEBUGGING - Antes de crear prompt', { workspaceId });
-      const simplePrompt = this.createSimplePrompt(userMessage, conversationId);
+MENSAJE DEL CLIENTE: "${userMessage}"
+
+RESPUESTA:`;
       
-      // 3. Generar respuesta con IA
-      logger.info('🔍 DEBUGGING - Antes de LLM Studio', { 
-        workspaceId,
-        promptLength: simplePrompt.length,
-        promptPreview: simplePrompt.substring(0, 100)
-      });
-      
+      // 2. Generar respuesta con IA
       let llmResponse = await generateWithProvider('llm_studio', {
         prompt: simplePrompt,
         model: 'gpt-oss-20b',
@@ -70,72 +39,38 @@ class CopilotOrchestratorService {
         conversationId
       });
 
-      logger.info('🔍 DEBUGGING - Después de LLM Studio', { 
-        workspaceId,
-        llmResponseOk: llmResponse.ok,
-        llmResponseText: llmResponse.text?.substring(0, 50),
-        llmResponseTextLength: llmResponse.text?.length
-      });
-
-      // 4. Fallback a OpenAI si LLM Studio falla o devuelve respuesta vacía
-      if ((!llmResponse.ok || !llmResponse.text || llmResponse.text.trim().length < 5) && isProviderAvailable('openai')) {
-        logger.warn('LLM Studio falló o devolvió respuesta vacía, aplicando fallback a OpenAI', {
-          llmStudioOk: llmResponse.ok,
-          llmStudioText: llmResponse.text,
-          llmStudioTextLength: llmResponse.text?.length,
-          workspaceId
-        });
+      // 3. Si LLM Studio falla, usar respuesta por defecto
+      if (!llmResponse.ok || !llmResponse.text || llmResponse.text.trim().length < 5) {
+        const defaultResponse = this.getDefaultResponse(userMessage);
         
-        llmResponse = await generateWithProvider('openai', {
-          prompt: simplePrompt,
-          model: 'gpt-4o-mini',
-          temperature: 0.7,
-          maxTokens: 200,
+        logger.info('✅ Usando respuesta por defecto', {
+          conversationId,
+          agentId,
           workspaceId,
-          conversationId
+          reason: 'LLM Studio falló o devolvió respuesta vacía'
         });
 
-        logger.info('🔍 DEBUGGING - Después de OpenAI fallback', { 
-          workspaceId,
-          llmResponseOk: llmResponse.ok,
-          llmResponseText: llmResponse.text?.substring(0, 50)
-        });
+        return { 
+          ok: true, 
+          text: defaultResponse, 
+          model: 'fallback',
+          usage: { in: 0, out: 0, latencyMs: Date.now() - start },
+          suggestions: []
+        };
       }
 
-      // 5. Validar respuesta final
-      if (!llmResponse.ok) {
-        logger.error('❌ Error en generación de respuesta IA', { 
-          error: llmResponse.message,
-          provider: 'llm_studio_fallback_openai',
-          workspaceId
-        });
-        return { ok: false, error: llmResponse.message || 'Error de IA' };
-      }
-
-      // 6. Procesar respuesta
-      logger.info('🔍 DEBUGGING - Antes de procesar respuesta', { workspaceId });
+      // 4. Procesar respuesta exitosa
       let finalResponse = llmResponse.text.trim();
       
-      // Detectar y corregir respuestas problemáticas
-      finalResponse = this.cleanResponse(finalResponse);
+      // Limpiar respuesta
+      finalResponse = finalResponse.replace(/^["']+|["']+$/g, '').trim();
       
-      // Si la respuesta está vacía o es muy corta, usar respuesta por defecto
+      // Si la respuesta está vacía, usar respuesta por defecto
       if (!finalResponse || finalResponse.length < 5) {
-        logger.warn('Respuesta IA vacía o muy corta, usando respuesta por defecto', {
-          originalResponse: llmResponse.text,
-          cleanedResponse: finalResponse,
-          responseLength: finalResponse?.length,
-          workspaceId
-        });
         finalResponse = this.getDefaultResponse(userMessage);
       }
 
-      // 7. Cache y memoria
-      logger.info('🔍 DEBUGGING - Antes de cache y memoria', { workspaceId });
-      await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, finalResponse);
-      await copilotMemoryService.addToMemory(conversationId, userMessage, finalResponse);
-
-      // 8. Log de éxito
+      // 5. Log de éxito
       const latencyMs = Date.now() - start;
       logger.info('✅ Respuesta IA generada', {
         conversationId,
@@ -158,8 +93,8 @@ class CopilotOrchestratorService {
       logger.error('❌ Error en orquestador IA', { 
         error: error.message,
         workspaceId,
-        workspaceIdType: typeof workspaceId,
-        stack: error.stack
+        conversationId,
+        agentId
       });
       return { ok: false, error: error.message };
     }

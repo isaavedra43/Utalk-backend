@@ -78,10 +78,17 @@ class CopilotController {
       );
 
       if (!result.ok) {
+        logger.error('❌ Error en orquestador', {
+          error: result.error,
+          conversationId,
+          agentId,
+          workspaceId: finalWorkspaceId
+        });
+        
         throw new ApiError(
           'LLM_GENERATION_FAILED',
           'Error generando respuesta',
-          result.error || 'Unknown',
+          result.error || 'Error desconocido en el procesamiento',
           500
         );
       }
