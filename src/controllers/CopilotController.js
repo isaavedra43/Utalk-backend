@@ -25,12 +25,25 @@ class CopilotController {
   static async chat(req, res, next) {
     try {
       const { message, conversationId, agentId } = req.body;
+      
+      // Debug: Log de los valores recibidos
+      logger.info('🔍 Debug - Valores recibidos en copiloto chat', {
+        message: message ? `"${message.substring(0, 50)}..."` : 'undefined/null',
+        conversationId: conversationId || 'undefined/null',
+        agentId: agentId || 'undefined/null',
+        messageType: typeof message,
+        conversationIdType: typeof conversationId,
+        agentIdType: typeof agentId,
+        bodyKeys: Object.keys(req.body)
+      });
 
-      if (!message || !conversationId || !agentId) {
+      // Validación más estricta: verificar que no sean undefined, null, o cadenas vacías
+      if (!message || !conversationId || !agentId || 
+          message.trim() === '' || conversationId.trim() === '' || agentId.trim() === '') {
         throw new ApiError(
           'MISSING_REQUIRED_FIELDS',
-          'message, conversationId y agentId son requeridos',
-          'Proporciona todos los campos obligatorios',
+          'message, conversationId y agentId son requeridos y no pueden estar vacíos',
+          'Proporciona todos los campos obligatorios con valores válidos',
           400
         );
       }
