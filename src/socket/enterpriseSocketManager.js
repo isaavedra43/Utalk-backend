@@ -1137,6 +1137,64 @@ class EnterpriseSocketManager {
 
     // Heartbeat manual
     this.setupHeartbeat(socket, userEmail);
+
+    // 🆕 Copilot events
+    registerEvent('copilot_chat_message', async (sock, data) => {
+      try {
+        const { message, conversationId, agentId } = data || {};
+        const { workspaceId } = sock.decodedToken || {};
+        const { copilotOrchestratorService } = require('../services/CopilotOrchestratorService');
+
+        const result = await copilotOrchestratorService.processMessage(
+          message,
+          conversationId,
+          agentId || sock.userEmail,
+          workspaceId || 'default'
+        );
+
+        if (result.ok) {
+          sock.emit('copilot_response', {
+            conversationId,
+            response: result.text,
+            suggestions: result.suggestions || [],
+            model: result.model || null
+          });
+        } else {
+          sock.emit('copilot_response', {
+            conversationId,
+            error: result.error || 'Copilot processing failed'
+          });
+        }
+      } catch (error) {
+        logger.error('Error in copilot_chat_message handler', { error: error.message });
+        sock.emit('copilot_response', { error: 'Internal error' });
+      }
+    }, { rateLimited: true, maxCalls: 120, timeout: 15000 });
+
+    registerEvent('copilot_analyze', async (sock, data) => {
+      try {
+        const { message } = data || {};
+        const { intelligentPromptService } = require('../services/IntelligentPromptService');
+        const analysis = await intelligentPromptService.analyzeUserMessage(message || '');
+        sock.emit('copilot_analysis', analysis);
+      } catch (error) {
+        sock.emit('copilot_analysis', { error: 'Analysis failed' });
+      }
+    }, { rateLimited: true, maxCalls: 120, timeout: 15000 });
+
+    registerEvent('copilot_predict', async (sock, data) => {
+      try {
+        const { message } = data || {};
+        const { needsPredictionService } = require('../services/NeedsPredictionService');
+        const patterns = await needsPredictionService.analyzeConversationPatterns(message || '');
+        const implicitNeeds = await needsPredictionService.detectImplicitNeeds(message || '', patterns);
+        const futureNeeds = await needsPredictionService.predictFutureNeeds(implicitNeeds);
+        const suggestions = await needsPredictionService.generateProactiveSuggestions(futureNeeds);
+        sock.emit('copilot_prediction', { patterns, implicitNeeds, futureNeeds, suggestions });
+      } catch (error) {
+        sock.emit('copilot_prediction', { error: 'Prediction failed' });
+      }
+    }, { rateLimited: true, maxCalls: 120, timeout: 15000 });
   }
 
   /**

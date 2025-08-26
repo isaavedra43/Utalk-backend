@@ -9,6 +9,8 @@
  */
 
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const logger = require('../../utils/logger');
 const { aiLogger } = require('../../utils/aiLogger');
 
@@ -31,7 +33,10 @@ const LLM_STUDIO_CONFIG = {
     'llama-3.1-8b',
     'mistral-7b',
     'codellama-7b'
-  ]
+  ],
+  keepAlive: true,
+  maxSockets: 100,
+  maxFreeSockets: 20
 };
 
 /**
@@ -156,21 +161,33 @@ function initializeLLMStudioClient() {
     if (!process.env.LLM_STUDIO_URL && !LLM_STUDIO_CONFIG.baseURL) {
       logger.warn('⚠️ LLM_STUDIO_URL no configurada, usando localhost:3001');
     }
-    
+
+    const isHttps = String(LLM_STUDIO_CONFIG.baseURL).startsWith('https');
+    const agentOptions = {
+      keepAlive: LLM_STUDIO_CONFIG.keepAlive,
+      maxSockets: LLM_STUDIO_CONFIG.maxSockets,
+      maxFreeSockets: LLM_STUDIO_CONFIG.maxFreeSockets,
+      keepAliveMsecs: 10000
+    };
+
     llmStudioClient = axios.create({
       baseURL: LLM_STUDIO_CONFIG.baseURL,
       timeout: LLM_STUDIO_CONFIG.timeout,
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'UTalk-Backend/1.0.0'
-      }
+      },
+      httpAgent: isHttps ? undefined : new http.Agent(agentOptions),
+      httpsAgent: isHttps ? new https.Agent(agentOptions) : undefined
     });
-    
+
     logger.info('✅ Cliente LLM Studio inicializado', {
-      baseURL: LLM_STUDIO_CONFIG.baseURL
+      baseURL: LLM_STUDIO_CONFIG.baseURL,
+      keepAlive: LLM_STUDIO_CONFIG.keepAlive,
+      maxSockets: LLM_STUDIO_CONFIG.maxSockets
     });
     return true;
-    
+
   } catch (error) {
     logger.error('❌ Error inicializando cliente LLM Studio', {
       error: error.message

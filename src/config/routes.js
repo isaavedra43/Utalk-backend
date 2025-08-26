@@ -20,6 +20,7 @@ const aiOpsRoutes = require('../routes/aiOps');
 const logRoutes = require('../routes/logs');
 const clientRoutes = require('../routes/clients');
 const modulePermissionsRoutes = require('../routes/modulePermissions');
+const copilotRoutes = require('../routes/copilot');
 
 function registerRoutes(app, { PORT, socketManager, healthService }) {
   logger.info('🛣️ Configurando rutas de la aplicación...', {
@@ -115,6 +116,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     if (reportRoutes?.router) app.use('/api/ai/reports', reportRoutes.router);
     if (ragRoutes?.router) app.use('/api/ai/rag', ragRoutes.router);
     if (aiOpsRoutes?.router) app.use('/api/ai/ops', aiOpsRoutes.router);
+    if (copilotRoutes?.router) app.use('/api/copilot', copilotRoutes.router);
 
     // Dashboard y Twilio
     app.use('/api/dashboard', dashboardRoutes);
