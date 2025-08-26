@@ -17,16 +17,6 @@ class CopilotOrchestratorService {
     const start = Date.now();
 
     try {
-      // Validar workspaceId con fallback simple
-      const finalWorkspaceId = workspaceId || 'default_workspace';
-
-      logger.info('🚀 Orquestador iniciando procesamiento', {
-        userMessage: userMessage.substring(0, 50),
-        conversationId,
-        agentId,
-        workspaceId: finalWorkspaceId
-      });
-
       // 1. Verificar cache
       const cached = await copilotCacheService.getCachedResponse(userMessage, { conversationId, agentId });
       if (cached) {
@@ -34,69 +24,59 @@ class CopilotOrchestratorService {
         return { ok: true, text: cached, source: 'cache' };
       }
 
-      // 2. Crear prompt simple
+      // 2. Crear prompt ultra simple y directo
       const simplePrompt = this.createSimplePrompt(userMessage, conversationId);
       
-      // 3. Generar respuesta con IA - LLM Studio
-      let llmResponse;
-      try {
-        llmResponse = await generateWithProvider('llm_studio', {
+      // 3. Generar respuesta con IA
+      let llmResponse = await generateWithProvider('llm_studio', {
+        prompt: simplePrompt,
+        model: 'gpt-oss-20b',
+        temperature: 0.7,
+        maxTokens: 200,
+        workspaceId,
+        conversationId
+      });
+
+      // 4. Fallback a OpenAI si LLM Studio falla o devuelve respuesta vacía
+      if ((!llmResponse.ok || !llmResponse.text || llmResponse.text.trim().length < 5) && isProviderAvailable('openai')) {
+        logger.warn('LLM Studio falló o devolvió respuesta vacía, aplicando fallback a OpenAI', {
+          llmStudioOk: llmResponse.ok,
+          llmStudioText: llmResponse.text,
+          llmStudioTextLength: llmResponse.text?.length
+        });
+        
+        llmResponse = await generateWithProvider('openai', {
           prompt: simplePrompt,
-          model: 'gpt-oss-20b',
+          model: 'gpt-4o-mini',
           temperature: 0.7,
           maxTokens: 200,
-          workspaceId: finalWorkspaceId,
+          workspaceId,
           conversationId
         });
-      } catch (llmError) {
-        logger.warn('LLM Studio falló, intentando OpenAI', { error: llmError.message });
-        llmResponse = { ok: false, error: llmError.message };
       }
 
-      // 4. Fallback a OpenAI si LLM Studio falla
-      if (!llmResponse.ok && isProviderAvailable('openai')) {
-        try {
-          llmResponse = await generateWithProvider('openai', {
-            prompt: simplePrompt,
-            model: 'gpt-4o-mini',
-            temperature: 0.7,
-            maxTokens: 200,
-            workspaceId: finalWorkspaceId,
-            conversationId
-          });
-        } catch (openaiError) {
-          logger.error('OpenAI también falló', { error: openaiError.message });
-          llmResponse = { ok: false, error: openaiError.message };
-        }
-      }
-
-      // 5. Si ambos fallan, usar respuesta por defecto
+      // 5. Validar respuesta final
       if (!llmResponse.ok) {
-        logger.warn('Ambos proveedores fallaron, usando respuesta por defecto', {
-          llmError: llmResponse.error
+        logger.error('❌ Error en generación de respuesta IA', { 
+          error: llmResponse.message,
+          provider: 'llm_studio_fallback_openai'
         });
-        
-        const defaultResponse = this.getDefaultResponse(userMessage);
-        
-        // Cache y memoria
-        await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, defaultResponse);
-        await copilotMemoryService.addToMemory(conversationId, userMessage, defaultResponse);
-
-        return { 
-          ok: true, 
-          text: defaultResponse, 
-          model: 'fallback',
-          usage: { in: 0, out: 0, latencyMs: Date.now() - start },
-          suggestions: []
-        };
+        return { ok: false, error: llmResponse.message || 'Error de IA' };
       }
 
-      // 6. Procesar respuesta exitosa
+      // 6. Procesar respuesta
       let finalResponse = llmResponse.text.trim();
       
-      // Si la respuesta está vacía, usar respuesta por defecto
+      // Detectar y corregir respuestas problemáticas
+      finalResponse = this.cleanResponse(finalResponse);
+      
+      // Si la respuesta está vacía o es muy corta, usar respuesta por defecto
       if (!finalResponse || finalResponse.length < 5) {
-        logger.warn('Respuesta IA vacía, usando respuesta por defecto');
+        logger.warn('Respuesta IA vacía o muy corta, usando respuesta por defecto', {
+          originalResponse: llmResponse.text,
+          cleanedResponse: finalResponse,
+          responseLength: finalResponse?.length
+        });
         finalResponse = this.getDefaultResponse(userMessage);
       }
 
@@ -106,10 +86,9 @@ class CopilotOrchestratorService {
 
       // 8. Log de éxito
       const latencyMs = Date.now() - start;
-      logger.info('✅ Respuesta IA generada exitosamente', {
+      logger.info('✅ Respuesta IA generada', {
         conversationId,
         agentId,
-        workspaceId: finalWorkspaceId,
         responseLength: finalResponse.length,
         latencyMs,
         model: llmResponse.model || 'llm_studio'
@@ -119,16 +98,12 @@ class CopilotOrchestratorService {
         ok: true, 
         text: finalResponse, 
         model: llmResponse.model || 'llm_studio',
-        usage: llmResponse.usage || { in: 0, out: 0, latencyMs },
+        usage: llmResponse.usage,
         suggestions: []
       };
 
     } catch (error) {
-      logger.error('❌ Error crítico en orquestador IA', { 
-        error: error.message,
-        stack: error.stack,
-        workspaceId: workspaceId || 'undefined'
-      });
+      logger.error('❌ Error en orquestador IA', { error: error.message });
       return { ok: false, error: error.message };
     }
   }
