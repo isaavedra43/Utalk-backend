@@ -138,9 +138,9 @@ class ReportService {
         sla_ok: report.kpis.sla_ok
       };
 
-      // Crear prompt dinámico para resumen
+      // Crear prompt para resumen
       const summaryPrompt = `
-Genera un resumen ejecutivo corto (máximo 200 caracteres) del siguiente reporte de atención al cliente.
+Genera un resumen ejecutivo corto (máximo 200 caracteres) del siguiente reporte de atención al cliente:
 
 Datos del periodo ${summaryData.periodo.from} a ${summaryData.periodo.to}:
 - Mensajes totales: ${summaryData.mensajes_totales}
@@ -150,7 +150,7 @@ Datos del periodo ${summaryData.periodo.from} a ${summaryData.periodo.to}:
 - SLA cumplido: ${summaryData.sla_ok ? 'Sí' : 'No'}
 - Alertas: ${summaryData.alertas.length > 0 ? summaryData.alertas.join(', ') : 'Ninguna'}
 
-Genera un resumen ejecutivo dinámico basado en estos datos reales. Responde SOLO con el resumen, sin formato adicional.
+Responde SOLO con el resumen ejecutivo, sin formato adicional.
 `;
 
       // Log de inicio

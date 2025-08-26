@@ -149,98 +149,21 @@ async function simulateKeywordSearch(query, workspaceId, topK, filters, minScore
 }
 
 /**
- * Generar snippet dinámico basado en la query
+ * Generar snippet simulado basado en la query
  */
 function generateSimulatedSnippet(query, queryWords) {
-  // Análisis dinámico de la query para generar snippet contextual
-  const queryAnalysis = analyzeQueryDynamically(query, queryWords);
-  
-  // Generar snippet dinámico basado en el análisis
-  const dynamicSnippet = generateDynamicSnippet(queryAnalysis);
+  const snippets = [
+    `Este documento contiene información relevante sobre ${queryWords[0] || 'el tema solicitado'}.`,
+    `Aquí encontrarás detalles importantes relacionados con ${queryWords[0] || 'tu consulta'}.`,
+    `La información sobre ${queryWords[0] || 'este tema'} está disponible en esta sección.`,
+    `Respuesta a tu pregunta sobre ${queryWords[0] || 'el asunto consultado'}.`,
+    `Documentación relacionada con ${queryWords[0] || 'la materia de interés'}.`
+  ];
+
+  const randomSnippet = snippets[Math.floor(Math.random() * snippets.length)];
   
   // Limitar a 500 caracteres
-  return dynamicSnippet.substring(0, 500);
-}
-
-/**
- * Analizar query dinámicamente
- */
-function analyzeQueryDynamically(query, queryWords) {
-  const analysis = {
-    type: 'general',
-    intent: 'information',
-    keywords: queryWords || [],
-    hasQuestions: query.includes('?') || query.includes('¿'),
-    hasNumbers: /\d/.test(query),
-    length: query.length,
-    complexity: query.length > 50 ? 'complex' : query.length > 20 ? 'medium' : 'simple'
-  };
-
-  // Detectar tipo de consulta dinámicamente
-  const lowerQuery = query.toLowerCase();
-  
-  if (lowerQuery.includes('precio') || lowerQuery.includes('costo') || lowerQuery.includes('valor')) {
-    analysis.type = 'pricing';
-    analysis.intent = 'pricing_inquiry';
-  } else if (lowerQuery.includes('cómo') || lowerQuery.includes('proceso') || lowerQuery.includes('paso')) {
-    analysis.type = 'how_to';
-    analysis.intent = 'instruction';
-  } else if (lowerQuery.includes('qué') || lowerQuery.includes('cuál') || lowerQuery.includes('dónde')) {
-    analysis.type = 'what';
-    analysis.intent = 'information';
-  } else if (lowerQuery.includes('problema') || lowerQuery.includes('error') || lowerQuery.includes('falla')) {
-    analysis.type = 'problem';
-    analysis.intent = 'troubleshooting';
-  } else if (lowerQuery.includes('característica') || lowerQuery.includes('especificación') || lowerQuery.includes('detalle')) {
-    analysis.type = 'feature';
-    analysis.intent = 'description';
-  }
-
-  return analysis;
-}
-
-/**
- * Generar snippet dinámico basado en el análisis
- */
-function generateDynamicSnippet(analysis) {
-  const snippets = {
-    pricing: [
-      `Información relevante sobre precios y costos relacionados con ${analysis.keywords[0] || 'tu consulta'}.`,
-      `Detalles de precios y cotizaciones para ${analysis.keywords[0] || 'el servicio solicitado'}.`,
-      `Información de costos y tarifas relacionadas con ${analysis.keywords[0] || 'tu consulta'}.`
-    ],
-    how_to: [
-      `Guía paso a paso para ${analysis.keywords[0] || 'el proceso solicitado'}.`,
-      `Instrucciones detalladas sobre ${analysis.keywords[0] || 'cómo proceder'}.`,
-      `Proceso completo para ${analysis.keywords[0] || 'realizar la tarea'}.`
-    ],
-    what: [
-      `Información detallada sobre ${analysis.keywords[0] || 'el tema consultado'}.`,
-      `Explicación completa de ${analysis.keywords[0] || 'la materia de interés'}.`,
-      `Detalles importantes sobre ${analysis.keywords[0] || 'tu consulta'}.`
-    ],
-    problem: [
-      `Soluciones para ${analysis.keywords[0] || 'el problema reportado'}.`,
-      `Diagnóstico y resolución de ${analysis.keywords[0] || 'la situación'}.`,
-      `Ayuda para resolver ${analysis.keywords[0] || 'el inconveniente'}.`
-    ],
-    feature: [
-      `Características y especificaciones de ${analysis.keywords[0] || 'el producto o servicio'}.`,
-      `Detalles técnicos sobre ${analysis.keywords[0] || 'las funcionalidades'}.`,
-      `Información completa de ${analysis.keywords[0] || 'las características'}.`
-    ],
-    general: [
-      `Información relevante sobre ${analysis.keywords[0] || 'el tema solicitado'}.`,
-      `Documentación relacionada con ${analysis.keywords[0] || 'tu consulta'}.`,
-      `Contenido útil sobre ${analysis.keywords[0] || 'la materia de interés'}.`
-    ]
-  };
-
-  // Seleccionar snippet dinámico basado en el tipo de consulta
-  const typeSnippets = snippets[analysis.type] || snippets.general;
-  const selectedSnippet = typeSnippets[Math.floor(Math.random() * typeSnippets.length)];
-  
-  return selectedSnippet;
+  return randomSnippet.substring(0, 500);
 }
 
 /**

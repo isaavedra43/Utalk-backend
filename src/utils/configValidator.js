@@ -44,7 +44,7 @@ async function validateConfigWithAI(config) {
       throw new Error('AI validation disabled (no OPENAI_API_KEY or flag off)');
     }
 
-    // Preparar prompt dinámico para validación
+    // Preparar prompt para validación
     const validationPrompt = `
 Eres un validador de configuración de IA. Analiza la siguiente configuración y responde SOLO con un JSON válido en este formato exacto:
 
@@ -58,7 +58,7 @@ Eres un validador de configuración de IA. Analiza la siguiente configuración y
 Configuración a validar:
 ${JSON.stringify(config, null, 2)}
 
-Reglas de validación dinámicas:
+Reglas de validación:
 - temperature: 0-1
 - maxTokens: 1-300
 - provider: openai, anthropic, gemini
@@ -66,7 +66,7 @@ Reglas de validación dinámicas:
 - flags: objeto con booleanos
 - policies: objeto opcional
 
-Analiza dinámicamente la configuración y responde SOLO con el JSON, sin texto adicional.
+Responde SOLO con el JSON, sin texto adicional.
 `;
 
     // Llamar a IA para validación
