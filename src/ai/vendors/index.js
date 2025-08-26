@@ -21,14 +21,16 @@ const PROVIDERS = {
     module: openaiProvider,
     defaultModel: 'gpt-4o-mini',
     models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
-    enabled: true
+    // Habilitar solo si hay API key configurada
+    enabled: !!process.env.OPENAI_API_KEY
   },
   llm_studio: {
     name: 'LLM Studio Local',
     module: llmStudioProvider,
     defaultModel: 'gpt-oss-20b',
     models: ['gpt-oss-20b', 'llama-3.1-8b', 'mistral-7b', 'codellama-7b'],
-    enabled: process.env.LLM_STUDIO_ENABLED === 'true'
+    // Habilitar por defecto si hay URL configurada o si la flag lo indica
+    enabled: (process.env.LLM_STUDIO_ENABLED === 'true') || !!process.env.LLM_STUDIO_URL
   },
   anthropic: {
     name: 'Anthropic',
@@ -49,30 +51,31 @@ const PROVIDERS = {
 /**
  * Obtener proveedor por nombre
  */
-function getProvider(providerName = 'openai') {
+function getProvider(providerName = 'llm_studio') {
   const provider = PROVIDERS[providerName];
   
   if (!provider) {
-    logger.warn('⚠️ Proveedor no encontrado, usando OpenAI por defecto', {
+    logger.warn('⚠️ Proveedor no encontrado, usando proveedor recomendado por defecto', {
       requestedProvider: providerName
     });
-    return PROVIDERS.openai;
+    // Preferir LLM Studio si está disponible
+    return PROVIDERS.llm_studio.enabled ? PROVIDERS.llm_studio : PROVIDERS.openai;
   }
   
   if (!provider.enabled) {
-    logger.warn('⚠️ Proveedor deshabilitado, usando OpenAI por defecto', {
+    logger.warn('⚠️ Proveedor deshabilitado, seleccionando alternativa disponible', {
       requestedProvider: providerName,
       reason: 'disabled'
     });
-    return PROVIDERS.openai;
+    return PROVIDERS.llm_studio.enabled ? PROVIDERS.llm_studio : PROVIDERS.openai;
   }
   
   if (!provider.module) {
-    logger.warn('⚠️ Módulo de proveedor no implementado, usando OpenAI por defecto', {
+    logger.warn('⚠️ Módulo de proveedor no implementado, seleccionando alternativa disponible', {
       requestedProvider: providerName,
       reason: 'not_implemented'
     });
-    return PROVIDERS.openai;
+    return PROVIDERS.llm_studio.enabled ? PROVIDERS.llm_studio : PROVIDERS.openai;
   }
   
   return provider;
@@ -144,9 +147,12 @@ async function checkAllProvidersHealth() {
  * Obtener proveedor recomendado basado en configuración
  */
 function getRecommendedProvider(config) {
-  // Por ahora, siempre usar OpenAI
-  // En el futuro, se puede implementar lógica de selección
-  return 'openai';
+  // Preferir LLM Studio si está habilitado; si no, OpenAI si está disponible
+  if (PROVIDERS.llm_studio.enabled) return 'llm_studio';
+  if (PROVIDERS.openai.enabled) return 'openai';
+  // Fallback: devolver el primero habilitado
+  const available = Object.entries(PROVIDERS).find(([, p]) => p.enabled && p.module);
+  return available ? available[0] : 'llm_studio';
 }
 
 /**

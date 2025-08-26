@@ -38,9 +38,10 @@ async function validateConfigWithAI(config) {
       throw new Error('AI vendors no disponible');
     }
 
-    // Verificar si OpenAI está disponible
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key no disponible');
+    // Validación asistida por IA es opcional y solo si hay OPENAI_API_KEY explícita
+    if (!process.env.OPENAI_API_KEY || process.env.AI_CONFIG_VALIDATE_WITH_OPENAI !== 'true') {
+      // Saltar validación con IA cuando no hay clave o no está habilitada por bandera
+      throw new Error('AI validation disabled (no OPENAI_API_KEY or flag off)');
     }
 
     // Preparar prompt para validación
