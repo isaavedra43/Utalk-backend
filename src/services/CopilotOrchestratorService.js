@@ -17,7 +17,33 @@ class CopilotOrchestratorService {
     const start = Date.now();
 
     try {
+      // DEBUGGING EXTREMO - Log inicial
+      logger.info('🔍 DEBUGGING EXTREMO - Inicio processMessage', {
+        userMessage: userMessage?.substring(0, 50),
+        conversationId,
+        agentId,
+        workspaceId,
+        workspaceIdType: typeof workspaceId,
+        workspaceIdLength: workspaceId?.length,
+        workspaceIdIsUndefined: workspaceId === undefined,
+        workspaceIdIsNull: workspaceId === null,
+        workspaceIdIsEmpty: workspaceId === ''
+      });
+
+      // Validación crítica
+      if (!workspaceId) {
+        logger.error('🚨 CRÍTICO: workspaceId es falsy en orquestador', {
+          workspaceId,
+          workspaceIdType: typeof workspaceId,
+          userMessage: userMessage?.substring(0, 50),
+          conversationId,
+          agentId
+        });
+        throw new Error('workspaceId is not defined in orchestrator');
+      }
+
       // 1. Verificar cache
+      logger.info('🔍 DEBUGGING - Antes de cache', { workspaceId });
       const cached = await copilotCacheService.getCachedResponse(userMessage, { conversationId, agentId });
       if (cached) {
         logger.info('✅ Respuesta cacheada encontrada', { conversationId, agentId });
@@ -25,9 +51,16 @@ class CopilotOrchestratorService {
       }
 
       // 2. Crear prompt ultra simple y directo
+      logger.info('🔍 DEBUGGING - Antes de crear prompt', { workspaceId });
       const simplePrompt = this.createSimplePrompt(userMessage, conversationId);
       
       // 3. Generar respuesta con IA
+      logger.info('🔍 DEBUGGING - Antes de LLM Studio', { 
+        workspaceId,
+        promptLength: simplePrompt.length,
+        promptPreview: simplePrompt.substring(0, 100)
+      });
+      
       let llmResponse = await generateWithProvider('llm_studio', {
         prompt: simplePrompt,
         model: 'gpt-oss-20b',
@@ -37,12 +70,20 @@ class CopilotOrchestratorService {
         conversationId
       });
 
+      logger.info('🔍 DEBUGGING - Después de LLM Studio', { 
+        workspaceId,
+        llmResponseOk: llmResponse.ok,
+        llmResponseText: llmResponse.text?.substring(0, 50),
+        llmResponseTextLength: llmResponse.text?.length
+      });
+
       // 4. Fallback a OpenAI si LLM Studio falla o devuelve respuesta vacía
       if ((!llmResponse.ok || !llmResponse.text || llmResponse.text.trim().length < 5) && isProviderAvailable('openai')) {
         logger.warn('LLM Studio falló o devolvió respuesta vacía, aplicando fallback a OpenAI', {
           llmStudioOk: llmResponse.ok,
           llmStudioText: llmResponse.text,
-          llmStudioTextLength: llmResponse.text?.length
+          llmStudioTextLength: llmResponse.text?.length,
+          workspaceId
         });
         
         llmResponse = await generateWithProvider('openai', {
@@ -53,18 +94,26 @@ class CopilotOrchestratorService {
           workspaceId,
           conversationId
         });
+
+        logger.info('🔍 DEBUGGING - Después de OpenAI fallback', { 
+          workspaceId,
+          llmResponseOk: llmResponse.ok,
+          llmResponseText: llmResponse.text?.substring(0, 50)
+        });
       }
 
       // 5. Validar respuesta final
       if (!llmResponse.ok) {
         logger.error('❌ Error en generación de respuesta IA', { 
           error: llmResponse.message,
-          provider: 'llm_studio_fallback_openai'
+          provider: 'llm_studio_fallback_openai',
+          workspaceId
         });
         return { ok: false, error: llmResponse.message || 'Error de IA' };
       }
 
       // 6. Procesar respuesta
+      logger.info('🔍 DEBUGGING - Antes de procesar respuesta', { workspaceId });
       let finalResponse = llmResponse.text.trim();
       
       // Detectar y corregir respuestas problemáticas
@@ -75,12 +124,14 @@ class CopilotOrchestratorService {
         logger.warn('Respuesta IA vacía o muy corta, usando respuesta por defecto', {
           originalResponse: llmResponse.text,
           cleanedResponse: finalResponse,
-          responseLength: finalResponse?.length
+          responseLength: finalResponse?.length,
+          workspaceId
         });
         finalResponse = this.getDefaultResponse(userMessage);
       }
 
       // 7. Cache y memoria
+      logger.info('🔍 DEBUGGING - Antes de cache y memoria', { workspaceId });
       await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, finalResponse);
       await copilotMemoryService.addToMemory(conversationId, userMessage, finalResponse);
 
@@ -89,6 +140,7 @@ class CopilotOrchestratorService {
       logger.info('✅ Respuesta IA generada', {
         conversationId,
         agentId,
+        workspaceId,
         responseLength: finalResponse.length,
         latencyMs,
         model: llmResponse.model || 'llm_studio'
@@ -103,7 +155,12 @@ class CopilotOrchestratorService {
       };
 
     } catch (error) {
-      logger.error('❌ Error en orquestador IA', { error: error.message });
+      logger.error('❌ Error en orquestador IA', { 
+        error: error.message,
+        workspaceId,
+        workspaceIdType: typeof workspaceId,
+        stack: error.stack
+      });
       return { ok: false, error: error.message };
     }
   }
