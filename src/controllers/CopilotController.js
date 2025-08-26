@@ -24,16 +24,19 @@ class CopilotController {
    */
   static async chat(req, res, next) {
     try {
-      const { message, conversationId, agentId } = req.body;
+      const { message, conversationId, agentId, workspaceId } = req.body;
       
       // Debug: Log de los valores recibidos
       logger.info('🔍 Debug - Valores recibidos en copiloto chat', {
         message: message ? `"${message.substring(0, 50)}..."` : 'undefined/null',
         conversationId: conversationId || 'undefined/null',
         agentId: agentId || 'undefined/null',
+        workspaceId: workspaceId || 'undefined/null',
+        userWorkspaceId: req.user?.workspaceId || 'undefined/null',
         messageType: typeof message,
         conversationIdType: typeof conversationId,
         agentIdType: typeof agentId,
+        workspaceIdType: typeof workspaceId,
         bodyKeys: Object.keys(req.body)
       });
 
@@ -48,9 +51,22 @@ class CopilotController {
         );
       }
 
+      // Determinar workspaceId con fallback
+      const finalWorkspaceId = workspaceId || req.user?.workspaceId || 'default_workspace';
+      
+      if (!finalWorkspaceId) {
+        throw new ApiError(
+          'WORKSPACE_ID_MISSING',
+          'workspaceId no está definido',
+          'El workspaceId es requerido para procesar la solicitud',
+          400
+        );
+      }
+
       logger.info('🚀 Copiloto chat iniciado', {
         conversationId,
         agentId,
+        workspaceId: finalWorkspaceId,
         messageLength: message.length
       });
 
@@ -58,7 +74,7 @@ class CopilotController {
         message,
         conversationId,
         agentId,
-        req.user.workspaceId
+        finalWorkspaceId
       );
 
       if (!result.ok) {
@@ -73,6 +89,7 @@ class CopilotController {
       logger.info('✅ Copiloto chat completado', {
         conversationId,
         agentId,
+        workspaceId: finalWorkspaceId,
         responseLength: (result.text || '').length,
         model: result.model || null
       });
@@ -90,7 +107,9 @@ class CopilotController {
       logger.error('❌ Error en copiloto chat', {
         conversationId: req.body?.conversationId,
         agentId: req.body?.agentId,
-        error: error.message
+        workspaceId: req.body?.workspaceId || req.user?.workspaceId,
+        error: error.message,
+        stack: error.stack
       });
       return ResponseHandler.error(res, error);
     }

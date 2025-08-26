@@ -37,9 +37,14 @@ class CopilotOrchestratorService {
         conversationId
       });
 
-      // 4. Fallback a OpenAI si LLM Studio falla
-      if (!llmResponse.ok && isProviderAvailable('openai')) {
-        logger.warn('LLM Studio falló, aplicando fallback a OpenAI');
+      // 4. Fallback a OpenAI si LLM Studio falla o devuelve respuesta vacía
+      if ((!llmResponse.ok || !llmResponse.text || llmResponse.text.trim().length < 5) && isProviderAvailable('openai')) {
+        logger.warn('LLM Studio falló o devolvió respuesta vacía, aplicando fallback a OpenAI', {
+          llmStudioOk: llmResponse.ok,
+          llmStudioText: llmResponse.text,
+          llmStudioTextLength: llmResponse.text?.length
+        });
+        
         llmResponse = await generateWithProvider('openai', {
           prompt: simplePrompt,
           model: 'gpt-4o-mini',
@@ -50,12 +55,16 @@ class CopilotOrchestratorService {
         });
       }
 
+      // 5. Validar respuesta final
       if (!llmResponse.ok) {
-        logger.error('❌ Error en generación de respuesta IA', { error: llmResponse.message });
+        logger.error('❌ Error en generación de respuesta IA', { 
+          error: llmResponse.message,
+          provider: 'llm_studio_fallback_openai'
+        });
         return { ok: false, error: llmResponse.message || 'Error de IA' };
       }
 
-      // 5. Procesar respuesta
+      // 6. Procesar respuesta
       let finalResponse = llmResponse.text.trim();
       
       // Detectar y corregir respuestas problemáticas
@@ -63,14 +72,19 @@ class CopilotOrchestratorService {
       
       // Si la respuesta está vacía o es muy corta, usar respuesta por defecto
       if (!finalResponse || finalResponse.length < 5) {
+        logger.warn('Respuesta IA vacía o muy corta, usando respuesta por defecto', {
+          originalResponse: llmResponse.text,
+          cleanedResponse: finalResponse,
+          responseLength: finalResponse?.length
+        });
         finalResponse = this.getDefaultResponse(userMessage);
       }
 
-      // 6. Cache y memoria
+      // 7. Cache y memoria
       await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, finalResponse);
       await copilotMemoryService.addToMemory(conversationId, userMessage, finalResponse);
 
-      // 7. Log de éxito
+      // 8. Log de éxito
       const latencyMs = Date.now() - start;
       logger.info('✅ Respuesta IA generada', {
         conversationId,
@@ -98,22 +112,9 @@ class CopilotOrchestratorService {
    * Crear prompt inteligente y contextual
    */
   createSimplePrompt(userMessage, conversationId) {
-    return `Eres un asistente de atención al cliente experto. Tu tarea es analizar el mensaje del cliente y proporcionar una respuesta útil y contextual.
+    return `Eres un asistente de atención al cliente. Responde directamente al mensaje del cliente de manera útil y profesional.
 
-CONTEXTO:
-- Eres un asistente profesional de atención al cliente
-- Debes entender la intención del cliente
-- Responde de forma natural, empática y útil
-- No uses meta-instrucciones ni reglas de formato
-- Genera solo la respuesta directa al cliente
-
-MENSAJE DEL CLIENTE:
-"${userMessage}"
-
-ANÁLISIS:
-1. ¿Qué quiere el cliente?
-2. ¿Cuál es la mejor respuesta?
-3. ¿Cómo puedo ayudarle?
+MENSAJE DEL CLIENTE: "${userMessage}"
 
 RESPUESTA:`;
   }
