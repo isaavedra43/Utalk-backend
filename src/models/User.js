@@ -27,6 +27,8 @@ class User {
     this.department = data.department || null;
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.lastLoginAt = data.lastLoginAt || null;
+    this.workspaceId = data.workspaceId || process.env.WORKSPACE_ID || process.env.DEFAULT_WORKSPACE_ID || 'default_workspace';
+    this.tenantId = data.tenantId || process.env.TENANT_ID || process.env.DEFAULT_TENANT_ID || 'default_tenant';
     this.settings = data.settings || {
       notifications: true,
       language: 'es',
