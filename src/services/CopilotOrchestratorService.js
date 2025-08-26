@@ -65,10 +65,7 @@ RESPUESTA:`;
       // Limpiar respuesta
       finalResponse = finalResponse.replace(/^["']+|["']+$/g, '').trim();
       
-      // Si la respuesta está vacía, usar respuesta por defecto
-      if (!finalResponse || finalResponse.length < 5) {
-        finalResponse = this.getDefaultResponse(userMessage);
-      }
+  
 
       // 5. Log de éxito
       const latencyMs = Date.now() - start;

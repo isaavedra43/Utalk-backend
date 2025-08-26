@@ -151,7 +151,7 @@ class CopilotController {
   static async test(req, res, next) {
     try {
       const testMessage = "Hola, necesito ayuda con un cliente";
-      const result = await copilotOrchestratorService.processMessage(testMessage, 'test', 'test', req.user.workspaceId);
+      const result = await copilotOrchestratorService.processMessage(testMessage, 'test', 'test', req.user?.workspaceId || 'default_workspace');
 
       return ResponseHandler.success(res, {
         status: 'test_completed',
@@ -193,7 +193,7 @@ class CopilotController {
       if (!conversationId || !agentId) {
         throw new ApiError('MISSING_REQUIRED_FIELDS', 'conversationId y agentId requeridos', 'Completa los campos requeridos', 400);
       }
-      const result = await copilotOrchestratorService.processMessage(message || '', conversationId, agentId, req.user.workspaceId);
+      const result = await copilotOrchestratorService.processMessage(message || '', conversationId, agentId, req.user?.workspaceId || 'default_workspace');
       if (!result.ok) throw new ApiError('LLM_ERROR', result.error || 'Error', result.error || 'Error', 500);
       return ResponseHandler.success(res, { response: result.text, model: result.model || null, suggestions: result.suggestions || [] }, 'Respuesta generada');
     } catch (error) { return ResponseHandler.error(res, error); }

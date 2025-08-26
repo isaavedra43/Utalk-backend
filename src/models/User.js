@@ -25,6 +25,7 @@ class User {
     this.role = data.role || 'viewer';
     this.permissions = data.permissions || {};
     this.department = data.department || null;
+    this.workspaceId = data.workspaceId || 'default_workspace';
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.lastLoginAt = data.lastLoginAt || null;
     this.settings = data.settings || {
@@ -236,6 +237,7 @@ class User {
         role: userData.role || 'viewer',
         permissions: userData.permissions || [],
         department: userData.department || null,
+        workspaceId: userData.workspaceId || 'default_workspace',
         isActive: userData.isActive !== undefined ? userData.isActive : true,
         settings: userData.settings || {
           notifications: true,
