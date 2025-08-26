@@ -432,33 +432,18 @@ Solo responde con el JSON válido:
    */
   async createOptimizedPrompt(analysis, approach, context) {
     try {
-      // 1. Construir prompt base dinámico
-      let prompt = this.buildDynamicBasePrompt(analysis, approach);
+      // Crear prompt simple y directo para LLM Studio
+      const prompt = `Eres un asistente de atención al cliente profesional. Tu trabajo es ayudar a los agentes a responder a los clientes de manera efectiva.
+
+MENSAJE DEL CLIENTE:
+"${analysis.userMessage || 'Mensaje del usuario'}"
+
+RESPUESTA SUGERIDA PARA EL AGENTE:
+`;
       
-      // 2. Agregar contexto dinámicamente si es necesario
-      if (approach.includeContext && context) {
-        prompt += this.addDynamicContextToPrompt(context, analysis);
-      }
-      
-      // 3. Agregar pasos dinámicamente si es necesario
-      if (approach.includeSteps) {
-        prompt += this.addDynamicStepsToPrompt(analysis);
-      }
-      
-      // 4. Agregar instrucciones emocionales dinámicamente si es necesario
-      if (approach.includeEmotion) {
-        prompt += this.addDynamicEmotionalInstructions(analysis);
-      }
-      
-      // 5. Finalizar prompt dinámicamente
-      prompt += this.finalizeDynamicPrompt(analysis, approach);
-      
-      logger.debug('Prompt dinámico creado', {
+      logger.debug('Prompt dinámico simplificado creado', {
         intent: analysis.intent,
-        style: approach.style,
-        length: prompt.length,
-        includesContext: approach.includeContext,
-        includesSteps: approach.includeSteps
+        length: prompt.length
       });
 
       return prompt;
@@ -473,15 +458,7 @@ Solo responde con el JSON válido:
    * Construir prompt base dinámico
    */
   buildDynamicBasePrompt(analysis, approach) {
-    const dynamicRole = this.generateDynamicRole(analysis);
-    const dynamicStyle = this.generateDynamicStyleInstructions(approach.style);
-    const dynamicFocus = this.generateDynamicFocusInstructions(approach.focus);
-    
-    return `
-${dynamicRole}
-
-ESTILO DE COMUNICACIÓN: ${dynamicStyle}
-ENFOQUE: ${dynamicFocus}
+    return `Eres un asistente de atención al cliente profesional. Tu trabajo es ayudar a los agentes a responder a los clientes de manera efectiva.
 
 `;
   }
@@ -598,17 +575,12 @@ ENFOQUE: ${dynamicFocus}
    */
   finalizeDynamicPrompt(analysis, approach) {
     return `
-MENSAJE DEL USUARIO:
-${analysis.userMessage || 'Mensaje del usuario'}
+Eres un asistente de atención al cliente. Responde al siguiente mensaje de manera útil y profesional.
 
-INSTRUCCIONES FINALES:
-- Responde de manera ${approach.style}
-- Enfócate en ${approach.focus}
-- Mantén la respuesta dentro de ${approach.maxTokens} tokens
-- Sé útil, preciso y profesional
-- Responde directamente al mensaje del usuario sin generar conversaciones ficticias
+MENSAJE DEL CLIENTE:
+"${analysis.userMessage || 'Mensaje del usuario'}"
 
-RESPUESTA:
+RESPUESTA SUGERIDA PARA EL AGENTE:
 `;
   }
 
@@ -617,15 +589,12 @@ RESPUESTA:
    */
   createDynamicFallbackPrompt(analysis) {
     return `
-Eres un asistente IA inteligente que ayuda a agentes de atención al cliente.
+Eres un asistente de atención al cliente. Responde al siguiente mensaje de manera útil y profesional.
 
-MENSAJE DEL USUARIO:
-${analysis.userMessage || 'Mensaje del usuario'}
+MENSAJE DEL CLIENTE:
+"${analysis.userMessage || 'Mensaje del usuario'}"
 
-Proporciona una respuesta útil y profesional que ayude al agente a responder al cliente de manera efectiva.
-Responde directamente al mensaje sin generar conversaciones ficticias.
-
-RESPUESTA:
+RESPUESTA SUGERIDA PARA EL AGENTE:
 `;
   }
 }
