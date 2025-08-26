@@ -17,6 +17,9 @@ class CopilotOrchestratorService {
     const start = Date.now();
 
     try {
+      // Validar workspaceId
+      const validWorkspaceId = workspaceId || 'default_workspace';
+
       // 1. Verificar cache
       const cached = await copilotCacheService.getCachedResponse(userMessage, { conversationId, agentId });
       if (cached) {
@@ -33,7 +36,7 @@ class CopilotOrchestratorService {
         model: 'gpt-oss-20b',
         temperature: 0.7,
         maxTokens: 200,
-        workspaceId,
+        workspaceId: validWorkspaceId,
         conversationId
       });
 
@@ -50,7 +53,7 @@ class CopilotOrchestratorService {
           model: 'gpt-4o-mini',
           temperature: 0.7,
           maxTokens: 200,
-          workspaceId,
+          workspaceId: validWorkspaceId,
           conversationId
         });
       }
