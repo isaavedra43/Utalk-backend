@@ -1,598 +1,161 @@
 /**
- * 🧠 INTELLIGENT PROMPT SERVICE - COMPLETAMENTE DINÁMICO
+ * 🧠 INTELLIGENT PROMPT SERVICE - IA INTELIGENTE
  * 
  * Servicio de prompts inteligentes que:
- * - Analiza mensajes del usuario dinámicamente
- * - Determina el mejor enfoque automáticamente
- * - Crea prompts optimizados y contextuales
- * - Se adapta al tipo de consulta y contexto
- * - SIN prompts fijos ni ejemplos hardcodeados
+ * - Analiza mensajes del usuario inteligentemente
+ * - Crea prompts contextuales y ricos
+ * - Se adapta al contexto de la conversación
+ * - Proporciona análisis inteligente
  * 
- * @version 3.0.0 COMPLETAMENTE DINÁMICO
+ * @version 3.0.0 IA INTELIGENTE
  * @author Backend Team
  */
 
-const { copilotCacheService } = require('./CopilotCacheService');
-const { relevanceAnalyzerService } = require('./RelevanceAnalyzerService');
-const { sentimentAnalysisService } = require('./SentimentAnalysisService');
 const { generateWithProvider } = require('../ai/vendors');
 const logger = require('../utils/logger');
 
 class IntelligentPromptService {
-  constructor() {
-    this.cacheService = copilotCacheService;
-    this.relevanceAnalyzer = relevanceAnalyzerService;
-  }
-
+  /**
+   * Analizar mensaje inteligentemente
+   */
   async analyzeUserMessage(message) {
     try {
-      // 1. Análisis básico dinámico
-      const basicAnalysis = this.performDynamicBasicAnalysis(message);
+      const analysis = await this.performIntelligentAnalysis(message);
       
-      // 2. Análisis de sentimiento dinámico
-      const sentimentAnalysis = await sentimentAnalysisService.analyzeSentiment(message);
-      basicAnalysis.sentiment = sentimentAnalysis.sentiment || basicAnalysis.sentiment;
-
-      // 3. Análisis semántico dinámico con IA
-      const semanticAnalysis = await this.performDynamicSemanticAnalysis(message);
-
-      // 4. Análisis de contexto dinámico
-      const contextAnalysis = await this.performDynamicContextAnalysis(message);
-
-      // 5. Combinar análisis dinámicamente
-      const combinedAnalysis = this.combineAnalysesDynamically(basicAnalysis, semanticAnalysis, contextAnalysis);
-
-      logger.debug('Análisis dinámico completado', {
+      logger.debug('Análisis inteligente completado', {
         messageLength: message.length,
-        intent: combinedAnalysis.intent,
-        urgency: combinedAnalysis.urgency,
-        complexity: combinedAnalysis.complexity,
-        sentiment: combinedAnalysis.sentiment
+        intent: analysis.intent,
+        emotion: analysis.emotion,
+        complexity: analysis.complexity
       });
 
-      return combinedAnalysis;
+      return analysis;
 
     } catch (error) {
-      logger.warn('Error en análisis dinámico', { error: error.message });
-      return this.performDynamicBasicAnalysis(message); // Fallback dinámico
+      logger.warn('Error en análisis inteligente', { error: error.message });
+      return this.getDefaultAnalysis(message);
     }
   }
 
   /**
-   * Análisis básico dinámico del mensaje
+   * Análisis inteligente del mensaje
    */
-  performDynamicBasicAnalysis(message) {
-    const analysis = {
-      intent: 'general_inquiry',
-      entities: [],
-      sentiment: 'neutral',
-      urgency: 'normal',
-      complexity: 'simple',
-      language: 'es',
-      hasQuestions: false,
-      hasNumbers: false,
-      wordCount: 0,
-      keyTopics: [],
-      emotions: []
-    };
-
-    const text = message.toLowerCase();
-    
-    // Análisis dinámico de palabras
-    analysis.wordCount = text.split(/\s+/).length;
-    
-    // Detectar preguntas dinámicamente
-    analysis.hasQuestions = /\?|¿|cuál|qué|cómo|dónde|cuándo|por qué|puede|podría/.test(text);
-    
-    // Detectar números dinámicamente
-    analysis.hasNumbers = /\d/.test(text);
-    
-    // Detectar urgencia dinámicamente
-    if (/\b(urgente|inmediato|rápido|ya|ahora|crítico|emergencia)\b/.test(text)) {
-      analysis.urgency = 'high';
-    } else if (/\b(pronto|próximo|fecha|cuando|mientras)\b/.test(text)) {
-      analysis.urgency = 'medium';
-    }
-    
-    // Detectar complejidad dinámicamente
-    if (analysis.wordCount > 50) {
-      analysis.complexity = 'complex';
-    } else if (analysis.wordCount > 20) {
-      analysis.complexity = 'medium';
-    }
-    
-    // Detectar sentimiento dinámicamente
-    if (/\b(gracias|excelente|perfecto|genial|fantástico|maravilloso)\b/.test(text)) {
-      analysis.sentiment = 'positive';
-    } else if (/\b(problema|error|molesto|enojado|frustrado|molestia)\b/.test(text)) {
-      analysis.sentiment = 'negative';
-    }
-
-    // Extraer temas clave dinámicamente
-    analysis.keyTopics = this.extractDynamicTopics(text);
-    
-    // Detectar emociones dinámicamente
-    analysis.emotions = this.extractDynamicEmotions(text);
-
-    return analysis;
-  }
-
-  /**
-   * Extraer temas clave dinámicamente
-   */
-  extractDynamicTopics(text) {
-    const topics = [];
-    
-    // Detectar temas por palabras clave dinámicas
-    if (/\b(precio|costo|valor|tarifa|cuánto)\b/.test(text)) {
-      topics.push('pricing');
-    }
-    if (/\b(producto|servicio|característica|función|especificación)\b/.test(text)) {
-      topics.push('product_info');
-    }
-    if (/\b(problema|error|falla|soporte|ayuda|solución)\b/.test(text)) {
-      topics.push('technical_support');
-    }
-    if (/\b(queja|reclamo|molestia|insatisfecho|mal|pésimo)\b/.test(text)) {
-      topics.push('complaint');
-    }
-    if (/\b(información|consulta|pregunta|duda|ayuda)\b/.test(text)) {
-      topics.push('general_inquiry');
-    }
-    
-    return topics;
-  }
-
-  /**
-   * Extraer emociones dinámicamente
-   */
-  extractDynamicEmotions(text) {
-    const emotions = [];
-    
-    if (/\b(feliz|contento|satisfecho|alegre|emocionado)\b/.test(text)) {
-      emotions.push('happy');
-    }
-    if (/\b(triste|decepcionado|frustrado|molesto|enojado)\b/.test(text)) {
-      emotions.push('frustrated');
-    }
-    if (/\b(preocupado|ansioso|nervioso|estresado)\b/.test(text)) {
-      emotions.push('worried');
-    }
-    if (/\b(confundido|perdido|no entiendo|no sé)\b/.test(text)) {
-      emotions.push('confused');
-    }
-    
-    return emotions;
-  }
-
-  /**
-   * Análisis semántico dinámico con IA
-   */
-  async performDynamicSemanticAnalysis(message) {
+  async performIntelligentAnalysis(message) {
     try {
-      const prompt = `
-Analiza dinámicamente el siguiente mensaje y proporciona un análisis semántico en formato JSON:
+      const prompt = `Analiza este mensaje de atención al cliente de manera inteligente:
 
-Mensaje: "${message}"
+MENSAJE: "${message}"
 
-Proporciona análisis dinámico en este formato:
+Proporciona análisis en JSON:
 {
-  "intent": "price_inquiry|product_info|technical_support|complaint|general_inquiry",
-  "sentiment": "positive|neutral|negative",
-  "urgency": "low|normal|high",
-  "complexity": "simple|medium|complex",
-  "keyTopics": ["tema1", "tema2"],
-  "emotions": ["emoción1", "emoción2"],
-  "tone": "formal|casual|urgent|friendly"
-}
-
-Solo responde con el JSON válido:
-`;
+  "intent": "qué quiere el cliente",
+  "emotion": "estado emocional",
+  "urgency": "nivel de urgencia",
+  "complexity": "complejidad del problema",
+  "keyTopics": ["temas principales"],
+  "suggestedActions": ["acciones recomendadas"],
+  "tone": "tono de respuesta recomendado"
+}`;
 
       const response = await generateWithProvider('llm_studio', {
         prompt,
         model: 'gpt-oss-20b',
-        temperature: 0.1,
-        maxTokens: 300,
+        temperature: 0.3,
+        maxTokens: 200,
         workspaceId: 'default'
       });
 
       if (!response.ok) {
-        throw new Error('Error en análisis semántico dinámico');
+        throw new Error('Error en análisis inteligente');
       }
 
       const parsed = JSON.parse(response.text);
       return {
         intent: parsed.intent || 'general_inquiry',
-        sentiment: parsed.sentiment || 'neutral',
+        emotion: parsed.emotion || 'neutral',
         urgency: parsed.urgency || 'normal',
         complexity: parsed.complexity || 'simple',
         keyTopics: parsed.keyTopics || [],
-        emotions: parsed.emotions || [],
-        tone: parsed.tone || 'casual'
+        suggestedActions: parsed.suggestedActions || [],
+        tone: parsed.tone || 'friendly'
       };
 
     } catch (error) {
-      logger.warn('Error en análisis semántico dinámico', { error: error.message });
-      return {
-        intent: 'general_inquiry',
-        sentiment: 'neutral',
-        urgency: 'normal',
-        complexity: 'simple',
-        keyTopics: [],
-        emotions: [],
-        tone: 'casual'
-      };
+      logger.warn('Error en análisis inteligente', { error: error.message });
+      return this.getDefaultAnalysis(message);
     }
   }
 
   /**
-   * Análisis de contexto dinámico
+   * Análisis por defecto
    */
-  async performDynamicContextAnalysis(message) {
-    try {
-      // Extraer entidades dinámicamente
-      const entities = await this.relevanceAnalyzer.extractEntities(message);
-      
-      // Detectar tipo de consulta dinámicamente
-      const queryType = await this.relevanceAnalyzer.detectQueryType(message);
-      
-      return {
-        entities,
-        queryType,
-        hasSpecificEntities: entities.length > 0,
-        entityTypes: [...new Set(entities.map(e => e.type))],
-        confidence: entities.reduce((sum, e) => sum + e.confidence, 0) / entities.length || 0
-      };
-
-    } catch (error) {
-      logger.warn('Error en análisis de contexto dinámico', { error: error.message });
-      return {
-        entities: [],
-        queryType: 'general_inquiry',
-        hasSpecificEntities: false,
-        entityTypes: [],
-        confidence: 0
-      };
-    }
-  }
-
-  /**
-   * Combinar análisis dinámicamente
-   */
-  combineAnalysesDynamically(basic, semantic, context) {
+  getDefaultAnalysis(message) {
+    const text = message.toLowerCase();
+    
     return {
-      // Intent: priorizar semántico, luego contexto, luego básico
-      intent: semantic.intent || context.queryType || basic.intent,
-      
-      // Sentiment: priorizar semántico
-      sentiment: semantic.sentiment || basic.sentiment,
-      
-      // Urgency: combinar análisis dinámicamente
-      urgency: this.combineUrgencyDynamically(basic.urgency, semantic.urgency),
-      
-      // Complexity: usar el más alto dinámicamente
-      complexity: this.getHighestComplexityDynamically(basic.complexity, semantic.complexity),
-      
-      // Entidades del contexto
-      entities: context.entities || [],
-      
-      // Información adicional dinámica
-      keyTopics: [...new Set([...semantic.keyTopics, ...basic.keyTopics])],
-      emotions: [...new Set([...semantic.emotions, ...basic.emotions])],
-      tone: semantic.tone || 'casual',
-      
-      // Métricas básicas
-      wordCount: basic.wordCount,
-      hasQuestions: basic.hasQuestions,
-      hasNumbers: basic.hasNumbers,
-      
-      // Confianza del análisis dinámico
-      confidence: context.confidence || 0.5
+      intent: 'general_inquiry',
+      emotion: 'neutral',
+      urgency: 'normal',
+      complexity: 'simple',
+      keyTopics: [],
+      suggestedActions: ['responder amablemente'],
+      tone: 'friendly'
     };
   }
 
   /**
-   * Combinar niveles de urgencia dinámicamente
+   * Crear prompt inteligente
    */
-  combineUrgencyDynamically(basic, semantic) {
-    const urgencyLevels = { low: 1, normal: 2, high: 3 };
-    const basicLevel = urgencyLevels[basic] || 2;
-    const semanticLevel = urgencyLevels[semantic] || 2;
-    
-    const combinedLevel = Math.max(basicLevel, semanticLevel);
-    return Object.keys(urgencyLevels).find(key => urgencyLevels[key] === combinedLevel);
-  }
+  createIntelligentPrompt(userMessage, context = {}) {
+    const conversationHistory = context.conversationHistory || [];
+    const agentInfo = context.agentInfo || { name: 'Agente', role: 'support' };
+    const customerInfo = context.customerInfo || { name: 'Cliente', status: 'active' };
+    const workspaceContext = context.workspaceContext || { businessType: 'general' };
 
-  /**
-   * Obtener complejidad más alta dinámicamente
-   */
-  getHighestComplexityDynamically(basic, semantic) {
-    const complexityLevels = { simple: 1, medium: 2, complex: 3 };
-    const basicLevel = complexityLevels[basic] || 1;
-    const semanticLevel = complexityLevels[semantic] || 1;
-    
-    const highestLevel = Math.max(basicLevel, semanticLevel);
-    return Object.keys(complexityLevels).find(key => complexityLevels[key] === highestLevel);
-  }
+    const recentHistory = conversationHistory
+      .slice(-5)
+      .map(msg => `${msg.role === 'client' ? 'Cliente' : 'Agente'}: ${msg.message}`)
+      .join('\n');
 
-  /**
-   * Determinar el mejor enfoque dinámicamente
-   */
-  async determineBestApproach(analysis) {
-    try {
-      const approach = {
-        style: 'friendly',
-        focus: 'general',
-        temperature: 0.5,
-        maxTokens: 250,
-        includeContext: true,
-        includeExamples: false,
-        includeSteps: false,
-        includeEmotion: false
-      };
+    return `Eres un copiloto IA inteligente que ayuda a agentes de atención al cliente.
 
-      // Configurar dinámicamente según el intent
-      approach.style = this.determineDynamicStyle(analysis);
-      approach.focus = this.determineDynamicFocus(analysis);
-      approach.temperature = this.determineDynamicTemperature(analysis);
-      approach.maxTokens = this.determineDynamicMaxTokens(analysis);
+CONTEXTO DEL AGENTE:
+- Nombre: ${agentInfo.name}
+- Rol: ${agentInfo.role}
 
-      // Ajustar dinámicamente según urgencia
-      if (analysis.urgency === 'high') {
-        approach.style = 'direct';
-        approach.maxTokens = Math.min(approach.maxTokens, 150);
-        approach.includeSteps = true;
-      }
+CONTEXTO DEL CLIENTE:
+- Nombre: ${customerInfo.name}
+- Estado: ${customerInfo.status}
 
-      // Ajustar dinámicamente según complejidad
-      if (analysis.complexity === 'complex') {
-        approach.maxTokens = Math.max(approach.maxTokens, 400);
-        approach.includeSteps = true;
-      }
+CONTEXTO DE LA EMPRESA:
+- Tipo: ${workspaceContext.businessType}
 
-      // Ajustar dinámicamente según sentimiento
-      if (analysis.sentiment === 'negative') {
-        approach.style = 'empathetic';
-        approach.includeEmotion = true;
-        approach.temperature = Math.min(approach.temperature, 0.3);
-      }
+HISTORIAL RECIENTE:
+${recentHistory || 'Nueva conversación'}
 
-      // Ajustar dinámicamente según entidades
-      if (analysis.entities.length > 0) {
-        approach.includeContext = true;
-        approach.focus = 'specific';
-      }
+MENSAJE ACTUAL DEL CLIENTE:
+"${userMessage}"
 
-      return approach;
+INSTRUCCIONES:
+- Analiza el contexto completo
+- Entiende la situación del cliente
+- Proporciona una respuesta inteligente y útil
+- Considera el historial de la conversación
+- Sé empático y profesional
+- Ofrece soluciones concretas cuando sea apropiado
 
-    } catch (error) {
-      logger.warn('Error determinando enfoque dinámico', { error: error.message });
-      return {
-        style: 'friendly',
-        focus: 'general',
-        temperature: 0.5,
-        maxTokens: 250,
-        includeContext: true,
-        includeExamples: false,
-        includeSteps: false,
-        includeEmotion: false
-      };
-    }
-  }
-
-  /**
-   * Determinar estilo dinámicamente
-   */
-  determineDynamicStyle(analysis) {
-    if (analysis.sentiment === 'negative') return 'empathetic';
-    if (analysis.urgency === 'high') return 'direct';
-    if (analysis.complexity === 'complex') return 'informative';
-    if (analysis.intent === 'technical_support') return 'helpful';
-    if (analysis.intent === 'complaint') return 'empathetic';
-    return 'friendly';
-  }
-
-  /**
-   * Determinar enfoque dinámicamente
-   */
-  determineDynamicFocus(analysis) {
-    if (analysis.intent === 'price_inquiry') return 'pricing';
-    if (analysis.intent === 'product_info') return 'details';
-    if (analysis.intent === 'technical_support') return 'solution';
-    if (analysis.intent === 'complaint') return 'resolution';
-    if (analysis.entities.length > 0) return 'specific';
-    return 'general';
-  }
-
-  /**
-   * Determinar temperatura dinámicamente
-   */
-  determineDynamicTemperature(analysis) {
-    if (analysis.sentiment === 'negative') return 0.2;
-    if (analysis.urgency === 'high') return 0.3;
-    if (analysis.complexity === 'complex') return 0.4;
-    if (analysis.intent === 'technical_support') return 0.2;
-    return 0.5;
-  }
-
-  /**
-   * Determinar max tokens dinámicamente
-   */
-  determineDynamicMaxTokens(analysis) {
-    if (analysis.complexity === 'complex') return 400;
-    if (analysis.urgency === 'high') return 150;
-    if (analysis.intent === 'technical_support') return 300;
-    if (analysis.intent === 'product_info') return 250;
-    return 200;
-  }
-
-  /**
-   * Crear prompt dinámico optimizado
-   */
-  async createOptimizedPrompt(analysis, approach, context) {
-    try {
-      // Crear prompt simple y directo para LLM Studio
-      const prompt = `Eres un asistente de atención al cliente profesional. Tu trabajo es ayudar a los agentes a responder a los clientes de manera efectiva.
-
-MENSAJE DEL CLIENTE:
-"${analysis.userMessage || 'Mensaje del usuario'}"
-
-RESPUESTA SUGERIDA PARA EL AGENTE:
-`;
-      
-      logger.debug('Prompt dinámico simplificado creado', {
-        intent: analysis.intent,
-        length: prompt.length
-      });
-
-      return prompt;
-
-    } catch (error) {
-      logger.warn('Error creando prompt dinámico', { error: error.message });
-      return this.createDynamicFallbackPrompt(analysis);
-    }
-  }
-
-  /**
-   * Construir prompt base dinámico
-   */
-  buildDynamicBasePrompt(analysis, approach) {
-    return `Eres un asistente de atención al cliente profesional. Tu trabajo es ayudar a los agentes a responder a los clientes de manera efectiva.
-
+RESPUESTA INTELIGENTE:
 `;
   }
 
   /**
-   * Generar rol dinámicamente
+   * Crear prompt de fallback
    */
-  generateDynamicRole(analysis) {
-    const roles = {
-      price_inquiry: 'Eres un experto en precios y cotizaciones que proporciona información precisa y detallada sobre costos.',
-      product_info: 'Eres un especialista en productos que ofrece información técnica y características detalladas.',
-      technical_support: 'Eres un técnico de soporte experto en resolver problemas y proporcionar soluciones efectivas.',
-      complaint: 'Eres un representante de atención al cliente empático que se enfoca en resolver problemas y satisfacer al cliente.',
-      general_inquiry: 'Eres un asistente inteligente y amigable que ayuda con consultas generales de manera clara y útil.'
-    };
-    
-    return roles[analysis.intent] || roles.general_inquiry;
-  }
-
-  /**
-   * Generar instrucciones de estilo dinámicamente
-   */
-  generateDynamicStyleInstructions(style) {
-    const styles = {
-      precise: 'Sé preciso y directo. Proporciona información exacta sin rodeos.',
-      informative: 'Sé informativo y detallado. Explica conceptos de manera clara.',
-      helpful: 'Sé útil y orientado a soluciones. Enfócate en resolver el problema.',
-      empathetic: 'Sé empático y comprensivo. Reconoce las emociones del usuario.',
-      friendly: 'Sé amigable y cercano. Mantén un tono conversacional.',
-      direct: 'Sé directo y conciso. Ve al grano rápidamente.'
-    };
-    
-    return styles[style] || styles.friendly;
-  }
-
-  /**
-   * Generar instrucciones de enfoque dinámicamente
-   */
-  generateDynamicFocusInstructions(focus) {
-    const focuses = {
-      pricing: 'Enfócate en información de precios, costos y cotizaciones.',
-      details: 'Proporciona detalles técnicos y características específicas.',
-      solution: 'Enfócate en resolver el problema y proporcionar soluciones.',
-      resolution: 'Enfócate en resolver la situación y satisfacer al cliente.',
-      specific: 'Enfócate en los detalles específicos mencionados en la consulta.',
-      general: 'Proporciona información general y útil.'
-    };
-    
-    return focuses[focus] || focuses.general;
-  }
-
-  /**
-   * Agregar contexto dinámicamente al prompt
-   */
-  addDynamicContextToPrompt(context, analysis) {
-    let contextSection = '\nCONTEXTO RELEVANTE:\n';
-    
-    // Agregar entidades identificadas dinámicamente
-    if (analysis.entities.length > 0) {
-      contextSection += `Entidades identificadas: ${analysis.entities.map(e => `${e.value} (${e.type})`).join(', ')}\n`;
-    }
-    
-    // Agregar temas clave dinámicamente
-    if (analysis.keyTopics.length > 0) {
-      contextSection += `Temas clave: ${analysis.keyTopics.join(', ')}\n`;
-    }
-    
-    // Agregar información de conversación dinámicamente si existe
-    if (context.conversationMemory) {
-      const recentMessages = context.conversationMemory.recentMessages || [];
-      if (recentMessages.length > 0) {
-        contextSection += '\nHISTORIAL RECIENTE:\n';
-        recentMessages.slice(-3).forEach(msg => {
-          contextSection += `${msg.role === 'client' ? 'Cliente' : 'Agente'}: ${msg.message}\n`;
-        });
-      }
-    }
-    
-    return contextSection;
-  }
-
-  /**
-   * Agregar pasos dinámicamente al prompt
-   */
-  addDynamicStepsToPrompt(analysis) {
-    const dynamicInstructions = {
-      price_inquiry: 'Proporciona el precio de manera clara y, si es posible, incluye opciones o variaciones.',
-      product_info: 'Explica las características principales y, si es relevante, menciona beneficios y usos.',
-      technical_support: 'Proporciona pasos específicos para resolver el problema y, si es necesario, menciona recursos adicionales.',
-      complaint: 'Reconoce el problema, muestra empatía y proporciona una solución o próximos pasos claros.',
-      general_inquiry: 'Proporciona una respuesta útil y clara basada en la consulta específica.'
-    };
-    
-    const instruction = dynamicInstructions[analysis.intent] || dynamicInstructions.general_inquiry;
-    return `\nINSTRUCCIONES ESPECÍFICAS: ${instruction}\n`;
-  }
-
-  /**
-   * Agregar instrucciones emocionales dinámicamente
-   */
-  addDynamicEmotionalInstructions(analysis) {
-    const dynamicInstructions = {
-      negative: 'El usuario parece estar molesto o frustrado. Muestra empatía y comprensión. Reconoce sus sentimientos antes de proporcionar una solución.',
-      positive: 'El usuario está satisfecho. Mantén el tono positivo y refuerza la buena experiencia.',
-      neutral: 'Mantén un tono profesional pero amigable.'
-    };
-    
-    const instruction = dynamicInstructions[analysis.sentiment] || dynamicInstructions.neutral;
-    return `\nCONSIDERACIONES EMOCIONALES: ${instruction}\n`;
-  }
-
-  /**
-   * Finalizar prompt dinámicamente
-   */
-  finalizeDynamicPrompt(analysis, approach) {
-    return `
-Eres un asistente de atención al cliente. Responde al siguiente mensaje de manera útil y profesional.
+  createFallbackPrompt(userMessage) {
+    return `Eres un asistente de atención al cliente. Responde al siguiente mensaje de manera útil y profesional.
 
 MENSAJE DEL CLIENTE:
-"${analysis.userMessage || 'Mensaje del usuario'}"
-
-RESPUESTA SUGERIDA PARA EL AGENTE:
-`;
-  }
-
-  /**
-   * Crear prompt de fallback dinámico
-   */
-  createDynamicFallbackPrompt(analysis) {
-    return `
-Eres un asistente de atención al cliente. Responde al siguiente mensaje de manera útil y profesional.
-
-MENSAJE DEL CLIENTE:
-"${analysis.userMessage || 'Mensaje del usuario'}"
+"${userMessage}"
 
 RESPUESTA SUGERIDA PARA EL AGENTE:
 `;

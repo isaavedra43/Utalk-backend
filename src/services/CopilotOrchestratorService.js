@@ -1,24 +1,14 @@
 /**
- * 🕹️ COPILOT ORCHESTRATOR SERVICE - COMPLETAMENTE DINÁMICO
+ * 🧠 COPILOT ORCHESTRATOR SERVICE - IA INTELIGENTE
  *
- * Orquesta todos los servicios del copiloto para procesar un mensaje end-to-end
- * usando la infraestructura existente sin duplicar lógica.
- * TODO DINÁMICO - SIN CONTENIDO FIJO
+ * Orquesta el copiloto IA para generar respuestas inteligentes y contextuales
+ * usando una sola llamada principal con contexto completo y rico.
  *
- * @version 2.0.0 COMPLETAMENTE DINÁMICO
+ * @version 3.0.0 IA INTELIGENTE
  */
 
 const { copilotCacheService } = require('./CopilotCacheService');
 const { copilotMemoryService } = require('./CopilotMemoryService');
-const { intelligentPromptService } = require('./IntelligentPromptService');
-const { requestOptimizationService } = require('./RequestOptimizationService');
-const { needsPredictionService } = require('./NeedsPredictionService');
-const { agentPersonalizationService } = require('./AgentPersonalizationService');
-const { professionalResponseService } = require('./ProfessionalResponseService');
-const { conversationAnalysisService } = require('./ConversationAnalysisService');
-const { customerServiceStrategyService } = require('./CustomerServiceStrategyService');
-const { experienceImprovementService } = require('./ExperienceImprovementService');
-const { copilotMetricsService } = require('./CopilotMetricsService');
 const { generateWithProvider, isProviderAvailable } = require('../ai/vendors');
 const logger = require('../utils/logger');
 
@@ -27,265 +17,325 @@ class CopilotOrchestratorService {
     const start = Date.now();
 
     try {
-      // 1. Verificar cache dinámicamente
+      // 1. Verificar cache inteligente
       const cached = await copilotCacheService.getCachedResponse(userMessage, { conversationId, agentId });
       if (cached) {
-        await copilotMetricsService.trackResponseTime(start, Date.now(), true);
-        await copilotMetricsService.trackUsage(agentId, 'chat_cache');
+        logger.info('✅ Respuesta cacheada encontrada', { conversationId, agentId });
         return { ok: true, text: cached, source: 'cache' };
       }
 
-      // 2. Obtener memoria de conversación dinámicamente
-      const conversationMemory = await copilotMemoryService.getConversationMemory(conversationId, userMessage);
-
-      // 3. Análisis dinámico del mensaje
-      const analysis = await intelligentPromptService.analyzeUserMessage(userMessage);
-      analysis.userMessage = userMessage;
-      const approach = await intelligentPromptService.determineBestApproach(analysis);
-
-      // 4. Optimización dinámica del contexto
-      const compressedContext = await requestOptimizationService.compressContext(conversationMemory);
-      const optimizedContext = await requestOptimizationService.optimizeTokens(compressedContext);
-      const estimatedTokens = Math.min((approach.maxTokens || 300) + (analysis.wordCount || 0), 600);
-      const model = await requestOptimizationService.selectBestModel(analysis.intent, estimatedTokens);
-      const optimalConfig = await requestOptimizationService.getOptimalConfig(analysis.intent);
-
-      // 5. Crear prompt dinámico optimizado
-      const prompt = await intelligentPromptService.createOptimizedPrompt(analysis, { ...approach, ...optimalConfig }, { conversationMemory: optimizedContext });
-
-      // 6. Generar respuesta con LLM Studio (preferido) o fallback a OpenAI
+      // 2. Construir contexto completo e inteligente
+      const intelligentContext = await this.buildIntelligentContext(conversationId, agentId, workspaceId);
+      
+      // 3. Analizar mensaje inteligentemente
+      const messageAnalysis = await this.analyzeMessageIntelligence(userMessage, intelligentContext);
+      
+      // 4. Crear prompt inteligente
+      const intelligentPrompt = this.createIntelligentPrompt(userMessage, intelligentContext, messageAnalysis);
+      
+      // 5. Generar respuesta con IA inteligente
       let llmResponse = await generateWithProvider('llm_studio', {
-        prompt,
-        model,
-        temperature: optimalConfig.temperature,
-        maxTokens: optimalConfig.maxTokens,
+        prompt: intelligentPrompt,
+        model: 'gpt-oss-20b',
+        temperature: 0.7, // Más creatividad para respuestas inteligentes
+        maxTokens: 400,
         workspaceId,
         conversationId
       });
 
+      // 6. Fallback a OpenAI si LLM Studio falla
       if (!llmResponse.ok && isProviderAvailable('openai')) {
         logger.warn('LLM Studio falló, aplicando fallback a OpenAI');
         llmResponse = await generateWithProvider('openai', {
-          prompt,
+          prompt: intelligentPrompt,
           model: 'gpt-4o-mini',
-          temperature: optimalConfig.temperature,
-          maxTokens: optimalConfig.maxTokens,
+          temperature: 0.7,
+          maxTokens: 400,
           workspaceId,
           conversationId
         });
       }
 
       if (!llmResponse.ok) {
-        await copilotMetricsService.trackResponseTime(start, Date.now(), false);
-        await copilotMetricsService.trackUsage(agentId, 'chat_error');
-        return { ok: false, error: llmResponse.message || 'LLM error' };
+        logger.error('❌ Error en generación de respuesta IA', { error: llmResponse.message });
+        return { ok: false, error: llmResponse.message || 'Error de IA' };
       }
 
-      // 7. Procesar respuesta dinámicamente
-      let finalText = llmResponse.text;
+      // 7. Enriquecer respuesta con insights inteligentes
+      const enrichedResponse = await this.enrichResponseWithInsights(
+        llmResponse.text, 
+        messageAnalysis, 
+        intelligentContext
+      );
 
-      // 8. Análisis dinámico de necesidades (solo si es relevante)
-      const needsAnalysis = await this.performDynamicNeedsAnalysis(userMessage, analysis);
-      
-      // 9. Optimización dinámica de respuesta profesional
-      const professionalOptimization = await this.performDynamicProfessionalOptimization(finalText, analysis, conversationMemory);
-      if (professionalOptimization) {
-        finalText = professionalOptimization;
-      }
+      // 8. Cache y memoria inteligente
+      await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, enrichedResponse);
+      await copilotMemoryService.addToMemory(conversationId, userMessage, enrichedResponse);
 
-      // 10. Análisis dinámico de conversación (solo si es relevante)
-      const conversationInsights = await this.performDynamicConversationAnalysis(conversationMemory, analysis);
-      
-      // 11. Estrategias dinámicas de servicio al cliente (solo si es relevante)
-      const serviceStrategies = await this.performDynamicServiceStrategies(analysis);
-      
-      // 12. Mejoras dinámicas de experiencia (solo si es relevante)
-      const experienceImprovements = await this.performDynamicExperienceImprovements(conversationMemory, analysis);
-
-      // 13. Generar anexo dinámico para el agente (solo si hay información relevante)
-      const dynamicAgentAnnex = this.generateDynamicAgentAnnex(needsAnalysis, conversationInsights, serviceStrategies, experienceImprovements);
-      
-      if (dynamicAgentAnnex.length > 0) {
-        finalText += '\n\n---\nNotas para el agente (no enviar al cliente):\n' + dynamicAgentAnnex.join('\n\n');
-      }
-
-      // 14. Personalización dinámica para el agente
-      finalText = await agentPersonalizationService.adaptResponseToAgent(finalText, agentId);
-
-      // 15. Cache y memoria dinámicos
-      await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, finalText);
-      await copilotMemoryService.addToMemory(conversationId, userMessage, finalText);
-
-      // 16. Métricas dinámicas
-      await copilotMetricsService.trackResponseTime(start, Date.now(), true);
-      await copilotMetricsService.trackUsage(agentId, 'chat');
-      await copilotMetricsService.trackAccuracy(userMessage, finalText, null);
+      // 9. Log de éxito
+      const latencyMs = Date.now() - start;
+      logger.info('✅ Respuesta IA inteligente generada', {
+        conversationId,
+        agentId,
+        responseLength: enrichedResponse.length,
+        latencyMs,
+        model: llmResponse.model || 'llm_studio'
+      });
 
       return { 
         ok: true, 
-        text: finalText, 
-        model, 
-        usage: llmResponse.usage, 
-        suggestions: needsAnalysis.proactiveSuggestions || []
+        text: enrichedResponse, 
+        model: llmResponse.model || 'llm_studio',
+        usage: llmResponse.usage,
+        suggestions: messageAnalysis.suggestedActions || []
       };
 
     } catch (error) {
-      await copilotMetricsService.trackResponseTime(start, Date.now(), false);
-      logger.error('Error en orquestador dinámico del copiloto', { error: error.message });
+      logger.error('❌ Error en orquestador IA inteligente', { error: error.message });
       return { ok: false, error: error.message };
     }
   }
 
   /**
-   * Análisis dinámico de necesidades
+   * Construir contexto completo e inteligente
    */
-  async performDynamicNeedsAnalysis(userMessage, analysis) {
+  async buildIntelligentContext(conversationId, agentId, workspaceId) {
     try {
-      // Solo analizar necesidades si el mensaje es complejo o requiere análisis
-      if (analysis.complexity === 'simple' && analysis.intent === 'general_inquiry') {
-        return { proactiveSuggestions: [] };
-      }
-
-      const patterns = await needsPredictionService.analyzeConversationPatterns(userMessage);
-      const implicitNeeds = await needsPredictionService.detectImplicitNeeds(userMessage, patterns);
-      const futureNeeds = await needsPredictionService.predictFutureNeeds(implicitNeeds);
-      const proactiveSuggestions = await needsPredictionService.generateProactiveSuggestions(futureNeeds);
+      // Obtener historial de conversación
+      const conversationHistory = await this.getConversationHistory(conversationId);
+      
+      // Obtener información del agente
+      const agentInfo = await this.getAgentInfo(agentId);
+      
+      // Obtener información del cliente
+      const customerInfo = await this.getCustomerInfo(conversationId);
+      
+      // Obtener contexto del workspace
+      const workspaceContext = await this.getWorkspaceContext(workspaceId);
 
       return {
-        patterns,
-        implicitNeeds,
-        futureNeeds,
-        proactiveSuggestions
+        conversationHistory,
+        agentInfo,
+        customerInfo,
+        workspaceContext,
+        conversationId,
+        agentId,
+        workspaceId
       };
     } catch (error) {
-      logger.warn('Error en análisis dinámico de necesidades', { error: error.message });
-      return { proactiveSuggestions: [] };
+      logger.warn('Error construyendo contexto inteligente', { error: error.message });
+      return {
+        conversationHistory: [],
+        agentInfo: { name: 'Agente', role: 'support' },
+        customerInfo: { name: 'Cliente', history: [] },
+        workspaceContext: { businessType: 'general' },
+        conversationId,
+        agentId,
+        workspaceId
+      };
     }
   }
 
   /**
-   * Optimización dinámica de respuesta profesional
+   * Obtener historial de conversación
    */
-  async performDynamicProfessionalOptimization(finalText, analysis, conversationMemory) {
+  async getConversationHistory(conversationId) {
     try {
-      // Solo optimizar si es necesario
-      if (analysis.complexity === 'simple' && analysis.sentiment === 'positive') {
-        return null; // No optimizar respuestas simples y positivas
-      }
+      const history = await copilotMemoryService.getConversationMemory(conversationId);
+      return history.recentMessages || [];
+    } catch (error) {
+      logger.warn('Error obteniendo historial', { error: error.message });
+      return [];
+    }
+  }
 
-      const professional = await professionalResponseService.generateProfessionalResponse({ conversationMemory, analysis });
-      if (professional) {
-        return await professionalResponseService.optimizeExistingResponse(professional);
+  /**
+   * Obtener información del agente
+   */
+  async getAgentInfo(agentId) {
+    try {
+      // Aquí podrías obtener información real del agente desde la base de datos
+      return {
+        id: agentId,
+        name: 'Agente de Soporte',
+        role: 'customer_service',
+        communicationStyle: 'professional_friendly'
+      };
+    } catch (error) {
+      logger.warn('Error obteniendo info del agente', { error: error.message });
+      return { name: 'Agente', role: 'support' };
+    }
+  }
+
+  /**
+   * Obtener información del cliente
+   */
+  async getCustomerInfo(conversationId) {
+    try {
+      // Aquí podrías obtener información real del cliente desde la base de datos
+      return {
+        name: 'Cliente',
+        history: [],
+        status: 'active'
+      };
+    } catch (error) {
+      logger.warn('Error obteniendo info del cliente', { error: error.message });
+      return { name: 'Cliente', history: [] };
+    }
+  }
+
+  /**
+   * Obtener contexto del workspace
+   */
+  async getWorkspaceContext(workspaceId) {
+    try {
+      // Aquí podrías obtener información real del workspace desde la base de datos
+      return {
+        businessType: 'customer_service',
+        products: ['servicios generales'],
+        policies: ['atención profesional']
+      };
+    } catch (error) {
+      logger.warn('Error obteniendo contexto del workspace', { error: error.message });
+      return { businessType: 'general' };
+    }
+  }
+
+  /**
+   * Analizar mensaje inteligentemente
+   */
+  async analyzeMessageIntelligence(message, context) {
+    try {
+      const prompt = `Analiza este mensaje en el contexto de atención al cliente:
+
+MENSAJE: "${message}"
+
+CONTEXTO:
+- Historial de conversación: ${context.conversationHistory.length} mensajes
+- Agente: ${context.agentInfo.name} (${context.agentInfo.role})
+- Cliente: ${context.customerInfo.name}
+
+Proporciona análisis en JSON:
+{
+  "intent": "qué quiere el cliente",
+  "emotion": "estado emocional",
+  "urgency": "nivel de urgencia",
+  "complexity": "complejidad del problema",
+  "hiddenNeeds": ["necesidades no expresadas"],
+  "suggestedActions": ["acciones recomendadas"],
+  "tone": "tono de respuesta recomendado"
+}`;
+
+      const response = await generateWithProvider('llm_studio', {
+        prompt,
+        model: 'gpt-oss-20b',
+        temperature: 0.3,
+        maxTokens: 200,
+        workspaceId: context.workspaceId
+      });
+
+      if (response.ok) {
+        return JSON.parse(response.text);
+      } else {
+        return this.getDefaultAnalysis(message);
+      }
+    } catch (error) {
+      logger.warn('Error analizando mensaje', { error: error.message });
+      return this.getDefaultAnalysis(message);
+    }
+  }
+
+  /**
+   * Análisis por defecto
+   */
+  getDefaultAnalysis(message) {
+    const text = message.toLowerCase();
+    
+    return {
+      intent: 'general_inquiry',
+      emotion: 'neutral',
+      urgency: 'normal',
+      complexity: 'simple',
+      hiddenNeeds: [],
+      suggestedActions: ['responder amablemente'],
+      tone: 'friendly'
+    };
+  }
+
+  /**
+   * Crear prompt inteligente
+   */
+  createIntelligentPrompt(userMessage, context, analysis) {
+    const conversationHistory = context.conversationHistory
+      .slice(-5) // Últimos 5 mensajes
+      .map(msg => `${msg.role === 'client' ? 'Cliente' : 'Agente'}: ${msg.message}`)
+      .join('\n');
+
+    return `Eres un copiloto IA inteligente que ayuda a agentes de atención al cliente.
+
+CONTEXTO DEL AGENTE:
+- Nombre: ${context.agentInfo.name}
+- Rol: ${context.agentInfo.role}
+- Estilo: ${context.agentInfo.communicationStyle}
+
+CONTEXTO DEL CLIENTE:
+- Nombre: ${context.customerInfo.name}
+- Estado: ${context.customerInfo.status}
+
+CONTEXTO DE LA EMPRESA:
+- Tipo: ${context.workspaceContext.businessType}
+- Productos: ${context.workspaceContext.products.join(', ')}
+
+ANÁLISIS DEL MENSAJE:
+- Intención: ${analysis.intent}
+- Emoción: ${analysis.emotion}
+- Urgencia: ${analysis.urgency}
+- Complejidad: ${analysis.complexity}
+- Necesidades ocultas: ${analysis.hiddenNeeds.join(', ')}
+
+HISTORIAL RECIENTE:
+${conversationHistory || 'Nueva conversación'}
+
+MENSAJE ACTUAL DEL CLIENTE:
+"${userMessage}"
+
+INSTRUCCIONES:
+- Analiza el contexto completo
+- Entiende la situación del cliente
+- Proporciona una respuesta inteligente y útil
+- Considera el historial de la conversación
+- Adapta tu respuesta al estilo del agente
+- Sé empático y profesional
+- Ofrece soluciones concretas cuando sea apropiado
+- Tono recomendado: ${analysis.tone}
+
+RESPUESTA INTELIGENTE:
+`;
+  }
+
+  /**
+   * Enriquecer respuesta con insights
+   */
+  async enrichResponseWithInsights(response, analysis, context) {
+    let enrichedResponse = response;
+
+    // Agregar insights si son relevantes
+    if (analysis.hiddenNeeds.length > 0 || analysis.suggestedActions.length > 0) {
+      enrichedResponse += `\n\n---\nINSIGHTS PARA EL AGENTE:\n`;
+      
+      if (analysis.hiddenNeeds.length > 0) {
+        enrichedResponse += `• Necesidades detectadas: ${analysis.hiddenNeeds.join(', ')}\n`;
       }
       
-      return await professionalResponseService.optimizeExistingResponse(finalText);
-    } catch (error) {
-      logger.warn('Error en optimización dinámica profesional', { error: error.message });
-      return null;
-    }
-  }
-
-  /**
-   * Análisis dinámico de conversación
-   */
-  async performDynamicConversationAnalysis(conversationMemory, analysis) {
-    try {
-      // Solo analizar si hay suficiente contexto
-      if (!conversationMemory || !conversationMemory.recentMessages || conversationMemory.recentMessages.length < 2) {
-        return { opportunities: [] };
+      if (analysis.suggestedActions.length > 0) {
+        enrichedResponse += `• Acciones sugeridas: ${analysis.suggestedActions.join(', ')}\n`;
       }
-
-      const convAnalysis = await conversationAnalysisService.analyzeTone(conversationMemory);
-      const convOpportunities = await conversationAnalysisService.identifyOpportunities(conversationMemory);
-
-      return {
-        tone: convAnalysis,
-        opportunities: convOpportunities
-      };
-    } catch (error) {
-      logger.warn('Error en análisis dinámico de conversación', { error: error.message });
-      return { opportunities: [] };
-    }
-  }
-
-  /**
-   * Estrategias dinámicas de servicio al cliente
-   */
-  async performDynamicServiceStrategies(analysis) {
-    try {
-      // Solo generar estrategias para casos complejos o negativos
-      if (analysis.complexity === 'simple' && analysis.sentiment !== 'negative') {
-        return { strategies: [], actionPlan: [] };
-      }
-
-      const strategies = await customerServiceStrategyService.suggestStrategies({ analysis });
-      const actionPlan = await customerServiceStrategyService.generateActionPlan({ analysis });
-
-      return {
-        strategies,
-        actionPlan
-      };
-    } catch (error) {
-      logger.warn('Error en estrategias dinámicas de servicio', { error: error.message });
-      return { strategies: [], actionPlan: [] };
-    }
-  }
-
-  /**
-   * Mejoras dinámicas de experiencia
-   */
-  async performDynamicExperienceImprovements(conversationMemory, analysis) {
-    try {
-      // Solo analizar mejoras para conversaciones complejas
-      if (analysis.complexity === 'simple') {
-        return { gaps: [], improvements: [] };
-      }
-
-      const gaps = await experienceImprovementService.identifyExperienceGaps(conversationMemory);
-      const improvements = await experienceImprovementService.suggestImprovements({ analysis });
-
-      return {
-        gaps,
-        improvements
-      };
-    } catch (error) {
-      logger.warn('Error en mejoras dinámicas de experiencia', { error: error.message });
-      return { gaps: [], improvements: [] };
-    }
-  }
-
-  /**
-   * Generar anexo dinámico para el agente
-   */
-  generateDynamicAgentAnnex(needsAnalysis, conversationInsights, serviceStrategies, experienceImprovements) {
-    const agentAnnex = [];
-
-    // Solo agregar información relevante y útil
-    if (needsAnalysis.proactiveSuggestions && needsAnalysis.proactiveSuggestions.length > 0) {
-      agentAnnex.push('Sugerencias proactivas:\n- ' + needsAnalysis.proactiveSuggestions.join('\n- '));
+      
+      enrichedResponse += `• Tono recomendado: ${analysis.tone}\n`;
+      enrichedResponse += `• Urgencia: ${analysis.urgency}\n`;
     }
 
-    if (conversationInsights.opportunities && conversationInsights.opportunities.length > 0) {
-      agentAnnex.push('Oportunidades:\n- ' + conversationInsights.opportunities.join('\n- '));
-    }
-
-    if (serviceStrategies.strategies && serviceStrategies.strategies.length > 0) {
-      agentAnnex.push('Estrategias:\n- ' + serviceStrategies.strategies.join('\n- '));
-    }
-
-    if (serviceStrategies.actionPlan && serviceStrategies.actionPlan.length > 0) {
-      agentAnnex.push('Plan de acción:\n' + serviceStrategies.actionPlan.join('\n'));
-    }
-
-    if (experienceImprovements.gaps && experienceImprovements.gaps.length > 0) {
-      agentAnnex.push('Áreas de mejora:\n- ' + experienceImprovements.gaps.join('\n- '));
-    }
-
-    if (experienceImprovements.improvements && experienceImprovements.improvements.length > 0) {
-      agentAnnex.push('Sugerencias de mejora:\n- ' + experienceImprovements.improvements.join('\n- '));
-    }
-
-    return agentAnnex;
+    return enrichedResponse;
   }
 }
 
