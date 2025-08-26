@@ -33,7 +33,7 @@ class CopilotOrchestratorService {
         model: 'gpt-oss-20b',
         temperature: 0.7,
         maxTokens: 200,
-        workspaceId: workspaceId || 'default',
+        workspaceId,
         conversationId
       });
 
@@ -45,7 +45,7 @@ class CopilotOrchestratorService {
           model: 'gpt-4o-mini',
           temperature: 0.7,
           maxTokens: 200,
-          workspaceId: workspaceId || 'default',
+          workspaceId,
           conversationId
         });
       }

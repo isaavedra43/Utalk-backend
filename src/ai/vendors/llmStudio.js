@@ -311,7 +311,7 @@ async function generateWithLLMStudio(params) {
     const clampedMaxTokens = Math.min(maxTokens, LLM_STUDIO_CONFIG.maxTokensOut);
 
     // Log de inicio
-    aiLogger.logAIStart(workspaceId || 'default', 'llm_studio_generate', {
+    aiLogger.logAIStart(workspaceId, 'llm_studio_generate', {
       model,
       temperature: clampedTemperature,
       maxTokens: clampedMaxTokens,
@@ -371,7 +371,7 @@ async function generateWithLLMStudio(params) {
 
     // Registrar éxito
     circuitBreaker.recordSuccess();
-    aiLogger.logAISuccess(workspaceId || 'default', 'llm_studio_generate', {
+    aiLogger.logAISuccess(workspaceId, 'llm_studio_generate', {
       model,
       tokensIn: estimatedTokensIn,
       tokensOut: estimatedTokensOut,
@@ -403,7 +403,7 @@ async function generateWithLLMStudio(params) {
     const latencyMs = Date.now() - startTime;
     
     circuitBreaker.recordFailure();
-    aiLogger.logAIError(workspaceId || 'default', 'llm_studio_generate', {
+    aiLogger.logAIError(workspaceId, 'llm_studio_generate', {
       error: error.message,
       latencyMs,
       conversationId: params.conversationId
