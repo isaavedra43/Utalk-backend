@@ -78,32 +78,46 @@ class CopilotOrchestratorService {
 
       let finalText = llmResponse.text;
 
+      // Análisis dinámico del contexto para mejorar la respuesta
       const patterns = await needsPredictionService.analyzeConversationPatterns(userMessage);
       const implicitNeeds = await needsPredictionService.detectImplicitNeeds(userMessage, patterns);
       const futureNeeds = await needsPredictionService.predictFutureNeeds(implicitNeeds);
       const proactiveSuggestions = await needsPredictionService.generateProactiveSuggestions(futureNeeds);
 
+      // Optimizar respuesta profesional dinámicamente
       const professional = await professionalResponseService.generateProfessionalResponse({ conversationMemory, analysis });
       if (professional) finalText = professional;
       finalText = await professionalResponseService.optimizeExistingResponse(finalText);
 
+      // Análisis dinámico de la conversación
       const convAnalysis = await conversationAnalysisService.analyzeTone(conversationMemory);
       const convOpportunities = await conversationAnalysisService.identifyOpportunities(conversationMemory);
 
+      // Estrategias dinámicas basadas en el contexto
       const strategies = await customerServiceStrategyService.suggestStrategies({ analysis });
       const actionPlan = await customerServiceStrategyService.generateActionPlan({ analysis });
 
+      // Mejoras dinámicas de experiencia
       const gaps = await experienceImprovementService.identifyExperienceGaps(conversationMemory);
       const improvements = await experienceImprovementService.suggestImprovements({ analysis });
 
-      const agentAnnex = [];
-      if (proactiveSuggestions.length) agentAnnex.push('Sugerencias proactivas:\n- ' + proactiveSuggestions.join('\n- '));
-      if (convOpportunities.length) agentAnnex.push('Oportunidades:\n- ' + convOpportunities.join('\n- '));
-      if (strategies.length) agentAnnex.push('Estrategias:\n- ' + strategies.join('\n- '));
-      if (actionPlan.length) agentAnnex.push('Plan de acción:\n' + actionPlan.join('\n'));
-      if (gaps.length || improvements.length) agentAnnex.push('Mejoras:\n- ' + [...gaps, ...improvements].join('\n- '));
-      if (agentAnnex.length) finalText += '\n\n---\nNotas para el agente (no enviar al cliente):\n' + agentAnnex.join('\n\n');
+      // Generar anexos dinámicos solo si hay información relevante
+      const dynamicAnnex = generateDynamicAnnex({
+        proactiveSuggestions,
+        convOpportunities,
+        strategies,
+        actionPlan,
+        gaps,
+        improvements,
+        analysis
+      });
 
+      // Agregar anexos dinámicos solo si son relevantes
+      if (dynamicAnnex.length > 0) {
+        finalText += '\n\n---\nNotas para el agente (no enviar al cliente):\n' + dynamicAnnex.join('\n\n');
+      }
+
+      // Personalizar respuesta para el agente dinámicamente
       finalText = await agentPersonalizationService.adaptResponseToAgent(finalText, agentId);
 
       await copilotCacheService.cacheResponse(userMessage, { conversationId, agentId }, finalText);
@@ -120,6 +134,51 @@ class CopilotOrchestratorService {
       logger.error('Error en orquestador del copiloto', { error: error.message });
       return { ok: false, error: error.message };
     }
+  }
+
+  /**
+   * Generar anexos dinámicos basados en el contexto real
+   */
+  generateDynamicAnnex(context) {
+    const annex = [];
+    
+    // Solo agregar anexos si hay información relevante y útil
+    if (context.proactiveSuggestions && context.proactiveSuggestions.length > 0) {
+      const relevantSuggestions = context.proactiveSuggestions.filter(s => s.length > 10);
+      if (relevantSuggestions.length > 0) {
+        annex.push('Sugerencias proactivas:\n- ' + relevantSuggestions.join('\n- '));
+      }
+    }
+    
+    if (context.convOpportunities && context.convOpportunities.length > 0) {
+      const relevantOpportunities = context.convOpportunities.filter(o => o.length > 10);
+      if (relevantOpportunities.length > 0) {
+        annex.push('Oportunidades:\n- ' + relevantOpportunities.join('\n- '));
+      }
+    }
+    
+    if (context.strategies && context.strategies.length > 0) {
+      const relevantStrategies = context.strategies.filter(s => s.length > 10);
+      if (relevantStrategies.length > 0) {
+        annex.push('Estrategias:\n- ' + relevantStrategies.join('\n- '));
+      }
+    }
+    
+    if (context.actionPlan && context.actionPlan.length > 0) {
+      const relevantActions = context.actionPlan.filter(a => a.length > 10);
+      if (relevantActions.length > 0) {
+        annex.push('Plan de acción:\n' + relevantActions.join('\n'));
+      }
+    }
+    
+    if ((context.gaps && context.gaps.length > 0) || (context.improvements && context.improvements.length > 0)) {
+      const allImprovements = [...(context.gaps || []), ...(context.improvements || [])].filter(i => i.length > 10);
+      if (allImprovements.length > 0) {
+        annex.push('Mejoras:\n- ' + allImprovements.join('\n- '));
+      }
+    }
+    
+    return annex;
   }
 }
 

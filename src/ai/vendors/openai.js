@@ -226,7 +226,7 @@ function sanitizeOutput(text) {
 }
 
 /**
- * Construir prompt con guardrails
+ * Construir prompt dinámico con guardrails
  */
 function buildPromptWithGuardrails(context, config) {
   const basePrompt = `Eres un asistente de atención al cliente profesional. 
@@ -241,6 +241,7 @@ Genera una respuesta sugerida para el agente que sea:
 - Relevante al contexto de la conversación
 - Máximo ${config.maxTokens} palabras
 - En español
+- DIRECTA al mensaje del cliente sin inventar conversaciones
 
 GUARDRAILS IMPORTANTES:
 - NO inventes precios, productos o servicios específicos
@@ -248,6 +249,7 @@ GUARDRAILS IMPORTANTES:
 - Mantén un tono ${config.policies?.tono || 'profesional'}
 - No uses lenguaje técnico complejo
 - Sé conciso pero completo
+- Responde DIRECTAMENTE al mensaje sin generar contexto ficticio
 
 Respuesta sugerida:`;
 

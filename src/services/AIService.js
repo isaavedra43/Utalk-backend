@@ -366,12 +366,12 @@ async function generateRealSuggestion(context, contextSummary, config) {
 }
 
 /**
- * Generar sugerencia FAKE basada en el contexto
+ * Generar sugerencia FAKE basada en el contexto dinámico
  */
 async function generateFakeSuggestion(context, contextSummary, config) {
   const suggestionId = uuidv4();
   
-  // Analizar el contexto para generar sugerencia contextual
+  // Analizar el contexto para generar sugerencia contextual dinámica
   const messages = context.messages;
   const lastMessage = messages[messages.length - 1];
   
@@ -379,33 +379,59 @@ async function generateFakeSuggestion(context, contextSummary, config) {
   let confidence = 0.8;
   let tipo = 'respuesta_general';
 
-  // Lógica simple para generar sugerencias contextuales
+  // Lógica dinámica para generar sugerencias contextuales
   if (messages.length === 1) {
-    // Primer mensaje
-    suggestedText = '¡Hola! Gracias por contactarnos. ¿En qué puedo ayudarte hoy?';
-    tipo = 'saludo_inicial';
-    confidence = 0.9;
-  } else if (lastMessage.content.toLowerCase().includes('precio') || lastMessage.content.toLowerCase().includes('costo')) {
-    suggestedText = 'Te ayudo con información sobre nuestros precios. ¿Podrías especificar qué producto o servicio te interesa?';
-    tipo = 'consulta_precios';
-    confidence = 0.85;
-  } else if (lastMessage.content.toLowerCase().includes('horario') || lastMessage.content.toLowerCase().includes('hora')) {
-    suggestedText = 'Nuestro horario de atención es de lunes a viernes de 9:00 AM a 6:00 PM. ¿Te gustaría agendar una cita?';
-    tipo = 'horarios_atencion';
-    confidence = 0.9;
-  } else if (lastMessage.content.toLowerCase().includes('problema') || lastMessage.content.toLowerCase().includes('error')) {
-    suggestedText = 'Entiendo que tienes un problema. Para ayudarte mejor, ¿podrías describir más detalles sobre la situación?';
-    tipo = 'soporte_tecnico';
-    confidence = 0.8;
-  } else if (lastMessage.content.toLowerCase().includes('gracias')) {
-    suggestedText = '¡De nada! Estoy aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?';
-    tipo = 'agradecimiento';
-    confidence = 0.95;
+    // Primer mensaje - respuesta dinámica basada en el contenido
+    const userMessage = lastMessage.content.toLowerCase();
+    
+    if (userMessage.includes('hola') || userMessage.includes('buenos días') || userMessage.includes('buenas')) {
+      suggestedText = '¡Hola! Gracias por contactarnos. ¿En qué puedo ayudarte hoy?';
+      tipo = 'saludo_inicial';
+      confidence = 0.9;
+    } else if (userMessage.includes('ayuda') || userMessage.includes('soporte')) {
+      suggestedText = 'Te ayudo con gusto. ¿Podrías describir más específicamente en qué necesitas asistencia?';
+      tipo = 'soporte_tecnico';
+      confidence = 0.85;
+    } else {
+      // Respuesta genérica dinámica
+      suggestedText = 'Gracias por tu mensaje. ¿En qué puedo ayudarte?';
+      tipo = 'respuesta_general';
+      confidence = 0.8;
+    }
   } else {
-    // Respuesta genérica
-    suggestedText = 'Entiendo tu consulta. Permíteme ayudarte con eso. ¿Podrías proporcionarme más detalles para darte una mejor respuesta?';
-    tipo = 'respuesta_general';
-    confidence = 0.7;
+    // Mensajes subsiguientes - análisis dinámico del contexto
+    const userMessage = lastMessage.content.toLowerCase();
+    const previousMessages = messages.slice(-3, -1); // Últimos 2 mensajes anteriores
+    
+    // Análisis dinámico del contexto de la conversación
+    const conversationContext = analyzeConversationContext(userMessage, previousMessages);
+    
+    if (conversationContext.isPriceInquiry) {
+      suggestedText = 'Te ayudo con información sobre precios. ¿Podrías especificar qué producto o servicio te interesa?';
+      tipo = 'consulta_precios';
+      confidence = 0.85;
+    } else if (conversationContext.isScheduleInquiry) {
+      suggestedText = 'Te ayudo con información sobre horarios. ¿Qué tipo de servicio necesitas?';
+      tipo = 'horarios_atencion';
+      confidence = 0.9;
+    } else if (conversationContext.isProblemReport) {
+      suggestedText = 'Entiendo que tienes un problema. Para ayudarte mejor, ¿podrías describir más detalles sobre la situación?';
+      tipo = 'soporte_tecnico';
+      confidence = 0.8;
+    } else if (conversationContext.isThankful) {
+      suggestedText = '¡De nada! Estoy aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?';
+      tipo = 'agradecimiento';
+      confidence = 0.95;
+    } else if (conversationContext.isQuestion) {
+      suggestedText = 'Entiendo tu pregunta. Permíteme ayudarte con eso. ¿Podrías proporcionarme más detalles para darte una mejor respuesta?';
+      tipo = 'pregunta';
+      confidence = 0.8;
+    } else {
+      // Respuesta genérica dinámica basada en el contexto
+      suggestedText = generateDynamicResponse(userMessage, conversationContext);
+      tipo = 'respuesta_general';
+      confidence = 0.7;
+    }
   }
 
   // Crear objeto de sugerencia
@@ -417,7 +443,7 @@ async function generateFakeSuggestion(context, contextSummary, config) {
       texto: suggestedText,
       confianza: confidence,
       tipo: tipo,
-      fuentes: ['contexto_conversacional'],
+      fuentes: ['contexto_conversacional_dinamico'],
       contexto: {
         historialMensajes: context.totalMessages,
         ultimoMensaje: lastMessage?.content?.substring(0, 50) + '...',
@@ -435,11 +461,111 @@ async function generateFakeSuggestion(context, contextSummary, config) {
       latencyMs: Math.floor(Math.random() * 1000) + 500, // Simulado
       costUsd: 0.001, // Simulado
       version: '1.0.0',
-      fake: true // Marca que es una sugerencia fake
+      fake: true, // Marca que es una sugerencia fake
+      dynamic: true // Marca que es dinámica
     }
   };
 
   return suggestion;
+}
+
+/**
+ * Analizar contexto de conversación dinámicamente
+ */
+function analyzeConversationContext(currentMessage, previousMessages) {
+  const context = {
+    isPriceInquiry: false,
+    isScheduleInquiry: false,
+    isProblemReport: false,
+    isThankful: false,
+    isQuestion: false,
+    sentiment: 'neutral',
+    urgency: 'normal'
+  };
+
+  const allText = [currentMessage, ...previousMessages.map(m => m.content.toLowerCase())].join(' ');
+
+  // Análisis dinámico de intención
+  if (allText.includes('precio') || allText.includes('costo') || allText.includes('valor') || allText.includes('cuánto')) {
+    context.isPriceInquiry = true;
+  }
+  
+  if (allText.includes('horario') || allText.includes('hora') || allText.includes('disponible') || allText.includes('cuándo')) {
+    context.isScheduleInquiry = true;
+  }
+  
+  if (allText.includes('problema') || allText.includes('error') || allText.includes('no funciona') || allText.includes('falla')) {
+    context.isProblemReport = true;
+  }
+  
+  if (allText.includes('gracias') || allText.includes('perfecto') || allText.includes('excelente')) {
+    context.isThankful = true;
+  }
+  
+  if (currentMessage.includes('?') || currentMessage.includes('cómo') || currentMessage.includes('qué') || currentMessage.includes('cuál')) {
+    context.isQuestion = true;
+  }
+
+  // Análisis de sentimiento dinámico
+  const positiveWords = ['gracias', 'excelente', 'bueno', 'perfecto', 'genial', 'me gusta'];
+  const negativeWords = ['malo', 'terrible', 'horrible', 'pésimo', 'molesto', 'enojado'];
+  
+  const positiveCount = positiveWords.filter(word => allText.includes(word)).length;
+  const negativeCount = negativeWords.filter(word => allText.includes(word)).length;
+  
+  if (positiveCount > negativeCount) {
+    context.sentiment = 'positive';
+  } else if (negativeCount > positiveCount) {
+    context.sentiment = 'negative';
+  }
+
+  // Análisis de urgencia dinámico
+  const urgentWords = ['urgente', 'inmediato', 'ahora', 'rápido', 'emergencia', 'ya'];
+  if (urgentWords.some(word => allText.includes(word))) {
+    context.urgency = 'high';
+  }
+
+  return context;
+}
+
+/**
+ * Generar respuesta dinámica basada en el contexto
+ */
+function generateDynamicResponse(userMessage, context) {
+  // Respuestas dinámicas basadas en el análisis del contexto
+  const responses = {
+    positive: [
+      'Me alegra saber que todo va bien. ¿En qué más puedo ayudarte?',
+      '¡Excelente! ¿Hay algo más en lo que pueda asistirte?',
+      'Perfecto, estoy aquí para ayudarte con lo que necesites.'
+    ],
+    negative: [
+      'Entiendo tu situación. Permíteme ayudarte a resolver esto.',
+      'Veo que hay un problema. Te ayudo a encontrar una solución.',
+      'Comprendo tu frustración. Trabajemos juntos para solucionarlo.'
+    ],
+    urgent: [
+      'Entiendo la urgencia. Te ayudo inmediatamente.',
+      'Veo que es urgente. Permíteme asistirte de inmediato.',
+      'Comprendo la prioridad. Te ayudo sin demora.'
+    ],
+    general: [
+      'Entiendo tu consulta. Permíteme ayudarte con eso.',
+      'Te ayudo con gusto. ¿Podrías proporcionarme más detalles?',
+      'Estoy aquí para ayudarte. ¿Qué necesitas específicamente?'
+    ]
+  };
+
+  // Seleccionar respuesta dinámica basada en el contexto
+  if (context.sentiment === 'positive') {
+    return responses.positive[Math.floor(Math.random() * responses.positive.length)];
+  } else if (context.sentiment === 'negative') {
+    return responses.negative[Math.floor(Math.random() * responses.negative.length)];
+  } else if (context.urgency === 'high') {
+    return responses.urgent[Math.floor(Math.random() * responses.urgent.length)];
+  } else {
+    return responses.general[Math.floor(Math.random() * responses.general.length)];
+  }
 }
 
 /**
