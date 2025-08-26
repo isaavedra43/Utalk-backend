@@ -7,6 +7,9 @@
  * @version 4.0.0 IA INTELIGENTE SIMPLE
  */
 
+const { copilotCacheService } = require('./CopilotCacheService');
+const { copilotMemoryService } = require('./CopilotMemoryService');
+const { generateWithProvider, isProviderAvailable } = require('../ai/vendors');
 const logger = require('../utils/logger');
 
 class CopilotOrchestratorService {
@@ -19,44 +22,125 @@ class CopilotOrchestratorService {
         throw new Error('workspaceId is required');
       }
 
-      logger.info('🚀 Procesando mensaje con respuesta por defecto', {
+      // 1. Crear prompt simple
+      const simplePrompt = `Eres un asistente de atención al cliente. Responde directamente al mensaje del cliente de manera útil y profesional.
+
+MENSAJE DEL CLIENTE: "${userMessage}"
+
+RESPUESTA:`;
+      
+      // 2. Generar respuesta con IA
+      let llmResponse = await generateWithProvider('llm_studio', {
+        prompt: simplePrompt,
+        model: 'gpt-oss-20b',
+        temperature: 0.7,
+        maxTokens: 200,
         workspaceId,
-        conversationId,
-        agentId,
-        messageLength: userMessage.length
+        conversationId
       });
 
-      // Generar respuesta por defecto directamente
-      const defaultResponse = this.getDefaultResponse(userMessage);
+      // 3. Si LLM Studio falla, usar respuesta por defecto
+      if (!llmResponse.ok || !llmResponse.text || llmResponse.text.trim().length < 5) {
+        const defaultResponse = this.getDefaultResponse(userMessage);
+        
+        logger.info('✅ Usando respuesta por defecto', {
+          conversationId,
+          agentId,
+          workspaceId,
+          reason: 'LLM Studio falló o devolvió respuesta vacía'
+        });
+
+        return { 
+          ok: true, 
+          text: defaultResponse, 
+          model: 'fallback',
+          usage: { in: 0, out: 0, latencyMs: Date.now() - start },
+          suggestions: []
+        };
+      }
+
+      // 4. Procesar respuesta exitosa
+      let finalResponse = llmResponse.text.trim();
       
+      // Limpiar respuesta
+      finalResponse = finalResponse.replace(/^["']+|["']+$/g, '').trim();
+      
+  
+
+      // 5. Log de éxito
       const latencyMs = Date.now() - start;
-      logger.info('✅ Respuesta generada exitosamente', {
+      logger.info('✅ Respuesta IA generada', {
         conversationId,
         agentId,
         workspaceId,
-        responseLength: defaultResponse.length,
+        responseLength: finalResponse.length,
         latencyMs,
-        model: 'fallback'
+        model: llmResponse.model || 'llm_studio'
       });
 
       return { 
         ok: true, 
-        text: defaultResponse, 
-        model: 'fallback',
-        usage: { in: 0, out: 0, latencyMs },
+        text: finalResponse, 
+        model: llmResponse.model || 'llm_studio',
+        usage: llmResponse.usage,
         suggestions: []
       };
 
     } catch (error) {
       logger.error('❌ Error en orquestador IA', { 
         error: error.message,
-        stack: error.stack,
         workspaceId,
         conversationId,
         agentId
       });
       return { ok: false, error: error.message };
     }
+  }
+
+  /**
+   * Crear prompt inteligente y contextual
+   */
+  createSimplePrompt(userMessage, conversationId) {
+    return `Eres un asistente de atención al cliente. Responde directamente al mensaje del cliente de manera útil y profesional.
+
+MENSAJE DEL CLIENTE: "${userMessage}"
+
+RESPUESTA:`;
+  }
+
+  /**
+   * Limpiar y corregir respuestas problemáticas del modelo
+   */
+  cleanResponse(response) {
+    if (!response) return response;
+    
+    // Detectar meta-instrucciones comunes
+    const metaInstructions = [
+      /no uses código markdown/i,
+      /no incluyas ninguna explicación/i,
+      /solo la respuesta final/i,
+      /responde en español/i,
+      /evita el lenguaje ofensivo/i,
+      /mantente profesional/i,
+      /luego responde/i,
+      /2\)/i,
+      /3\)/i
+    ];
+    
+    // Si la respuesta contiene meta-instrucciones, usar respuesta por defecto
+    const hasMetaInstructions = metaInstructions.some(pattern => pattern.test(response));
+    if (hasMetaInstructions) {
+      logger.warn('Meta-instrucciones detectadas en respuesta, usando respuesta por defecto', { response });
+      return null; // Forzar uso de respuesta por defecto
+    }
+    
+    // Remover comillas extra al inicio y final
+    response = response.replace(/^["']+|["']+$/g, '');
+    
+    // Remover espacios extra
+    response = response.trim();
+    
+    return response;
   }
 
   /**
