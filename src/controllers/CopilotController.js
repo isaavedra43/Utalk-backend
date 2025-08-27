@@ -51,10 +51,8 @@ class CopilotController {
         );
       }
 
-      // Determinar workspaceId con fallback
-      const finalWorkspaceId = workspaceId || req.user?.workspaceId || 'default_workspace';
-      
-      if (!finalWorkspaceId) {
+      // Validar que workspaceId esté presente
+      if (!workspaceId) {
         throw new ApiError(
           'WORKSPACE_ID_MISSING',
           'workspaceId no está definido',
@@ -66,7 +64,7 @@ class CopilotController {
       logger.info('🚀 Copiloto chat iniciado', {
         conversationId,
         agentId,
-        workspaceId: finalWorkspaceId,
+        workspaceId,
         messageLength: message.length
       });
 
@@ -74,7 +72,7 @@ class CopilotController {
         message,
         conversationId,
         agentId,
-        finalWorkspaceId
+        workspaceId
       );
 
       if (!result.ok) {
@@ -82,7 +80,7 @@ class CopilotController {
           error: result.error,
           conversationId,
           agentId,
-          workspaceId: finalWorkspaceId
+          workspaceId
         });
         
         throw new ApiError(
@@ -96,7 +94,7 @@ class CopilotController {
       logger.info('✅ Copiloto chat completado', {
         conversationId,
         agentId,
-        workspaceId: finalWorkspaceId,
+        workspaceId,
         responseLength: (result.text || '').length,
         model: result.model || null
       });
@@ -114,7 +112,7 @@ class CopilotController {
       logger.error('❌ Error en copiloto chat', {
         conversationId: req.body?.conversationId,
         agentId: req.body?.agentId,
-        workspaceId: req.body?.workspaceId || req.user?.workspaceId,
+        workspaceId: req.body?.workspaceId,
         error: error.message,
         stack: error.stack
       });
@@ -151,7 +149,7 @@ class CopilotController {
   static async test(req, res, next) {
     try {
       const testMessage = "Hola, necesito ayuda con un cliente";
-      const result = await copilotOrchestratorService.processMessage(testMessage, 'test', 'test', req.user.workspaceId);
+      const result = await copilotOrchestratorService.processMessage(testMessage, 'test', 'test', 'default_workspace');
 
       return ResponseHandler.success(res, {
         status: 'test_completed',

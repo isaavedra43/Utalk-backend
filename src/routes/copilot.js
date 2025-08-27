@@ -31,7 +31,9 @@ const copilotValidators = {
       conversationId: Joi.string().required().min(1).max(100)
         .description('ID de la conversación'),
       agentId: Joi.string().required().min(1).max(100)
-        .description('ID del agente')
+        .description('ID del agente'),
+      workspaceId: Joi.string().required().min(1).max(100)
+        .description('ID del workspace')
     })
   }),
 
