@@ -10,7 +10,7 @@ const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
 
 // Middleware
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
 const rateLimit = require('../middleware/intelligentRateLimit');
 
@@ -41,7 +41,7 @@ const upload = multer({
 });
 
 // Aplicar autenticación a todas las rutas
-router.use(auth);
+router.use(authMiddleware);
 
 // Aplicar rate limiting
 router.use(rateLimit({
