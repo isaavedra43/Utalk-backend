@@ -3,9 +3,9 @@
 ## 🔧 Problemas Identificados y Solucionados
 
 ### 1. **Orden Incorrecto del ConversationId**
-**Problema**: Se generaba `conv_+5214793176502_+524773790184` (nuestro número primero)
+**Problema**: Se generaba `conv_+5214793176502_+524773790184` (nuestro número primero)dd
 **Solución**: Ahora genera `conv_+524773790184_+5214793176502` (cliente primero)
-
+dd
 **Archivos modificados**:
 - `src/utils/conversation.js` - Función `generateConversationId()`
 
