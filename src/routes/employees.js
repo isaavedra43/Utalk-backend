@@ -12,7 +12,7 @@ const VacationController = require('../controllers/VacationController');
 // Middleware
 const { authMiddleware } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
-const rateLimit = require('../middleware/intelligentRateLimit');
+const { intelligentRateLimit } = require('../middleware/intelligentRateLimit');
 
 // Configuración de multer para subida de archivos
 const storage = multer.memoryStorage();
@@ -43,12 +43,8 @@ const upload = multer({
 // Aplicar autenticación a todas las rutas
 router.use(authMiddleware);
 
-// Aplicar rate limiting
-router.use(rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 1000, // máximo 1000 requests por ventana
-  message: 'Demasiadas solicitudes desde esta IP'
-}));
+// Aplicar rate limiting inteligente
+router.use(intelligentRateLimit);
 
 /**
  * RUTAS PRINCIPALES DE EMPLEADOS
