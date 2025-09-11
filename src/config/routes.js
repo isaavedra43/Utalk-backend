@@ -21,6 +21,7 @@ const logRoutes = require('../routes/logs');
 const clientRoutes = require('../routes/clients');
 const modulePermissionsRoutes = require('../routes/modulePermissions');
 const copilotRoutes = require('../routes/copilot');
+const employeeRoutes = require('../routes/employees');
 
 function registerRoutes(app, { PORT, socketManager, healthService }) {
   logger.info('🛣️ Configurando rutas de la aplicación...', {
@@ -110,6 +111,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/knowledge', knowledgeRoutes);
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
+    app.use('/api/employees', employeeRoutes);
 
     // AI y derivados (los módulos exportan .router)
     if (aiRoutes?.router) app.use('/api/ai', aiRoutes.router);

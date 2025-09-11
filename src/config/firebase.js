@@ -226,6 +226,7 @@ module.exports = {
   firestore,
   storage,
   admin,
+  db: firestore, // Alias para compatibilidad
   FieldValue: admin.firestore.FieldValue,
   Timestamp: admin.firestore.Timestamp,
   initializeFirebase
