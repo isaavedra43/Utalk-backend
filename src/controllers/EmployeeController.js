@@ -495,7 +495,7 @@ class EmployeeController {
               // Registrar en historial
               await EmployeeHistory.createHistoryRecord(
                 existingEmployee.id,
-                'bulk_import_update',
+                'personal_info_update',
                 'Empleado actualizado mediante importación masiva',
                 { action: 'import_update', rowNumber, employeeNumber: employeeData.employeeNumber },
                 createdBy,
@@ -530,7 +530,7 @@ class EmployeeController {
             // Registrar en historial
             await EmployeeHistory.createHistoryRecord(
               employee.id,
-              'bulk_import_create',
+              'personal_info_update',
               'Empleado creado mediante importación masiva',
               { action: 'import_create', rowNumber, employeeNumber: employeeData.employeeNumber },
               createdBy,
