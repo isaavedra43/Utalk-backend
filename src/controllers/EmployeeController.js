@@ -8,6 +8,7 @@ const Incident = require('../models/Incident');
 const { Evaluation } = require('../models/Evaluation');
 const { Skill, Certification } = require('../models/Skill');
 const EmployeeHistory = require('../models/EmployeeHistory');
+const XLSX = require('xlsx');
 
 /**
  * Controlador de Empleados - Gestión integral de recursos humanos
@@ -424,7 +425,11 @@ class EmployeeController {
   static async importEmployees(req, res) {
     try {
       const file = req.file;
-      const options = req.body.options ? JSON.parse(req.body.options) : {};
+      const options = req.body.options ? JSON.parse(req.body.options) : {
+        updateExisting: false,
+        skipErrors: false,
+        validateData: true
+      };
 
       if (!file) {
         return res.status(400).json({
@@ -433,17 +438,137 @@ class EmployeeController {
         });
       }
 
-      // TODO: Implementar lógica de importación de Excel
-      // Por ahora devolver respuesta simulada
+      // Leer archivo Excel
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'El archivo Excel está vacío o no contiene datos válidos'
+        });
+      }
+
+      const results = {
+        imported: 0,
+        updated: 0,
+        errors: [],
+        skipped: 0,
+        total: jsonData.length
+      };
+
+      const createdBy = req.user?.id || null;
+
+      // Procesar cada fila
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        const rowNumber = i + 2; // +2 porque Excel empieza en 1 y la fila 1 es encabezado
+
+        try {
+          // Mapear datos del Excel a estructura Employee
+          const employeeData = EmployeeController.mapExcelRowToEmployee(row);
+          
+          // Validar datos requeridos
+          if (options.validateData) {
+            const validationErrors = EmployeeController.validateEmployeeData(employeeData);
+            if (validationErrors.length > 0) {
+              results.errors.push({
+                row: rowNumber,
+                field: 'validation',
+                message: validationErrors.join(', ')
+              });
+              if (!options.skipErrors) continue;
+            }
+          }
+
+          // Verificar si el empleado ya existe
+          const existingEmployee = await Employee.findByEmployeeNumber(employeeData.employeeNumber);
+          
+          if (existingEmployee) {
+            if (options.updateExisting) {
+              // Actualizar empleado existente
+              await existingEmployee.update(employeeData, createdBy);
+              results.updated++;
+              
+              // Registrar en historial
+              await EmployeeHistory.createHistoryRecord(
+                existingEmployee.id,
+                'bulk_import_update',
+                'Empleado actualizado mediante importación masiva',
+                { action: 'import_update', rowNumber, employeeNumber: employeeData.employeeNumber },
+                createdBy,
+                req
+              );
+            } else {
+              results.errors.push({
+                row: rowNumber,
+                field: 'employeeNumber',
+                message: `Empleado con número ${employeeData.employeeNumber} ya existe`
+              });
+              if (!options.skipErrors) continue;
+            }
+          } else {
+            // Crear nuevo empleado
+            const employee = new Employee({
+              ...employeeData,
+              createdBy
+            });
+
+            await employee.save();
+
+            // Crear balance inicial de vacaciones
+            if (employee.position?.startDate) {
+              try {
+                await VacationBalance.getOrCreateCurrent(employee.id, employee.position.startDate);
+              } catch (vacationError) {
+                console.warn('Error creating vacation balance for imported employee:', vacationError);
+              }
+            }
+
+            // Registrar en historial
+            await EmployeeHistory.createHistoryRecord(
+              employee.id,
+              'bulk_import_create',
+              'Empleado creado mediante importación masiva',
+              { action: 'import_create', rowNumber, employeeNumber: employeeData.employeeNumber },
+              createdBy,
+              req
+            );
+
+            results.imported++;
+          }
+
+        } catch (error) {
+          results.errors.push({
+            row: rowNumber,
+            field: 'general',
+            message: error.message
+          });
+          
+          if (!options.skipErrors) {
+            console.error(`Error processing row ${rowNumber}:`, error);
+          }
+        }
+      }
+
+      // Determinar mensaje de resultado
+      let message = '';
+      if (results.errors.length === 0) {
+        message = `Importación exitosa: ${results.imported} empleados creados, ${results.updated} actualizados`;
+      } else if (results.imported > 0 || results.updated > 0) {
+        message = `Importación parcial: ${results.imported} creados, ${results.updated} actualizados, ${results.errors.length} errores`;
+      } else {
+        message = `Importación falló: ${results.errors.length} errores encontrados`;
+      }
+
       res.json({
-        success: true,
-        data: {
-          imported: 0,
-          updated: 0,
-          errors: []
-        },
-        message: 'Funcionalidad de importación en desarrollo'
+        success: results.errors.length === 0 || results.imported > 0 || results.updated > 0,
+        data: results,
+        message
       });
+
     } catch (error) {
       console.error('Error importing employees:', error);
       res.status(500).json({
@@ -452,6 +577,122 @@ class EmployeeController {
         details: error.message
       });
     }
+  }
+
+  /**
+   * Mapea una fila de Excel a la estructura de datos Employee
+   */
+  static mapExcelRowToEmployee(row) {
+    return {
+      employeeNumber: row['Número de Empleado'] || row['Employee Number'] || row['employeeNumber'],
+      personalInfo: {
+        firstName: row['Nombre'] || row['First Name'] || row['firstName'] || '',
+        lastName: row['Apellido'] || row['Last Name'] || row['lastName'] || '',
+        email: row['Email'] || row['email'] || null,
+        phone: row['Teléfono'] || row['Phone'] || row['phone'] || '',
+        dateOfBirth: row['Fecha de Nacimiento'] || row['Date of Birth'] || row['dateOfBirth'] || null,
+        gender: row['Género'] || row['Gender'] || row['gender'] || null,
+        maritalStatus: row['Estado Civil'] || row['Marital Status'] || row['maritalStatus'] || null,
+        nationality: row['Nacionalidad'] || row['Nationality'] || row['nationality'] || 'Mexicana',
+        rfc: row['RFC'] || row['rfc'] || null,
+        curp: row['CURP'] || row['curp'] || null,
+        nss: row['NSS'] || row['nss'] || null,
+        address: {
+          street: row['Calle'] || row['Street'] || row['street'] || '',
+          number: row['Número'] || row['Number'] || row['number'] || '',
+          neighborhood: row['Colonia'] || row['Neighborhood'] || row['neighborhood'] || '',
+          city: row['Ciudad'] || row['City'] || row['city'] || '',
+          state: row['Estado'] || row['State'] || row['state'] || '',
+          country: row['País'] || row['Country'] || row['country'] || 'México',
+          postalCode: row['Código Postal'] || row['Postal Code'] || row['postalCode'] || '',
+          zipCode: row['Código Postal'] || row['Postal Code'] || row['zipCode'] || ''
+        }
+      },
+      position: {
+        title: row['Puesto'] || row['Position'] || row['title'] || '',
+        department: row['Departamento'] || row['Department'] || row['department'] || '',
+        level: row['Nivel'] || row['Level'] || row['level'] || 'Junior',
+        reportsTo: row['Reporta a'] || row['Reports To'] || row['reportsTo'] || null,
+        jobDescription: row['Descripción del Puesto'] || row['Job Description'] || row['jobDescription'] || null,
+        startDate: row['Fecha de Inicio'] || row['Start Date'] || row['startDate'] || new Date().toISOString(),
+        endDate: row['Fecha de Fin'] || row['End Date'] || row['endDate'] || null
+      },
+      location: {
+        name: row['Ubicación'] || row['Location'] || row['location'] || '',
+        office: row['Oficina'] || row['Office'] || row['office'] || '',
+        address: {
+          street: row['Calle Oficina'] || row['Office Street'] || row['officeStreet'] || '',
+          number: row['Número Oficina'] || row['Office Number'] || row['officeNumber'] || '',
+          neighborhood: row['Colonia Oficina'] || row['Office Neighborhood'] || row['officeNeighborhood'] || '',
+          city: row['Ciudad Oficina'] || row['Office City'] || row['officeCity'] || '',
+          state: row['Estado Oficina'] || row['Office State'] || row['officeState'] || '',
+          country: row['País Oficina'] || row['Office Country'] || row['officeCountry'] || 'México',
+          postalCode: row['Código Postal Oficina'] || row['Office Postal Code'] || row['officePostalCode'] || ''
+        }
+      },
+      contract: {
+        type: row['Tipo de Contrato'] || row['Contract Type'] || row['contractType'] || 'permanent',
+        startDate: row['Fecha de Contrato'] || row['Contract Start'] || row['contractStart'] || new Date().toISOString(),
+        endDate: row['Fecha de Fin Contrato'] || row['Contract End'] || row['contractEnd'] || null,
+        salary: parseFloat(row['Salario'] || row['Salary'] || row['salary'] || 0),
+        benefits: row['Beneficios'] || row['Benefits'] || row['benefits'] || [],
+        notes: row['Notas Contrato'] || row['Contract Notes'] || row['contractNotes'] || null
+      },
+      salary: {
+        baseSalary: parseFloat(row['Salario Base'] || row['Base Salary'] || row['baseSalary'] || row['Salario'] || row['Salary'] || row['salary'] || 0),
+        currency: row['Moneda'] || row['Currency'] || row['currency'] || 'MXN',
+        frequency: row['Frecuencia'] || row['Frequency'] || row['frequency'] || 'monthly',
+        paymentMethod: row['Método de Pago'] || row['Payment Method'] || row['paymentMethod'] || 'bank_transfer'
+      },
+      sbc: parseFloat(row['SBC'] || row['sbc'] || 0),
+      vacationBalance: parseFloat(row['Días de Vacaciones'] || row['Vacation Days'] || row['vacationDays'] || 0),
+      sickLeaveBalance: parseFloat(row['Días de Enfermedad'] || row['Sick Leave Days'] || row['sickLeaveDays'] || 0),
+      status: row['Estado'] || row['Status'] || row['status'] || 'active'
+    };
+  }
+
+  /**
+   * Valida los datos de un empleado antes de guardar
+   */
+  static validateEmployeeData(employeeData) {
+    const errors = [];
+
+    // Validar campos requeridos
+    if (!employeeData.personalInfo?.firstName || employeeData.personalInfo.firstName.length < 2) {
+      errors.push('El nombre es requerido y debe tener al menos 2 caracteres');
+    }
+
+    if (!employeeData.personalInfo?.lastName || employeeData.personalInfo.lastName.length < 2) {
+      errors.push('Los apellidos son requeridos y deben tener al menos 2 caracteres');
+    }
+
+    if (!employeeData.personalInfo?.phone || employeeData.personalInfo.phone.length < 10) {
+      errors.push('El teléfono es requerido');
+    }
+
+    if (!employeeData.position?.level) {
+      errors.push('El nivel del puesto es requerido');
+    } else {
+      const validLevels = ['Entry', 'Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director', 'Executive'];
+      if (!validLevels.includes(employeeData.position.level)) {
+        errors.push('El nivel del puesto no es válido');
+      }
+    }
+
+    // Validar email si se proporciona
+    if (employeeData.personalInfo?.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(employeeData.personalInfo.email)) {
+        errors.push('El formato del email no es válido');
+      }
+    }
+
+    // Validar salario
+    if (employeeData.salary?.baseSalary && (isNaN(employeeData.salary.baseSalary) || employeeData.salary.baseSalary < 0)) {
+      errors.push('El salario debe ser un número válido mayor o igual a 0');
+    }
+
+    return errors;
   }
 
   /**
