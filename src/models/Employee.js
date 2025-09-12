@@ -13,54 +13,71 @@ class Employee {
     
     // Información Personal
     this.personalInfo = {
-      firstName: data.personalInfo?.firstName || '',
-      lastName: data.personalInfo?.lastName || '',
-      email: data.personalInfo?.email || null,
-      phone: data.personalInfo?.phone || '',
+      firstName: data.personalInfo?.firstName || data.firstName || '',
+      lastName: data.personalInfo?.lastName || data.lastName || '',
+      email: data.personalInfo?.email || data.email || null,
+      phone: data.personalInfo?.phone || data.phone || '',
       avatar: data.personalInfo?.avatar || null,
-      dateOfBirth: data.personalInfo?.dateOfBirth || null,
+      dateOfBirth: data.personalInfo?.dateOfBirth || data.personalInfo?.birthDate || null,
       gender: data.personalInfo?.gender || null, // 'M' | 'F' | 'O'
       maritalStatus: data.personalInfo?.maritalStatus || null,
       nationality: data.personalInfo?.nationality || null,
       rfc: data.personalInfo?.rfc || null,
       curp: data.personalInfo?.curp || null,
+      nss: data.personalInfo?.nss || null,
       address: {
         street: data.personalInfo?.address?.street || '',
         city: data.personalInfo?.address?.city || '',
         state: data.personalInfo?.address?.state || '',
         country: data.personalInfo?.address?.country || 'México',
-        postalCode: data.personalInfo?.address?.postalCode || ''
-      }
+        postalCode: data.personalInfo?.address?.postalCode || '',
+        number: data.personalInfo?.address?.number || '',
+        neighborhood: data.personalInfo?.address?.neighborhood || '',
+        zipCode: data.personalInfo?.address?.zipCode || ''
+      },
+      emergencyContact: data.personalInfo?.emergencyContact || null,
+      bankInfo: data.personalInfo?.bankInfo || null
     };
     
     // Información Laboral
     this.position = {
+      id: data.position?.id || '',
       title: data.position?.title || '',
       department: data.position?.department || '',
-      level: data.position?.level || 'Junior', // 'Junior' | 'Mid' | 'Senior' | 'Lead' | 'Manager' | 'Director'
+      level: data.position?.level || 'Junior', // 'Entry' | 'Junior' | 'Mid' | 'Senior' | 'Lead' | 'Manager' | 'Director' | 'Executive'
       reportsTo: data.position?.reportsTo || null,
       jobDescription: data.position?.jobDescription || null,
+      requirements: data.position?.requirements || [],
+      skills: data.position?.skills || [],
+      salaryRange: data.position?.salaryRange || { min: 0, max: 0 },
       startDate: data.position?.startDate || new Date().toISOString(),
       endDate: data.position?.endDate || null
     };
     
     // Ubicación
     this.location = {
+      id: data.location?.id || '',
+      name: data.location?.name || '',
       office: data.location?.office || '',
-      address: data.location?.address || '',
+      address: data.location?.address || data.location?.address || '',
+      street: data.location?.address?.street || '',
+      number: data.location?.address?.number || '',
+      neighborhood: data.location?.address?.neighborhood || '',
       city: data.location?.city || '',
       state: data.location?.state || '',
       country: data.location?.country || 'México',
       postalCode: data.location?.postalCode || '',
-      timezone: data.location?.timezone || 'America/Mexico_City'
+      zipCode: data.location?.address?.zipCode || '',
+      timezone: data.location?.timezone || 'America/Mexico_City',
+      isRemote: data.location?.isRemote || false
     };
     
     // Contrato
     this.contract = {
       type: data.contract?.type || 'permanent', // 'permanent' | 'temporary' | 'intern' | 'contractor'
-      startDate: data.contract?.startDate || new Date().toISOString(),
+      startDate: data.contract?.startDate || data.hireDate || new Date().toISOString(),
       endDate: data.contract?.endDate || null,
-      salary: data.contract?.salary || 0,
+      salary: data.contract?.salary || data.salary?.baseSalary || 0,
       currency: data.contract?.currency || 'MXN',
       workingDays: data.contract?.workingDays || 'Lunes a Viernes',
       workingHoursRange: data.contract?.workingHoursRange || '09:00-18:00',
@@ -77,11 +94,45 @@ class Employee {
         }
       },
       benefits: data.contract?.benefits || [],
+      clauses: data.contract?.clauses || [],
+      schedule: data.contract?.schedule || '',
       notes: data.contract?.notes || null
     };
     
     // Estado del empleado
     this.status = data.status || 'active'; // 'active' | 'inactive' | 'terminated' | 'on_leave'
+    
+    // Información de salario (estructura del frontend)
+    this.salary = data.salary || {
+      baseSalary: data.salary?.baseSalary || 0,
+      currency: data.salary?.currency || 'MXN',
+      frequency: data.salary?.frequency || 'monthly',
+      paymentMethod: data.salary?.paymentMethod || 'bank_transfer',
+      allowances: data.salary?.allowances || [],
+      deductions: data.salary?.deductions || []
+    };
+    
+    // Campos adicionales
+    this.sbc = data.sbc || 0;
+    this.vacationBalance = data.vacationBalance || 0;
+    this.sickLeaveBalance = data.sickLeaveBalance || 0;
+    this.metrics = data.metrics || {
+      totalEarnings: 0,
+      totalDeductions: 0,
+      netPay: 0,
+      attendanceRate: 100,
+      lateArrivals: 0,
+      absences: 0,
+      vacationDaysUsed: 0,
+      vacationDaysRemaining: 0,
+      overtimeHours: 0,
+      overtimeAmount: 0,
+      incidentsCount: 0,
+      incidentsLast30Days: 0,
+      documentCompliance: 0,
+      trainingCompletion: 0,
+      performanceScore: 0
+    };
     
     // Metadatos
     this.createdAt = data.createdAt || new Date().toISOString();
@@ -144,7 +195,7 @@ class Employee {
       errors.push('El departamento es requerido');
     }
 
-    const validLevels = ['Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director'];
+    const validLevels = ['Entry', 'Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director', 'Executive'];
     if (!validLevels.includes(this.position.level)) {
       errors.push('El nivel del puesto no es válido');
     }

@@ -187,7 +187,18 @@ class EmployeeController {
         createdBy
       });
 
-      await employee.save();
+      try {
+        await employee.save();
+      } catch (error) {
+        if (error.message.includes('Errores de validación:')) {
+          return res.status(400).json({
+            success: false,
+            error: 'Error al crear el empleado',
+            details: error.message
+          });
+        }
+        throw error;
+      }
 
       // Crear balance inicial de vacaciones
       if (employee.position?.startDate) {
