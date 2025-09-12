@@ -77,6 +77,9 @@ router.post('/import', upload.single('file'), EmployeeController.importEmployees
 // Exportar empleados
 router.get('/export', EmployeeController.exportEmployees);
 
+// Corregir status de empleados
+router.post('/fix-status/:employeeId?', EmployeeController.fixEmployeeStatus);
+
 // Crear nuevo empleado
 router.post('/', 
   validateRequest([

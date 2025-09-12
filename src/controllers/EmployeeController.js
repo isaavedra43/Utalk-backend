@@ -625,8 +625,8 @@ class EmployeeController {
     const contractTypeRaw = row['Tipo de Contrato'] || row['Contract Type'] || row['contractType'] || 'Permanente';
     const contractType = contractTypeMap[contractTypeRaw] || contractTypeRaw;
 
-    // Obtener valor de estado y mapearlo
-    const statusRaw = row['Estado'] || row['Status'] || row['status'] || 'Activo';
+    // Obtener valor de estado del empleado y mapearlo (no el estado geográfico)
+    const statusRaw = row['Estado del Empleado'] || row['Employee Status'] || row['Estado'] || row['Status'] || row['status'] || 'Activo';
     const status = statusMap[statusRaw] || statusRaw;
 
     // Obtener valor de nivel y mapearlo
@@ -992,6 +992,60 @@ class EmployeeController {
       res.status(500).json({
         success: false,
         error: 'Error al obtener jubilaciones próximas',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * Corrige el status de empleados que tienen valores incorrectos
+   * POST /api/employees/fix-status
+   */
+  static async fixEmployeeStatus(req, res) {
+    try {
+      const { employeeId } = req.params;
+      
+      if (employeeId) {
+        // Corregir empleado específico
+        const employee = await Employee.findById(employeeId);
+        if (!employee) {
+          return res.status(404).json({
+            success: false,
+            error: 'Empleado no encontrado'
+          });
+        }
+
+        // Si el status es "CDMX", cambiarlo a "active"
+        if (employee.status === 'CDMX') {
+          await employee.update({ status: 'active' }, req.user?.id || null);
+          
+          res.json({
+            success: true,
+            message: 'Status del empleado corregido exitosamente',
+            data: { employeeId, oldStatus: 'CDMX', newStatus: 'active' }
+          });
+        } else {
+          res.json({
+            success: true,
+            message: 'El empleado ya tiene un status válido',
+            data: { employeeId, currentStatus: employee.status }
+          });
+        }
+      } else {
+        // Corregir todos los empleados con status incorrecto
+        const result = await Employee.fixInvalidStatuses();
+        
+        res.json({
+          success: true,
+          message: `Corregidos ${result.fixed} empleados con status inválido`,
+          data: result
+        });
+      }
+    } catch (error) {
+      console.error('Error fixing employee status:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al corregir status de empleados',
         details: error.message
       });
     }
