@@ -285,7 +285,9 @@ class EnhancedErrorHandler {
       return this.handleAuthorizationError(error, req, res, next);
     }
 
-    if (error.code === 'NOT_FOUND' || error.status === 404) {
+    if (error.code === 'NOT_FOUND' || error.status === 404 || 
+        error.message?.includes('Conversación no encontrada') ||
+        error.message?.includes('CONVERSATION_NOT_FOUND')) {
       return this.handleNotFoundError(error, req, res, next);
     }
 

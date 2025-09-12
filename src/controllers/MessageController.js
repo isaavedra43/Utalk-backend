@@ -83,7 +83,12 @@ class MessageController {
       const ConversationService = require('../services/ConversationService');
       const conversation = await ConversationService.getConversationById(conversationId);
       if (!conversation) {
-        throw CommonErrors.CONVERSATION_NOT_FOUND(conversationId);
+        logger.warn('Conversación no encontrada en getMessages', {
+          conversationId,
+          userEmail: req.user?.email,
+          url: req.originalUrl
+        });
+        return ResponseHandler.error(res, CommonErrors.CONVERSATION_NOT_FOUND(conversationId));
       }
 
       // Verificar permisos: usuario debe estar en participants
