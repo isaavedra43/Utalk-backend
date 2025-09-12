@@ -1,0 +1,101 @@
+MONITORING DATA EXPORT
+Generated: 12/9/2025, 16:56:34
+Date Range: all
+Selected Data: apis, websockets, logs, errors
+
+================================================================================
+
+APIS
+====
+Total items: 1
+
+--- Item 1 ---
+Timestamp: 2025-09-12T22:55:32.108Z
+Method: POST
+URL: https://utalk-backend-production.up.railway.app/api/employees/import
+Status: 200
+Duration (ms): 399
+Error: None
+Request Headers: {"Accept":"application/json, text/plain, */*","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNvbXBhbnkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkFkbWluaXN0cmFkb3IgZGVsIFNpc3RlbWEiLCJ0eXBlIjoiYWNjZXNzIiwidXNlcklkIjoiYWRtaW5AY29tcGFueS5jb20iLCJ3b3Jrc3BhY2VJZCI6ImRlZmF1bHRfd29ya3NwYWNlIiwidGVuYW50SWQiOiJkZWZhdWx0X3RlbmFudCIsImlhdCI6MTc1NzcxNzY0OCwiZXhwIjoxNzU3NzE4NTQ4LCJhdWQiOiJ1dGFsay1hcGkiLCJpc3MiOiJ1dGFsay1iYWNrZW5kIn0.knYy4VquofqgQgI91pyBm6Sgl3PhcBoAEA_JZmeoIyc"}
+Response Headers: {"content-length":"237","content-type":"application/json; charset=utf-8","x-ratelimit-limit":"500","x-ratelimit-remaining":"499","x-ratelimit-reset":"1757717793"}
+Request Data: {"file":"[File: empleados_plantilla (1).xlsx]","options":"{\"updateExisting\":true,\"skipErrors\":false,\"validateData\":true}"}
+Response Data: {"success":false,"data":{"imported":0,"updated":0,"errors":[{"row":2,"field":"general","message":"Errores de validación: El tipo de contrato no es válido"}],"skipped":0,"total":1},"message":"Importación falló: 1 errores encontrados"}
+
+
+================================================================================
+
+LOGS
+====
+Total items: 3
+
+--- Item 1 ---
+Timestamp: 2025-09-12T22:55:32.102Z
+Level: INFO
+Category: console
+Message: 📤 Iniciando importación de empleados... {
+  "fileName": "empleados_plantilla (1).xlsx",
+  "fileSize": 21820,
+  "fileType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+}
+Source: l (https://utalk-frontend-production.up.railway.app/assets/index-DXJU0eMV.js:86)
+Data: ["📤 Iniciando importación de empleados...",{"fileName":"empleados_plantilla (1).xlsx","fileSize":21820,"fileType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}]
+Stack: N/A
+
+--- Item 2 ---
+Timestamp: 2025-09-12T22:55:32.507Z
+Level: INFO
+Category: console
+Message: ✅ Importación completada: {
+  "success": false,
+  "data": {
+    "imported": 0,
+    "updated": 0,
+    "errors": [
+      {
+        "row": 2,
+        "field": "general",
+        "message": "Errores de validación: El tipo de contrato no es válido"
+      }
+    ],
+    "skipped": 0,
+    "total": 1
+  },
+  "message": "Importación falló: 1 errores encontrados"
+}
+Source: async l (https://utalk-frontend-production.up.railway.app/assets/index-DXJU0eMV.js:86)
+Data: ["✅ Importación completada:",{"success":false,"data":{"imported":0,"updated":0,"errors":[{"row":2,"field":"general","message":"Errores de validación: El tipo de contrato no es válido"}],"skipped":0,"total":1},"message":"Importación falló: 1 errores encontrados"}]
+Stack: N/A
+
+--- Item 3 ---
+Timestamp: 2025-09-12T22:55:32.507Z
+Level: ERROR
+Category: console
+Message: ❌ Error al importar empleados: {}
+Source: async l (https://utalk-frontend-production.up.railway.app/assets/index-DXJU0eMV.js:86)
+Data: ["❌ Error al importar empleados:",{}]
+Stack: N/A
+
+
+================================================================================
+
+ERRORS
+======
+Total items: 1
+
+--- Item 1 ---
+Timestamp: 2025-09-12T22:55:32.507Z
+Name: Console Error
+Message: ❌ Error al importar empleados: {}
+Source: console
+URL: N/A
+Stack Trace: Error
+    at A4e.getStackTrace (https://utalk-frontend-production.up.railway.app/assets/index-BvxfuAUS.js:793:176)
+    at console.error (https://utalk-frontend-production.up.railway.app/assets/index-BvxfuAUS.js:791:39549)
+    at V (https://utalk-frontend-production.up.railway.app/assets/index-DXJU0eMV.js:90:140)
+    at async l (https://utalk-frontend-production.up.railway.app/assets/index-DXJU0eMV.js:86:31693)
+Component Stack: N/A
+User Agent: N/A
+
+
+================================================================================
+

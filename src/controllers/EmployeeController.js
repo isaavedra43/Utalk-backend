@@ -583,6 +583,60 @@ class EmployeeController {
    * Mapea una fila de Excel a la estructura de datos Employee
    */
   static mapExcelRowToEmployee(row) {
+    // Mapeo de valores en español a inglés para tipos de contrato
+    const contractTypeMap = {
+      'Permanente': 'permanent',
+      'Temporal': 'temporary',
+      'Interno': 'intern',
+      'Contratista': 'contractor',
+      'Contrato': 'contractor'
+    };
+
+    // Mapeo de valores en español a inglés para estados
+    const statusMap = {
+      'Activo': 'active',
+      'Inactivo': 'inactive',
+      'Terminado': 'terminated',
+      'En Licencia': 'on_leave',
+      'Suspendido': 'inactive'
+    };
+
+    // Mapeo de valores en español a inglés para niveles
+    const levelMap = {
+      'Entrada': 'Entry',
+      'Junior': 'Junior',
+      'Medio': 'Mid',
+      'Senior': 'Senior',
+      'Líder': 'Lead',
+      'Gerente': 'Manager',
+      'Director': 'Director',
+      'Ejecutivo': 'Executive'
+    };
+
+    // Mapeo de valores en español a inglés para géneros
+    const genderMap = {
+      'Masculino': 'M',
+      'Femenino': 'F',
+      'Otro': 'O',
+      'No especificado': null
+    };
+
+    // Obtener valor de tipo de contrato y mapearlo
+    const contractTypeRaw = row['Tipo de Contrato'] || row['Contract Type'] || row['contractType'] || 'Permanente';
+    const contractType = contractTypeMap[contractTypeRaw] || contractTypeRaw;
+
+    // Obtener valor de estado y mapearlo
+    const statusRaw = row['Estado'] || row['Status'] || row['status'] || 'Activo';
+    const status = statusMap[statusRaw] || statusRaw;
+
+    // Obtener valor de nivel y mapearlo
+    const levelRaw = row['Nivel'] || row['Level'] || row['level'] || 'Junior';
+    const level = levelMap[levelRaw] || levelRaw;
+
+    // Obtener valor de género y mapearlo
+    const genderRaw = row['Género'] || row['Gender'] || row['gender'] || null;
+    const gender = genderMap[genderRaw] || genderRaw;
+
     return {
       employeeNumber: row['Número de Empleado'] || row['Employee Number'] || row['employeeNumber'],
       personalInfo: {
@@ -591,7 +645,7 @@ class EmployeeController {
         email: row['Email'] || row['email'] || null,
         phone: row['Teléfono'] || row['Phone'] || row['phone'] || '',
         dateOfBirth: row['Fecha de Nacimiento'] || row['Date of Birth'] || row['dateOfBirth'] || null,
-        gender: row['Género'] || row['Gender'] || row['gender'] || null,
+        gender: gender,
         maritalStatus: row['Estado Civil'] || row['Marital Status'] || row['maritalStatus'] || null,
         nationality: row['Nacionalidad'] || row['Nationality'] || row['nationality'] || 'Mexicana',
         rfc: row['RFC'] || row['rfc'] || null,
@@ -611,7 +665,7 @@ class EmployeeController {
       position: {
         title: row['Puesto'] || row['Position'] || row['title'] || '',
         department: row['Departamento'] || row['Department'] || row['department'] || '',
-        level: row['Nivel'] || row['Level'] || row['level'] || 'Junior',
+        level: level,
         reportsTo: row['Reporta a'] || row['Reports To'] || row['reportsTo'] || null,
         jobDescription: row['Descripción del Puesto'] || row['Job Description'] || row['jobDescription'] || null,
         startDate: row['Fecha de Inicio'] || row['Start Date'] || row['startDate'] || new Date().toISOString(),
@@ -631,7 +685,7 @@ class EmployeeController {
         }
       },
       contract: {
-        type: row['Tipo de Contrato'] || row['Contract Type'] || row['contractType'] || 'permanent',
+        type: contractType,
         startDate: row['Fecha de Contrato'] || row['Contract Start'] || row['contractStart'] || new Date().toISOString(),
         endDate: row['Fecha de Fin Contrato'] || row['Contract End'] || row['contractEnd'] || null,
         salary: parseFloat(row['Salario'] || row['Salary'] || row['salary'] || 0),
@@ -647,7 +701,7 @@ class EmployeeController {
       sbc: parseFloat(row['SBC'] || row['sbc'] || 0),
       vacationBalance: parseFloat(row['Días de Vacaciones'] || row['Vacation Days'] || row['vacationDays'] || 0),
       sickLeaveBalance: parseFloat(row['Días de Enfermedad'] || row['Sick Leave Days'] || row['sickLeaveDays'] || 0),
-      status: row['Estado'] || row['Status'] || row['status'] || 'active'
+      status: status
     };
   }
 
