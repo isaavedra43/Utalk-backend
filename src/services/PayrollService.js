@@ -3,7 +3,7 @@ const PayrollConfig = require('../models/PayrollConfig');
 const PayrollDetail = require('../models/PayrollDetail');
 const PayrollMovement = require('../models/PayrollMovement');
 const Employee = require('../models/Employee');
-const logger = require('../config/logger');
+const logger = require('../../config/logger');
 
 /**
  * Servicio de Nómina - Lógica de negocio para gestión de nóminas

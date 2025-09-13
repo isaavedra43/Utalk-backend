@@ -1,6 +1,6 @@
 const { db } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
-const logger = require('../config/logger');
+const logger = require('../../config/logger');
 
 /**
  * Modelo Payroll - Gestión de períodos de nómina

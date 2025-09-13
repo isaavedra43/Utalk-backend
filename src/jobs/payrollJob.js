@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const PayrollService = require('../services/PayrollService');
-const logger = require('../config/logger');
+const logger = require('../../config/logger');
 
 /**
  * Job de Nómina - Automatización de generación de nóminas

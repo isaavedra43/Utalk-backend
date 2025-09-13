@@ -2,7 +2,7 @@ const PayrollService = require('../services/PayrollService');
 const PayrollConfig = require('../models/PayrollConfig');
 const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
-const logger = require('../config/logger');
+const logger = require('../../config/logger');
 
 /**
  * Controlador de Nómina - Endpoints para gestión de nóminas
