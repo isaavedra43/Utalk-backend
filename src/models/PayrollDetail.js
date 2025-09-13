@@ -270,7 +270,7 @@ class PayrollDetail {
     if (grossSalary <= 133536.07) return (grossSalary - 75984.55) * 0.16 + 7140.73;
     if (grossSalary <= 155229.80) return (grossSalary - 133536.07) * 0.2133 + 16348.99;
     if (grossSalary <= 185852.57) return (grossSalary - 155229.80) * 0.2533 + 20973.75;
-    if (grossSalary <= 374837.88) return (grossSalary - 185852.57) * 0.3) + 28728.04;
+    if (grossSalary <= 374837.88) return (grossSalary - 185852.57) * 0.3 + 28728.04;
     return (grossSalary - 374837.88) * 0.35 + 85424.19;
   }
 
