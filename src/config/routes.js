@@ -115,6 +115,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll', require('../routes/payroll'));
+    app.use('/api/payroll-periods', require('../routes/payrollPeriods'));
 
     // AI y derivados (los módulos exportan .router)
     if (aiRoutes?.router) app.use('/api/ai', aiRoutes.router);

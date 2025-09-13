@@ -367,20 +367,18 @@ class PDFService {
       // Generar nombre del archivo
       const fileName = `recibo-nomina-${payrollData.employeeId}-${payrollData.periodStart}-${payrollData.periodEnd}.pdf`;
       
-      // Subir a Google Cloud Storage
-      const fileUrl = await this.uploadPdfToStorage(pdfBuffer, fileName);
-      
       logger.info('✅ PDF generado exitosamente', {
         fileName,
-        fileSize: pdfBuffer.length,
-        fileUrl
+        fileSize: pdfBuffer.length
       });
 
+      // DEVOLVER PDF DIRECTAMENTE SIN SUBIR A STORAGE
       return {
         success: true,
-        url: fileUrl,
-        fileName,
-        size: pdfBuffer.length
+        pdfBuffer: pdfBuffer,
+        fileName: fileName,
+        size: pdfBuffer.length,
+        contentType: 'application/pdf'
       };
 
     } catch (error) {

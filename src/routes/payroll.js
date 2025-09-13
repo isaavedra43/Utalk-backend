@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const PayrollController = require('../controllers/PayrollController');
+const AttachmentService = require('../services/AttachmentService');
 
 /**
  * Rutas de Nómina - Endpoints para gestión de nóminas
@@ -103,6 +104,70 @@ router.post('/regenerate/:payrollId',
   authMiddleware, 
   requireRole(['admin', 'superadmin']), 
   PayrollController.regeneratePayrollWithoutTaxes
+);
+
+// ================================
+// ARCHIVOS ADJUNTOS
+// ================================
+
+/**
+ * Subir archivo adjunto a nómina
+ * POST /api/payroll/:payrollId/attachments
+ * Requiere: admin, superadmin, hr
+ */
+router.post('/:payrollId/attachments', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'hr']),
+  AttachmentService.getUploadMiddleware(),
+  AttachmentService.handleUploadError,
+  PayrollController.uploadAttachment
+);
+
+/**
+ * Obtener archivos adjuntos de nómina
+ * GET /api/payroll/:payrollId/attachments
+ * Requiere: autenticación
+ */
+router.get('/:payrollId/attachments', 
+  authMiddleware, 
+  PayrollController.getAttachments
+);
+
+/**
+ * Eliminar archivo adjunto
+ * DELETE /api/payroll/:payrollId/attachments/:attachmentId
+ * Requiere: admin, superadmin, hr
+ */
+router.delete('/:payrollId/attachments/:attachmentId', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'hr']),
+  PayrollController.deleteAttachment
+);
+
+// ================================
+// EDICIÓN Y REGENERACIÓN
+// ================================
+
+/**
+ * Editar configuración de nómina
+ * PUT /api/payroll/:payrollId
+ * Requiere: admin, superadmin, hr
+ */
+router.put('/:payrollId', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'hr']),
+  PayrollController.editPayroll
+);
+
+/**
+ * Regenerar nómina con recálculos
+ * POST /api/payroll/:payrollId/regenerate
+ * Requiere: admin, superadmin, hr
+ */
+router.post('/:payrollId/regenerate', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'hr']),
+  PayrollController.regeneratePayroll
 );
 
 // ================================
@@ -314,7 +379,14 @@ router.use('*', (req, res) => {
         'GET /api/payroll/pending': 'Períodos pendientes',
         'GET /api/payroll/extras-pending/:employeeId': 'Verificar extras pendientes'
       },
+      attachments: {
+        'POST /api/payroll/:payrollId/attachments': 'Subir archivo adjunto',
+        'GET /api/payroll/:payrollId/attachments': 'Obtener archivos adjuntos',
+        'DELETE /api/payroll/:payrollId/attachments/:attachmentId': 'Eliminar archivo adjunto'
+      },
       management: {
+        'PUT /api/payroll/:payrollId': 'Editar configuración de nómina',
+        'POST /api/payroll/:payrollId/regenerate': 'Regenerar nómina',
         'PUT /api/payroll/approve/:payrollId': 'Aprobar período',
         'PUT /api/payroll/pay/:payrollId': 'Marcar como pagado',
         'PUT /api/payroll/cancel/:payrollId': 'Cancelar período',

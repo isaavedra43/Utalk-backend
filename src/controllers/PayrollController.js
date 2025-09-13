@@ -1,4 +1,5 @@
 const PayrollService = require('../services/PayrollService');
+const AttachmentService = require('../services/AttachmentService');
 const PayrollConfig = require('../models/PayrollConfig');
 const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
@@ -842,18 +843,13 @@ class PayrollController {
         companyData
       );
 
-      res.json({
-        success: true,
-        message: 'PDF de recibo de nómina generado exitosamente',
-        data: {
-          pdfUrl: pdfResult.pdfUrl,
-          fileName: pdfResult.fileName,
-          size: pdfResult.size,
-          payrollId: payrollId,
-          employeeId: employee.id,
-          employeeName: employee.name
-        }
-      });
+      // CONFIGURAR HEADERS PARA DESCARGA DIRECTA DEL PDF
+      res.setHeader('Content-Type', pdfResult.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${pdfResult.fileName}"`);
+      res.setHeader('Content-Length', pdfResult.size);
+      
+      // ENVIAR EL PDF DIRECTAMENTE
+      res.send(pdfResult.pdfBuffer);
 
     } catch (error) {
       logger.error('❌ Error generando PDF de recibo de nómina', error);
@@ -911,6 +907,261 @@ class PayrollController {
         success: false,
         error: error.message,
         details: 'Error interno del servidor obteniendo estadísticas'
+      });
+    }
+  }
+
+  /**
+   * Subir archivo adjunto a nómina
+   * POST /api/payroll/:payrollId/attachments
+   */
+  static async uploadAttachment(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const { employeeId, category, description } = req.body;
+      const uploadedBy = req.user.userId;
+
+      logger.info('📎 Subiendo archivo adjunto', { payrollId, employeeId });
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: 'No se proporcionó archivo'
+        });
+      }
+
+      // Verificar que la nómina existe
+      const payroll = await Payroll.findById(payrollId);
+      if (!payroll) {
+        return res.status(404).json({
+          success: false,
+          error: 'Nómina no encontrada'
+        });
+      }
+
+      // Subir archivo
+      const attachment = await AttachmentService.uploadAttachment(
+        payrollId,
+        employeeId,
+        req.file,
+        uploadedBy,
+        { category, description }
+      );
+
+      res.json({
+        success: true,
+        message: 'Archivo subido exitosamente',
+        data: attachment
+      });
+
+    } catch (error) {
+      logger.error('❌ Error subiendo archivo adjunto', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor subiendo archivo'
+      });
+    }
+  }
+
+  /**
+   * Obtener archivos adjuntos de nómina
+   * GET /api/payroll/:payrollId/attachments
+   */
+  static async getAttachments(req, res) {
+    try {
+      const { payrollId } = req.params;
+
+      logger.info('📎 Obteniendo archivos adjuntos', { payrollId });
+
+      const attachments = await AttachmentService.getAttachmentsByPayroll(payrollId);
+
+      res.json({
+        success: true,
+        data: attachments
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo archivos adjuntos', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo archivos adjuntos'
+      });
+    }
+  }
+
+  /**
+   * Eliminar archivo adjunto
+   * DELETE /api/payroll/:payrollId/attachments/:attachmentId
+   */
+  static async deleteAttachment(req, res) {
+    try {
+      const { payrollId, attachmentId } = req.params;
+
+      logger.info('🗑️ Eliminando archivo adjunto', { payrollId, attachmentId });
+
+      await AttachmentService.deleteAttachment(attachmentId, payrollId);
+
+      res.json({
+        success: true,
+        message: 'Archivo eliminado exitosamente'
+      });
+
+    } catch (error) {
+      logger.error('❌ Error eliminando archivo adjunto', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor eliminando archivo'
+      });
+    }
+  }
+
+  /**
+   * Editar configuración de nómina
+   * PUT /api/payroll/:payrollId
+   */
+  static async editPayroll(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const updates = req.body;
+
+      logger.info('✏️ Editando configuración de nómina', { payrollId, updates });
+
+      // Verificar que la nómina existe
+      const payroll = await Payroll.findById(payrollId);
+      if (!payroll) {
+        return res.status(404).json({
+          success: false,
+          error: 'Nómina no encontrada'
+        });
+      }
+
+      // Actualizar campos permitidos
+      const allowedUpdates = [
+        'frequency', 'baseSalary', 'sbc', 'workingDaysPerWeek', 
+        'workingHoursPerDay', 'overtimeRate', 'paymentMethod', 'notes'
+      ];
+
+      const updateData = {};
+      allowedUpdates.forEach(field => {
+        if (updates[field] !== undefined) {
+          updateData[field] = updates[field];
+        }
+      });
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No hay campos válidos para actualizar'
+        });
+      }
+
+      // Actualizar en base de datos
+      const { db } = require('../config/firebase');
+      const docRef = db.collection('payrolls').doc(payrollId);
+      await docRef.update({
+        ...updateData,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Recalcular si se cambió salario o configuración
+      if (updates.baseSalary || updates.frequency) {
+        const config = await PayrollConfig.findActiveByEmployee(payroll.employeeId);
+        if (config) {
+          const calculatedSalary = config.calculateSalaryForPeriod();
+          const grossSalary = calculatedSalary + (payroll.totalPerceptions || 0);
+          const netSalary = grossSalary - (payroll.totalDeductions || 0);
+
+          await docRef.update({
+            calculatedSalary,
+            grossSalary,
+            netSalary,
+            recalculatedAt: new Date().toISOString()
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Configuración de nómina actualizada',
+        data: {
+          id: payrollId,
+          config: updateData,
+          updatedAt: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error editando configuración de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor editando configuración'
+      });
+    }
+  }
+
+  /**
+   * Regenerar nómina con recálculos
+   * POST /api/payroll/:payrollId/regenerate
+   */
+  static async regeneratePayroll(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const { recalculateExtras = true } = req.body;
+
+      logger.info('🔄 Regenerando nómina', { payrollId, recalculateExtras });
+
+      // Verificar que la nómina existe
+      const payroll = await Payroll.findById(payrollId);
+      if (!payroll) {
+        return res.status(404).json({
+          success: false,
+          error: 'Nómina no encontrada'
+        });
+      }
+
+      // Eliminar nómina actual y regenerar
+      await PayrollService.deletePayroll(payrollId);
+      
+      if (recalculateExtras) {
+        await PayrollService.resetExtrasForPayroll(payrollId);
+      }
+
+      // Regenerar con configuración actual
+      const newPayroll = await PayrollService.generatePayroll(
+        payroll.employeeId,
+        payroll.periodStart,
+        payroll.periodEnd
+      );
+
+      // Obtener detalles completos
+      const result = await PayrollService.getPayrollDetails(newPayroll.id);
+
+      res.json({
+        success: true,
+        message: 'Nómina regenerada exitosamente',
+        data: {
+          id: newPayroll.id,
+          periodStart: newPayroll.periodStart,
+          periodEnd: newPayroll.periodEnd,
+          grossSalary: newPayroll.grossSalary,
+          totalDeductions: newPayroll.totalDeductions,
+          netSalary: newPayroll.netSalary,
+          status: newPayroll.status,
+          regeneratedAt: new Date().toISOString(),
+          details: result ? result.details : null
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error regenerando nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor regenerando nómina'
       });
     }
   }

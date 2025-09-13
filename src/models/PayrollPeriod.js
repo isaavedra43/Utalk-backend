@@ -1,365 +1,411 @@
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('../config/firebase');
+const logger = require('../utils/logger');
 
 /**
- * Modelo de Período de Nómina
- * Gestiona los períodos de pago y cálculos salariales
+ * Modelo para períodos de nómina masiva
+ * Gestiona períodos que incluyen múltiples empleados
  */
 class PayrollPeriod {
-  constructor(data = {}) {
+  constructor(data) {
     this.id = data.id || uuidv4();
-    this.employeeId = data.employeeId || '';
-    this.periodStart = data.periodStart || '';
-    this.periodEnd = data.periodEnd || '';
-    this.weekNumber = data.weekNumber || 0;
-    this.year = data.year || new Date().getFullYear();
+    this.name = data.name; // Ej: "Septiembre 2025"
+    this.startDate = data.startDate; // Fecha inicio del período
+    this.endDate = data.endDate; // Fecha fin del período
+    this.frequency = data.frequency; // weekly, biweekly, monthly
+    this.status = data.status || 'draft'; // draft, calculated, approved, paid, closed
     
-    // Salarios
-    this.grossSalary = data.grossSalary || 0;
-    this.baseSalary = data.baseSalary || 0;
-    this.overtime = data.overtime || 0;
-    this.bonuses = data.bonuses || 0;
-    this.commissions = data.commissions || 0;
+    // Configuraciones del período
+    this.configurations = {
+      calculateTaxes: data.configurations?.calculateTaxes !== undefined ? data.configurations.calculateTaxes : true,
+      includeOvertime: data.configurations?.includeOvertime !== undefined ? data.configurations.includeOvertime : true,
+      applyAbsenceDeductions: data.configurations?.applyAbsenceDeductions !== undefined ? data.configurations.applyAbsenceDeductions : true,
+      includeLoans: data.configurations?.includeLoans !== undefined ? data.configurations.includeLoans : true,
+      ...data.configurations
+    };
     
-    // Deducciones
-    this.taxes = data.taxes || 0;
-    this.socialSecurity = data.socialSecurity || 0;
-    this.healthInsurance = data.healthInsurance || 0;
-    this.retirement = data.retirement || 0;
-    this.otherDeductions = data.otherDeductions || 0;
-    
-    // Resultado final
-    this.netSalary = data.netSalary || 0;
-    
-    // Estado
-    this.status = data.status || 'draft'; // 'draft' | 'calculated' | 'approved' | 'paid'
-    this.paidDate = data.paidDate || null;
-    this.paymentMethod = data.paymentMethod || null;
-    
-    // Archivos
-    this.receiptUrl = data.receiptUrl || null;
+    // Resumen del período
+    this.summary = {
+      totalEmployees: data.summary?.totalEmployees || 0,
+      totalPayroll: data.summary?.totalPayroll || 0,
+      totalPerceptions: data.summary?.totalPerceptions || 0,
+      totalDeductions: data.summary?.totalDeductions || 0,
+      averageSalary: data.summary?.averageSalary || 0,
+      employeesProcessed: data.summary?.employeesProcessed || 0,
+      employeesPending: data.summary?.employeesPending || 0,
+      employeesApproved: data.summary?.employeesApproved || 0,
+      employeesPaid: data.summary?.employeesPaid || 0,
+      ...data.summary
+    };
     
     // Metadatos
+    this.createdBy = data.createdBy;
     this.createdAt = data.createdAt || new Date().toISOString();
     this.updatedAt = data.updatedAt || new Date().toISOString();
+    this.processedAt = data.processedAt || null;
+    this.approvedAt = data.approvedAt || null;
+    this.paidAt = data.paidAt || null;
+    this.closedAt = data.closedAt || null;
   }
 
   /**
-   * Calcula el salario neto automáticamente
-   */
-  calculateNetSalary() {
-    const totalPerceptions = this.grossSalary + this.overtime + this.bonuses + this.commissions;
-    const totalDeductions = this.taxes + this.socialSecurity + this.healthInsurance + this.retirement + this.otherDeductions;
-    this.netSalary = totalPerceptions - totalDeductions;
-    return this.netSalary;
-  }
-
-  /**
-   * Calcula las deducciones automáticamente basado en el salario bruto
-   */
-  calculateDeductions() {
-    // Cálculo básico de deducciones (se puede personalizar según las leyes locales)
-    this.taxes = this.grossSalary * 0.16; // ISR aproximado
-    this.socialSecurity = this.grossSalary * 0.0725; // IMSS aproximado
-    this.healthInsurance = this.grossSalary * 0.02; // Seguro médico aproximado
-    this.retirement = this.grossSalary * 0.0625; // AFORE aproximado
-    
-    this.calculateNetSalary();
-  }
-
-  /**
-   * Valida los datos del período de nómina
-   */
-  validate() {
-    const errors = [];
-
-    if (!this.employeeId) {
-      errors.push('El ID del empleado es requerido');
-    }
-
-    if (!this.periodStart) {
-      errors.push('La fecha de inicio del período es requerida');
-    }
-
-    if (!this.periodEnd) {
-      errors.push('La fecha de fin del período es requerida');
-    }
-
-    if (new Date(this.periodStart) >= new Date(this.periodEnd)) {
-      errors.push('La fecha de inicio debe ser anterior a la fecha de fin');
-    }
-
-    if (this.grossSalary < 0) {
-      errors.push('El salario bruto no puede ser negativo');
-    }
-
-    const validStatuses = ['draft', 'calculated', 'approved', 'paid'];
-    if (!validStatuses.includes(this.status)) {
-      errors.push('El estado del período no es válido');
-    }
-
-    return errors;
-  }
-
-  /**
-   * Convierte el modelo a objeto plano para Firebase
-   */
-  toFirestore() {
-    return {
-      id: this.id,
-      employeeId: this.employeeId,
-      periodStart: this.periodStart,
-      periodEnd: this.periodEnd,
-      weekNumber: this.weekNumber,
-      year: this.year,
-      grossSalary: this.grossSalary,
-      baseSalary: this.baseSalary,
-      overtime: this.overtime,
-      bonuses: this.bonuses,
-      commissions: this.commissions,
-      taxes: this.taxes,
-      socialSecurity: this.socialSecurity,
-      healthInsurance: this.healthInsurance,
-      retirement: this.retirement,
-      otherDeductions: this.otherDeductions,
-      netSalary: this.netSalary,
-      status: this.status,
-      paidDate: this.paidDate,
-      paymentMethod: this.paymentMethod,
-      receiptUrl: this.receiptUrl,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt
-    };
-  }
-
-  /**
-   * Crea un período de nómina desde datos de Firestore
-   */
-  static fromFirestore(doc) {
-    return new PayrollPeriod({ id: doc.id, ...doc.data() });
-  }
-
-  /**
-   * Guarda el período de nómina en Firebase
+   * Guardar período en Firestore
    */
   async save() {
     try {
-      const errors = this.validate();
-      if (errors.length > 0) {
-        throw new Error(`Errores de validación: ${errors.join(', ')}`);
-      }
+      const { db } = require('../config/firebase');
+      const docRef = db.collection('payroll_periods').doc(this.id);
+      
+      const data = {
+        id: this.id,
+        name: this.name,
+        startDate: this.startDate,
+        endDate: this.endDate,
+        frequency: this.frequency,
+        status: this.status,
+        configurations: this.configurations,
+        summary: this.summary,
+        createdBy: this.createdBy,
+        createdAt: this.createdAt,
+        updatedAt: new Date().toISOString(),
+        processedAt: this.processedAt,
+        approvedAt: this.approvedAt,
+        paidAt: this.paidAt,
+        closedAt: this.closedAt
+      };
 
-      this.updatedAt = new Date().toISOString();
+      await docRef.set(data);
 
-      const docRef = db.collection('employees').doc(this.employeeId)
-        .collection('payroll').doc(this.id);
-      await docRef.set(this.toFirestore());
+      logger.info('✅ Período de nómina guardado', {
+        periodId: this.id,
+        name: this.name,
+        status: this.status
+      });
 
       return this;
     } catch (error) {
-      console.error('Error saving payroll period:', error);
+      logger.error('❌ Error guardando período de nómina', error);
       throw error;
     }
   }
 
   /**
-   * Actualiza el período de nómina
+   * Actualizar resumen del período
    */
-  async update(data) {
+  async updateSummary(summaryData) {
     try {
-      Object.assign(this, data);
+      this.summary = { ...this.summary, ...summaryData };
       this.updatedAt = new Date().toISOString();
 
-      const errors = this.validate();
-      if (errors.length > 0) {
-        throw new Error(`Errores de validación: ${errors.join(', ')}`);
-      }
+      const { db } = require('../config/firebase');
+      const docRef = db.collection('payroll_periods').doc(this.id);
+      
+      await docRef.update({
+        summary: this.summary,
+        updatedAt: this.updatedAt
+      });
 
-      const docRef = db.collection('employees').doc(this.employeeId)
-        .collection('payroll').doc(this.id);
-      await docRef.update(this.toFirestore());
+      logger.info('✅ Resumen de período actualizado', {
+        periodId: this.id,
+        summary: this.summary
+      });
 
       return this;
     } catch (error) {
-      console.error('Error updating payroll period:', error);
+      logger.error('❌ Error actualizando resumen de período', error);
       throw error;
     }
   }
 
   /**
-   * Busca un período de nómina por ID
+   * Cambiar estado del período
    */
-  static async findById(employeeId, id) {
+  async updateStatus(newStatus) {
     try {
-      const doc = await db.collection('employees').doc(employeeId)
-        .collection('payroll').doc(id).get();
+      const oldStatus = this.status;
+      this.status = newStatus;
+      this.updatedAt = new Date().toISOString();
+
+      // Actualizar timestamps específicos
+      const now = new Date().toISOString();
+      switch (newStatus) {
+        case 'calculated':
+          this.processedAt = now;
+          break;
+        case 'approved':
+          this.approvedAt = now;
+          break;
+        case 'paid':
+          this.paidAt = now;
+          break;
+        case 'closed':
+          this.closedAt = now;
+          break;
+      }
+
+      const { db } = require('../config/firebase');
+      const docRef = db.collection('payroll_periods').doc(this.id);
+      
+      const updateData = {
+        status: this.status,
+        updatedAt: this.updatedAt
+      };
+
+      if (this.processedAt) updateData.processedAt = this.processedAt;
+      if (this.approvedAt) updateData.approvedAt = this.approvedAt;
+      if (this.paidAt) updateData.paidAt = this.paidAt;
+      if (this.closedAt) updateData.closedAt = this.closedAt;
+
+      await docRef.update(updateData);
+
+      logger.info('✅ Estado de período actualizado', {
+        periodId: this.id,
+        oldStatus,
+        newStatus,
+        timestamp: now
+      });
+
+      return this;
+    } catch (error) {
+      logger.error('❌ Error actualizando estado de período', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar período por ID
+   */
+  static async findById(periodId) {
+    try {
+      const { db } = require('../config/firebase');
+      const doc = await db.collection('payroll_periods').doc(periodId).get();
       
       if (!doc.exists) {
         return null;
       }
-      
-      return PayrollPeriod.fromFirestore(doc);
+
+      return new PayrollPeriod(doc.data());
     } catch (error) {
-      console.error('Error finding payroll period by ID:', error);
+      logger.error('❌ Error buscando período por ID', error);
       throw error;
     }
   }
 
   /**
-   * Lista períodos de nómina de un empleado
+   * Obtener todos los períodos con paginación
    */
-  static async listByEmployee(employeeId, options = {}) {
+  static async findAll(options = {}) {
     try {
-      const {
-        year = new Date().getFullYear(),
-        month = null,
-        status = null,
-        limit = 20
+      const { 
+        status, 
+        frequency, 
+        page = 1, 
+        limit = 10, 
+        orderBy = 'createdAt', 
+        orderDirection = 'desc' 
       } = options;
 
-      let query = db.collection('employees').doc(employeeId)
-        .collection('payroll');
+      const { db } = require('../config/firebase');
+      let query = db.collection('payroll_periods');
 
-      // Filtros
-      if (year) {
-        query = query.where('year', '==', year);
-      }
-
-      if (status) {
+      // Aplicar filtros
+      if (status && status !== 'all') {
         query = query.where('status', '==', status);
       }
+      if (frequency) {
+        query = query.where('frequency', '==', frequency);
+      }
 
-      // Ordenamiento
-      query = query.orderBy('periodStart', 'desc').limit(limit);
+      // Aplicar ordenamiento
+      query = query.orderBy(orderBy, orderDirection);
+
+      // Aplicar paginación
+      const offset = (page - 1) * limit;
+      query = query.offset(offset).limit(limit);
 
       const snapshot = await query.get();
       const periods = [];
-
+      
       snapshot.forEach(doc => {
-        const period = PayrollPeriod.fromFirestore(doc);
-        
-        // Filtro por mes si se especifica
-        if (month) {
-          const periodMonth = new Date(period.periodStart).getMonth() + 1;
-          if (periodMonth === month) {
-            periods.push(period);
-          }
-        } else {
-          periods.push(period);
-        }
+        periods.push(new PayrollPeriod(doc.data()));
+      });
+
+      logger.info('📋 Períodos de nómina obtenidos', {
+        count: periods.length,
+        filters: { status, frequency },
+        pagination: { page, limit }
       });
 
       return periods;
     } catch (error) {
-      console.error('Error listing payroll periods:', error);
+      logger.error('❌ Error obteniendo períodos de nómina', error);
       throw error;
     }
   }
 
   /**
-   * Obtiene resumen de nómina de un empleado
+   * Obtener período actual activo
    */
-  static async getSummaryByEmployee(employeeId, year = new Date().getFullYear()) {
+  static async findCurrent() {
     try {
-      const snapshot = await db.collection('employees').doc(employeeId)
-        .collection('payroll')
-        .where('year', '==', year)
+      const { db } = require('../config/firebase');
+      const snapshot = await db.collection('payroll_periods')
+        .where('status', 'in', ['draft', 'calculated', 'approved'])
+        .orderBy('createdAt', 'desc')
+        .limit(1)
         .get();
 
-      const summary = {
-        totalGross: 0,
-        totalNet: 0,
-        totalDeductions: 0,
-        totalPeriods: 0,
-        averageGross: 0,
-        averageNet: 0
-      };
-
-      snapshot.forEach(doc => {
-        const period = doc.data();
-        summary.totalGross += period.grossSalary || 0;
-        summary.totalNet += period.netSalary || 0;
-        summary.totalDeductions += (period.taxes + period.socialSecurity + period.healthInsurance + period.retirement + period.otherDeductions) || 0;
-        summary.totalPeriods++;
-      });
-
-      if (summary.totalPeriods > 0) {
-        summary.averageGross = summary.totalGross / summary.totalPeriods;
-        summary.averageNet = summary.totalNet / summary.totalPeriods;
+      if (snapshot.empty) {
+        return null;
       }
 
-      return summary;
+      const doc = snapshot.docs[0];
+      return new PayrollPeriod(doc.data());
     } catch (error) {
-      console.error('Error getting payroll summary:', error);
+      logger.error('❌ Error obteniendo período actual', error);
       throw error;
     }
   }
 
   /**
-   * Obtiene nómina semanal para todos los empleados
+   * Validar si se puede crear un período con las fechas dadas
    */
-  static async getWeeklyPayroll(weekNumber, year, department = null) {
+  static async validatePeriodDates(startDate, endDate, excludeId = null) {
     try {
-      // Primero obtener todos los empleados
-      let employeesQuery = db.collection('employees').where('status', '==', 'active');
+      const { db } = require('../config/firebase');
+      let query = db.collection('payroll_periods')
+        .where('status', '!=', 'closed');
+
+      const snapshot = await query.get();
       
-      if (department) {
-        employeesQuery = employeesQuery.where('position.department', '==', department);
-      }
-
-      const employeesSnapshot = await employeesQuery.get();
-      const weeklyData = {
-        weekNumber,
-        year,
-        totalEmployees: 0,
-        totalCost: 0,
-        averagePerEmployee: 0,
-        details: []
-      };
-
-      for (const employeeDoc of employeesSnapshot.docs) {
-        const employee = employeeDoc.data();
+      const conflicts = [];
+      snapshot.forEach(doc => {
+        const period = doc.data();
         
-        // Buscar período de nómina para esta semana
-        const payrollSnapshot = await db.collection('employees').doc(employee.id)
-          .collection('payroll')
-          .where('weekNumber', '==', weekNumber)
-          .where('year', '==', year)
-          .limit(1)
-          .get();
-
-        let payrollData = null;
-        if (!payrollSnapshot.empty) {
-          payrollData = payrollSnapshot.docs[0].data();
+        // Excluir el período actual si se está editando
+        if (excludeId && period.id === excludeId) {
+          return;
         }
 
-        const detail = {
-          employee: {
-            id: employee.id,
-            name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            employeeNumber: employee.employeeNumber,
-            department: employee.position.department
-          },
-          gross: payrollData?.grossSalary || 0,
-          net: payrollData?.netSalary || 0,
-          deductions: payrollData ? (payrollData.taxes + payrollData.socialSecurity + payrollData.healthInsurance + payrollData.retirement + payrollData.otherDeductions) : 0,
-          status: payrollData?.status || 'pending'
-        };
+        const periodStart = new Date(period.startDate);
+        const periodEnd = new Date(period.endDate);
+        const newStart = new Date(startDate);
+        const newEnd = new Date(endDate);
 
-        weeklyData.details.push(detail);
-        weeklyData.totalCost += detail.net;
-        weeklyData.totalEmployees++;
-      }
+        // Verificar superposición
+        if ((newStart <= periodEnd && newEnd >= periodStart)) {
+          conflicts.push({
+            id: period.id,
+            name: period.name,
+            startDate: period.startDate,
+            endDate: period.endDate
+          });
+        }
+      });
 
-      if (weeklyData.totalEmployees > 0) {
-        weeklyData.averagePerEmployee = weeklyData.totalCost / weeklyData.totalEmployees;
-      }
-
-      return weeklyData;
+      return {
+        isValid: conflicts.length === 0,
+        conflicts
+      };
     } catch (error) {
-      console.error('Error getting weekly payroll:', error);
+      logger.error('❌ Error validando fechas de período', error);
       throw error;
     }
+  }
+
+  /**
+   * Eliminar período (solo si está en draft)
+   */
+  async delete() {
+    try {
+      if (this.status !== 'draft') {
+        throw new Error('Solo se pueden eliminar períodos en borrador');
+      }
+
+      const { db } = require('../config/firebase');
+      await db.collection('payroll_periods').doc(this.id).delete();
+
+      logger.info('✅ Período de nómina eliminado', {
+        periodId: this.id,
+        name: this.name
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('❌ Error eliminando período de nómina', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener información básica del período
+   */
+  getBasicInfo() {
+    return {
+      id: this.id,
+      name: this.name,
+      startDate: this.startDate,
+      endDate: this.endDate,
+      frequency: this.frequency,
+      status: this.status,
+      summary: this.summary,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      processedAt: this.processedAt,
+      approvedAt: this.approvedAt,
+      paidAt: this.paidAt,
+      closedAt: this.closedAt
+    };
+  }
+
+  /**
+   * Obtener información completa del período
+   */
+  getFullInfo() {
+    return {
+      id: this.id,
+      name: this.name,
+      startDate: this.startDate,
+      endDate: this.endDate,
+      frequency: this.frequency,
+      status: this.status,
+      configurations: this.configurations,
+      summary: this.summary,
+      createdBy: this.createdBy,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      processedAt: this.processedAt,
+      approvedAt: this.approvedAt,
+      paidAt: this.paidAt,
+      closedAt: this.closedAt
+    };
+  }
+
+  /**
+   * Validar si el período puede ser procesado
+   */
+  canBeProcessed() {
+    return this.status === 'draft';
+  }
+
+  /**
+   * Validar si el período puede ser aprobado
+   */
+  canBeApproved() {
+    return this.status === 'calculated';
+  }
+
+  /**
+   * Validar si el período puede ser marcado como pagado
+   */
+  canBePaid() {
+    return this.status === 'approved';
+  }
+
+  /**
+   * Validar si el período puede ser cerrado
+   */
+  canBeClosed() {
+    return this.status === 'paid';
   }
 }
 
