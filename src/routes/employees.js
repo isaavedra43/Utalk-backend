@@ -256,14 +256,14 @@ router.post('/attachments',
   AttachmentsController.uploadFiles
 );
 
-// Validar archivos antes de subir
-router.post('/attachments/validate', 
-  extrasUpload.array('files', 5), 
-  AttachmentsController.validateFiles
-);
+// Validar archivos antes de subir - FUNCIÓN NO IMPLEMENTADA
+// router.post('/attachments/validate', 
+//   extrasUpload.array('files', 5), 
+//   AttachmentsController.validateFiles
+// );
 
-// Obtener información de archivo
-router.get('/attachments/:fileId', AttachmentsController.getFileInfo);
+// Obtener información de archivo - FUNCIÓN NO IMPLEMENTADA
+// router.get('/attachments/:fileId', AttachmentsController.getFileInfo);
 
 // Descargar archivo
 router.get('/attachments/:fileId/download', AttachmentsController.downloadFile);
@@ -271,8 +271,8 @@ router.get('/attachments/:fileId/download', AttachmentsController.downloadFile);
 // Eliminar archivo
 router.delete('/attachments/:fileId', AttachmentsController.deleteFile);
 
-// Obtener archivos de un movimiento
-router.get('/movements/:movementId/attachments', AttachmentsController.getMovementFiles);
+// Obtener archivos de un movimiento - FUNCIÓN NO IMPLEMENTADA
+// router.get('/movements/:movementId/attachments', AttachmentsController.getMovementFiles);
 
 /**
  * RUTAS DE REPORTES
