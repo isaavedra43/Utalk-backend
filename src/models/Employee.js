@@ -225,6 +225,11 @@ class Employee {
       location: this.location,
       contract: this.contract,
       status: this.status,
+      salary: this.salary,
+      sbc: this.sbc,
+      vacationBalance: this.vacationBalance,
+      sickLeaveBalance: this.sickLeaveBalance,
+      metrics: this.metrics,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       createdBy: this.createdBy,
@@ -286,6 +291,21 @@ class Employee {
       }
       if (data.status) {
         this.status = data.status;
+      }
+      if (data.salary) {
+        this.salary = { ...this.salary, ...data.salary };
+      }
+      if (data.sbc !== undefined) {
+        this.sbc = data.sbc;
+      }
+      if (data.vacationBalance !== undefined) {
+        this.vacationBalance = data.vacationBalance;
+      }
+      if (data.sickLeaveBalance !== undefined) {
+        this.sickLeaveBalance = data.sickLeaveBalance;
+      }
+      if (data.metrics) {
+        this.metrics = { ...this.metrics, ...data.metrics };
       }
 
       this.updatedAt = new Date().toISOString();
