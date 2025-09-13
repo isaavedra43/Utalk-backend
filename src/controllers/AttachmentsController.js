@@ -1,461 +1,367 @@
 const multer = require('multer');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
 const fs = require('fs').promises;
-const admin = require('firebase-admin');
+const { v4: uuidv4 } = require('uuid');
+const { db } = require('../config/firebase');
 
 /**
- * Controlador de Archivos Adjuntos
- * Maneja la subida, descarga y gestión de archivos para movimientos de extras
+ * Controlador para gestión de archivos adjuntos
  */
 class AttachmentsController {
-
+  
   /**
    * Configuración de multer para subida de archivos
    */
   static getMulterConfig() {
-    const storage = multer.memoryStorage();
-    
+    const storage = multer.diskStorage({
+      destination: async (req, file, cb) => {
+        try {
+          const uploadDir = path.join(__dirname, '../../uploads/attachments');
+          await fs.mkdir(uploadDir, { recursive: true });
+          cb(null, uploadDir);
+        } catch (error) {
+          cb(error);
+        }
+      },
+      filename: (req, file, cb) => {
+        const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+        cb(null, uniqueName);
+      }
+    });
+
+    const fileFilter = (req, file, cb) => {
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Tipo de archivo no permitido. Solo se permiten: JPG, PNG, PDF, DOC, DOCX'), false);
+      }
+    };
+
     return multer({
       storage: storage,
+      fileFilter: fileFilter,
       limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB máximo
-        files: 5 // Máximo 5 archivos por vez
-      },
-      fileFilter: (req, file, cb) => {
-        // Tipos de archivo permitidos
-        const allowedTypes = [
-          'application/pdf',                    // PDF
-          'image/jpeg',                         // JPG
-          'image/png',                          // PNG
-          'application/msword',                 // DOC
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-          'text/plain'                          // TXT
-        ];
-
-        if (allowedTypes.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(new Error('Tipo de archivo no permitido. Solo se permiten: PDF, JPG, PNG, DOC, DOCX, TXT'), false);
-        }
+        fileSize: 10 * 1024 * 1024, // 10MB
+        files: 5 // Máximo 5 archivos por request
       }
     });
   }
 
   /**
-   * Sube archivos a Firebase Storage
+   * Sube archivos adjuntos para un empleado
    * POST /api/attachments
    */
   static async uploadFiles(req, res) {
     try {
-      const { employeeId, movementId, movementType } = req.body;
+      const { employeeId, movementType, movementId } = req.body;
+      
+      if (!employeeId) {
+        return res.status(400).json({
+          success: false,
+          error: 'ID del empleado es requerido'
+        });
+      }
 
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({
           success: false,
-          error: 'No se han proporcionado archivos'
+          error: 'No se han subido archivos'
         });
       }
 
-      if (!employeeId || !movementType) {
-        return res.status(400).json({
-          success: false,
-          error: 'ID de empleado y tipo de movimiento son requeridos'
-        });
-      }
-
-      const bucket = admin.storage().bucket();
-      const uploadPromises = [];
       const uploadedFiles = [];
-
-      // Procesar cada archivo
+      
       for (const file of req.files) {
-        const fileId = uuidv4();
-        const fileName = `${fileId}_${file.originalname}`;
-        const filePath = `employees/${employeeId}/movements/${movementType}/${fileName}`;
-
-        // Crear referencia del archivo en Firebase Storage
-        const fileRef = bucket.file(filePath);
-
-        // Configurar metadatos
-        const metadata = {
-          metadata: {
-            employeeId,
-            movementId: movementId || 'pending',
-            movementType,
-            originalName: file.originalname,
-            uploadedAt: new Date().toISOString(),
-            uploadedBy: req.user?.id || 'system'
-          },
-          contentType: file.mimetype
+        const fileData = {
+          id: uuidv4(),
+          originalName: file.originalname,
+          filename: file.filename,
+          path: file.path,
+          size: file.size,
+          mimetype: file.mimetype,
+          employeeId: employeeId,
+          movementType: movementType || 'general',
+          movementId: movementId || null,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: req.user?.email || 'system'
         };
 
-        // Crear promesa de subida
-        const uploadPromise = new Promise((resolve, reject) => {
-          const stream = fileRef.createWriteStream({
-            metadata: metadata,
-            resumable: false
-          });
+        // Guardar metadatos en Firestore
+        await db.collection('employees')
+          .doc(employeeId)
+          .collection('attachments')
+          .doc(fileData.id)
+          .set(fileData);
 
-          stream.on('error', (error) => {
-            console.error('Error uploading file:', error);
-            reject(error);
-          });
-
-          stream.on('finish', async () => {
-            try {
-              // Hacer el archivo público (opcional, depende de los requerimientos de seguridad)
-              await fileRef.makePublic();
-
-              // Obtener URL pública
-              const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
-              const fileInfo = {
-                id: fileId,
-                originalName: file.originalname,
-                fileName: fileName,
-                filePath: filePath,
-                url: publicUrl,
-                size: file.size,
-                mimetype: file.mimetype,
-                employeeId,
-                movementId: movementId || null,
-                movementType,
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: req.user?.id || 'system'
-              };
-
-              resolve(fileInfo);
-            } catch (error) {
-              reject(error);
-            }
-          });
-
-          // Escribir el buffer del archivo
-          stream.end(file.buffer);
+        uploadedFiles.push({
+          id: fileData.id,
+          originalName: fileData.originalName,
+          filename: fileData.filename,
+          size: fileData.size,
+          mimetype: fileData.mimetype,
+          uploadedAt: fileData.uploadedAt
         });
-
-        uploadPromises.push(uploadPromise);
       }
-
-      // Esperar a que todos los archivos se suban
-      const results = await Promise.all(uploadPromises);
-      uploadedFiles.push(...results);
 
       res.json({
         success: true,
+        message: `${uploadedFiles.length} archivo(s) subido(s) exitosamente`,
         data: {
           files: uploadedFiles,
-          total: uploadedFiles.length
+          employeeId: employeeId,
+          movementType: movementType,
+          totalFiles: uploadedFiles.length
         },
-        message: `${uploadedFiles.length} archivo(s) subido(s) exitosamente`
+        timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      console.error('Error uploading files:', error);
+      console.error('Error subiendo archivos:', error);
       
-      if (error.message.includes('Tipo de archivo no permitido')) {
-        return res.status(400).json({
-          success: false,
-          error: error.message
-        });
+      // Limpiar archivos subidos en caso de error
+      if (req.files) {
+        for (const file of req.files) {
+          try {
+            await fs.unlink(file.path);
+          } catch (unlinkError) {
+            console.error('Error eliminando archivo:', unlinkError);
+          }
+        }
       }
 
       res.status(500).json({
         success: false,
-        error: 'Error al subir archivos',
+        error: 'Error subiendo archivos',
         details: error.message
       });
     }
   }
 
   /**
-   * Obtiene información de un archivo
-   * GET /api/attachments/:fileId
+   * Obtiene archivos adjuntos de un empleado
+   * GET /api/attachments/employee/:id
    */
-  static async getFileInfo(req, res) {
+  static async getEmployeeAttachments(req, res) {
     try {
-      const { fileId } = req.params;
+      const { id: employeeId } = req.params;
+      const { movementType, limit = 50 } = req.query;
 
-      if (!fileId) {
-        return res.status(400).json({
-          success: false,
-          error: 'ID de archivo es requerido'
-        });
+      let query = db.collection('employees')
+        .doc(employeeId)
+        .collection('attachments')
+        .orderBy('uploadedAt', 'desc')
+        .limit(parseInt(limit));
+
+      if (movementType) {
+        query = query.where('movementType', '==', movementType);
       }
 
-      // Buscar archivo en Firebase Storage
-      // Nota: Esta es una implementación simplificada
-      // En un caso real, se debería mantener un registro de archivos en Firestore
-      
+      const snapshot = await query.get();
+      const attachments = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
       res.json({
         success: true,
         data: {
-          id: fileId,
-          message: 'Información del archivo'
-        }
+          attachments: attachments,
+          total: attachments.length,
+          employeeId: employeeId
+        },
+        timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      console.error('Error getting file info:', error);
+      console.error('Error obteniendo archivos:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al obtener información del archivo'
+        error: 'Error obteniendo archivos adjuntos',
+        details: error.message
       });
     }
   }
 
   /**
-   * Descarga un archivo
-   * GET /api/attachments/:fileId/download
+   * Descarga un archivo específico
+   * GET /api/attachments/:id/download
    */
   static async downloadFile(req, res) {
     try {
-      const { fileId } = req.params;
-      const { filePath } = req.query;
+      const { id: fileId } = req.params;
+      const { employeeId } = req.query;
 
-      if (!fileId || !filePath) {
+      if (!employeeId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de archivo y ruta son requeridos'
+          error: 'ID del empleado es requerido'
         });
       }
 
-      const bucket = admin.storage().bucket();
-      const file = bucket.file(filePath);
+      const doc = await db.collection('employees')
+        .doc(employeeId)
+        .collection('attachments')
+        .doc(fileId)
+        .get();
 
-      // Verificar que el archivo existe
-      const [exists] = await file.exists();
-      if (!exists) {
+      if (!doc.exists) {
         return res.status(404).json({
           success: false,
           error: 'Archivo no encontrado'
         });
       }
 
-      // Obtener metadatos del archivo
-      const [metadata] = await file.getMetadata();
+      const fileData = doc.data();
       
-      // Configurar headers para descarga
-      res.set({
-        'Content-Type': metadata.contentType || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${metadata.metadata?.originalName || fileId}"`,
-        'Cache-Control': 'no-cache'
-      });
+      // Verificar que el archivo existe físicamente
+      try {
+        await fs.access(fileData.path);
+      } catch (error) {
+        return res.status(404).json({
+          success: false,
+          error: 'Archivo físico no encontrado'
+        });
+      }
 
-      // Crear stream de descarga
-      const stream = file.createReadStream();
-      
-      stream.on('error', (error) => {
-        console.error('Error downloading file:', error);
-        if (!res.headersSent) {
-          res.status(500).json({
-            success: false,
-            error: 'Error al descargar archivo'
-          });
-        }
-      });
-
-      // Enviar archivo
-      stream.pipe(res);
+      res.download(fileData.path, fileData.originalName);
 
     } catch (error) {
-      console.error('Error downloading file:', error);
+      console.error('Error descargando archivo:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al descargar archivo'
+        error: 'Error descargando archivo',
+        details: error.message
       });
     }
   }
 
   /**
-   * Elimina un archivo
-   * DELETE /api/attachments/:fileId
+   * Elimina un archivo adjunto
+   * DELETE /api/attachments/:id
    */
   static async deleteFile(req, res) {
     try {
-      const { fileId } = req.params;
-      const { filePath } = req.body;
+      const { id: fileId } = req.params;
+      const { employeeId } = req.body;
 
-      if (!fileId || !filePath) {
+      if (!employeeId) {
         return res.status(400).json({
           success: false,
-          error: 'ID de archivo y ruta son requeridos'
+          error: 'ID del empleado es requerido'
         });
       }
 
-      const bucket = admin.storage().bucket();
-      const file = bucket.file(filePath);
+      const doc = await db.collection('employees')
+        .doc(employeeId)
+        .collection('attachments')
+        .doc(fileId)
+        .get();
 
-      // Verificar que el archivo existe
-      const [exists] = await file.exists();
-      if (!exists) {
+      if (!doc.exists) {
         return res.status(404).json({
           success: false,
           error: 'Archivo no encontrado'
         });
       }
 
-      // Eliminar archivo
-      await file.delete();
+      const fileData = doc.data();
+
+      // Eliminar archivo físico
+      try {
+        await fs.unlink(fileData.path);
+      } catch (error) {
+        console.error('Error eliminando archivo físico:', error);
+      }
+
+      // Eliminar registro de Firestore
+      await db.collection('employees')
+        .doc(employeeId)
+        .collection('attachments')
+        .doc(fileId)
+        .delete();
 
       res.json({
         success: true,
-        message: 'Archivo eliminado exitosamente'
+        message: 'Archivo eliminado exitosamente',
+        data: {
+          fileId: fileId,
+          originalName: fileData.originalName
+        },
+        timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      console.error('Error deleting file:', error);
+      console.error('Error eliminando archivo:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al eliminar archivo'
+        error: 'Error eliminando archivo',
+        details: error.message
       });
     }
   }
 
   /**
-   * Obtiene archivos por movimiento
-   * GET /api/movements/:movementId/attachments
+   * Obtiene estadísticas de archivos
+   * GET /api/attachments/stats
    */
-  static async getMovementFiles(req, res) {
+  static async getStats(req, res) {
     try {
-      const { movementId } = req.params;
-      const { employeeId } = req.query;
+      const { employeeId, startDate, endDate } = req.query;
 
-      if (!movementId || !employeeId) {
-        return res.status(400).json({
-          success: false,
-          error: 'ID de movimiento y empleado son requeridos'
-        });
-      }
-
-      // En una implementación real, se buscarían los archivos en Firestore
-      // o se mantendría un registro de archivos asociados a movimientos
+      let query = db.collection('employees');
       
-      const bucket = admin.storage().bucket();
-      const folderPath = `employees/${employeeId}/movements/`;
-      
-      // Listar archivos en la carpeta del empleado
-      const [files] = await bucket.getFiles({
-        prefix: folderPath,
-        delimiter: '/'
-      });
-
-      // Filtrar archivos por movimiento (basado en metadatos)
-      const movementFiles = [];
-      
-      for (const file of files) {
-        try {
-          const [metadata] = await file.getMetadata();
-          if (metadata.metadata?.movementId === movementId) {
-            movementFiles.push({
-              id: metadata.metadata?.fileId || file.name,
-              originalName: metadata.metadata?.originalName || file.name,
-              fileName: file.name,
-              url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
-              size: metadata.size,
-              contentType: metadata.contentType,
-              uploadedAt: metadata.metadata?.uploadedAt,
-              uploadedBy: metadata.metadata?.uploadedBy
-            });
+      if (employeeId) {
+        query = query.doc(employeeId).collection('attachments');
+      } else {
+        // Para estadísticas globales, necesitaríamos una consulta más compleja
+        // Por ahora retornamos estadísticas básicas
+        return res.json({
+          success: true,
+          data: {
+            message: 'Estadísticas globales no implementadas aún',
+            employeeId: employeeId || 'all'
           }
-        } catch (metadataError) {
-          // Ignorar archivos con metadatos inválidos
-          console.warn('Error reading file metadata:', metadataError);
-        }
-      }
-
-      res.json({
-        success: true,
-        data: {
-          files: movementFiles,
-          total: movementFiles.length,
-          movementId
-        }
-      });
-
-    } catch (error) {
-      console.error('Error getting movement files:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener archivos del movimiento'
-      });
-    }
-  }
-
-  /**
-   * Valida archivos antes de subir
-   * POST /api/attachments/validate
-   */
-  static async validateFiles(req, res) {
-    try {
-      const files = req.files;
-      
-      if (!files || files.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'No se han proporcionado archivos para validar'
         });
       }
 
-      const validationResults = [];
-      
-      for (const file of files) {
-        const validation = {
-          originalName: file.originalname,
-          size: file.size,
-          mimetype: file.mimetype,
-          valid: true,
-          errors: []
-        };
+      const snapshot = await query.get();
+      const attachments = snapshot.docs.map(doc => doc.data());
 
-        // Validar tamaño
-        if (file.size > 10 * 1024 * 1024) { // 10MB
-          validation.valid = false;
-          validation.errors.push('Archivo excede el tamaño máximo de 10MB');
-        }
+      const stats = {
+        totalFiles: attachments.length,
+        totalSize: attachments.reduce((sum, file) => sum + (file.size || 0), 0),
+        byType: {},
+        byMovementType: {}
+      };
 
-        // Validar tipo
-        const allowedTypes = [
-          'application/pdf',
-          'image/jpeg',
-          'image/png',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'text/plain'
-        ];
+      attachments.forEach(file => {
+        // Estadísticas por tipo de archivo
+        const extension = path.extname(file.originalName).toLowerCase();
+        stats.byType[extension] = (stats.byType[extension] || 0) + 1;
 
-        if (!allowedTypes.includes(file.mimetype)) {
-          validation.valid = false;
-          validation.errors.push('Tipo de archivo no permitido');
-        }
-
-        // Validar nombre
-        if (file.originalname.length > 255) {
-          validation.valid = false;
-          validation.errors.push('Nombre de archivo demasiado largo');
-        }
-
-        validationResults.push(validation);
-      }
-
-      const allValid = validationResults.every(result => result.valid);
+        // Estadísticas por tipo de movimiento
+        const movementType = file.movementType || 'general';
+        stats.byMovementType[movementType] = (stats.byMovementType[movementType] || 0) + 1;
+      });
 
       res.json({
         success: true,
         data: {
-          validationResults,
-          allValid,
-          totalFiles: files.length,
-          validFiles: validationResults.filter(r => r.valid).length
-        }
+          stats: stats,
+          employeeId: employeeId,
+          period: { startDate, endDate }
+        },
+        timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      console.error('Error validating files:', error);
+      console.error('Error obteniendo estadísticas:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al validar archivos'
+        error: 'Error obteniendo estadísticas de archivos',
+        details: error.message
       });
     }
   }
