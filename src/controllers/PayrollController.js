@@ -580,6 +580,60 @@ class PayrollController {
   }
 
   /**
+   * Regenerar nómina sin impuestos automáticos
+   * POST /api/payroll/regenerate/:payrollId
+   */
+  static async regeneratePayrollWithoutTaxes(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const userId = req.user?.id;
+
+      logger.info('🔄 Regenerando nómina sin impuestos automáticos', { payrollId, userId });
+
+      // Obtener la nómina existente
+      const existingPayroll = await Payroll.findById(payrollId);
+      if (!existingPayroll) {
+        return res.status(404).json({
+          success: false,
+          error: 'Período de nómina no encontrado'
+        });
+      }
+
+      // Eliminar la nómina existente y regenerar
+      await PayrollService.deletePayroll(payrollId);
+      
+      // Regenerar la nómina con la nueva lógica (sin impuestos)
+      const newPayroll = await PayrollService.generatePayroll(
+        existingPayroll.employeeId,
+        new Date(existingPayroll.periodStart),
+        true // forceRegenerate
+      );
+
+      // Obtener detalles completos
+      const details = await PayrollService.getPayrollDetails(newPayroll.id);
+
+      res.json({
+        success: true,
+        message: 'Nómina regenerada exitosamente sin impuestos automáticos',
+        data: {
+          payroll: newPayroll.toFirestore(),
+          details: details.details,
+          summary: details.summary,
+          previousPayrollId: payrollId
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error regenerando nómina sin impuestos', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor regenerando nómina'
+      });
+    }
+  }
+
+  /**
    * Generar PDF de recibo de nómina
    * GET /api/payroll/pdf/:payrollId
    */

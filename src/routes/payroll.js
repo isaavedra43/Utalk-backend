@@ -72,6 +72,17 @@ router.post('/auto-generate',
   PayrollController.autoGeneratePayrolls
 );
 
+/**
+ * Regenerar nómina sin impuestos automáticos
+ * POST /api/payroll/regenerate/:payrollId
+ * Requiere: admin, superadmin
+ */
+router.post('/regenerate/:payrollId', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  PayrollController.regeneratePayrollWithoutTaxes
+);
+
 // ================================
 // CONSULTA DE PERÍODOS
 // ================================

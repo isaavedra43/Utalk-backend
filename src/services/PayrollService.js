@@ -231,7 +231,8 @@ class PayrollService {
 
       const applicableExtras = allExtras.filter(extra => {
         // CRÍTICO: Solo incluir extras aprobados y NO aplicados a nómina
-        if (extra.status !== 'approved' || extra.appliedToPayroll === true) {
+        // También incluir extras con status 'pending' que tengan aprobación
+        if ((extra.status !== 'approved' && extra.status !== 'pending') || extra.appliedToPayroll === true) {
           return false;
         }
 
@@ -250,6 +251,18 @@ class PayrollService {
         }
 
         return false;
+      });
+
+      logger.info('🔍 Filtrado de extras detallado', {
+        employeeId,
+        totalExtras: allExtras.length,
+        applicableExtras: applicableExtras.length,
+        extrasByStatus: allExtras.reduce((acc, extra) => {
+          acc[extra.status] = (acc[extra.status] || 0) + 1;
+          return acc;
+        }, {}),
+        extrasApplied: allExtras.filter(e => e.appliedToPayroll).length,
+        period: `${periodStart} - ${periodEnd}`
       });
 
       logger.info('📋 Extras encontrados para período', {
