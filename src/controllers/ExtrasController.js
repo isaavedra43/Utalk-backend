@@ -252,11 +252,31 @@ class ExtrasController {
       }
 
       // Obtener resumen
-      const summary = await ExtrasService.getMovementsSummary(
-        employeeId, 
-        startDate, 
-        endDate
-      );
+      let summary;
+      try {
+        summary = await ExtrasService.getMovementsSummary(
+          employeeId, 
+          startDate, 
+          endDate
+        );
+      } catch (serviceError) {
+        console.error('Error in ExtrasService.getMovementsSummary:', serviceError);
+        // Retornar resumen vacío en caso de error
+        summary = {
+          totalToAdd: 0,
+          totalToSubtract: 0,
+          netImpact: 0,
+          byType: {
+            overtime: { count: 0, total: 0, hours: 0 },
+            absence: { count: 0, total: 0, days: 0 },
+            bonus: { count: 0, total: 0 },
+            deduction: { count: 0, total: 0 },
+            loan: { count: 0, total: 0 },
+            damage: { count: 0, total: 0 }
+          },
+          movements: []
+        };
+      }
 
       res.json({
         success: true,

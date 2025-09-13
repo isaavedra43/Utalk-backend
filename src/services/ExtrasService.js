@@ -189,11 +189,18 @@ class ExtrasService {
    */
   static async getMovementsSummary(employeeId, startDate, endDate) {
     try {
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
-        startDate,
-        endDate,
-        status: 'approved'
-      });
+      let movements = [];
+      try {
+        movements = await PayrollMovement.findByEmployee(employeeId, {
+          startDate,
+          endDate,
+          status: 'approved'
+        });
+      } catch (dbError) {
+        console.error('Error fetching movements from database:', dbError);
+        // Si hay error en la base de datos, retornar array vacío
+        movements = [];
+      }
 
       const summary = {
         totalToAdd: 0,
