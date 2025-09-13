@@ -2,6 +2,8 @@ const PayrollPeriod = require('../models/PayrollPeriod');
 const PayrollBreakdown = require('../models/PayrollBreakdown');
 const Employee = require('../models/Employee');
 const EmployeeHistory = require('../models/EmployeeHistory');
+const ExtrasService = require('../services/ExtrasService');
+const PayrollMovement = require('../models/PayrollMovement');
 
 /**
  * Controlador de Nómina
@@ -325,15 +327,28 @@ class PayrollController {
         employeeId,
         periodStart,
         periodEnd,
-        grossSalary: employee.contract.salary,
-        baseSalary: employee.contract.salary,
+        grossSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
+        baseSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
         weekNumber: PayrollController.getWeekNumber(new Date(periodStart)),
         year: new Date(periodStart).getFullYear()
       });
 
-      // TODO: Integrar con datos de asistencia para calcular horas extra
-      // TODO: Aplicar bonos y comisiones si existen
-      
+      // Integrar con movimientos de extras para cálculo completo
+      const extrasImpact = await ExtrasService.calculatePayrollImpact(
+        employeeId, 
+        periodStart, 
+        periodEnd
+      );
+
+      // Aplicar impacto de extras en la nómina
+      payroll.overtime = extrasImpact.breakdown.overtime || 0;
+      payroll.bonuses = extrasImpact.breakdown.bonuses || 0;
+      payroll.otherDeductions = 
+        (extrasImpact.breakdown.absences || 0) +
+        (extrasImpact.breakdown.deductions || 0) +
+        (extrasImpact.breakdown.loanPayments || 0) +
+        (extrasImpact.breakdown.damages || 0);
+
       // Calcular deducciones automáticamente
       payroll.calculateDeductions();
 
@@ -341,7 +356,19 @@ class PayrollController {
         success: true,
         data: {
           payroll,
-          message: 'Nómina calculada. Revise los valores antes de guardar.'
+          extrasImpact,
+          breakdown: {
+            baseSalary: payroll.baseSalary,
+            overtime: payroll.overtime,
+            bonuses: payroll.bonuses,
+            totalPerceptions: payroll.baseSalary + payroll.overtime + payroll.bonuses,
+            taxes: payroll.taxes,
+            socialSecurity: payroll.socialSecurity,
+            otherDeductions: payroll.otherDeductions,
+            totalDeductions: payroll.taxes + payroll.socialSecurity + payroll.otherDeductions,
+            netSalary: payroll.netSalary
+          },
+          message: 'Nómina calculada con movimientos de extras incluidos.'
         }
       });
     } catch (error) {
@@ -349,6 +376,130 @@ class PayrollController {
       res.status(500).json({
         success: false,
         error: 'Error al calcular nómina',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * Procesa nómina incluyendo movimientos de extras
+   * POST /api/employees/:id/payroll/process-with-extras
+   */
+  static async processPayrollWithExtras(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { periodStart, periodEnd } = req.body;
+      const createdBy = req.user?.id || null;
+
+      if (!periodStart || !periodEnd) {
+        return res.status(400).json({
+          success: false,
+          error: 'Fechas de inicio y fin del período son requeridas'
+        });
+      }
+
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      // Calcular impacto de extras
+      const extrasImpact = await ExtrasService.calculatePayrollImpact(
+        employeeId, 
+        periodStart, 
+        periodEnd
+      );
+
+      // Crear período de nómina con extras incluidos
+      const payroll = new PayrollPeriod({
+        employeeId,
+        periodStart,
+        periodEnd,
+        grossSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
+        baseSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
+        overtime: extrasImpact.breakdown.overtime || 0,
+        bonuses: extrasImpact.breakdown.bonuses || 0,
+        otherDeductions: 
+          (extrasImpact.breakdown.absences || 0) +
+          (extrasImpact.breakdown.deductions || 0) +
+          (extrasImpact.breakdown.loanPayments || 0) +
+          (extrasImpact.breakdown.damages || 0),
+        weekNumber: PayrollController.getWeekNumber(new Date(periodStart)),
+        year: new Date(periodStart).getFullYear(),
+        status: 'calculated'
+      });
+
+      // Calcular deducciones y salario neto
+      payroll.calculateDeductions();
+
+      // Guardar período de nómina
+      await payroll.save();
+
+      // Crear desgloses detallados para cada movimiento
+      for (const movement of extrasImpact.movements) {
+        const breakdown = new PayrollBreakdown({
+          payrollPeriodId: payroll.id,
+          employeeId,
+          type: movement.impactType === 'add' ? 'perception' : 'deduction',
+          category: movement.type,
+          description: `${movement.type}: ${movement.description}`,
+          amount: movement.calculatedAmount || movement.amount,
+          taxable: movement.type === 'overtime' || movement.type === 'bonus',
+          exempt: movement.type === 'absence' || movement.type === 'loan'
+        });
+        
+        await breakdown.save();
+
+        // Marcar movimiento como procesado en nómina
+        movement.payrollPeriod = `${periodStart} - ${periodEnd}`;
+        movement.payrollId = payroll.id;
+        await movement.save();
+      }
+
+      // Registrar en historial
+      await EmployeeHistory.createHistoryRecord(
+        employeeId,
+        'payroll_processed',
+        `Nómina procesada con ${extrasImpact.movements.length} movimientos de extras`,
+        {
+          payrollId: payroll.id,
+          period: `${periodStart} - ${periodEnd}`,
+          netSalary: payroll.netSalary,
+          extrasCount: extrasImpact.movements.length,
+          totalExtrasImpact: extrasImpact.netImpact
+        },
+        createdBy
+      );
+
+      res.json({
+        success: true,
+        data: {
+          payroll,
+          extrasImpact,
+          processedMovements: extrasImpact.movements.length,
+          breakdown: {
+            baseSalary: payroll.baseSalary,
+            overtime: payroll.overtime,
+            bonuses: payroll.bonuses,
+            totalPerceptions: payroll.baseSalary + payroll.overtime + payroll.bonuses,
+            taxes: payroll.taxes,
+            socialSecurity: payroll.socialSecurity,
+            otherDeductions: payroll.otherDeductions,
+            totalDeductions: payroll.taxes + payroll.socialSecurity + payroll.otherDeductions,
+            netSalary: payroll.netSalary
+          }
+        },
+        message: 'Nómina procesada exitosamente con movimientos de extras'
+      });
+
+    } catch (error) {
+      console.error('Error processing payroll with extras:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al procesar nómina con extras',
         details: error.message
       });
     }

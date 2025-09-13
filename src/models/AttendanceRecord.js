@@ -260,6 +260,48 @@ class AttendanceRecord {
   }
 
   /**
+   * Encuentra registro por empleado y fecha
+   */
+  static async findByEmployeeAndDate(employeeId, date) {
+    try {
+      const snapshot = await db.collection('employees').doc(employeeId)
+        .collection('attendance')
+        .where('date', '==', date)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const doc = snapshot.docs[0];
+      return AttendanceRecord.fromFirestore(doc);
+    } catch (error) {
+      console.error('Error finding attendance by employee and date:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Encuentra registros por empleado y rango de fechas
+   */
+  static async findByEmployeeAndDateRange(employeeId, startDate, endDate) {
+    try {
+      const snapshot = await db.collection('employees').doc(employeeId)
+        .collection('attendance')
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .orderBy('date', 'desc')
+        .get();
+
+      return snapshot.docs.map(doc => AttendanceRecord.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding attendance by date range:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Busca un registro por ID
    */
   static async findById(employeeId, id) {

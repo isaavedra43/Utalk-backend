@@ -168,6 +168,23 @@ class Employee {
   }
 
   /**
+   * Encuentra empleados por departamento
+   */
+  static async findByDepartment(department) {
+    try {
+      const snapshot = await db.collection('employees')
+        .where('position.department', '==', department)
+        .where('status', '==', 'active')
+        .get();
+
+      return snapshot.docs.map(doc => Employee.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding employees by department:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Valida los datos del empleado
    */
   validate() {

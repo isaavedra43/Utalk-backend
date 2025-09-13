@@ -8,6 +8,9 @@ const EmployeeController = require('../controllers/EmployeeController');
 const PayrollController = require('../controllers/PayrollController');
 const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
+const ExtrasController = require('../controllers/ExtrasController');
+const AttachmentsController = require('../controllers/AttachmentsController');
+const ReportsController = require('../controllers/ReportsController');
 
 // Middleware
 const { authMiddleware } = require('../middleware/auth');
@@ -124,6 +127,9 @@ router.post('/:id/payroll', PayrollController.create);
 // Calcular nómina automáticamente
 router.post('/:id/payroll/calculate', PayrollController.calculatePayroll);
 
+// Procesar nómina con extras incluidos
+router.post('/:id/payroll/process-with-extras', PayrollController.processPayrollWithExtras);
+
 // Actualizar período de nómina
 router.put('/:id/payroll/:payrollId', PayrollController.update);
 
@@ -166,6 +172,120 @@ router.post('/:id/attendance/clock-out', AttendanceController.clockOut);
 
 // Actualizar registro de asistencia
 router.put('/:id/attendance/:recordId', AttendanceController.update);
+
+/**
+ * RUTAS DE EXTRAS Y MOVIMIENTOS
+ */
+
+// Obtener estadísticas generales de extras
+router.get('/extras/stats', ExtrasController.getExtrasStats);
+
+// Obtener movimientos pendientes de aprobación
+router.get('/extras/pending-approvals', ExtrasController.getPendingApprovals);
+
+// Aprobar movimiento
+router.put('/extras/:movementId/approve', ExtrasController.approveMovement);
+
+// Rechazar movimiento
+router.put('/extras/:movementId/reject', ExtrasController.rejectMovement);
+
+// Obtener todos los movimientos de extras de un empleado
+router.get('/:id/extras', ExtrasController.getExtrasByEmployee);
+
+// Registrar nuevo movimiento de extras
+router.post('/:id/extras', 
+  validateRequest(['type', 'date', 'description']),
+  ExtrasController.registerExtra
+);
+
+// Obtener resumen de movimientos
+router.get('/:id/movements-summary', ExtrasController.getMovementsSummary);
+
+// Obtener métricas de asistencia y extras
+router.get('/:id/attendance-metrics', ExtrasController.getAttendanceMetrics);
+
+// Obtener datos para gráficas
+router.get('/:id/chart-data', ExtrasController.getChartData);
+
+// Obtener impacto en nómina
+router.get('/:id/payroll-impact', ExtrasController.getPayrollImpact);
+
+// Actualizar movimiento específico
+router.put('/:id/extras/:movementId', ExtrasController.updateMovement);
+
+// Eliminar movimiento específico
+router.delete('/:id/extras/:movementId', ExtrasController.deleteMovement);
+
+// Obtener horas extra de un empleado
+router.get('/:id/overtime', ExtrasController.getMovementsByType);
+
+// Registrar horas extra
+router.post('/:id/overtime', 
+  validateRequest(['date', 'hours', 'reason', 'description']),
+  ExtrasController.registerExtra
+);
+
+// Obtener ausencias de un empleado
+router.get('/:id/absences', ExtrasController.getMovementsByType);
+
+// Registrar ausencia
+router.post('/:id/absences', 
+  validateRequest(['date', 'reason', 'description', 'duration']),
+  ExtrasController.registerExtra
+);
+
+// Obtener préstamos de un empleado
+router.get('/:id/loans', ExtrasController.getMovementsByType);
+
+// Registrar préstamo
+router.post('/:id/loans', 
+  validateRequest(['date', 'totalAmount', 'totalInstallments', 'reason', 'description', 'justification']),
+  ExtrasController.registerExtra
+);
+
+/**
+ * RUTAS DE ARCHIVOS ADJUNTOS
+ */
+
+// Configurar multer para archivos de extras
+const extrasUpload = AttachmentsController.getMulterConfig();
+
+// Subir archivos
+router.post('/attachments', 
+  extrasUpload.array('files', 5), 
+  AttachmentsController.uploadFiles
+);
+
+// Validar archivos antes de subir
+router.post('/attachments/validate', 
+  extrasUpload.array('files', 5), 
+  AttachmentsController.validateFiles
+);
+
+// Obtener información de archivo
+router.get('/attachments/:fileId', AttachmentsController.getFileInfo);
+
+// Descargar archivo
+router.get('/attachments/:fileId/download', AttachmentsController.downloadFile);
+
+// Eliminar archivo
+router.delete('/attachments/:fileId', AttachmentsController.deleteFile);
+
+// Obtener archivos de un movimiento
+router.get('/movements/:movementId/attachments', AttachmentsController.getMovementFiles);
+
+/**
+ * RUTAS DE REPORTES
+ */
+
+// Reporte de extras por empleado
+router.get('/reports/employee/:id/extras', ReportsController.generateEmployeeExtrasReport);
+
+// Reporte de asistencia por empleado
+router.get('/reports/employee/:id/attendance', ReportsController.generateEmployeeAttendanceReport);
+
+// Reporte consolidado de nómina
+router.get('/reports/payroll-consolidated', ReportsController.generatePayrollConsolidatedReport);
 
 /**
  * RUTAS DE VACACIONES
