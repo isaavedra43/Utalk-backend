@@ -9,7 +9,7 @@ class PayrollMovement {
   constructor(data = {}) {
     this.id = data.id || uuidv4();
     this.employeeId = data.employeeId || '';
-    this.type = data.type || 'bonus'; // 'overtime' | 'absence' | 'bonus' | 'deduction' | 'loan' | 'damage'
+    this.type = data.type || 'bonus'; // 'overtime' | 'absence' | 'bonus' | 'deduction' | 'discount' | 'loan' | 'damage'
     this.date = data.date || new Date().toISOString().split('T')[0];
     
     // Información básica
@@ -26,6 +26,7 @@ class PayrollMovement {
     this.absenceType = data.absenceType || 'personal_leave'; // 'sick_leave' | 'personal_leave' | 'vacation' | 'emergency' | 'medical_appointment' | 'other'
     this.bonusType = data.bonusType || 'performance'; // 'performance' | 'attendance' | 'special' | 'holiday'
     this.deductionType = data.deductionType || 'voluntary'; // 'voluntary' | 'disciplinary' | 'equipment' | 'other'
+    this.discountType = data.discountType || 'early_payment'; // 'early_payment' | 'loyalty' | 'volume' | 'special' | 'other'
     this.damageType = data.damageType || 'equipment'; // 'equipment' | 'property' | 'vehicle' | 'other'
     
     // Préstamos específicos
@@ -63,7 +64,7 @@ class PayrollMovement {
    */
   getImpactType() {
     const addTypes = ['overtime', 'bonus'];
-    const subtractTypes = ['absence', 'deduction', 'loan', 'damage'];
+    const subtractTypes = ['absence', 'deduction', 'discount', 'loan', 'damage'];
     
     if (addTypes.includes(this.type)) return 'add';
     if (subtractTypes.includes(this.type)) return 'subtract';
@@ -98,6 +99,10 @@ class PayrollMovement {
           
         case 'deduction':
           this.calculatedAmount = this.amount; // Las deducciones usan el monto directo
+          break;
+          
+        case 'discount':
+          this.calculatedAmount = this.amount; // Los descuentos usan el monto directo
           break;
           
         case 'loan':
@@ -205,9 +210,22 @@ class PayrollMovement {
         break;
 
       case 'bonus':
+        if (!this.amount || this.amount <= 0) errors.push('Monto del bono debe ser mayor a 0');
+        if (!this.bonusType) errors.push('Tipo de bono es requerido');
+        if (!this.reason) errors.push('Razón es requerida para bonos');
+        break;
+
       case 'deduction':
-        if (!this.amount || this.amount <= 0) errors.push('Monto debe ser mayor a 0');
-        if (!this.reason) errors.push('Razón es requerida');
+        if (!this.amount || this.amount <= 0) errors.push('Monto de deducción debe ser mayor a 0');
+        if (!this.deductionType) errors.push('Tipo de deducción es requerido');
+        if (!this.reason) errors.push('Razón es requerida para deducciones');
+        break;
+
+      case 'discount':
+        if (!this.amount || this.amount <= 0) errors.push('Monto del descuento debe ser mayor a 0');
+        if (!this.discountType) errors.push('Tipo de descuento es requerido');
+        if (!this.reason) errors.push('Razón es requerida para descuentos');
+        if (this.attachments.length === 0) errors.push('Documentos de respaldo requeridos para descuentos');
         break;
     }
 
@@ -243,6 +261,7 @@ class PayrollMovement {
       absenceType: this.absenceType,
       bonusType: this.bonusType,
       deductionType: this.deductionType,
+      discountType: this.discountType,
       damageType: this.damageType,
       totalAmount: this.totalAmount,
       monthlyPayment: this.monthlyPayment,
