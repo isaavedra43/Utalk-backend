@@ -84,6 +84,17 @@ router.post('/generate-first/:employeeId',
 );
 
 /**
+ * Regenerar nómina incluyendo extras pendientes
+ * POST /api/payroll/regenerate-with-extras/:payrollId
+ * Requiere: admin, superadmin
+ */
+router.post('/regenerate-with-extras/:payrollId', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  PayrollController.regeneratePayrollWithExtras
+);
+
+/**
  * Regenerar nómina sin impuestos automáticos
  * POST /api/payroll/regenerate/:payrollId
  * Requiere: admin, superadmin

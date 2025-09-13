@@ -521,23 +521,31 @@ class PayrollController {
 
       logger.info('📋 Obteniendo extras pendientes', { employeeId, periodStart, periodEnd });
 
-      // Si no se especifica período, usar período actual
+      // Si no se especifica período, usar período basado en la configuración del empleado
       let startDate, endDate;
       if (periodStart && periodEnd) {
         startDate = periodStart;
         endDate = periodEnd;
       } else {
-        // Calcular período actual (semanal por defecto)
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-        const monday = new Date(now);
-        monday.setDate(now.getDate() + mondayOffset);
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
+        // Obtener la configuración del empleado para usar su frecuencia
+        const config = await PayrollService.getPayrollConfig(employeeId);
+        if (!config) {
+          return res.status(404).json({
+            success: false,
+            error: 'Configuración de nómina no encontrada para el empleado'
+          });
+        }
+
+        // Calcular período actual basado en la frecuencia configurada
+        const dates = PayrollService.calculatePeriodDates(config.frequency);
+        startDate = dates.periodStart;
+        endDate = dates.periodEnd;
         
-        startDate = monday.toISOString().split('T')[0];
-        endDate = sunday.toISOString().split('T')[0];
+        logger.info('📅 Período calculado basado en frecuencia', { 
+          frequency: config.frequency, 
+          startDate, 
+          endDate 
+        });
       }
 
       // Obtener extras aplicables
@@ -645,6 +653,65 @@ class PayrollController {
         success: false,
         error: error.message,
         details: 'Error interno del servidor generando primer período'
+      });
+    }
+  }
+
+  /**
+   * Regenerar nómina incluyendo extras pendientes
+   * POST /api/payroll/regenerate-with-extras/:payrollId
+   */
+  static async regeneratePayrollWithExtras(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const userId = req.user?.id;
+
+      logger.info('🔄 Regenerando nómina con extras incluidos', { payrollId, userId });
+
+      // Obtener la nómina existente
+      const existingPayroll = await Payroll.findById(payrollId);
+      if (!existingPayroll) {
+        return res.status(404).json({
+          success: false,
+          error: 'Período de nómina no encontrado'
+        });
+      }
+
+      const employeeId = existingPayroll.employeeId;
+
+      // Eliminar la nómina existente y sus detalles
+      await PayrollService.deletePayroll(payrollId);
+      
+      // Resetear extras que estaban aplicados a esta nómina
+      await PayrollService.resetExtrasForPayroll(payrollId);
+      
+      // Regenerar la nómina con extras incluidos
+      const newPayroll = await PayrollService.generatePayroll(
+        employeeId,
+        new Date(existingPayroll.periodStart),
+        true // forceRegenerate
+      );
+
+      logger.info('✅ Nómina regenerada con extras', {
+        oldPayrollId: payrollId,
+        newPayrollId: newPayroll.id,
+        employeeId
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Nómina regenerada exitosamente con extras incluidos',
+        data: {
+          payroll: newPayroll,
+          regeneratedFrom: payrollId
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error regenerando nómina con extras', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Error interno del servidor'
       });
     }
   }

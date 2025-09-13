@@ -175,7 +175,9 @@ class PayrollDetail {
    */
   static async createFromExtra(payrollId, employeeId, extra) {
     try {
-      const type = extra.getImpactType() === 'positive' ? 'perception' : 'deduction';
+      // CORREGIR: usar 'add' en lugar de 'positive'
+      const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
+      const type = impactType === 'add' ? 'perception' : 'deduction';
       const category = PayrollDetail.getCategoryFromExtraType(extra.type);
       
       const detail = new PayrollDetail({
@@ -193,6 +195,15 @@ class PayrollDetail {
       });
 
       await detail.save();
+      
+      logger.info('✅ PayrollDetail creado desde extra', {
+        detailId: detail.id,
+        extraId: extra.id,
+        type: detail.type,
+        concept: detail.concept,
+        amount: detail.amount
+      });
+      
       return detail;
     } catch (error) {
       logger.error('❌ Error creando detalle desde extra', error);

@@ -219,6 +219,68 @@ class PayrollService {
   }
 
   /**
+   * Eliminar nómina y sus detalles
+   */
+  static async deletePayroll(payrollId) {
+    try {
+      logger.info('🗑️ Eliminando nómina y detalles', { payrollId });
+
+      // Eliminar detalles de la nómina
+      const details = await PayrollDetail.findByPayroll(payrollId);
+      for (const detail of details) {
+        await detail.delete();
+      }
+
+      // Eliminar la nómina
+      const payroll = await Payroll.findById(payrollId);
+      if (payroll) {
+        await payroll.delete();
+      }
+
+      logger.info('✅ Nómina eliminada correctamente', { payrollId });
+    } catch (error) {
+      logger.error('❌ Error eliminando nómina', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resetear extras aplicados a una nómina específica
+   */
+  static async resetExtrasForPayroll(payrollId) {
+    try {
+      logger.info('🔄 Reseteando extras para nómina', { payrollId });
+
+      // Buscar todos los extras aplicados a esta nómina
+      const appliedExtras = await PayrollMovement.findByPayrollId(payrollId);
+      
+      for (const extra of appliedExtras) {
+        // Resetear campos de aplicación
+        extra.appliedToPayroll = false;
+        extra.payrollId = null;
+        extra.payrollDetailId = null;
+        extra.updatedAt = new Date().toISOString();
+        
+        await extra.save();
+        
+        logger.info('✅ Extra reseteado', {
+          extraId: extra.id,
+          type: extra.type,
+          payrollId: payrollId
+        });
+      }
+
+      logger.info('✅ Extras reseteados correctamente', { 
+        payrollId, 
+        extrasCount: appliedExtras.length 
+      });
+    } catch (error) {
+      logger.error('❌ Error reseteando extras', error);
+      throw error;
+    }
+  }
+
+  /**
    * Obtener extras aplicables a un período
    */
   static async getExtrasForPeriod(employeeId, periodStart, periodEnd) {
@@ -230,26 +292,30 @@ class PayrollService {
       const periodEndDate = new Date(periodEnd);
 
       const applicableExtras = allExtras.filter(extra => {
-        // CRÍTICO: Solo incluir extras aprobados o pendientes y NO aplicados a nómina
-        if ((extra.status !== 'approved' && extra.status !== 'pending') || extra.appliedToPayroll === true) {
+        // CRÍTICO: Solo incluir extras aprobados y NO aplicados a nómina
+        // NO importa el período - incluir TODOS los extras no aplicados
+        if (extra.status !== 'approved' || extra.appliedToPayroll === true) {
+          logger.debug('❌ Extra excluido', {
+            extraId: extra.id,
+            status: extra.status,
+            appliedToPayroll: extra.appliedToPayroll,
+            reason: extra.status !== 'approved' ? 'no_approved' : 'already_applied'
+          });
           return false;
         }
 
-        const extraDate = new Date(extra.date);
-        
-        // Para extras puntuales, verificar si la fecha está dentro del período
-        if (extra.type === 'overtime' || extra.type === 'absence' || 
-            extra.type === 'bonus' || extra.type === 'deduction' ||
-            extra.type === 'discount' || extra.type === 'damage') {
-          return extraDate >= periodStartDate && extraDate <= periodEndDate;
-        }
+        logger.info('✅ Extra incluido', {
+          extraId: extra.id,
+          type: extra.type,
+          amount: extra.calculatedAmount || extra.amount,
+          date: extra.date,
+          status: extra.status,
+          appliedToPayroll: extra.appliedToPayroll
+        });
 
-        // Para préstamos, incluir si hay cuotas pendientes en el período
-        if (extra.type === 'loan') {
-          return PayrollService.shouldIncludeLoanInPeriod(extra, periodStartDate, periodEndDate);
-        }
-
-        return false;
+        // INCLUIR TODOS los extras aprobados y no aplicados
+        // Sin restricción de período como lo solicita el usuario
+        return true;
       });
 
       logger.info('🔍 Filtrado de extras detallado', {
