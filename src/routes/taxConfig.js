@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Middleware
-const authMiddleware = require('../middleware/auth');
-const { requireRole } = require('../middleware/moduleAccess');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 
 // Controladores
 const TaxConfigController = require('../controllers/TaxConfigController');

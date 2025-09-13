@@ -1,6 +1,7 @@
 const TaxConfig = require('../models/TaxConfig');
 const EnhancedPayrollService = require('../services/EnhancedPayrollService');
 const logger = require('../utils/logger');
+const { db } = require('../config/firebase');
 
 /**
  * 🆕 Controlador de Configuración de Impuestos
