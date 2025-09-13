@@ -112,6 +112,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
     app.use('/api/employees', employeeRoutes);
+    app.use('/api/auto-attendance', require('../routes/auto-attendance'));
 
     // AI y derivados (los módulos exportan .router)
     if (aiRoutes?.router) app.use('/api/ai', aiRoutes.router);

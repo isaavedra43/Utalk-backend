@@ -406,6 +406,22 @@ class Employee {
   }
 
   /**
+   * Busca todos los empleados activos
+   */
+  static async findActive() {
+    try {
+      const snapshot = await db.collection('employees')
+        .where('status', '==', 'active')
+        .get();
+      
+      return snapshot.docs.map(doc => Employee.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding active employees:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Lista empleados con filtros y paginación
    */
   static async list(options = {}) {
