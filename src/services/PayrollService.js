@@ -104,9 +104,28 @@ class PayrollService {
         periodEnd
       );
 
-      // Separar percepciones y deducciones
-      const perceptions = extras.filter(extra => extra.getImpactType() === 'positive');
-      const deductions = extras.filter(extra => extra.getImpactType() === 'negative');
+      // Separar percepciones y deducciones CORRIGIENDO EL MÉTODO
+      const perceptions = extras.filter(extra => {
+        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
+        return impactType === 'positive' || impactType === 'add';
+      });
+      const deductions = extras.filter(extra => {
+        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
+        return impactType === 'negative' || impactType === 'subtract';
+      });
+
+      logger.info('📊 Separación de extras en generación', {
+        totalExtras: extras.length,
+        perceptions: perceptions.length,
+        deductions: deductions.length,
+        extrasDetails: extras.map(e => ({
+          id: e.id,
+          type: e.type,
+          impactType: e.impactType,
+          getImpactType: e.getImpactType ? e.getImpactType() : 'N/A',
+          amount: e.calculatedAmount || e.amount
+        }))
+      });
 
       // Calcular totales de extras
       const totalPerceptions = perceptions.reduce((sum, extra) => 
@@ -123,13 +142,25 @@ class PayrollService {
         baseSalary: config.baseSalary,
         calculatedSalary,
         totalPerceptions,
+        totalDeductions: totalDeductionsFromExtras, // CRÍTICO: incluir deducciones
         weekNumber,
         month,
         year
       });
 
-      // Calcular salario bruto
+      // Calcular salarios CORRECTAMENTE
       payroll.grossSalary = calculatedSalary + totalPerceptions;
+      payroll.netSalary = payroll.grossSalary - totalDeductionsFromExtras;
+
+      logger.info('💰 Cálculos de nómina', {
+        calculatedSalary,
+        totalPerceptions,
+        totalDeductionsFromExtras,
+        grossSalary: payroll.grossSalary,
+        netSalary: payroll.netSalary,
+        baseSalary: config.baseSalary,
+        frequency: config.frequency
+      });
 
       // Crear detalles de percepciones
       const perceptionDetails = [];
@@ -167,11 +198,13 @@ class PayrollService {
       // NO CREAR DEDUCCIONES FIJAS AUTOMÁTICAS (ISR, IMSS, etc.)
       // Solo usar deducciones de extras registrados manualmente
       
-      // Calcular total de deducciones (solo de extras)
-      payroll.totalDeductions = totalDeductionsFromExtras;
-
-      // Calcular totales finales
-      payroll.calculateTotals();
+      // Los totales ya están calculados arriba
+      logger.info('📋 Totales finales de nómina', {
+        totalPerceptions: payroll.totalPerceptions,
+        totalDeductions: payroll.totalDeductions,
+        grossSalary: payroll.grossSalary,
+        netSalary: payroll.netSalary
+      });
 
       // Guardar período de nómina
       await payroll.save();

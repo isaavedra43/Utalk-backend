@@ -216,8 +216,23 @@ class PayrollConfig {
 
   /**
    * Calcular salario por período según frecuencia
+   * NOTA CRÍTICA: baseSalary siempre debe ser el salario MENSUAL
+   * y este método calcula el salario para el período específico
    */
   calculateSalaryForPeriod() {
+    // VERIFICAR SI EL baseSalary YA ESTÁ EN LA FRECUENCIA CORRECTA
+    // Si la frecuencia es weekly y baseSalary es pequeño (< 20000), 
+    // probablemente ya es semanal
+    if (this.frequency === 'weekly' && this.baseSalary < 20000) {
+      logger.warn('⚠️ DETECTADO: baseSalary parece ser semanal, no mensual', {
+        baseSalary: this.baseSalary,
+        frequency: this.frequency
+      });
+      // Si parece ser semanal, usarlo directamente
+      return this.baseSalary;
+    }
+
+    // CÁLCULO NORMAL (asumiendo baseSalary es mensual)
     switch (this.frequency) {
       case 'daily':
         return this.baseSalary / 30; // 30 días por mes

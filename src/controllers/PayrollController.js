@@ -528,7 +528,7 @@ class PayrollController {
         endDate = periodEnd;
       } else {
         // Obtener la configuración del empleado para usar su frecuencia
-        const config = await PayrollService.getPayrollConfig(employeeId);
+        const config = await PayrollConfig.findActiveByEmployee(employeeId);
         if (!config) {
           return res.status(404).json({
             success: false,
@@ -551,9 +551,28 @@ class PayrollController {
       // Obtener extras aplicables
       const extras = await PayrollService.getExtrasForPeriod(employeeId, startDate, endDate);
 
-      // Separar por tipo de impacto
-      const perceptions = extras.filter(extra => extra.getImpactType() === 'positive');
-      const deductions = extras.filter(extra => extra.getImpactType() === 'negative');
+      // Separar por tipo de impacto CORRIGIENDO EL MÉTODO
+      const perceptions = extras.filter(extra => {
+        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
+        return impactType === 'positive' || impactType === 'add';
+      });
+      const deductions = extras.filter(extra => {
+        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
+        return impactType === 'negative' || impactType === 'subtract';
+      });
+
+      logger.info('🔍 Separación de extras', {
+        totalExtras: extras.length,
+        perceptions: perceptions.length,
+        deductions: deductions.length,
+        extrasDetails: extras.map(e => ({
+          id: e.id,
+          type: e.type,
+          impactType: e.impactType,
+          getImpactType: e.getImpactType ? e.getImpactType() : 'N/A',
+          amount: e.calculatedAmount || e.amount
+        }))
+      });
 
       // Calcular totales CORRECTAMENTE usando todos los extras
       const totalToAdd = extras
