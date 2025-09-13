@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AutoAttendanceController = require('../controllers/AutoAttendanceController');
 const AutoAttendanceConfigController = require('../controllers/AutoAttendanceConfigController');
-const { authMiddleware } = require('../middleware/auth');
-const hrAuthorization = require('../middleware/hrAuthorization');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 
 // Aplicar middleware de autenticación a todas las rutas
 router.use(authMiddleware);
@@ -14,43 +13,43 @@ router.use(authMiddleware);
 
 // Procesar asistencia automática para el día actual
 router.post('/process-today', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AutoAttendanceController.processToday
 );
 
 // Procesar asistencia automática para una fecha específica
 router.post('/process-date', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AutoAttendanceController.processDate
 );
 
 // Procesar asistencia automática para un rango de fechas
 router.post('/process-range', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AutoAttendanceController.processDateRange
 );
 
 // Procesar asistencia automática para un empleado específico
 router.post('/process-employee/:id', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AutoAttendanceController.processEmployee
 );
 
 // Obtener estadísticas de asistencia automática
 router.get('/stats', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AutoAttendanceController.getStats
 );
 
 // Obtener configuración de empleados
 router.get('/employees-config', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AutoAttendanceController.getEmployeesConfig
 );
 
 // Simular procesamiento de asistencia (para testing)
 router.post('/simulate', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AutoAttendanceController.simulate
 );
 
@@ -58,25 +57,25 @@ router.post('/simulate',
 
 // Obtener configuración general
 router.get('/config', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AutoAttendanceConfigController.getConfig
 );
 
 // Actualizar configuración general
 router.put('/config', 
-  hrAuthorization(['HR_ADMIN']),
+  requireRole(['admin']),
   AutoAttendanceConfigController.updateConfig
 );
 
 // Obtener configuración por empleado
 router.get('/config/employee/:id', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AutoAttendanceConfigController.getEmployeeConfig
 );
 
 // Actualizar configuración por empleado
 router.put('/config/employee/:id', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AutoAttendanceConfigController.updateEmployeeConfig
 );
 

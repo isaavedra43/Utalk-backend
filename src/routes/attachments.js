@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const AttachmentsController = require('../controllers/AttachmentsController');
-const { authMiddleware } = require('../middleware/auth');
-const hrAuthorization = require('../middleware/hrAuthorization');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 
 // Aplicar middleware de autenticación a todas las rutas
 router.use(authMiddleware);
@@ -13,32 +12,32 @@ router.use(authMiddleware);
 
 // Subir archivos adjuntos
 router.post('/', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AttachmentsController.getMulterConfig().array('files', 5),
   AttachmentsController.uploadFiles
 );
 
 // Obtener archivos de un empleado
 router.get('/employee/:id', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AttachmentsController.getEmployeeAttachments
 );
 
 // Descargar archivo específico
 router.get('/:id/download', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER', 'SUPERVISOR']),
+  requireRole(['admin', 'superadmin', 'agent']),
   AttachmentsController.downloadFile
 );
 
 // Eliminar archivo
 router.delete('/:id', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AttachmentsController.deleteFile
 );
 
 // Obtener estadísticas de archivos
 router.get('/stats', 
-  hrAuthorization(['HR_ADMIN', 'HR_MANAGER']),
+  requireRole(['admin', 'superadmin']),
   AttachmentsController.getStats
 );
 
