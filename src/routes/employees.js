@@ -109,35 +109,44 @@ router.delete('/:id', EmployeeController.delete);
  * RUTAS DE NÓMINA
  */
 
-// Obtener nómina semanal general
-router.get('/payroll/weekly', PayrollController.getWeeklyPayroll);
+// Obtener períodos pendientes de pago
+router.get('/payroll/pending', PayrollController.getPendingPayments);
 
-// Obtener reportes de nómina
-router.get('/payroll/reports', PayrollController.getReports);
+// Generar múltiples nóminas automáticamente
+router.post('/payroll/auto-generate', PayrollController.autoGeneratePayrolls);
 
-// Procesar nómina masiva
-router.post('/payroll/bulk-process', PayrollController.bulkProcess);
+// Obtener estadísticas de nómina
+router.get('/payroll/stats', PayrollController.getPayrollStats);
 
-// Obtener nómina de un empleado
-router.get('/:id/payroll', PayrollController.getByEmployee);
+// Configurar nómina para un empleado
+router.post('/:id/payroll/config', PayrollController.configurePayroll);
 
-// Crear período de nómina
-router.post('/:id/payroll', PayrollController.create);
+// Obtener configuración de nómina de un empleado
+router.get('/:id/payroll/config', PayrollController.getPayrollConfig);
 
-// Calcular nómina automáticamente
-router.post('/:id/payroll/calculate', PayrollController.calculatePayroll);
+// Actualizar configuración de nómina
+router.put('/:id/payroll/config', PayrollController.updatePayrollConfig);
 
-// Procesar nómina con extras incluidos
-router.post('/:id/payroll/process-with-extras', PayrollController.processPayrollWithExtras);
+// Generar nómina para un empleado
+router.post('/:id/payroll/generate', PayrollController.generatePayroll);
 
-// Actualizar período de nómina
-router.put('/:id/payroll/:payrollId', PayrollController.update);
+// Obtener períodos de nómina de un empleado
+router.get('/:id/payroll/periods', PayrollController.getPayrollPeriods);
 
-// Obtener desglose de nómina
-router.get('/:id/payroll/:payrollId/breakdown', PayrollController.getBreakdown);
+// Obtener detalles de un período específico
+router.get('/:id/payroll/period/:payrollId/details', PayrollController.getPayrollDetails);
 
-// Generar recibo de nómina
-router.get('/:id/payroll/:payrollId/receipt', PayrollController.generateReceipt);
+// Aprobar período de nómina
+router.put('/:id/payroll/approve/:payrollId', PayrollController.approvePayroll);
+
+// Marcar período como pagado
+router.put('/:id/payroll/pay/:payrollId', PayrollController.markAsPaid);
+
+// Cancelar período de nómina
+router.put('/:id/payroll/cancel/:payrollId', PayrollController.cancelPayroll);
+
+// Eliminar período de nómina
+router.delete('/:id/payroll/period/:payrollId', PayrollController.deletePayroll);
 
 /**
  * RUTAS DE ASISTENCIA
