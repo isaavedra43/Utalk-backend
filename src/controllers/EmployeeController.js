@@ -8,7 +8,7 @@ const Incident = require('../models/Incident');
 const { Evaluation } = require('../models/Evaluation');
 const { Skill, Certification } = require('../models/Skill');
 const EmployeeHistory = require('../models/EmployeeHistory');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 
 /**
  * Controlador de Empleados - Gestión integral de recursos humanos
@@ -439,10 +439,24 @@ class EmployeeController {
       }
 
       // Leer archivo Excel
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(file.buffer);
+      const worksheet = workbook.worksheets[0];
+      
+      const jsonData = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Saltar encabezados
+        const rowData = {};
+        row.eachCell((cell, colNumber) => {
+          const header = worksheet.getRow(1).getCell(colNumber).value;
+          if (header) {
+            rowData[header] = cell.value;
+          }
+        });
+        if (Object.keys(rowData).length > 0) {
+          jsonData.push(rowData);
+        }
+      });
 
       if (jsonData.length === 0) {
         return res.status(400).json({

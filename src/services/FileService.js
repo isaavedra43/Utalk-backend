@@ -3306,20 +3306,24 @@ class FileService {
    */
   async extractDataFromExcel(buffer) {
     try {
-      // Para archivos Excel, usar xlsx para extraer datos
-      const XLSX = require('xlsx');
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      // Para archivos Excel, usar exceljs para extraer datos
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
       
       let extractedText = '';
       
       // Extraer texto de todas las hojas
-      workbook.SheetNames.forEach(sheetName => {
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        jsonData.forEach(row => {
-          if (Array.isArray(row)) {
-            extractedText += row.join('\t') + '\n';
+      workbook.worksheets.forEach(worksheet => {
+        worksheet.eachRow((row, rowNumber) => {
+          const rowData = [];
+          row.eachCell((cell, colNumber) => {
+            if (cell.value !== null && cell.value !== undefined) {
+              rowData.push(cell.value.toString());
+            }
+          });
+          if (rowData.length > 0) {
+            extractedText += rowData.join('\t') + '\n';
           }
         });
       });
