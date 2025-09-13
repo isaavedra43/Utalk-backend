@@ -51,6 +51,11 @@ class PayrollMovement {
     this.impactType = data.impactType || this.getImpactType(); // 'add' | 'subtract'
     this.payrollPeriod = data.payrollPeriod || null; // Período donde se aplicó
     this.payrollId = data.payrollId || null; // ID del período de nómina
+    this.appliedToPayroll = data.appliedToPayroll || false; // Si ya fue aplicado a una nómina
+    this.payrollDetailId = data.payrollDetailId || null; // ID del detalle de nómina generado
+    this.isRecurring = data.isRecurring || false; // Si es un movimiento recurrente
+    this.recurringFrequency = data.recurringFrequency || null; // 'monthly' | 'biweekly' | 'weekly'
+    this.nextApplicationDate = data.nextApplicationDate || null; // Próxima fecha de aplicación
     
     // Metadatos
     this.createdAt = data.createdAt || new Date().toISOString();
@@ -278,6 +283,11 @@ class PayrollMovement {
       impactType: this.impactType,
       payrollPeriod: this.payrollPeriod,
       payrollId: this.payrollId,
+      appliedToPayroll: this.appliedToPayroll,
+      payrollDetailId: this.payrollDetailId,
+      isRecurring: this.isRecurring,
+      recurringFrequency: this.recurringFrequency,
+      nextApplicationDate: this.nextApplicationDate,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       registeredBy: this.registeredBy,
@@ -426,6 +436,194 @@ class PayrollMovement {
       return true;
     } catch (error) {
       console.error('Error deleting payroll movement:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Marcar como aplicado a nómina
+   */
+  async markAsAppliedToPayroll(payrollId, payrollDetailId = null) {
+    try {
+      this.appliedToPayroll = true;
+      this.payrollId = payrollId;
+      this.payrollDetailId = payrollDetailId;
+      this.updatedAt = new Date().toISOString();
+      
+      await this.save();
+      return this;
+    } catch (error) {
+      console.error('Error marking movement as applied to payroll:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Desmarcar como aplicado a nómina
+   */
+  async unmarkAsAppliedToPayroll() {
+    try {
+      this.appliedToPayroll = false;
+      this.payrollId = null;
+      this.payrollDetailId = null;
+      this.updatedAt = new Date().toISOString();
+      
+      await this.save();
+      return this;
+    } catch (error) {
+      console.error('Error unmarking movement from payroll:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar movimientos no aplicados a nómina por empleado
+   */
+  static async findUnappliedByEmployee(employeeId) {
+    try {
+      const snapshot = await db.collection('employees').doc(employeeId)
+        .collection('movements')
+        .where('appliedToPayroll', '==', false)
+        .where('status', '==', 'active')
+        .orderBy('date', 'desc')
+        .get();
+
+      return snapshot.docs.map(doc => PayrollMovement.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding unapplied movements:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar movimientos por período de nómina
+   */
+  static async findByPayrollPeriod(startDate, endDate, employeeId = null) {
+    try {
+      let query = db.collection('employees');
+      
+      if (employeeId) {
+        query = query.doc(employeeId).collection('movements');
+      } else {
+        // Para buscar en todos los empleados, necesitaríamos usar collection group
+        query = db.collectionGroup('movements');
+      }
+
+      const snapshot = await query
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .where('status', '==', 'active')
+        .orderBy('date', 'desc')
+        .get();
+
+      return snapshot.docs.map(doc => PayrollMovement.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding movements by payroll period:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar movimientos aplicados a una nómina específica
+   */
+  static async findByPayrollId(payrollId) {
+    try {
+      const snapshot = await db.collectionGroup('movements')
+        .where('payrollId', '==', payrollId)
+        .get();
+
+      return snapshot.docs.map(doc => PayrollMovement.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding movements by payroll ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verificar si puede ser aplicado a nómina
+   */
+  canBeAppliedToPayroll() {
+    return this.status === 'active' && !this.appliedToPayroll;
+  }
+
+  /**
+   * Obtener descripción para detalle de nómina
+   */
+  getPayrollDescription() {
+    const typeDescriptions = {
+      overtime: 'Horas Extra',
+      absence: 'Falta/Ausencia',
+      bonus: 'Bono',
+      deduction: 'Deducción',
+      discount: 'Descuento',
+      loan: 'Préstamo',
+      damage: 'Daño/Rotura'
+    };
+
+    const baseDescription = typeDescriptions[this.type] || 'Movimiento';
+    
+    if (this.reason) {
+      return `${baseDescription}: ${this.reason}`;
+    }
+    
+    return baseDescription;
+  }
+
+  /**
+   * Calcular próxima fecha de aplicación para movimientos recurrentes
+   */
+  calculateNextApplicationDate() {
+    if (!this.isRecurring || !this.recurringFrequency) {
+      return null;
+    }
+
+    const currentDate = new Date(this.date);
+    let nextDate = new Date(currentDate);
+
+    switch (this.recurringFrequency) {
+      case 'weekly':
+        nextDate.setDate(currentDate.getDate() + 7);
+        break;
+      case 'biweekly':
+        nextDate.setDate(currentDate.getDate() + 14);
+        break;
+      case 'monthly':
+        nextDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      default:
+        return null;
+    }
+
+    return nextDate.toISOString().split('T')[0];
+  }
+
+  /**
+   * Crear movimiento recurrente para próximo período
+   */
+  async createNextRecurringMovement() {
+    if (!this.isRecurring || !this.nextApplicationDate) {
+      return null;
+    }
+
+    try {
+      const nextMovement = new PayrollMovement({
+        ...this.toFirestore(),
+        id: undefined, // Generar nuevo ID
+        date: this.nextApplicationDate,
+        appliedToPayroll: false,
+        payrollId: null,
+        payrollDetailId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      // Calcular próxima fecha para el nuevo movimiento
+      nextMovement.nextApplicationDate = nextMovement.calculateNextApplicationDate();
+
+      await nextMovement.save();
+      return nextMovement;
+    } catch (error) {
+      console.error('Error creating next recurring movement:', error);
       throw error;
     }
   }

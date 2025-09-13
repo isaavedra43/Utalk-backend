@@ -1,29 +1,37 @@
-const PayrollPeriod = require('../models/PayrollPeriod');
-const PayrollBreakdown = require('../models/PayrollBreakdown');
+const PayrollService = require('../services/PayrollService');
+const PayrollConfig = require('../models/PayrollConfig');
+const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
-const EmployeeHistory = require('../models/EmployeeHistory');
-const ExtrasService = require('../services/ExtrasService');
-const PayrollMovement = require('../models/PayrollMovement');
+const logger = require('../config/logger');
 
 /**
- * Controlador de Nómina
- * Gestiona períodos de pago, cálculos salariales y reportes
+ * Controlador de Nómina - Endpoints para gestión de nóminas
+ * Maneja todas las operaciones relacionadas con períodos de nómina
  */
 class PayrollController {
   /**
-   * Obtiene nómina de un empleado
-   * GET /api/employees/:id/payroll
+   * Configurar nómina para un empleado
+   * POST /api/payroll/config/:employeeId
    */
-  static async getByEmployee(req, res) {
+  static async configurePayroll(req, res) {
     try {
-      const { id: employeeId } = req.params;
-      const {
-        year = new Date().getFullYear(),
-        month = null,
-        week = null,
-        periodStart = null,
-        periodEnd = null
-      } = req.query;
+      const { employeeId } = req.params;
+      const configData = req.body;
+      const userId = req.user?.id;
+
+      logger.info('🔧 Solicitud de configuración de nómina', { employeeId, configData, userId });
+
+      // Validar datos requeridos
+      const requiredFields = ['frequency', 'baseSalary'];
+      for (const field of requiredFields) {
+        if (!configData[field]) {
+          return res.status(400).json({
+            success: false,
+            error: `Campo requerido: ${field}`,
+            field
+          });
+        }
+      }
 
       // Verificar que el empleado existe
       const employee = await Employee.findById(employeeId);
@@ -34,687 +42,522 @@ class PayrollController {
         });
       }
 
-      const options = {
-        year: parseInt(year),
-        month: month ? parseInt(month) : null,
-        week: week ? parseInt(week) : null,
-        periodStart,
-        periodEnd
-      };
-
-      const periods = await PayrollPeriod.listByEmployee(employeeId, options);
-      const summary = await PayrollPeriod.getSummaryByEmployee(employeeId, parseInt(year));
-
-      res.json({
-        success: true,
-        data: {
-          periods,
-          summary
-        }
-      });
-    } catch (error) {
-      console.error('Error getting payroll by employee:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener nómina del empleado',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Crea un nuevo período de nómina
-   * POST /api/employees/:id/payroll
-   */
-  static async create(req, res) {
-    try {
-      const { id: employeeId } = req.params;
-      const payrollData = req.body;
-      const createdBy = req.user?.id || null;
-
-      // Verificar que el empleado existe
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
-          success: false,
-          error: 'Empleado no encontrado'
-        });
-      }
-
-      // Crear período de nómina
-      const payroll = new PayrollPeriod({
-        ...payrollData,
-        employeeId
-      });
-
-      // Calcular deducciones automáticamente si no se proporcionan
-      if (!payrollData.taxes && !payrollData.socialSecurity) {
-        payroll.calculateDeductions();
-      } else {
-        payroll.calculateNetSalary();
-      }
-
-      await payroll.save();
-
-      // Crear desgloses si se proporcionan
-      if (payrollData.deductions && Array.isArray(payrollData.deductions)) {
-        for (const deduction of payrollData.deductions) {
-          const breakdown = new PayrollBreakdown({
-            ...deduction,
-            payrollPeriodId: payroll.id,
-            employeeId,
-            type: 'deduction'
-          });
-          await breakdown.save();
-        }
-      }
-
-      if (payrollData.bonuses && Array.isArray(payrollData.bonuses)) {
-        for (const bonus of payrollData.bonuses) {
-          const breakdown = new PayrollBreakdown({
-            ...bonus,
-            payrollPeriodId: payroll.id,
-            employeeId,
-            type: 'perception'
-          });
-          await breakdown.save();
-        }
-      }
-
-      // Registrar en historial
-      await EmployeeHistory.createHistoryRecord(
-        employeeId,
-        'salary_change',
-        `Período de nómina creado: ${payroll.periodStart} - ${payroll.periodEnd}`,
-        {
-          payrollId: payroll.id,
-          grossSalary: payroll.grossSalary,
-          netSalary: payroll.netSalary,
-          period: `${payroll.periodStart} - ${payroll.periodEnd}`
-        },
-        createdBy,
-        req
-      );
+      const config = await PayrollService.configurePayroll(employeeId, configData, userId);
 
       res.status(201).json({
         success: true,
-        data: { payroll },
-        message: 'Período de nómina creado exitosamente'
+        message: 'Configuración de nómina creada exitosamente',
+        data: {
+          config: config.toFirestore(),
+          employee: {
+            id: employee.id,
+            name: employee.name,
+            email: employee.email
+          }
+        }
       });
+
     } catch (error) {
-      console.error('Error creating payroll period:', error);
+      logger.error('❌ Error configurando nómina', error);
       res.status(500).json({
         success: false,
-        error: 'Error al crear período de nómina',
-        details: error.message
+        error: error.message,
+        details: 'Error interno del servidor configurando nómina'
       });
     }
   }
 
   /**
-   * Actualiza un período de nómina
-   * PUT /api/employees/:id/payroll/:payrollId
+   * Obtener configuración de nómina de un empleado
+   * GET /api/payroll/config/:employeeId
    */
-  static async update(req, res) {
+  static async getPayrollConfig(req, res) {
     try {
-      const { id: employeeId, payrollId } = req.params;
-      const updateData = req.body;
-      const updatedBy = req.user?.id || null;
+      const { employeeId } = req.params;
 
-      const payroll = await PayrollPeriod.findById(employeeId, payrollId);
-      if (!payroll) {
+      logger.info('📋 Obteniendo configuración de nómina', { employeeId });
+
+      const config = await PayrollConfig.findActiveByEmployee(employeeId);
+      if (!config) {
         return res.status(404).json({
           success: false,
-          error: 'Período de nómina no encontrado'
+          error: 'No se encontró configuración de nómina activa para este empleado'
         });
       }
 
-      const oldValues = {
-        grossSalary: payroll.grossSalary,
-        netSalary: payroll.netSalary,
-        status: payroll.status
+      res.json({
+        success: true,
+        data: {
+          config: config.toFirestore()
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo configuración de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo configuración'
+      });
+    }
+  }
+
+  /**
+   * Actualizar configuración de nómina
+   * PUT /api/payroll/config/:employeeId
+   */
+  static async updatePayrollConfig(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const configData = req.body;
+      const userId = req.user?.id;
+
+      logger.info('🔄 Actualizando configuración de nómina', { employeeId, configData, userId });
+
+      const currentConfig = await PayrollConfig.findActiveByEmployee(employeeId);
+      if (!currentConfig) {
+        return res.status(404).json({
+          success: false,
+          error: 'No se encontró configuración activa para actualizar'
+        });
+      }
+
+      // Crear nueva configuración (desactivando la anterior)
+      const newConfig = await currentConfig.replaceWith(configData, userId);
+
+      res.json({
+        success: true,
+        message: 'Configuración de nómina actualizada exitosamente',
+        data: {
+          config: newConfig.toFirestore(),
+          previousConfig: currentConfig.toFirestore()
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error actualizando configuración de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor actualizando configuración'
+      });
+    }
+  }
+
+  /**
+   * Generar nómina para un empleado
+   * POST /api/payroll/generate/:employeeId
+   */
+  static async generatePayroll(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { periodDate, forceRegenerate = false } = req.body;
+
+      logger.info('📊 Generando nómina', { employeeId, periodDate, forceRegenerate });
+
+      const payroll = await PayrollService.generatePayroll(
+        employeeId, 
+        periodDate ? new Date(periodDate) : new Date(), 
+        forceRegenerate
+      );
+
+      // Obtener detalles completos
+      const details = await PayrollService.getPayrollDetails(payroll.id);
+
+      res.status(201).json({
+        success: true,
+        message: 'Nómina generada exitosamente',
+        data: {
+          payroll: payroll.toFirestore(),
+          details: details.details,
+          summary: details.summary
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error generando nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor generando nómina'
+      });
+    }
+  }
+
+  /**
+   * Obtener períodos de nómina de un empleado
+   * GET /api/payroll/periods/:employeeId
+   */
+  static async getPayrollPeriods(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { limit, year, month, status } = req.query;
+
+      logger.info('📋 Obteniendo períodos de nómina', { employeeId, limit, year, month, status });
+
+      const options = {
+        limit: limit ? parseInt(limit) : 50,
+        year: year ? parseInt(year) : null,
+        month: month ? parseInt(month) : null,
+        status
       };
 
-      await payroll.update(updateData);
-
-      // Registrar cambios en historial si hay diferencias significativas
-      if (oldValues.grossSalary !== payroll.grossSalary || 
-          oldValues.netSalary !== payroll.netSalary ||
-          oldValues.status !== payroll.status) {
-        
-        await EmployeeHistory.createHistoryRecord(
-          employeeId,
-          'salary_change',
-          `Período de nómina actualizado: ${payroll.periodStart} - ${payroll.periodEnd}`,
-          {
-            payrollId: payroll.id,
-            changes: {
-              oldValues,
-              newValues: {
-                grossSalary: payroll.grossSalary,
-                netSalary: payroll.netSalary,
-                status: payroll.status
-              }
-            }
-          },
-          updatedBy,
-          req
-        );
-      }
-
-      res.json({
-        success: true,
-        data: { payroll },
-        message: 'Período de nómina actualizado exitosamente'
-      });
-    } catch (error) {
-      console.error('Error updating payroll period:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al actualizar período de nómina',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Obtiene desglose detallado de un período de nómina
-   * GET /api/employees/:id/payroll/:payrollId/breakdown
-   */
-  static async getBreakdown(req, res) {
-    try {
-      const { id: employeeId, payrollId } = req.params;
-
-      const payroll = await PayrollPeriod.findById(employeeId, payrollId);
-      if (!payroll) {
-        return res.status(404).json({
-          success: false,
-          error: 'Período de nómina no encontrado'
-        });
-      }
-
-      const breakdown = await PayrollBreakdown.listByPeriod(employeeId, payrollId);
-      const perceptions = breakdown.filter(item => item.type === 'perception');
-      const deductions = breakdown.filter(item => item.type === 'deduction');
-      const totals = await PayrollBreakdown.calculateTotals(employeeId, payrollId);
+      const result = await PayrollService.getPayrollPeriods(employeeId, options);
 
       res.json({
         success: true,
         data: {
-          payroll,
-          breakdown: {
-            perceptions,
-            deductions
-          },
-          totals
+          periods: result.periods.map(p => p.toFirestore()),
+          summary: result.summary,
+          filters: options
         }
       });
+
     } catch (error) {
-      console.error('Error getting payroll breakdown:', error);
+      logger.error('❌ Error obteniendo períodos de nómina', error);
       res.status(500).json({
         success: false,
-        error: 'Error al obtener desglose de nómina',
-        details: error.message
+        error: error.message,
+        details: 'Error interno del servidor obteniendo períodos'
       });
     }
   }
 
   /**
-   * Obtiene nómina semanal para todos los empleados
-   * GET /api/payroll/weekly
+   * Obtener detalles de un período específico
+   * GET /api/payroll/period/:payrollId/details
    */
-  static async getWeeklyPayroll(req, res) {
+  static async getPayrollDetails(req, res) {
     try {
-      const {
-        week,
-        year,
-        department = null
-      } = req.query;
+      const { payrollId } = req.params;
 
-      if (!week || !year) {
-        return res.status(400).json({
-          success: false,
-          error: 'Semana y año son requeridos'
-        });
-      }
+      logger.info('📋 Obteniendo detalles de período', { payrollId });
 
-      const weeklyData = await PayrollPeriod.getWeeklyPayroll(
-        parseInt(week),
-        parseInt(year),
-        department
-      );
-
-      res.json({
-        success: true,
-        data: weeklyData
-      });
-    } catch (error) {
-      console.error('Error getting weekly payroll:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener nómina semanal',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Calcula nómina automáticamente para un empleado
-   * POST /api/employees/:id/payroll/calculate
-   */
-  static async calculatePayroll(req, res) {
-    try {
-      const { id: employeeId } = req.params;
-      const { periodStart, periodEnd } = req.body;
-
-      if (!periodStart || !periodEnd) {
-        return res.status(400).json({
-          success: false,
-          error: 'Fechas de inicio y fin del período son requeridas'
-        });
-      }
-
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
-          success: false,
-          error: 'Empleado no encontrado'
-        });
-      }
-
-      // Crear período base con salario del contrato
-      const payroll = new PayrollPeriod({
-        employeeId,
-        periodStart,
-        periodEnd,
-        grossSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
-        baseSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
-        weekNumber: PayrollController.getWeekNumber(new Date(periodStart)),
-        year: new Date(periodStart).getFullYear()
-      });
-
-      // Integrar con movimientos de extras para cálculo completo
-      const extrasImpact = await ExtrasService.calculatePayrollImpact(
-        employeeId, 
-        periodStart, 
-        periodEnd
-      );
-
-      // Aplicar impacto de extras en la nómina
-      payroll.overtime = extrasImpact.breakdown.overtime || 0;
-      payroll.bonuses = extrasImpact.breakdown.bonuses || 0;
-      payroll.otherDeductions = 
-        (extrasImpact.breakdown.absences || 0) +
-        (extrasImpact.breakdown.deductions || 0) +
-        (extrasImpact.breakdown.loanPayments || 0) +
-        (extrasImpact.breakdown.damages || 0);
-
-      // Calcular deducciones automáticamente
-      payroll.calculateDeductions();
+      const result = await PayrollService.getPayrollDetails(payrollId);
 
       res.json({
         success: true,
         data: {
-          payroll,
-          extrasImpact,
-          breakdown: {
-            baseSalary: payroll.baseSalary,
-            overtime: payroll.overtime,
-            bonuses: payroll.bonuses,
-            totalPerceptions: payroll.baseSalary + payroll.overtime + payroll.bonuses,
-            taxes: payroll.taxes,
-            socialSecurity: payroll.socialSecurity,
-            otherDeductions: payroll.otherDeductions,
-            totalDeductions: payroll.taxes + payroll.socialSecurity + payroll.otherDeductions,
-            netSalary: payroll.netSalary
-          },
-          message: 'Nómina calculada con movimientos de extras incluidos.'
+          payroll: result.payroll.toFirestore(),
+          perceptions: result.details.perceptions.map(d => d.toFirestore()),
+          deductions: result.details.deductions.map(d => d.toFirestore()),
+          summary: result.summary
         }
       });
+
     } catch (error) {
-      console.error('Error calculating payroll:', error);
+      logger.error('❌ Error obteniendo detalles de período', error);
       res.status(500).json({
         success: false,
-        error: 'Error al calcular nómina',
-        details: error.message
+        error: error.message,
+        details: 'Error interno del servidor obteniendo detalles'
       });
     }
   }
 
   /**
-   * Procesa nómina incluyendo movimientos de extras
-   * POST /api/employees/:id/payroll/process-with-extras
+   * Aprobar período de nómina
+   * PUT /api/payroll/approve/:payrollId
    */
-  static async processPayrollWithExtras(req, res) {
+  static async approvePayroll(req, res) {
     try {
-      const { id: employeeId } = req.params;
-      const { periodStart, periodEnd } = req.body;
-      const createdBy = req.user?.id || null;
+      const { payrollId } = req.params;
+      const userId = req.user?.id;
 
-      if (!periodStart || !periodEnd) {
-        return res.status(400).json({
-          success: false,
-          error: 'Fechas de inicio y fin del período son requeridas'
-        });
-      }
+      logger.info('✅ Aprobando período de nómina', { payrollId, userId });
 
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
-          success: false,
-          error: 'Empleado no encontrado'
-        });
-      }
+      const payroll = await PayrollService.approvePayroll(payrollId, userId);
 
-      // Calcular impacto de extras
-      const extrasImpact = await ExtrasService.calculatePayrollImpact(
-        employeeId, 
-        periodStart, 
-        periodEnd
-      );
-
-      // Crear período de nómina con extras incluidos
-      const payroll = new PayrollPeriod({
-        employeeId,
-        periodStart,
-        periodEnd,
-        grossSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
-        baseSalary: employee.contract?.salary || employee.salary?.baseSalary || 0,
-        overtime: extrasImpact.breakdown.overtime || 0,
-        bonuses: extrasImpact.breakdown.bonuses || 0,
-        otherDeductions: 
-          (extrasImpact.breakdown.absences || 0) +
-          (extrasImpact.breakdown.deductions || 0) +
-          (extrasImpact.breakdown.loanPayments || 0) +
-          (extrasImpact.breakdown.damages || 0),
-        weekNumber: PayrollController.getWeekNumber(new Date(periodStart)),
-        year: new Date(periodStart).getFullYear(),
-        status: 'calculated'
+      res.json({
+        success: true,
+        message: 'Período de nómina aprobado exitosamente',
+        data: {
+          payroll: payroll.toFirestore()
+        }
       });
 
-      // Calcular deducciones y salario neto
-      payroll.calculateDeductions();
+    } catch (error) {
+      logger.error('❌ Error aprobando período de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor aprobando nómina'
+      });
+    }
+  }
 
-      // Guardar período de nómina
-      await payroll.save();
+  /**
+   * Marcar período como pagado
+   * PUT /api/payroll/pay/:payrollId
+   */
+  static async markAsPaid(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const { paymentDate } = req.body;
+      const userId = req.user?.id;
 
-      // Crear desgloses detallados para cada movimiento
-      for (const movement of extrasImpact.movements) {
-        const breakdown = new PayrollBreakdown({
-          payrollPeriodId: payroll.id,
-          employeeId,
-          type: movement.impactType === 'add' ? 'perception' : 'deduction',
-          category: movement.type,
-          description: `${movement.type}: ${movement.description}`,
-          amount: movement.calculatedAmount || movement.amount,
-          taxable: movement.type === 'overtime' || movement.type === 'bonus',
-          exempt: movement.type === 'absence' || movement.type === 'loan'
-        });
-        
-        await breakdown.save();
+      logger.info('💰 Marcando período como pagado', { payrollId, paymentDate, userId });
 
-        // Marcar movimiento como procesado en nómina
-        movement.payrollPeriod = `${periodStart} - ${periodEnd}`;
-        movement.payrollId = payroll.id;
-        await movement.save();
-      }
+      const payroll = await PayrollService.markAsPaid(payrollId, userId, paymentDate);
 
-      // Registrar en historial
-      await EmployeeHistory.createHistoryRecord(
-        employeeId,
-        'payroll_processed',
-        `Nómina procesada con ${extrasImpact.movements.length} movimientos de extras`,
-        {
-          payrollId: payroll.id,
-          period: `${periodStart} - ${periodEnd}`,
-          netSalary: payroll.netSalary,
-          extrasCount: extrasImpact.movements.length,
-          totalExtrasImpact: extrasImpact.netImpact
-        },
-        createdBy
+      res.json({
+        success: true,
+        message: 'Período marcado como pagado exitosamente',
+        data: {
+          payroll: payroll.toFirestore()
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error marcando período como pagado', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor marcando como pagado'
+      });
+    }
+  }
+
+  /**
+   * Cancelar período de nómina
+   * PUT /api/payroll/cancel/:payrollId
+   */
+  static async cancelPayroll(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const { reason = '' } = req.body;
+      const userId = req.user?.id;
+
+      logger.info('❌ Cancelando período de nómina', { payrollId, reason, userId });
+
+      const payroll = await PayrollService.cancelPayroll(payrollId, userId, reason);
+
+      res.json({
+        success: true,
+        message: 'Período de nómina cancelado exitosamente',
+        data: {
+          payroll: payroll.toFirestore()
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error cancelando período de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor cancelando nómina'
+      });
+    }
+  }
+
+  /**
+   * Eliminar período de nómina
+   * DELETE /api/payroll/period/:payrollId
+   */
+  static async deletePayroll(req, res) {
+    try {
+      const { payrollId } = req.params;
+      const userId = req.user?.id;
+
+      logger.info('🗑️ Eliminando período de nómina', { payrollId, userId });
+
+      await PayrollService.deletePayroll(payrollId);
+
+      res.json({
+        success: true,
+        message: 'Período de nómina eliminado exitosamente'
+      });
+
+    } catch (error) {
+      logger.error('❌ Error eliminando período de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor eliminando nómina'
+      });
+    }
+  }
+
+  /**
+   * Obtener períodos pendientes de pago
+   * GET /api/payroll/pending
+   */
+  static async getPendingPayments(req, res) {
+    try {
+      const { limit = 50 } = req.query;
+
+      logger.info('📋 Obteniendo períodos pendientes de pago', { limit });
+
+      const periods = await Payroll.findPendingPayments();
+      const limitedPeriods = periods.slice(0, parseInt(limit));
+
+      // Obtener información de empleados
+      const periodsWithEmployees = await Promise.all(
+        limitedPeriods.map(async (period) => {
+          const employee = await Employee.findById(period.employeeId);
+          return {
+            ...period.toFirestore(),
+            employee: employee ? {
+              id: employee.id,
+              name: employee.name,
+              email: employee.email,
+              department: employee.department
+            } : null
+          };
+        })
       );
+
+      // Calcular resumen
+      const summary = {
+        totalPending: periods.length,
+        totalAmount: periods.reduce((sum, p) => sum + p.netSalary, 0),
+        byStatus: {}
+      };
+
+      periods.forEach(period => {
+        summary.byStatus[period.status] = (summary.byStatus[period.status] || 0) + 1;
+      });
 
       res.json({
         success: true,
         data: {
-          payroll,
-          extrasImpact,
-          processedMovements: extrasImpact.movements.length,
-          breakdown: {
-            baseSalary: payroll.baseSalary,
-            overtime: payroll.overtime,
-            bonuses: payroll.bonuses,
-            totalPerceptions: payroll.baseSalary + payroll.overtime + payroll.bonuses,
-            taxes: payroll.taxes,
-            socialSecurity: payroll.socialSecurity,
-            otherDeductions: payroll.otherDeductions,
-            totalDeductions: payroll.taxes + payroll.socialSecurity + payroll.otherDeductions,
-            netSalary: payroll.netSalary
-          }
-        },
-        message: 'Nómina procesada exitosamente con movimientos de extras'
-      });
-
-    } catch (error) {
-      console.error('Error processing payroll with extras:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al procesar nómina con extras',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Genera recibo de nómina en PDF
-   * GET /api/employees/:id/payroll/:payrollId/receipt
-   */
-  static async generateReceipt(req, res) {
-    try {
-      const { id: employeeId, payrollId } = req.params;
-
-      const payroll = await PayrollPeriod.findById(employeeId, payrollId);
-      if (!payroll) {
-        return res.status(404).json({
-          success: false,
-          error: 'Período de nómina no encontrado'
-        });
-      }
-
-      const employee = await Employee.findById(employeeId);
-      const breakdown = await PayrollBreakdown.listByPeriod(employeeId, payrollId);
-
-      // TODO: Implementar generación de PDF
-      // Por ahora devolver datos estructurados
-      
-      res.json({
-        success: true,
-        data: {
-          employee: {
-            name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            employeeNumber: employee.employeeNumber,
-            position: employee.position.title,
-            department: employee.position.department
-          },
-          payroll,
-          breakdown,
-          generatedAt: new Date().toISOString()
-        },
-        message: 'Generación de PDF en desarrollo'
-      });
-    } catch (error) {
-      console.error('Error generating receipt:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al generar recibo',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Obtiene reportes de nómina
-   * GET /api/payroll/reports
-   */
-  static async getReports(req, res) {
-    try {
-      const {
-        type = 'summary',
-        year = new Date().getFullYear(),
-        month = null,
-        department = null
-      } = req.query;
-
-      let reportData = {};
-
-      switch (type) {
-        case 'summary':
-          // TODO: Implementar reporte resumen
-          reportData = {
-            type: 'summary',
-            message: 'Reporte resumen en desarrollo'
-          };
-          break;
-          
-        case 'detailed':
-          // TODO: Implementar reporte detallado
-          reportData = {
-            type: 'detailed',
-            message: 'Reporte detallado en desarrollo'
-          };
-          break;
-          
-        case 'taxes':
-          // TODO: Implementar reporte de impuestos
-          reportData = {
-            type: 'taxes',
-            message: 'Reporte de impuestos en desarrollo'
-          };
-          break;
-          
-        default:
-          return res.status(400).json({
-            success: false,
-            error: 'Tipo de reporte no válido'
-          });
-      }
-
-      res.json({
-        success: true,
-        data: reportData
-      });
-    } catch (error) {
-      console.error('Error getting payroll reports:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener reportes de nómina',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Procesa nómina masiva
-   * POST /api/payroll/bulk-process
-   */
-  static async bulkProcess(req, res) {
-    try {
-      const {
-        employeeIds,
-        periodStart,
-        periodEnd,
-        department = null
-      } = req.body;
-
-      if (!periodStart || !periodEnd) {
-        return res.status(400).json({
-          success: false,
-          error: 'Fechas de período son requeridas'
-        });
-      }
-
-      let targetEmployees = [];
-
-      if (employeeIds && Array.isArray(employeeIds)) {
-        // Procesar empleados específicos
-        for (const id of employeeIds) {
-          const employee = await Employee.findById(id);
-          if (employee) {
-            targetEmployees.push(employee);
+          periods: periodsWithEmployees,
+          summary,
+          pagination: {
+            total: periods.length,
+            shown: limitedPeriods.length,
+            limit: parseInt(limit)
           }
         }
-      } else if (department) {
-        // Procesar por departamento
-        targetEmployees = await Employee.getByDepartment(department);
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo períodos pendientes', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo períodos pendientes'
+      });
+    }
+  }
+
+  /**
+   * Generar múltiples nóminas automáticamente
+   * POST /api/payroll/auto-generate
+   */
+  static async autoGeneratePayrolls(req, res) {
+    try {
+      const { frequency, employeeIds = [] } = req.body;
+
+      logger.info('🤖 Generación automática de nóminas', { frequency, employeeIds });
+
+      let results;
+
+      if (employeeIds.length > 0) {
+        // Generar para empleados específicos
+        results = [];
+        for (const employeeId of employeeIds) {
+          try {
+            const payroll = await PayrollService.generatePayroll(employeeId);
+            results.push({
+              employeeId,
+              success: true,
+              payrollId: payroll.id,
+              netSalary: payroll.netSalary
+            });
+          } catch (error) {
+            results.push({
+              employeeId,
+              success: false,
+              error: error.message
+            });
+          }
+        }
+      } else if (frequency) {
+        // Generar por frecuencia
+        results = await PayrollService.generatePayrollsByFrequency(frequency);
       } else {
         return res.status(400).json({
           success: false,
-          error: 'Debe especificar empleados o departamento'
+          error: 'Debe especificar frequency o employeeIds'
         });
       }
 
-      const results = {
-        processed: 0,
-        errors: [],
-        payrolls: []
-      };
-
-      // Procesar cada empleado
-      for (const employee of targetEmployees) {
-        try {
-          const payroll = new PayrollPeriod({
-            employeeId: employee.id,
-            periodStart,
-            periodEnd,
-            grossSalary: employee.contract.salary,
-            baseSalary: employee.contract.salary,
-            weekNumber: PayrollController.getWeekNumber(new Date(periodStart)),
-            year: new Date(periodStart).getFullYear()
-          });
-
-          payroll.calculateDeductions();
-          await payroll.save();
-
-          results.processed++;
-          results.payrolls.push({
-            employeeId: employee.id,
-            employeeName: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            payrollId: payroll.id,
-            netSalary: payroll.netSalary
-          });
-        } catch (error) {
-          results.errors.push({
-            employeeId: employee.id,
-            employeeName: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            error: error.message
-          });
-        }
-      }
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
 
       res.json({
         success: true,
-        data: results,
-        message: `Procesados ${results.processed} empleados de ${targetEmployees.length}`
+        message: `Generación automática completada: ${successful} exitosas, ${failed} fallidas`,
+        data: {
+          results,
+          summary: {
+            total: results.length,
+            successful,
+            failed,
+            successRate: results.length > 0 ? (successful / results.length) * 100 : 0
+          }
+        }
       });
+
     } catch (error) {
-      console.error('Error bulk processing payroll:', error);
+      logger.error('❌ Error en generación automática', error);
       res.status(500).json({
         success: false,
-        error: 'Error al procesar nómina masiva',
-        details: error.message
+        error: error.message,
+        details: 'Error interno del servidor en generación automática'
       });
     }
   }
 
   /**
-   * Utilidad para obtener número de semana
+   * Obtener estadísticas de nómina
+   * GET /api/payroll/stats
    */
-  static getWeekNumber(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  static async getPayrollStats(req, res) {
+    try {
+      const { year, month, employeeId } = req.query;
+
+      logger.info('📊 Obteniendo estadísticas de nómina', { year, month, employeeId });
+
+      // Esta es una implementación básica, se puede expandir
+      const periods = await Payroll.findPendingPayments(); // Por ahora usar todos los pendientes
+
+      const stats = {
+        totalPeriods: periods.length,
+        totalGross: periods.reduce((sum, p) => sum + p.grossSalary, 0),
+        totalDeductions: periods.reduce((sum, p) => sum + p.totalDeductions, 0),
+        totalNet: periods.reduce((sum, p) => sum + p.netSalary, 0),
+        averageGross: periods.length > 0 ? periods.reduce((sum, p) => sum + p.grossSalary, 0) / periods.length : 0,
+        averageNet: periods.length > 0 ? periods.reduce((sum, p) => sum + p.netSalary, 0) / periods.length : 0,
+        byFrequency: {},
+        byStatus: {},
+        byMonth: {}
+      };
+
+      // Agrupar por frecuencia
+      periods.forEach(period => {
+        stats.byFrequency[period.frequency] = (stats.byFrequency[period.frequency] || 0) + 1;
+        stats.byStatus[period.status] = (stats.byStatus[period.status] || 0) + 1;
+        stats.byMonth[period.month] = (stats.byMonth[period.month] || 0) + 1;
+      });
+
+      res.json({
+        success: true,
+        data: {
+          stats,
+          filters: { year, month, employeeId }
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo estadísticas', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo estadísticas'
+      });
+    }
   }
 }
 
