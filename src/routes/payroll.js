@@ -109,6 +109,17 @@ router.get('/pending',
   PayrollController.getPendingPayments
 );
 
+/**
+ * Verificar extras pendientes para un empleado
+ * GET /api/payroll/extras-pending/:employeeId
+ * Query: periodStart?, periodEnd?
+ * Requiere: autenticación
+ */
+router.get('/extras-pending/:employeeId', 
+  authMiddleware, 
+  PayrollController.getPendingExtras
+);
+
 // ================================
 // GESTIÓN DE ESTADOS
 // ================================
@@ -183,17 +194,10 @@ router.get('/stats',
  * Generar PDF de recibo de nómina
  * GET /api/payroll/pdf/:payrollId
  * Requiere: autenticación
- * TODO: Implementar generación de PDF
  */
 router.get('/pdf/:payrollId', 
   authMiddleware, 
-  (req, res) => {
-    res.status(501).json({
-      success: false,
-      error: 'Funcionalidad de PDF no implementada aún',
-      message: 'Esta funcionalidad estará disponible en una próxima versión'
-    });
-  }
+  PayrollController.generatePayrollPDF
 );
 
 /**
@@ -274,7 +278,8 @@ router.use('*', (req, res) => {
       consultation: {
         'GET /api/payroll/periods/:employeeId': 'Obtener períodos',
         'GET /api/payroll/period/:payrollId/details': 'Obtener detalles',
-        'GET /api/payroll/pending': 'Períodos pendientes'
+        'GET /api/payroll/pending': 'Períodos pendientes',
+        'GET /api/payroll/extras-pending/:employeeId': 'Verificar extras pendientes'
       },
       management: {
         'PUT /api/payroll/approve/:payrollId': 'Aprobar período',

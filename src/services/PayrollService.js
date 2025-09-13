@@ -164,18 +164,11 @@ class PayrollService {
         deductionDetails.push(detail);
       }
 
-      // Crear deducciones fijas (ISR, IMSS, etc.)
-      const fixedDeductions = await PayrollDetail.createFixedDeductions(
-        payroll.id, 
-        employeeId, 
-        payroll.grossSalary, 
-        config.sbc || config.baseSalary
-      );
-      deductionDetails.push(...fixedDeductions);
-
-      // Calcular total de deducciones
-      const totalFixedDeductions = fixedDeductions.reduce((sum, detail) => sum + detail.amount, 0);
-      payroll.totalDeductions = totalDeductionsFromExtras + totalFixedDeductions;
+      // NO CREAR DEDUCCIONES FIJAS AUTOMÁTICAS (ISR, IMSS, etc.)
+      // Solo usar deducciones de extras registrados manualmente
+      
+      // Calcular total de deducciones (solo de extras)
+      payroll.totalDeductions = totalDeductionsFromExtras;
 
       // Calcular totales finales
       payroll.calculateTotals();
@@ -188,11 +181,25 @@ class PayrollService {
         await detail.save();
       }
 
-      // Marcar extras como aplicados a nómina
+      // Marcar extras como aplicados a nómina (CRÍTICO para evitar duplicación)
       for (const extra of extras) {
-        extra.appliedToPayroll = true;
-        extra.payrollId = payroll.id;
-        await extra.save();
+        try {
+          // Usar el método específico del modelo para marcar como aplicado
+          await extra.markAsAppliedToPayroll(payroll.id);
+          
+          logger.info('✅ Extra marcado como aplicado a nómina', {
+            extraId: extra.id,
+            extraType: extra.type,
+            payrollId: payroll.id,
+            amount: extra.calculatedAmount || extra.amount
+          });
+        } catch (error) {
+          logger.error('❌ Error marcando extra como aplicado', {
+            extraId: extra.id,
+            error: error.message
+          });
+          // No lanzar error para no interrumpir la generación de nómina
+        }
       }
 
       logger.info('✅ Nómina generada exitosamente', {
@@ -223,8 +230,8 @@ class PayrollService {
       const periodEndDate = new Date(periodEnd);
 
       const applicableExtras = allExtras.filter(extra => {
-        // Solo incluir extras activos y no aplicados a nómina
-        if (extra.status !== 'active' || extra.appliedToPayroll) {
+        // CRÍTICO: Solo incluir extras aprobados y NO aplicados a nómina
+        if (extra.status !== 'approved' || extra.appliedToPayroll === true) {
           return false;
         }
 

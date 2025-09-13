@@ -32,8 +32,8 @@ class PayrollJob {
         name: 'daily-payroll'
       });
 
-      // Job para nóminas semanales - se ejecuta los domingos a las 23:59
-      const weeklyJob = cron.schedule('59 23 * * 0', async () => {
+      // Job para nóminas semanales - se ejecuta los sábados a las 11:00 AM
+      const weeklyJob = cron.schedule('0 11 * * 6', async () => {
         await this.executeWeeklyPayrolls();
       }, {
         scheduled: false,

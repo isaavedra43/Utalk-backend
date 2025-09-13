@@ -202,9 +202,15 @@ class PayrollDetail {
 
   /**
    * Crear detalles fijos (ISR, IMSS, etc.)
+   * DESHABILITADO: Ya no se calculan impuestos automáticamente
+   * Solo se usan extras registrados manualmente
    */
   static async createFixedDeductions(payrollId, employeeId, grossSalary, sbc) {
     try {
+      // RETORNAR ARRAY VACÍO - NO CREAR DEDUCCIONES FIJAS AUTOMÁTICAS
+      logger.info('⚠️ createFixedDeductions llamado pero deshabilitado - no se crean impuestos automáticos');
+      return [];
+
       const fixedDeductions = [];
 
       // ISR (Impuesto Sobre la Renta) - Cálculo simplificado

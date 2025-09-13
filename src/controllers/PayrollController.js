@@ -511,6 +511,151 @@ class PayrollController {
   }
 
   /**
+   * Verificar extras pendientes para un empleado
+   * GET /api/payroll/extras-pending/:employeeId
+   */
+  static async getPendingExtras(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { periodStart, periodEnd } = req.query;
+
+      logger.info('📋 Obteniendo extras pendientes', { employeeId, periodStart, periodEnd });
+
+      // Si no se especifica período, usar período actual
+      let startDate, endDate;
+      if (periodStart && periodEnd) {
+        startDate = periodStart;
+        endDate = periodEnd;
+      } else {
+        // Calcular período actual (semanal por defecto)
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + mondayOffset);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        
+        startDate = monday.toISOString().split('T')[0];
+        endDate = sunday.toISOString().split('T')[0];
+      }
+
+      // Obtener extras aplicables
+      const extras = await PayrollService.getExtrasForPeriod(employeeId, startDate, endDate);
+
+      // Separar por tipo de impacto
+      const perceptions = extras.filter(extra => extra.getImpactType() === 'positive');
+      const deductions = extras.filter(extra => extra.getImpactType() === 'negative');
+
+      const summary = {
+        totalExtras: extras.length,
+        totalPerceptions: perceptions.length,
+        totalDeductions: deductions.length,
+        totalToAdd: perceptions.reduce((sum, extra) => sum + (extra.calculatedAmount || extra.amount), 0),
+        totalToSubtract: deductions.reduce((sum, extra) => sum + Math.abs(extra.calculatedAmount || extra.amount), 0),
+        netImpact: 0
+      };
+
+      summary.netImpact = summary.totalToAdd - summary.totalToSubtract;
+
+      res.json({
+        success: true,
+        data: {
+          period: { startDate, endDate },
+          extras: extras.map(extra => extra.toFirestore()),
+          perceptions: perceptions.map(extra => extra.toFirestore()),
+          deductions: deductions.map(extra => extra.toFirestore()),
+          summary
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo extras pendientes', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo extras pendientes'
+      });
+    }
+  }
+
+  /**
+   * Generar PDF de recibo de nómina
+   * GET /api/payroll/pdf/:payrollId
+   */
+  static async generatePayrollPDF(req, res) {
+    try {
+      const { payrollId } = req.params;
+
+      logger.info('📄 Generando PDF de recibo de nómina', { payrollId });
+
+      // Obtener detalles completos de la nómina
+      const result = await PayrollService.getPayrollDetails(payrollId);
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          error: 'Período de nómina no encontrado'
+        });
+      }
+
+      // Obtener información del empleado
+      const employee = await Employee.findById(result.payroll.employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      // Información de la empresa (puedes personalizar esto)
+      const companyData = {
+        name: 'UTalk',
+        address: 'Dirección de la empresa',
+        phone: 'Teléfono de contacto',
+        email: 'contacto@utalk.com',
+        rfc: 'RFC123456789',
+        logo: null // URL del logo si tienes uno
+      };
+
+      // Preparar datos para el PDF
+      const payrollData = {
+        ...result.payroll,
+        perceptions: result.details.perceptions,
+        deductions: result.details.deductions
+      };
+
+      // Generar PDF
+      const PDFService = require('../services/PDFService');
+      const pdfResult = await PDFService.generatePayrollReceipt(
+        payrollData,
+        employee,
+        companyData
+      );
+
+      res.json({
+        success: true,
+        message: 'PDF de recibo de nómina generado exitosamente',
+        data: {
+          pdfUrl: pdfResult.pdfUrl,
+          fileName: pdfResult.fileName,
+          size: pdfResult.size,
+          payrollId: payrollId,
+          employeeId: employee.id,
+          employeeName: employee.name
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error generando PDF de recibo de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor generando PDF'
+      });
+    }
+  }
+
+  /**
    * Obtener estadísticas de nómina
    * GET /api/payroll/stats
    */
