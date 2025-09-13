@@ -24,6 +24,23 @@ class PayrollConfig {
     this.bankAccount = data.bankAccount || null; // Cuenta bancaria
     this.taxRegime = data.taxRegime || 'general'; // Régimen fiscal
     this.notes = data.notes || ''; // Notas adicionales
+    
+    // 🆕 CONFIGURACIÓN DE IMPUESTOS OPCIONALES
+    this.taxSettings = data.taxSettings || {
+      useGlobalDefaults: true, // Si usa configuración global o personalizada
+      enabledTaxes: [], // Array de nombres de impuestos habilitados ['ISR', 'IMSS', 'IVA']
+      customTaxes: [], // Array de configuraciones de impuestos personalizados
+      taxOverrides: {} // Overrides para impuestos globales { 'ISR': { value: 15 } }
+    };
+    
+    // 🆕 INTEGRACIÓN CON EXTRAS
+    this.extrasIntegration = data.extrasIntegration || {
+      autoApplyExtras: true, // Aplicar automáticamente movimientos de extras
+      requireApproval: false, // Requerir aprobación antes de aplicar
+      trackDuplicates: true, // Rastrear duplicados
+      markAsApplied: true // Marcar movimientos como aplicados
+    };
+    
     this.createdBy = data.createdBy; // Usuario que creó la configuración
     this.updatedBy = data.updatedBy; // Usuario que actualizó por última vez
     this.createdAt = data.createdAt || new Date().toISOString();
@@ -51,6 +68,8 @@ class PayrollConfig {
       bankAccount: this.bankAccount,
       taxRegime: this.taxRegime,
       notes: this.notes,
+      taxSettings: this.taxSettings,
+      extrasIntegration: this.extrasIntegration,
       createdBy: this.createdBy,
       updatedBy: this.updatedBy,
       createdAt: this.createdAt,

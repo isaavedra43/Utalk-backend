@@ -47,7 +47,7 @@ class PayrollMovement {
     this.justification = data.justification || '';
     this.attachments = data.attachments || []; // URLs de archivos
     
-    // Impacto en nómina
+    // 🆕 IMPACTO EN NÓMINA MEJORADO
     this.impactType = data.impactType || this.getImpactType(); // 'add' | 'subtract'
     this.payrollPeriod = data.payrollPeriod || null; // Período donde se aplicó
     this.payrollId = data.payrollId || null; // ID del período de nómina
@@ -56,6 +56,14 @@ class PayrollMovement {
     this.isRecurring = data.isRecurring || false; // Si es un movimiento recurrente
     this.recurringFrequency = data.recurringFrequency || null; // 'monthly' | 'biweekly' | 'weekly'
     this.nextApplicationDate = data.nextApplicationDate || null; // Próxima fecha de aplicación
+    
+    // 🆕 CONTROL DE DUPLICADOS Y TRACKING
+    this.payrollHistory = data.payrollHistory || []; // Historial completo de aplicaciones
+    this.isDuplicate = data.isDuplicate || false; // Marcado como posible duplicado
+    this.originalMovementId = data.originalMovementId || null; // ID del movimiento original
+    this.preventDuplication = data.preventDuplication !== undefined ? data.preventDuplication : true;
+    this.duplicateCheckFields = data.duplicateCheckFields || ['type', 'amount', 'date', 'employeeId'];
+    this.applicationSource = data.applicationSource || 'manual'; // 'manual' | 'automatic' | 'import'
     
     // Metadatos
     this.createdAt = data.createdAt || new Date().toISOString();
@@ -441,19 +449,44 @@ class PayrollMovement {
   }
 
   /**
-   * Marcar como aplicado a nómina
+   * 🆕 Marcar como aplicado a nómina (MEJORADO)
    */
-  async markAsAppliedToPayroll(payrollId, payrollDetailId = null) {
+  async markAsAppliedToPayroll(payrollId, payrollDetailId = null, payrollPeriod = null) {
     try {
+      // Actualizar estado principal
       this.appliedToPayroll = true;
       this.payrollId = payrollId;
       this.payrollDetailId = payrollDetailId;
+      this.payrollPeriod = payrollPeriod;
       this.updatedAt = new Date().toISOString();
       
+      // 🆕 Agregar al historial de aplicaciones
+      const historyEntry = {
+        payrollId,
+        payrollDetailId,
+        payrollPeriod,
+        appliedAt: new Date().toISOString(),
+        amount: this.calculatedAmount || this.amount,
+        status: 'applied',
+        notes: `Aplicado automáticamente a nómina ${payrollPeriod || payrollId}`
+      };
+      
+      this.payrollHistory.push(historyEntry);
+      
       await this.save();
+      
+      console.log('✅ Movimiento aplicado a nómina:', {
+        movementId: this.id,
+        type: this.type,
+        amount: this.amount,
+        payrollId,
+        payrollPeriod,
+        historyCount: this.payrollHistory.length
+      });
+      
       return this;
     } catch (error) {
-      console.error('Error marking movement as applied to payroll:', error);
+      console.error('❌ Error marcando movimiento como aplicado:', error);
       throw error;
     }
   }
@@ -519,6 +552,119 @@ class PayrollMovement {
       return snapshot.docs.map(doc => PayrollMovement.fromFirestore(doc));
     } catch (error) {
       console.error('Error finding movements by payroll period:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🆕 DETECCIÓN DE DUPLICADOS
+   */
+  async checkForDuplicates() {
+    try {
+      if (!this.preventDuplication) {
+        return { isDuplicate: false, duplicates: [] };
+      }
+
+      // Buscar movimientos similares del mismo empleado
+      const snapshot = await db.collection('employees')
+        .doc(this.employeeId)
+        .collection('movements')
+        .where('type', '==', this.type)
+        .where('amount', '==', this.amount)
+        .where('date', '==', this.date)
+        .where('status', '==', 'active')
+        .get();
+
+      const duplicates = snapshot.docs
+        .map(doc => PayrollMovement.fromFirestore(doc))
+        .filter(movement => movement.id !== this.id);
+
+      const isDuplicate = duplicates.length > 0;
+
+      if (isDuplicate) {
+        this.isDuplicate = true;
+        this.originalMovementId = duplicates[0].id;
+        
+        console.warn('⚠️ Posible duplicado detectado:', {
+          movementId: this.id,
+          type: this.type,
+          amount: this.amount,
+          date: this.date,
+          duplicatesFound: duplicates.length,
+          originalId: this.originalMovementId
+        });
+      }
+
+      return { isDuplicate, duplicates };
+    } catch (error) {
+      console.error('❌ Error verificando duplicados:', error);
+      return { isDuplicate: false, duplicates: [] };
+    }
+  }
+
+  /**
+   * 🆕 BUSCAR MOVIMIENTOS NO APLICADOS PARA UN PERÍODO
+   */
+  static async findPendingForPeriod(employeeId, startDate, endDate) {
+    try {
+      const snapshot = await db.collection('employees')
+        .doc(employeeId)
+        .collection('movements')
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .where('appliedToPayroll', '==', false)
+        .where('status', '==', 'active')
+        .where('isDuplicate', '==', false)
+        .orderBy('date', 'asc')
+        .get();
+
+      return snapshot.docs.map(doc => PayrollMovement.fromFirestore(doc));
+    } catch (error) {
+      console.error('❌ Error buscando movimientos pendientes:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🆕 OBTENER RESUMEN DE IMPACTO EN NÓMINA
+   */
+  static async getPayrollImpactSummary(employeeId, startDate, endDate) {
+    try {
+      const movements = await PayrollMovement.findPendingForPeriod(employeeId, startDate, endDate);
+      
+      const summary = {
+        totalMovements: movements.length,
+        perceptions: 0,
+        deductions: 0,
+        netImpact: 0,
+        byType: {},
+        duplicatesFound: 0,
+        readyToApply: 0
+      };
+
+      movements.forEach(movement => {
+        const amount = movement.calculatedAmount || movement.amount;
+        
+        if (movement.impactType === 'add') {
+          summary.perceptions += amount;
+        } else {
+          summary.deductions += amount;
+        }
+
+        if (movement.isDuplicate) {
+          summary.duplicatesFound++;
+        } else {
+          summary.readyToApply++;
+        }
+
+        summary.byType[movement.type] = (summary.byType[movement.type] || 0) + amount;
+      });
+
+      summary.netImpact = summary.perceptions - summary.deductions;
+
+      return summary;
+    } catch (error) {
+      console.error('❌ Error calculando resumen de impacto:', error);
       throw error;
     }
   }

@@ -22,6 +22,7 @@ const clientRoutes = require('../routes/clients');
 const modulePermissionsRoutes = require('../routes/modulePermissions');
 const copilotRoutes = require('../routes/copilot');
 const employeeRoutes = require('../routes/employees');
+const taxConfigRoutes = require('../routes/taxConfig');
 
 function registerRoutes(app, { PORT, socketManager, healthService }) {
   logger.info('🛣️ Configurando rutas de la aplicación...', {
@@ -112,6 +113,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
     app.use('/api/employees', employeeRoutes);
+    app.use('/api/tax-config', taxConfigRoutes);
     app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll', require('../routes/payroll'));

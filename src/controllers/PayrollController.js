@@ -1,5 +1,7 @@
 const PayrollService = require('../services/PayrollService');
+const EnhancedPayrollService = require('../services/EnhancedPayrollService');
 const PayrollConfig = require('../models/PayrollConfig');
+const PayrollMovement = require('../models/PayrollMovement');
 const Payroll = require('../models/Payroll');
 const Employee = require('../models/Employee');
 const logger = require('../utils/logger');
@@ -556,6 +558,271 @@ class PayrollController {
         success: false,
         error: error.message,
         details: 'Error interno del servidor obteniendo estadísticas'
+      });
+    }
+  }
+
+  /**
+   * 🆕 Generar nómina avanzada con impuestos opcionales e integración de extras
+   * POST /api/payroll/generate-advanced/:employeeId
+   */
+  static async generateAdvancedPayroll(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { periodDate, forceRegenerate = false, ignoreDuplicates = false } = req.body;
+      const userId = req.user?.id;
+
+      logger.info('🚀 Generando nómina avanzada', { 
+        employeeId, 
+        periodDate, 
+        forceRegenerate, 
+        ignoreDuplicates,
+        userId 
+      });
+
+      const result = await EnhancedPayrollService.generateAdvancedPayroll(
+        employeeId,
+        periodDate ? new Date(periodDate) : new Date(),
+        {
+          forceRegenerate,
+          ignoreDuplicates,
+          userId
+        }
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Nómina avanzada generada exitosamente',
+        data: result
+      });
+
+    } catch (error) {
+      logger.error('❌ Error generando nómina avanzada', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor generando nómina avanzada'
+      });
+    }
+  }
+
+  /**
+   * 🆕 Vista previa de nómina sin generar
+   * POST /api/payroll/preview/:employeeId
+   */
+  static async previewPayroll(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { periodDate } = req.body;
+
+      logger.info('👁️ Generando vista previa de nómina', { employeeId, periodDate });
+
+      const preview = await EnhancedPayrollService.previewPayroll(
+        employeeId,
+        periodDate ? new Date(periodDate) : new Date()
+      );
+
+      res.json({
+        success: true,
+        message: 'Vista previa generada exitosamente',
+        data: preview
+      });
+
+    } catch (error) {
+      logger.error('❌ Error generando vista previa', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor generando vista previa'
+      });
+    }
+  }
+
+  /**
+   * 🆕 Obtener resumen de nómina con análisis de extras
+   * GET /api/payroll/:payrollId/summary-with-extras
+   */
+  static async getPayrollSummaryWithExtras(req, res) {
+    try {
+      const { payrollId } = req.params;
+
+      logger.info('📊 Obteniendo resumen de nómina con extras', { payrollId });
+
+      const summary = await EnhancedPayrollService.getPayrollSummaryWithExtras(payrollId);
+
+      res.json({
+        success: true,
+        data: summary
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo resumen con extras', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo resumen'
+      });
+    }
+  }
+
+  /**
+   * 🆕 Obtener impacto de extras en nómina para un período
+   * GET /api/payroll/extras-impact/:employeeId
+   */
+  static async getExtrasImpact(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'Fechas de inicio y fin son requeridas'
+        });
+      }
+
+      logger.info('📈 Calculando impacto de extras', { employeeId, startDate, endDate });
+
+      const impact = await PayrollMovement.getPayrollImpactSummary(employeeId, startDate, endDate);
+
+      res.json({
+        success: true,
+        data: {
+          employeeId,
+          period: { startDate, endDate },
+          impact
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error calculando impacto de extras', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor calculando impacto'
+      });
+    }
+  }
+
+  /**
+   * 🆕 Verificar duplicados en movimientos de extras
+   * GET /api/payroll/check-duplicates/:employeeId
+   */
+  static async checkDuplicates(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'Fechas de inicio y fin son requeridas'
+        });
+      }
+
+      logger.info('🔍 Verificando duplicados en movimientos', { employeeId, startDate, endDate });
+
+      const movements = await PayrollMovement.findPendingForPeriod(employeeId, startDate, endDate);
+      const duplicateCheck = await EnhancedPayrollService.prototype.checkForDuplicateMovements(movements);
+
+      res.json({
+        success: true,
+        data: {
+          employeeId,
+          period: { startDate, endDate },
+          totalMovements: movements.length,
+          duplicateCheck
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error verificando duplicados', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor verificando duplicados'
+      });
+    }
+  }
+
+  /**
+   * 🆕 Marcar movimientos como aplicados manualmente
+   * PUT /api/payroll/mark-movements-applied
+   */
+  static async markMovementsAsApplied(req, res) {
+    try {
+      const { movementIds, payrollId, payrollPeriod } = req.body;
+      const userId = req.user?.id;
+
+      if (!movementIds || !Array.isArray(movementIds) || movementIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'IDs de movimientos son requeridos'
+        });
+      }
+
+      logger.info('✅ Marcando movimientos como aplicados', { 
+        movementIds, 
+        payrollId, 
+        payrollPeriod, 
+        userId 
+      });
+
+      const results = [];
+
+      for (const movementId of movementIds) {
+        try {
+          // Buscar el movimiento (necesitamos el employeeId)
+          // Esto requiere una búsqueda en collection group
+          const movements = await PayrollMovement.findById(movementId);
+          if (movements.length > 0) {
+            const movement = movements[0];
+            await movement.markAsAppliedToPayroll(payrollId, null, payrollPeriod);
+            results.push({
+              movementId,
+              status: 'applied',
+              type: movement.type,
+              amount: movement.amount
+            });
+          } else {
+            results.push({
+              movementId,
+              status: 'not_found',
+              error: 'Movimiento no encontrado'
+            });
+          }
+        } catch (error) {
+          results.push({
+            movementId,
+            status: 'error',
+            error: error.message
+          });
+        }
+      }
+
+      const successful = results.filter(r => r.status === 'applied').length;
+      const failed = results.filter(r => r.status !== 'applied').length;
+
+      res.json({
+        success: true,
+        message: `${successful} movimientos marcados como aplicados, ${failed} fallaron`,
+        data: {
+          results,
+          summary: {
+            total: movementIds.length,
+            successful,
+            failed,
+            successRate: (successful / movementIds.length) * 100
+          }
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error marcando movimientos como aplicados', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor marcando movimientos'
       });
     }
   }
