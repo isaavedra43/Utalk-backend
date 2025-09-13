@@ -162,13 +162,20 @@ class ExtrasController {
       }
 
       // Obtener movimientos del tipo específico
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
-        type,
-        status,
-        startDate,
-        endDate,
-        limit: parseInt(limit)
-      });
+      let movements = [];
+      try {
+        movements = await PayrollMovement.findByEmployee(employeeId, {
+          type,
+          status,
+          startDate,
+          endDate,
+          limit: parseInt(limit)
+        });
+      } catch (dbError) {
+        console.error('Error fetching movements from database:', dbError);
+        // Si hay error en la base de datos, retornar array vacío
+        movements = [];
+      }
 
       // Calcular estadísticas específicas del tipo
       let statistics = {};
@@ -223,14 +230,16 @@ class ExtrasController {
   static async getMovementsSummary(req, res) {
     try {
       const { id: employeeId } = req.params;
-      const { startDate, endDate } = req.query;
+      let { startDate, endDate } = req.query;
 
-      // Validar fechas
+      // Si no se proporcionan fechas, usar los últimos 30 días por defecto
       if (!startDate || !endDate) {
-        return res.status(400).json({
-          success: false,
-          error: 'Fechas de inicio y fin son requeridas'
-        });
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        
+        startDate = startDate || thirtyDaysAgo.toISOString().split('T')[0];
+        endDate = endDate || today.toISOString().split('T')[0];
       }
 
       // Validar que el empleado existe
