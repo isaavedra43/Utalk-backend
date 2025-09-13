@@ -73,6 +73,17 @@ router.post('/auto-generate',
 );
 
 /**
+ * Generar primer período de nómina
+ * POST /api/payroll/generate-first/:employeeId
+ * Requiere: admin, superadmin
+ */
+router.post('/generate-first/:employeeId', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  PayrollController.generateFirstPayroll
+);
+
+/**
  * Regenerar nómina sin impuestos automáticos
  * POST /api/payroll/regenerate/:payrollId
  * Requiere: admin, superadmin

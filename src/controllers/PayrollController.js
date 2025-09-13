@@ -547,16 +547,39 @@ class PayrollController {
       const perceptions = extras.filter(extra => extra.getImpactType() === 'positive');
       const deductions = extras.filter(extra => extra.getImpactType() === 'negative');
 
+      // Calcular totales CORRECTAMENTE usando todos los extras
+      const totalToAdd = extras
+        .filter(extra => extra.impactType === 'add')
+        .reduce((sum, extra) => sum + (extra.calculatedAmount || extra.amount), 0);
+      
+      const totalToSubtract = extras
+        .filter(extra => extra.impactType === 'subtract')
+        .reduce((sum, extra) => sum + Math.abs(extra.calculatedAmount || extra.amount), 0);
+      
+      const netImpact = totalToAdd - totalToSubtract;
+
       const summary = {
         totalExtras: extras.length,
         totalPerceptions: perceptions.length,
         totalDeductions: deductions.length,
-        totalToAdd: perceptions.reduce((sum, extra) => sum + (extra.calculatedAmount || extra.amount), 0),
-        totalToSubtract: deductions.reduce((sum, extra) => sum + Math.abs(extra.calculatedAmount || extra.amount), 0),
-        netImpact: 0
+        totalToAdd,
+        totalToSubtract,
+        netImpact
       };
 
-      summary.netImpact = summary.totalToAdd - summary.totalToSubtract;
+      logger.info('💰 Cálculo de totales de extras', {
+        employeeId,
+        totalExtras: extras.length,
+        totalToAdd,
+        totalToSubtract,
+        netImpact,
+        extrasBreakdown: extras.map(e => ({
+          type: e.type,
+          impactType: e.impactType,
+          amount: e.calculatedAmount || e.amount,
+          status: e.status
+        }))
+      });
 
       res.json({
         success: true,
@@ -575,6 +598,53 @@ class PayrollController {
         success: false,
         error: error.message,
         details: 'Error interno del servidor obteniendo extras pendientes'
+      });
+    }
+  }
+
+  /**
+   * Generar primer período de nómina
+   * POST /api/payroll/generate-first/:employeeId
+   */
+  static async generateFirstPayroll(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const userId = req.user?.id;
+
+      logger.info('🚀 Generando primer período de nómina', { employeeId, userId });
+
+      // Verificar que no existan períodos previos
+      const existingPeriods = await PayrollService.getPayrollPeriods(employeeId, { limit: 1 });
+      if (existingPeriods.periods.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ya existen períodos de nómina para este empleado',
+          data: { existingPeriods: existingPeriods.periods.length }
+        });
+      }
+
+      // Generar nómina para el período actual
+      const payroll = await PayrollService.generatePayroll(employeeId, new Date(), true);
+
+      // Obtener detalles completos
+      const details = await PayrollService.getPayrollDetails(payroll.id);
+
+      res.json({
+        success: true,
+        message: 'Primer período de nómina generado exitosamente',
+        data: {
+          payroll: payroll.toFirestore(),
+          details: details.details,
+          summary: details.summary
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error generando primer período de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor generando primer período'
       });
     }
   }

@@ -230,8 +230,7 @@ class PayrollService {
       const periodEndDate = new Date(periodEnd);
 
       const applicableExtras = allExtras.filter(extra => {
-        // CRÍTICO: Solo incluir extras aprobados y NO aplicados a nómina
-        // También incluir extras con status 'pending' que tengan aprobación
+        // CRÍTICO: Solo incluir extras aprobados o pendientes y NO aplicados a nómina
         if ((extra.status !== 'approved' && extra.status !== 'pending') || extra.appliedToPayroll === true) {
           return false;
         }
