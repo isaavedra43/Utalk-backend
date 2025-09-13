@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const AttachmentsController = require('../controllers/AttachmentsController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { authMiddleware } = require('../middleware/auth');
 const hrAuthorization = require('../middleware/hrAuthorization');
 
 // Aplicar middleware de autenticación a todas las rutas

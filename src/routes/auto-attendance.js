@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AutoAttendanceController = require('../controllers/AutoAttendanceController');
 const AutoAttendanceConfigController = require('../controllers/AutoAttendanceConfigController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { authMiddleware } = require('../middleware/auth');
 const hrAuthorization = require('../middleware/hrAuthorization');
 
 // Aplicar middleware de autenticación a todas las rutas
