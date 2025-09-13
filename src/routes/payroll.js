@@ -284,86 +284,9 @@ router.use('*', (req, res) => {
       },
       stats: {
         'GET /api/payroll/stats': 'Obtener estadísticas'
-      },
-      advanced: {
-        'POST /api/payroll/generate-advanced/:employeeId': 'Generar nómina avanzada',
-        'POST /api/payroll/preview/:employeeId': 'Vista previa de nómina',
-        'GET /api/payroll/:payrollId/summary-with-extras': 'Resumen con extras',
-        'GET /api/payroll/extras-impact/:employeeId': 'Impacto de extras',
-        'GET /api/payroll/check-duplicates/:employeeId': 'Verificar duplicados',
-        'PUT /api/payroll/mark-movements-applied': 'Marcar movimientos aplicados'
       }
     }
   });
 });
-
-// ================================
-// 🆕 FUNCIONALIDADES AVANZADAS
-// ================================
-
-/**
- * 🆕 Generar nómina avanzada con impuestos opcionales e integración de extras
- * POST /api/payroll/generate-advanced/:employeeId
- * Requiere: admin, superadmin
- */
-router.post('/generate-advanced/:employeeId', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin']), 
-  PayrollController.generateAdvancedPayroll
-);
-
-/**
- * 🆕 Vista previa de nómina sin generar
- * POST /api/payroll/preview/:employeeId
- * Requiere: admin, superadmin, hr
- */
-router.post('/preview/:employeeId', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin', 'hr']), 
-  PayrollController.previewPayroll
-);
-
-/**
- * 🆕 Obtener resumen de nómina con análisis de extras
- * GET /api/payroll/:payrollId/summary-with-extras
- * Requiere: autenticación
- */
-router.get('/:payrollId/summary-with-extras', 
-  authMiddleware, 
-  PayrollController.getPayrollSummaryWithExtras
-);
-
-/**
- * 🆕 Obtener impacto de extras en nómina para un período
- * GET /api/payroll/extras-impact/:employeeId
- * Requiere: admin, superadmin, hr
- */
-router.get('/extras-impact/:employeeId', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin', 'hr']), 
-  PayrollController.getExtrasImpact
-);
-
-/**
- * 🆕 Verificar duplicados en movimientos de extras
- * GET /api/payroll/check-duplicates/:employeeId
- * Requiere: admin, superadmin, hr
- */
-router.get('/check-duplicates/:employeeId', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin', 'hr']), 
-  PayrollController.checkDuplicates
-);
-
-/**
- * 🆕 Marcar movimientos como aplicados manualmente
- * PUT /api/payroll/mark-movements-applied
- * Requiere: admin, superadmin
- */
-router.put('/mark-movements-applied', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin']), 
-  PayrollController.markMovementsAsApplied
-);
 
 module.exports = router;
