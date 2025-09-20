@@ -140,13 +140,18 @@ class ContactService {
   static async createNewContact(phone, messageData, options) {
     const { userId = null, conversationId = null } = options;
     
+    // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+    const normalizedPhone = phone.startsWith('whatsapp:') 
+      ? phone 
+      : `whatsapp:${phone}`;
+    
     // Extraer nombre del perfil si está disponible
     const profileName = messageData.metadata?.profileName || 
                        messageData.metadata?.twilio?.ProfileName ||
-                       phone;
+                       normalizedPhone;
 
     const contactData = {
-      phone,
+      phone: normalizedPhone,  // Usar formato normalizado
       name: profileName,
       email: null,
       tags: ['whatsapp', 'auto-created'],
@@ -164,7 +169,8 @@ class ContactService {
     };
 
     logger.info('🆕 Creando nuevo contacto', {
-      phone,
+      originalPhone: phone,
+      normalizedPhone,
       name: profileName,
       userId: contactData.userId,
       conversationId
@@ -174,7 +180,8 @@ class ContactService {
     
     logger.info('✅ Nuevo contacto creado exitosamente', {
       contactId: contact.id,
-      phone,
+      originalPhone: phone,
+      normalizedPhone,
       name: contact.name
     });
 

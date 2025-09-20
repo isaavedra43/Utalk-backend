@@ -459,9 +459,14 @@ class MessageStatus {
       const phoneNumber = to || from;
       if (!phoneNumber) return;
 
+      // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+      const normalizedPhone = phoneNumber.startsWith('whatsapp:') 
+        ? phoneNumber 
+        : `whatsapp:${phoneNumber}`;
+
       const contactsSnapshot = await firestore
         .collection('contacts')
-        .where('phone', '==', phoneNumber)
+        .where('phone', '==', normalizedPhone)
         .limit(1)
         .get();
 

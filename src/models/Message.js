@@ -8,29 +8,30 @@ const { safeDateToISOString } = require('../utils/dateHelpers');
 const { extractParticipants } = require('../utils/conversation');
 
 // === HELPERS PARA RESOLVER CONTACTO Y RUTAS ANIDADAS ===
+// 🗑️ DEPRECATED: Usar Contact.getByPhone() o Contact.create() en su lugar
 async function getOrCreateContactIdByPhone(phone, name = null) {
-  if (!phone) throw new Error('phone requerido para resolver contactId');
+  logger.warn('⚠️ getOrCreateContactIdByPhone() está DEPRECATED. Usar Contact.getByPhone() o Contact.create()');
   
   // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
   const normalizedPhone = phone.startsWith('whatsapp:') 
     ? phone 
     : `whatsapp:${phone}`;
     
-  const snap = await firestore.collection('contacts').where('phone', '==', normalizedPhone).limit(1).get();
-  if (!snap.empty) return snap.docs[0].id;
+  // Buscar contacto existente usando el método normalizado
+  const existingContact = await require('./Contact').getByPhone(normalizedPhone);
+  if (existingContact) return existingContact.id;
   
-  const ref = await firestore.collection('contacts').add({
-    phone: normalizedPhone,  // Usar formato normalizado
+  // Crear nuevo contacto usando el método normalizado
+  const newContact = await require('./Contact').create({
+    phone: normalizedPhone,
     name: name || normalizedPhone,
     metadata: { 
       createdVia: 'message_model_autocreate', 
       createdAt: new Date().toISOString(),
-      originalPhone: phone  // Guardar original por referencia
-    },
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp()
+      originalPhone: phone
+    }
   });
-  return ref.id;
+  return newContact.id;
 }
 
 async function getContactIdByConversationId(conversationId) {

@@ -23,6 +23,13 @@ class Contact {
    * Crear un nuevo contacto
    */
   static async create (contactData) {
+    // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+    if (contactData.phone) {
+      contactData.phone = contactData.phone.startsWith('whatsapp:') 
+        ? contactData.phone 
+        : `whatsapp:${contactData.phone}`;
+    }
+    
     const contact = new Contact(contactData);
 
     // Preparar datos para Firestore, removiendo campos undefined/null/vacíos
@@ -34,6 +41,37 @@ class Contact {
 
     await firestore.collection('contacts').doc(contact.id).set(cleanData);
     return contact;
+  }
+
+  /**
+   * 🎯 MÉTODO CENTRALIZADO: Obtener o crear contacto por teléfono
+   * ÚNICO punto de entrada para evitar duplicados
+   */
+  static async getOrCreateByPhone(phone, name = null, metadata = {}) {
+    // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+    const normalizedPhone = phone.startsWith('whatsapp:') 
+      ? phone 
+      : `whatsapp:${phone}`;
+    
+    // Buscar contacto existente
+    const existingContact = await this.getByPhone(normalizedPhone);
+    if (existingContact) {
+      return existingContact;
+    }
+    
+    // Crear nuevo contacto con datos normalizados
+    const contactData = {
+      phone: normalizedPhone,
+      name: name || normalizedPhone,
+      metadata: {
+        createdVia: 'centralized_create',
+        createdAt: new Date().toISOString(),
+        originalPhone: phone,
+        ...metadata
+      }
+    };
+    
+    return await this.create(contactData);
   }
 
   /**
@@ -52,10 +90,15 @@ class Contact {
    */
   static async getByPhone (phone) {
     try {
+      // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+      const normalizedPhone = phone.startsWith('whatsapp:') 
+        ? phone 
+        : `whatsapp:${phone}`;
+        
       // Primero intentar buscar contactos activos
       let snapshot = await firestore
         .collection('contacts')
-        .where('phone', '==', phone)
+        .where('phone', '==', normalizedPhone)
         .where('isActive', '==', true)
         .limit(1)
         .get();
@@ -64,7 +107,7 @@ class Contact {
       if (snapshot.empty) {
         snapshot = await firestore
           .collection('contacts')
-          .where('phone', '==', phone)
+          .where('phone', '==', normalizedPhone)
           .limit(1)
           .get();
       }

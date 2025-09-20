@@ -2201,8 +2201,13 @@ class MessageService {
    */
   async updateContactInDatabase(phoneNumber, contactInfo) {
     try {
+      // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+      const normalizedPhone = phoneNumber.startsWith('whatsapp:') 
+        ? phoneNumber 
+        : `whatsapp:${phoneNumber}`;
+        
       const contactsRef = firestore.collection('contacts');
-      const contactQuery = await contactsRef.where('phone', '==', phoneNumber).limit(1).get();
+      const contactQuery = await contactsRef.where('phone', '==', normalizedPhone).limit(1).get();
 
       if (!contactQuery.empty) {
         // Actualizar contacto existente
@@ -2222,16 +2227,24 @@ class MessageService {
           hasProfilePhoto: !!contactInfo.profilePhotoUrl
         });
       } else {
-        // Crear nuevo contacto
+        // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+        const normalizedPhone = phoneNumber.startsWith('whatsapp:') 
+          ? phoneNumber 
+          : `whatsapp:${phoneNumber}`;
+          
+        // Crear nuevo contacto con formato normalizado
         await contactsRef.add({
-          phone: phoneNumber,
+          phone: normalizedPhone,  // Usar formato normalizado
           name: contactInfo.profileName || 'Usuario WhatsApp',
           waId: contactInfo.waId,
           profilePhotoUrl: contactInfo.profilePhotoUrl,
           createdAt: Timestamp.now(),
           updatedAt: FieldValue.serverTimestamp(),
           lastUpdated: Timestamp.now(),
-          source: 'whatsapp_webhook'
+          source: 'whatsapp_webhook',
+          metadata: {
+            originalPhone: phoneNumber  // Guardar original por referencia
+          }
         });
 
         logger.info('✅ Nuevo contacto creado en base de datos', {
