@@ -224,6 +224,7 @@ class PayrollController {
     }
   }
 
+
   /**
    * Obtener detalles de un período específico
    * GET /api/payroll/period/:payrollId/details

@@ -1,7 +1,7 @@
 const Employee = require('../models/Employee');
 const VacationBalance = require('../models/VacationBalance');
 const AttendanceRecord = require('../models/AttendanceRecord');
-const PayrollPeriod = require('../models/PayrollPeriod');
+// PayrollPeriod eliminado - solo funcionalidad individual
 const EmployeeHistory = require('../models/EmployeeHistory');
 
 /**
@@ -71,7 +71,7 @@ class EmployeeService {
       ] = await Promise.all([
         VacationBalance.getSummary(employeeId).catch(() => null),
         this.getAttendanceSummary(employeeId).catch(() => null),
-        PayrollPeriod.getSummaryByEmployee(employeeId).catch(() => null),
+        Promise.resolve(null), // PayrollPeriod eliminado
         EmployeeHistory.listByEmployee(employeeId, { limit: 10 }).catch(() => []),
         this.getUpcomingEvents(employeeId).catch(() => [])
       ]);

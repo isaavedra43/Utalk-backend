@@ -1,6 +1,6 @@
 const Employee = require('../models/Employee');
 const VacationRequest = require('../models/VacationRequest');
-const PayrollPeriod = require('../models/PayrollPeriod');
+// PayrollPeriod eliminado - solo funcionalidad individual
 
 /**
  * Servicio de Validaciones de Recursos Humanos

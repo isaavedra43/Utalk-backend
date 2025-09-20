@@ -671,20 +671,6 @@ class ConsolidatedServer {
           });
         }
 
-        // 💰 Inicializar tarea programada de nómina automática
-        try {
-          const { startPayrollJob } = require('./jobs/payrollJob');
-          startPayrollJob();
-          logger.info('✅ Tarea programada de nómina automática iniciada', {
-            category: 'PAYROLL_JOB',
-            status: 'started'
-          });
-        } catch (error) {
-          logger.error('❌ Error iniciando tarea programada de nómina', {
-            category: 'PAYROLL_JOB_ERROR',
-            error: error.message
-          });
-        }
 
         resolve();
       });

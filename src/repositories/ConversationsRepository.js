@@ -860,15 +860,40 @@ class ConversationsRepository {
       // Resolver contactId por teléfono del cliente (outbound → recipient)
       const recipientPhone = msg.recipientIdentifier;
       
-      // 🔧 BÚSQUEDA ROBUSTA: Primero buscar contacto existente
-      let contactSnap = await firestore.collection('contacts').where('phone', '==', recipientPhone).limit(1).get();
+      // 🔧 NORMALIZAR TELÉFONO: Usar método robusto de normalización
+      const normalizedPhone = this.normalizePhoneForContact(recipientPhone);
+      
+      // 🔍 LOGGING PARA DIAGNÓSTICO DE DUPLICADOS
+      if (process.env.LOG_MSG_WRITE === 'true') {
+        logger.info('appendOutbound_contact_search', {
+          event: 'contact_search_attempt',
+          direction: 'outbound',
+          originalPhone: recipientPhone,
+          normalizedPhone: normalizedPhone,
+          requestId
+        });
+      }
+      
+      // 🔧 BÚSQUEDA ROBUSTA: Buscar contacto existente con teléfono normalizado
+      let contactSnap = await firestore.collection('contacts').where('phone', '==', normalizedPhone).limit(1).get();
       let contactId;
       
       if (contactSnap.empty) {
+        // 🔍 LOGGING: Contacto no encontrado, creando nuevo
+        if (process.env.LOG_MSG_WRITE === 'true') {
+          logger.info('appendOutbound_contact_creation', {
+            event: 'contact_not_found_creating_new',
+            direction: 'outbound',
+            originalPhone: recipientPhone,
+            normalizedPhone: normalizedPhone,
+            requestId
+          });
+        }
+        
         // Crear contacto mínimo sin metadatos complejos
         const newContactData = {
-          phone: recipientPhone,
-          name: recipientPhone,
+          phone: normalizedPhone, // Usar teléfono normalizado
+          name: normalizedPhone,
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -876,8 +901,31 @@ class ConversationsRepository {
         
         const newContactRef = await firestore.collection('contacts').add(newContactData);
         contactId = newContactRef.id;
+        
+        // 🔍 LOGGING: Contacto creado exitosamente
+        if (process.env.LOG_MSG_WRITE === 'true') {
+          logger.info('appendOutbound_contact_created', {
+            event: 'contact_created_successfully',
+            direction: 'outbound',
+            contactId: contactId,
+            normalizedPhone: normalizedPhone,
+            requestId
+          });
+        }
       } else {
         contactId = contactSnap.docs[0].id;
+        
+        // 🔍 LOGGING: Contacto encontrado
+        if (process.env.LOG_MSG_WRITE === 'true') {
+          logger.info('appendOutbound_contact_found', {
+            event: 'contact_found_reusing_existing',
+            direction: 'outbound',
+            contactId: contactId,
+            originalPhone: recipientPhone,
+            normalizedPhone: normalizedPhone,
+            requestId
+          });
+        }
       }
 
       // Transacción atómica: mensaje + conversación (solo en contacts/{contactId}/conversations)

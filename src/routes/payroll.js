@@ -185,13 +185,14 @@ router.get('/periods/:employeeId',
   PayrollController.getPayrollPeriods
 );
 
+
 /**
  * Obtener detalles de un período específico
  * GET /api/payroll/period/:payrollId/details
  * Requiere: autenticación
  */
-router.get('/period/:payrollId/details', 
-  authMiddleware, 
+router.get('/period/:payrollId/details',
+  authMiddleware,
   PayrollController.getPayrollDetails
 );
 
