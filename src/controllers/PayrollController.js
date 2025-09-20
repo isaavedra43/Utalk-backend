@@ -224,6 +224,40 @@ class PayrollController {
     }
   }
 
+  /**
+   * Obtener período actual de nómina
+   * GET /api/payroll/current-period
+   */
+  static async getCurrentPayrollPeriod(req, res) {
+    try {
+      logger.info('📅 Obteniendo período actual de nómina');
+
+      // Obtener período actual desde PayrollPeriod
+      const PayrollPeriod = require('../models/PayrollPeriod');
+      const currentPeriod = await PayrollPeriod.findCurrent();
+
+      if (!currentPeriod) {
+        return res.json({
+          success: true,
+          data: null,
+          message: 'No hay período de nómina activo'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: currentPeriod.getBasicInfo()
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo período actual de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo período actual'
+      });
+    }
+  }
 
   /**
    * Obtener detalles de un período específico
@@ -443,74 +477,6 @@ class PayrollController {
     }
   }
 
-  /**
-   * Generar múltiples nóminas automáticamente
-   * POST /api/payroll/auto-generate
-   */
-  static async autoGeneratePayrolls(req, res) {
-    try {
-      const { frequency, employeeIds = [] } = req.body;
-
-      logger.info('🤖 Generación automática de nóminas', { frequency, employeeIds });
-
-      let results;
-
-      if (employeeIds.length > 0) {
-        // Generar para empleados específicos
-        results = [];
-        for (const employeeId of employeeIds) {
-          try {
-            const payroll = await PayrollService.generatePayroll(employeeId);
-            results.push({
-              employeeId,
-              success: true,
-              payrollId: payroll.id,
-              netSalary: payroll.netSalary
-            });
-          } catch (error) {
-            results.push({
-              employeeId,
-              success: false,
-              error: error.message
-            });
-          }
-        }
-      } else if (frequency) {
-        // Generar por frecuencia
-        results = await PayrollService.generatePayrollsByFrequency(frequency);
-      } else {
-        return res.status(400).json({
-          success: false,
-          error: 'Debe especificar frequency o employeeIds'
-        });
-      }
-
-      const successful = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
-
-      res.json({
-        success: true,
-        message: `Generación automática completada: ${successful} exitosas, ${failed} fallidas`,
-        data: {
-          results,
-          summary: {
-            total: results.length,
-            successful,
-            failed,
-            successRate: results.length > 0 ? (successful / results.length) * 100 : 0
-          }
-        }
-      });
-
-    } catch (error) {
-      logger.error('❌ Error en generación automática', error);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-        details: 'Error interno del servidor en generación automática'
-      });
-    }
-  }
 
   /**
    * Verificar extras pendientes para un empleado

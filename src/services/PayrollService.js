@@ -664,65 +664,6 @@ class PayrollService {
     }
   }
 
-  /**
-   * Generar nóminas automáticamente por frecuencia
-   */
-  static async generatePayrollsByFrequency(frequency) {
-    try {
-      logger.info(`🤖 Generando nóminas automáticas - ${frequency}`);
-
-      const configs = await PayrollConfig.findByFrequency(frequency);
-      const results = [];
-
-      for (const config of configs) {
-        try {
-          const payroll = await PayrollService.generatePayroll(config.employeeId);
-          results.push({
-            employeeId: config.employeeId,
-            success: true,
-            payrollId: payroll.id
-          });
-        } catch (error) {
-          logger.error(`❌ Error generando nómina automática para empleado ${config.employeeId}`, error);
-          results.push({
-            employeeId: config.employeeId,
-            success: false,
-            error: error.message
-          });
-        }
-      }
-
-      logger.info(`✅ Generación automática completada - ${frequency}`, {
-        total: configs.length,
-        successful: results.filter(r => r.success).length,
-        failed: results.filter(r => !r.success).length
-      });
-
-      return results;
-    } catch (error) {
-      logger.error('❌ Error en generación automática de nóminas', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Métodos específicos para cada frecuencia (para cron jobs)
-   */
-  static async generateDailyPayrolls() {
-    return await PayrollService.generatePayrollsByFrequency('daily');
-  }
-
-  static async generateWeeklyPayrolls() {
-    return await PayrollService.generatePayrollsByFrequency('weekly');
-  }
-
-  static async generateBiweeklyPayrolls() {
-    return await PayrollService.generatePayrollsByFrequency('biweekly');
-  }
-
-  static async generateMonthlyPayrolls() {
-    return await PayrollService.generatePayrollsByFrequency('monthly');
-  }
 }
 
 module.exports = PayrollService;

@@ -112,8 +112,6 @@ router.delete('/:id', EmployeeController.delete);
 // Obtener períodos pendientes de pago
 router.get('/payroll/pending', PayrollController.getPendingPayments);
 
-// Generar múltiples nóminas automáticamente
-router.post('/payroll/auto-generate', PayrollController.autoGeneratePayrolls);
 
 // Obtener estadísticas de nómina
 router.get('/payroll/stats', PayrollController.getPayrollStats);

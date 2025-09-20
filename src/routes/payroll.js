@@ -61,17 +61,6 @@ router.post('/generate/:employeeId',
   PayrollController.generatePayroll
 );
 
-/**
- * Generar múltiples nóminas automáticamente
- * POST /api/payroll/auto-generate
- * Body: { frequency?, employeeIds? }
- * Requiere: admin, superadmin
- */
-router.post('/auto-generate', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin']), 
-  PayrollController.autoGeneratePayrolls
-);
 
 /**
  * Generar primer período de nómina
@@ -371,8 +360,7 @@ router.use('*', (req, res) => {
         'PUT /api/payroll/config/:employeeId': 'Actualizar configuración'
       },
       generation: {
-        'POST /api/payroll/generate/:employeeId': 'Generar nómina',
-        'POST /api/payroll/auto-generate': 'Generación automática'
+        'POST /api/payroll/generate/:employeeId': 'Generar nómina'
       },
       consultation: {
         'GET /api/payroll/periods/:employeeId': 'Obtener períodos',
