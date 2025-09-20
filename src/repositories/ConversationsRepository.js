@@ -219,13 +219,206 @@ class ConversationsRepository {
     };
 
     try {
-      // Construir query única con filtros reales
-      const { query, debug } = this.buildQuery(params);
+      // 🔧 CORRECCIÓN CRÍTICA: Buscar en subcolecciones de contactos
+      const conversations = await this.searchConversationsInContacts(params);
+      
+      const duration = Date.now() - startTime;
       
       // --- LOGS DE DIAGNÓSTICO (solo si LOG_CONV_DIAG=true) ---
       if (process.env.LOG_CONV_DIAG === 'true') {
         const diagnosticLog = {
-          event: 'conversations_repo:query',
+          event: 'conversations_repo:query_completed',
+          conversationsFound: conversations.length,
+          durationMs: duration,
+          params: {
+            workspaceIdMasked: workspaceId ? 'present' : 'none',
+            tenantIdMasked: tenantId ? 'present' : 'none',
+            hasFilters: Object.keys(filters).length > 0,
+            limit: pagination.limit || 50
+          },
+          ts: new Date().toISOString()
+        };
+
+        logger.info('conversations_repo_diag', diagnosticLog);
+      }
+
+      return {
+        conversations,
+        hasNext: false, // TODO: implementar paginación real
+        nextCursor: null,
+        debug: {
+          method: 'searchConversationsInContacts',
+          duration,
+          found: conversations.length
+        }
+      };
+
+    } catch (error) {
+      logger.error('Error en ConversationsRepository.list', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        params: {
+          workspaceIdMasked: workspaceId ? 'present' : 'none',
+          tenantIdMasked: tenantId ? 'present' : 'none',
+          hasFilters: Object.keys(filters).length > 0
+        }
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * 🔧 MÉTODO NUEVO: Buscar conversaciones en subcolecciones de contactos
+   * @param {object} params - Parámetros de búsqueda
+   * @returns {Promise<ConversationVM[]>} Lista de conversaciones
+   */
+  async searchConversationsInContacts(params = {}) {
+    const { workspaceId, tenantId, filters = {}, pagination = {} } = params;
+    const { participantsContains } = filters;
+    const { limit = 50 } = pagination;
+
+    try {
+      // 🔧 PASO 1: Obtener todos los contactos
+      const contactsSnapshot = await firestore.collection('contacts').get();
+      const conversations = [];
+
+      // 🔧 PASO 2: Para cada contacto, buscar conversaciones
+      for (const contactDoc of contactsSnapshot.docs) {
+        const contactId = contactDoc.id;
+        const contactData = contactDoc.data();
+
+        // Construir query para conversaciones de este contacto
+        let query = firestore
+          .collection('contacts')
+          .doc(contactId)
+          .collection('conversations');
+
+        // Aplicar filtros
+        if (workspaceId) {
+          query = query.where('workspaceId', '==', workspaceId);
+        }
+
+        if (tenantId) {
+          query = query.where('tenantId', '==', tenantId);
+        }
+
+        if (participantsContains) {
+          query = query.where('participants', 'array-contains', participantsContains);
+        }
+
+        // Ordenar y limitar
+        query = query.orderBy('lastMessageAt', 'desc');
+
+        // Ejecutar query
+        const conversationsSnapshot = await query.get();
+
+        // Procesar conversaciones encontradas
+        for (const conversationDoc of conversationsSnapshot.docs) {
+          const conversationData = conversationDoc.data();
+          
+          // Agregar información del contacto
+          const conversationVM = {
+            ...conversationData,
+            id: conversationDoc.id,
+            contact: {
+              id: contactId,
+              name: contactData.name,
+              phone: contactData.phone,
+              profilePhotoUrl: contactData.profilePhotoUrl
+            }
+          };
+
+          conversations.push(conversationVM);
+        }
+
+        // 🔧 LIMITAR RESULTADOS TOTALES
+        if (conversations.length >= limit) {
+          break;
+        }
+      }
+
+      // 🔧 PASO 3: Ordenar por lastMessageAt globalmente y limitar
+      conversations.sort((a, b) => {
+        const timeA = a.lastMessageAt?.toDate?.() || new Date(0);
+        const timeB = b.lastMessageAt?.toDate?.() || new Date(0);
+        return timeB - timeA;
+      });
+
+      return conversations.slice(0, limit);
+
+    } catch (error) {
+      logger.error('Error en searchConversationsInContacts', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Construir query de Firestore con filtros reales (endurecido)
+   * @param {object} params - Parámetros de construcción
+   * @returns {object} Query builder y debug info
+   */
+  buildQuery(params = {}) {
+    const {
+      workspaceId,
+      tenantId,
+      filters = {},
+      pagination = {}
+    } = params;
+
+    const { status, assignedTo, participantsContains } = filters;
+    const { limit = 50, cursor } = pagination;
+
+    let query = firestore.collection(this.collectionPath);
+
+    // Aplicar filtros reales (siempre que existan)
+    if (workspaceId) {
+      query = query.where('workspaceId', '==', workspaceId);
+    }
+
+    if (tenantId) {
+      query = query.where('tenantId', '==', tenantId);
+    }
+
+    // Aplicar filtros de estado (solo si viene en filtros)
+    if (status && status !== 'all') {
+      query = query.where('status', '==', status);
+    }
+
+    // Aplicar filtro de asignación (solo si viene en filtros)
+    if (assignedTo) {
+      query = query.where('assignedTo', '==', assignedTo);
+    }
+
+    // Aplicar filtro de participantes (array-contains) - CRÍTICO
+    if (participantsContains) {
+      query = query.where('participants', 'array-contains', participantsContains);
+    }
+
+    // Ordenar por última actividad
+    query = query.orderBy('lastMessageAt', 'desc');
+
+    // Aplicar paginación
+    if (cursor) {
+      // Implementar cursor-based pagination si es necesario
+      // Por ahora, usar limit simple
+    }
+    query = query.limit(limit);
+
+    const debug = {
+      collectionPath: this.collectionPath,
+      wheres: this._extractWheres(query),
+      orderBy: 'lastMessageAt desc',
+      limit,
+      cursor,
+      mode: 'hardened'
+    };
+
+    return { query, debug };
+  }
           collectionPath: this.collectionPath,
           wheres: [
             ...(workspaceId ? [{ field: 'workspaceId', op: '==', value: 'masked' }] : []),
