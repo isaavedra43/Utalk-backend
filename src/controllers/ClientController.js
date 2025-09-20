@@ -617,15 +617,21 @@ class ClientController {
       }
 
       // Verificar si ya existe un contacto con ese teléfono
+      // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+      const normalizedPhone = clientData.phone.startsWith('whatsapp:') 
+        ? clientData.phone 
+        : `whatsapp:${clientData.phone}`;
+
       const existingContact = await firestore
         .collection('contacts')
-        .where('phone', '==', clientData.phone)
+        .where('phone', '==', normalizedPhone)
         .limit(1)
         .get();
 
       if (!existingContact.empty) {
         logger.warn('⚠️ Cliente ya existe con ese teléfono', {
           phone: clientData.phone,
+          normalizedPhone,
           userEmail: req.user?.email
         });
         return ResponseHandler.error(res, {
@@ -638,7 +644,7 @@ class ClientController {
       // Crear contacto (que será el cliente)
       const contactData = {
         name: clientData.name,
-        phone: clientData.phone,
+        phone: normalizedPhone,  // Usar formato normalizado
         email: clientData.email || null,
         company: clientData.company || null,
         tags: clientData.tags || [],

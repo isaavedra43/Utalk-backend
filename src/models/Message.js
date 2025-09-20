@@ -10,12 +10,23 @@ const { extractParticipants } = require('../utils/conversation');
 // === HELPERS PARA RESOLVER CONTACTO Y RUTAS ANIDADAS ===
 async function getOrCreateContactIdByPhone(phone, name = null) {
   if (!phone) throw new Error('phone requerido para resolver contactId');
-  const snap = await firestore.collection('contacts').where('phone', '==', phone).limit(1).get();
+  
+  // 🔧 NORMALIZAR TELÉFONO: Asegurar formato consistente con prefijo "whatsapp:"
+  const normalizedPhone = phone.startsWith('whatsapp:') 
+    ? phone 
+    : `whatsapp:${phone}`;
+    
+  const snap = await firestore.collection('contacts').where('phone', '==', normalizedPhone).limit(1).get();
   if (!snap.empty) return snap.docs[0].id;
+  
   const ref = await firestore.collection('contacts').add({
-    phone,
-    name: name || phone,
-    metadata: { createdVia: 'message_model_autocreate', createdAt: new Date().toISOString() },
+    phone: normalizedPhone,  // Usar formato normalizado
+    name: name || normalizedPhone,
+    metadata: { 
+      createdVia: 'message_model_autocreate', 
+      createdAt: new Date().toISOString(),
+      originalPhone: phone  // Guardar original por referencia
+    },
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   });
