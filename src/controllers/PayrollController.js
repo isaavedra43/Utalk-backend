@@ -1027,7 +1027,7 @@ class PayrollController {
 
       // Actualizar en base de datos
       const { db } = require('../config/firebase');
-      const docRef = db.collection('payrolls').doc(payrollId);
+      const docRef = db.collection('payroll').doc(payrollId);
       await docRef.update({
         ...updateData,
         updatedAt: new Date().toISOString()

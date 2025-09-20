@@ -34,7 +34,7 @@ async function fixExistingPayrolls() {
     console.log('🔄 Iniciando corrección de nóminas existentes...');
 
     // Obtener todas las nóminas existentes
-    const payrollsSnapshot = await db.collection('payrolls').get();
+    const payrollsSnapshot = await db.collection('payroll').get();
     
     if (payrollsSnapshot.empty) {
       console.log('ℹ️ No se encontraron nóminas para corregir');
@@ -54,7 +54,7 @@ async function fixExistingPayrolls() {
 
       try {
         // Verificar si tiene deducciones de impuestos
-        const detailsSnapshot = await db.collection('payroll_details')
+        const detailsSnapshot = await db.collection('payrollDetails')
           .where('payrollId', '==', payrollId)
           .where('type', '==', 'deduction')
           .where('category', 'in', ['tax', 'social_security'])
