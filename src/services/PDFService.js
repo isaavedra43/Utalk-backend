@@ -355,12 +355,21 @@ class PDFService {
     try {
       logger.info('🎨 Generando PDF con @react-pdf/renderer', {
         payrollId: payrollData.id,
-        employeeId: payrollData.employeeId
+        employeeId: payrollData.employeeId,
+        hasPerceptions: payrollData.perceptions?.length > 0,
+        hasDeductions: payrollData.deductions?.length > 0
       });
 
+      // Validar datos requeridos
+      if (!payrollData || !employeeData || !companyData) {
+        throw new Error('Datos requeridos faltantes para generar PDF');
+      }
+
+      logger.info('🔧 Creando documento PDF...');
       // Crear el documento
       const PayrollDocument = this.createPayrollDocument(payrollData, employeeData, companyData);
       
+      logger.info('📄 Generando buffer del PDF...');
       // Generar el PDF
       const pdfBuffer = await pdf(React.createElement(PayrollDocument)).toBuffer();
       

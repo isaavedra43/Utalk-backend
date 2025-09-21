@@ -30,6 +30,12 @@ class Payroll {
     this.weekNumber = data.weekNumber || null; // Número de semana (para frecuencia semanal)
     this.year = data.year || new Date().getFullYear(); // Año del período
     this.month = data.month || new Date().getMonth() + 1; // Mes del período
+    
+    // *** INTEGRACIÓN CON NÓMINA GENERAL ***
+    this.generalPayrollId = data.generalPayrollId || null; // ID de nómina general que generó esta individual
+    this.generalPayrollFolio = data.generalPayrollFolio || null; // Folio de nómina general para referencia
+    this.createdFromGeneral = data.createdFromGeneral || false; // Indica si fue creada desde nómina general
+    
     this.createdAt = data.createdAt || new Date().toISOString();
     this.updatedAt = data.updatedAt || new Date().toISOString();
   }
@@ -61,6 +67,10 @@ class Payroll {
       weekNumber: this.weekNumber,
       year: this.year,
       month: this.month,
+      // Campos de integración con nómina general
+      generalPayrollId: this.generalPayrollId,
+      generalPayrollFolio: this.generalPayrollFolio,
+      createdFromGeneral: this.createdFromGeneral,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };
@@ -265,6 +275,107 @@ class Payroll {
       return true;
     } catch (error) {
       logger.error('❌ Error eliminando período de nómina', error);
+      throw error;
+    }
+  }
+
+  // *** MÉTODOS DE INTEGRACIÓN CON NÓMINA GENERAL ***
+
+  /**
+   * Verificar si la nómina fue creada desde nómina general
+   */
+  isFromGeneralPayroll() {
+    return this.createdFromGeneral && this.generalPayrollId;
+  }
+
+  /**
+   * Obtener referencia a nómina general
+   */
+  getGeneralPayrollReference() {
+    if (!this.isFromGeneralPayroll()) {
+      return null;
+    }
+    
+    return {
+      id: this.generalPayrollId,
+      folio: this.generalPayrollFolio,
+      createdFromGeneral: this.createdFromGeneral
+    };
+  }
+
+  /**
+   * Establecer referencia a nómina general
+   */
+  setGeneralPayrollReference(generalPayrollId, generalPayrollFolio) {
+    this.generalPayrollId = generalPayrollId;
+    this.generalPayrollFolio = generalPayrollFolio;
+    this.createdFromGeneral = true;
+    this.updatedAt = new Date().toISOString();
+  }
+
+  /**
+   * Buscar nóminas individuales por nómina general
+   */
+  static async findByGeneralPayroll(generalPayrollId) {
+    try {
+      const snapshot = await db.collection('payroll')
+        .where('generalPayrollId', '==', generalPayrollId)
+        .orderBy('employeeId', 'asc')
+        .get();
+
+      return snapshot.docs.map(doc => Payroll.fromFirestore(doc));
+    } catch (error) {
+      logger.error('❌ Error buscando nóminas por nómina general', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validar que no se pueda modificar si viene de nómina general
+   */
+  validateModification() {
+    if (this.isFromGeneralPayroll()) {
+      throw new Error('No se puede modificar una nómina individual que proviene de nómina general');
+    }
+  }
+
+  /**
+   * Validar disponibilidad para crear nómina individual
+   */
+  static async validateAvailabilityForIndividual(employeeId, periodStart, periodEnd) {
+    try {
+      // Buscar si existe nómina general cerrada para este período y empleado
+      const GeneralPayroll = require('./GeneralPayroll');
+      const GeneralPayrollEmployee = require('./GeneralPayrollEmployee');
+      
+      // Buscar nóminas generales que se superpongan con el período
+      const generalPayrolls = await db.collection('generalPayrolls')
+        .where('status', 'in', ['approved', 'closed'])
+        .where('period.startDate', '<=', periodEnd)
+        .where('period.endDate', '>=', periodStart)
+        .get();
+
+      // Verificar si alguna incluye al empleado
+      for (const generalDoc of generalPayrolls.docs) {
+        const general = GeneralPayroll.fromFirestore(generalDoc);
+        const employeeInGeneral = general.employees.find(emp => emp.employeeId === employeeId);
+        
+        if (employeeInGeneral) {
+          return {
+            available: false,
+            reason: 'Ya existe nómina general para este período y empleado',
+            generalPayrollId: general.id,
+            generalPayrollFolio: general.folio
+          };
+        }
+      }
+
+      return {
+        available: true,
+        reason: 'Período disponible para nómina individual'
+      };
+    } catch (error) {
+      logger.error('❌ Error validando disponibilidad para nómina individual', error);
       throw error;
     }
   }

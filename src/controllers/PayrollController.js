@@ -768,22 +768,38 @@ class PayrollController {
       logger.info('📄 Generando PDF de recibo de nómina', { payrollId });
 
       // Obtener detalles completos de la nómina
+      logger.info('🔍 Obteniendo detalles de nómina...', { payrollId });
       const result = await PayrollService.getPayrollDetails(payrollId);
       if (!result) {
+        logger.warn('⚠️ Nómina no encontrada', { payrollId });
         return res.status(404).json({
           success: false,
           error: 'Período de nómina no encontrado'
         });
       }
 
+      logger.info('✅ Detalles de nómina obtenidos', { 
+        payrollId, 
+        employeeId: result.payroll.employeeId,
+        hasPerceptions: result.details.perceptions?.length > 0,
+        hasDeductions: result.details.deductions?.length > 0
+      });
+
       // Obtener información del empleado
+      logger.info('🔍 Obteniendo información del empleado...', { employeeId: result.payroll.employeeId });
       const employee = await Employee.findById(result.payroll.employeeId);
       if (!employee) {
+        logger.warn('⚠️ Empleado no encontrado', { employeeId: result.payroll.employeeId });
         return res.status(404).json({
           success: false,
           error: 'Empleado no encontrado'
         });
       }
+
+      logger.info('✅ Información del empleado obtenida', { 
+        employeeId: employee.id,
+        employeeName: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`
+      });
 
       // Información de la empresa (puedes personalizar esto)
       const companyData = {
@@ -803,12 +819,25 @@ class PayrollController {
       };
 
       // Generar PDF
+      logger.info('🎨 Iniciando generación de PDF...', { 
+        payrollId,
+        employeeId: employee.id,
+        hasPerceptions: payrollData.perceptions?.length > 0,
+        hasDeductions: payrollData.deductions?.length > 0
+      });
+      
       const PDFService = require('../services/PDFService');
       const pdfResult = await PDFService.generatePayrollReceipt(
         payrollData,
         employee,
         companyData
       );
+
+      logger.info('✅ PDF generado exitosamente', { 
+        fileName: pdfResult.fileName,
+        size: pdfResult.size,
+        contentType: pdfResult.contentType
+      });
 
       // CONFIGURAR HEADERS PARA DESCARGA DIRECTA DEL PDF
       res.setHeader('Content-Type', pdfResult.contentType);

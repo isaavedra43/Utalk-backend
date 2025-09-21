@@ -387,6 +387,26 @@ class PayrollMovement {
   }
 
   /**
+   * Encuentra movimientos por empleado en un período específico
+   * CRÍTICO PARA INTEGRACIÓN CON NÓMINA GENERAL
+   */
+  static async findByEmployeeAndPeriod(employeeId, startDate, endDate) {
+    try {
+      const query = db.collection('employees').doc(employeeId)
+        .collection('movements')
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .orderBy('date', 'desc');
+
+      const snapshot = await query.get();
+      return snapshot.docs.map(doc => PayrollMovement.fromFirestore(doc));
+    } catch (error) {
+      console.error('Error finding movements by employee and period:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Aprueba el movimiento
    */
   async approve(approvedBy, comments = '') {

@@ -130,6 +130,16 @@ class AttachmentService {
     try {
       const attachments = await PayrollAttachment.findByPayroll(payrollId);
       
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que attachments sea un array
+      if (!Array.isArray(attachments)) {
+        logger.warn('⚠️ PayrollAttachment.findByPayroll devolvió un valor no-array', {
+          payrollId,
+          attachmentsType: typeof attachments,
+          attachmentsValue: attachments
+        });
+        return [];
+      }
+      
       logger.info('📎 Archivos adjuntos obtenidos', {
         payrollId,
         count: attachments.length
@@ -137,8 +147,15 @@ class AttachmentService {
 
       return attachments.map(attachment => attachment.getInfo());
     } catch (error) {
-      logger.error('❌ Error obteniendo archivos adjuntos', error);
-      throw error;
+      logger.error('❌ Error obteniendo archivos adjuntos', {
+        payrollId,
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // 🔧 CORRECCIÓN CRÍTICA: En caso de error, devolver array vacío en lugar de lanzar error
+      logger.warn('⚠️ Devolviendo array vacío debido a error en getAttachmentsByPayroll');
+      return [];
     }
   }
 
