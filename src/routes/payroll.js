@@ -274,6 +274,29 @@ router.get('/stats',
   PayrollController.getPayrollStats
 );
 
+/**
+ * Obtener estadísticas generales de nómina para dashboard
+ * GET /api/payroll/general/stats
+ * Requiere: admin, superadmin
+ */
+router.get('/general/stats', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  PayrollController.getGeneralPayrollStats
+);
+
+/**
+ * Obtener períodos de nómina generales con paginación
+ * GET /api/payroll/general
+ * Query: page?, limit?, status?, type?, year?, search?
+ * Requiere: admin, superadmin
+ */
+router.get('/general', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  PayrollController.getGeneralPayrollPeriods
+);
+
 // ================================
 // RUTAS ADICIONALES PARA FUTURAS FUNCIONALIDADES
 // ================================
@@ -382,7 +405,9 @@ router.use('*', (req, res) => {
         'DELETE /api/payroll/period/:payrollId': 'Eliminar período'
       },
       stats: {
-        'GET /api/payroll/stats': 'Obtener estadísticas'
+        'GET /api/payroll/stats': 'Obtener estadísticas',
+        'GET /api/payroll/general/stats': 'Obtener estadísticas generales',
+        'GET /api/payroll/general': 'Obtener períodos generales'
       }
     }
   });
