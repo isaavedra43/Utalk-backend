@@ -21,20 +21,21 @@ class GeneralPayrollController {
    */
   static async createGeneralPayroll(req, res) {
     try {
-      const { startDate, endDate, frequency, includeEmployees } = req.body;
+      const { period, includeEmployees, options = {} } = req.body;
       const userId = req.user?.id || 'system';
 
       logger.info('🏢 Solicitud de creación de nómina general', {
-        startDate, endDate, frequency,
+        period,
         employeesCount: includeEmployees?.length || 0,
+        options,
         userId
       });
 
-      // Validar datos requeridos
-      if (!startDate || !endDate || !frequency) {
+      // Validar datos requeridos según nuevo formato
+      if (!period || !period.startDate || !period.endDate || !period.type) {
         return res.status(400).json({
           success: false,
-          error: 'startDate, endDate y frequency son requeridos'
+          error: 'period con startDate, endDate y type son requeridos'
         });
       }
 
@@ -46,7 +47,13 @@ class GeneralPayrollController {
       }
 
       const generalPayroll = await GeneralPayrollService.createGeneralPayroll({
-        startDate, endDate, frequency, includeEmployees
+        startDate: period.startDate,
+        endDate: period.endDate,
+        frequency: period.type,
+        includeEmployees,
+        autoCalculate: options.autoCalculate || false,
+        includeExtras: options.includeExtras || false,
+        includeBonuses: options.includeBonuses || false
       }, userId);
 
       res.status(201).json({
@@ -105,27 +112,20 @@ class GeneralPayrollController {
         orderDirection
       });
 
-      // Formatear para el frontend
+      // Formatear para el frontend según especificaciones
       const formattedPayrolls = result.payrolls.map(payroll => {
-        const periodText = this.formatPeriodText(payroll.period);
-        const typeText = this.getFrequencyText(payroll.period.frequency);
-        const statusText = this.getStatusText(payroll.status);
-
         return {
           id: payroll.id,
-          folio: payroll.folio || `DRAFT-${payroll.id.substring(0, 8)}`,
-          period: periodText,
-          type: typeText,
-          status: statusText,
-          employees: payroll.totals.totalEmployees,
-          estimatedCost: payroll.totals.totalGrossSalary,
-          realCost: payroll.totals.totalNetSalary,
-          createdBy: {
-            name: payroll.createdBy, // TODO: Obtener nombre real del usuario
-            role: 'Coordinador de Nómina'
-          },
+          period: payroll.period?.label || `${payroll.period?.startDate} - ${payroll.period?.endDate}`,
+          type: payroll.period?.type || 'weekly',
+          startDate: payroll.period?.startDate,
+          endDate: payroll.period?.endDate,
+          status: payroll.status,
+          totalEmployees: payroll.totals?.totalEmployees || 0,
+          grossTotal: payroll.totals?.grossTotal || payroll.totals?.totalGrossSalary || 0,
+          netTotal: payroll.totals?.netTotal || payroll.totals?.totalNetSalary || 0,
           createdAt: payroll.createdAt,
-          period_raw: payroll.period // Para operaciones internas
+          createdBy: payroll.createdBy || 'system'
         };
       });
 
@@ -564,37 +564,58 @@ class GeneralPayrollController {
         totalAdjustments: adjustments.length
       };
 
-      // Formatear empleados para el frontend
+      // Formatear empleados para el frontend según especificaciones
       const formattedEmployees = employees.map(emp => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
-        const originalSalary = emp.baseSalary + emp.overtime + emp.bonuses - emp.deductions - emp.taxes;
+        const originalGross = emp.baseSalary + emp.overtime + emp.bonuses;
+        const originalNet = emp.netSalary;
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
         
         return {
-          id: emp.employeeId,
-          employee: emp.employee,
-          originalSalary: originalSalary,
-          adjustments: employeeAdjustments.map(adj => adj.getSummary()),
-          finalSalary: emp.netSalary,
-          difference: adjustmentAmount,
+          employeeId: emp.employeeId,
+          name: emp.employee?.name || `${emp.employee?.firstName || ''} ${emp.employee?.lastName || ''}`.trim(),
+          position: emp.employee?.position?.title || 'Sin posición',
+          originalPayroll: {
+            gross: originalGross,
+            net: originalNet
+          },
+          adjustments: employeeAdjustments.map(adj => ({
+            id: adj.id,
+            type: adj.type,
+            concept: adj.concept,
+            amount: adj.amount,
+            status: adj.status,
+            approvedBy: adj.approvedBy,
+            approvedAt: adj.approvedAt
+          })),
+          finalPayroll: {
+            gross: originalGross + adjustmentAmount,
+            net: originalNet + adjustmentAmount,
+            difference: adjustmentAmount
+          },
           status: emp.status,
-          paymentStatus: emp.paymentStatus,
-          paymentMethod: emp.paymentMethod,
-          faults: emp.faults
+          paymentStatus: emp.paymentStatus || 'pending',
+          paymentMethod: emp.paymentMethod || null
         };
       });
 
       res.json({
         success: true,
         data: {
-          totals: stats,
-          employees: formattedEmployees,
-          generalInfo: {
+          payroll: {
             id: generalPayroll.id,
-            folio: generalPayroll.folio,
-            status: generalPayroll.status,
-            period: generalPayroll.period
-          }
+            period: generalPayroll.period?.label || `${generalPayroll.period?.startDate} - ${generalPayroll.period?.endDate}`,
+            startDate: generalPayroll.period?.startDate,
+            endDate: generalPayroll.period?.endDate,
+            status: generalPayroll.status
+          },
+          summary: {
+            totalEmployees: stats.totalEmployees,
+            pending: stats.pending,
+            approved: stats.approved,
+            totalAdjustments: stats.totalAdjustments
+          },
+          employees: formattedEmployees
         }
       });
 
