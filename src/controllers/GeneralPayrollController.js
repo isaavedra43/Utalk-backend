@@ -572,48 +572,12 @@ class GeneralPayrollController {
       };
 
       // Formatear empleados para el frontend según especificaciones
-      const formattedEmployees = await Promise.all(employees.map(async emp => {
+      const formattedEmployees = employees.map(emp => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
         
-        // Calcular datos reales de la nómina
-        let originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
-        let originalNet = emp.netSalary || 0;
-        
-        // Si los valores son 0, calcular usando simulación real
-        if (originalGross === 0 && originalNet === 0) {
-          try {
-            logger.info('🔄 Calculando datos reales para empleado sin valores', {
-              employeeId: emp.employeeId,
-              generalPayrollId: id
-            });
-            
-            // Usar el servicio de simulación para obtener datos reales
-            const simulation = await GeneralPayrollService.simulateEmployeePayroll(
-              emp.employeeId,
-              {
-                startDate: generalPayroll.period.startDate,
-                endDate: generalPayroll.period.endDate,
-                type: generalPayroll.period.frequency || 'biweekly'
-              }
-            );
-            
-            originalGross = simulation.gross || 0;
-            originalNet = simulation.net || 0;
-            
-            logger.info('✅ Datos reales calculados', {
-              employeeId: emp.employeeId,
-              originalGross,
-              originalNet
-            });
-          } catch (simError) {
-            logger.warn('⚠️ Error calculando datos reales, usando valores por defecto', {
-              employeeId: emp.employeeId,
-              error: simError.message
-            });
-            // Mantener valores 0 si no se puede calcular
-          }
-        }
-        
+        // Usar datos reales de la nómina general (ahora ya calculados correctamente)
+        const originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
+        const originalNet = emp.netSalary || 0;
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
         
         return {
@@ -642,7 +606,7 @@ class GeneralPayrollController {
           paymentStatus: emp.paymentStatus || 'pending',
           paymentMethod: emp.paymentMethod || null
         };
-      }));
+      });
 
       res.json({
         success: true,

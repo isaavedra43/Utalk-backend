@@ -55,58 +55,126 @@ class GeneralPayrollService {
       // 4. Validar que no hay conflictos con nóminas individuales
       await this.validateNoConflictingIndividualPayrolls(activeEmployees, startDate, endDate);
 
-      // 5. Crear registro inicial de nómina general
+      // 5. Calcular datos reales para cada empleado usando simulación
+      logger.info('🔄 Calculando datos reales de nómina para empleados', {
+        employeesCount: activeEmployees.length,
+        period: `${startDate} - ${endDate}`
+      });
+
+      const employeesWithRealData = await Promise.all(activeEmployees.map(async (emp) => {
+        try {
+          // Calcular nómina real usando simulación
+          const simulation = await this.simulateEmployeePayroll(emp.id, {
+            startDate,
+            endDate,
+            type: frequency
+          });
+
+          logger.info('✅ Datos reales calculados para empleado', {
+            employeeId: emp.id,
+            employeeName: `${emp.personalInfo.firstName} ${emp.personalInfo.lastName}`,
+            gross: simulation.gross || 0,
+            net: simulation.net || 0,
+            base: simulation.base || 0
+          });
+
+          return {
+            employeeId: emp.id,
+            employee: {
+              id: emp.id,
+              name: `${emp.personalInfo.firstName} ${emp.personalInfo.lastName}`,
+              position: emp.position.title || 'Sin posición',
+              department: emp.position.department || 'Sin departamento',
+              code: emp.employeeNumber || emp.id,
+              email: emp.personalInfo.email || ''
+            },
+            status: 'pending',
+            baseSalary: simulation.base || 0,
+            overtime: simulation.overtime || 0,
+            bonuses: simulation.bonuses || 0,
+            deductions: simulation.deductions || 0,
+            taxes: simulation.taxes || 0,
+            grossSalary: simulation.gross || 0,
+            netSalary: simulation.net || 0,
+            adjustments: [],
+            includedExtras: simulation.includedExtras || [],
+            faults: simulation.faults || 0,
+            attendance: simulation.attendance || 100,
+            warnings: simulation.warnings || []
+          };
+        } catch (simError) {
+          logger.error('❌ Error calculando datos reales, usando valores por defecto', {
+            employeeId: emp.id,
+            error: simError.message
+          });
+
+          // En caso de error, usar valores por defecto pero marcar con warning
+          return {
+            employeeId: emp.id,
+            employee: {
+              id: emp.id,
+              name: `${emp.personalInfo.firstName} ${emp.personalInfo.lastName}`,
+              position: emp.position.title || 'Sin posición',
+              department: emp.position.department || 'Sin departamento',
+              code: emp.employeeNumber || emp.id,
+              email: emp.personalInfo.email || ''
+            },
+            status: 'pending',
+            baseSalary: 0,
+            overtime: 0,
+            bonuses: 0,
+            deductions: 0,
+            taxes: 0,
+            grossSalary: 0,
+            netSalary: 0,
+            adjustments: [],
+            includedExtras: [],
+            faults: 0,
+            attendance: 100,
+            warnings: [`Error calculando datos reales: ${simError.message}`]
+          };
+        }
+      }));
+
+      // 6. Crear registro inicial de nómina general con datos reales
       const generalPayroll = new GeneralPayroll({
         period: { startDate, endDate, frequency },
         status: 'draft',
-        employees: activeEmployees.map(emp => ({
-          employeeId: emp.id,
-          employee: {
-            id: emp.id,
-            name: `${emp.personalInfo.firstName} ${emp.personalInfo.lastName}`,
-            position: emp.position.title || 'Sin posición',
-            department: emp.position.department || 'Sin departamento',
-            code: emp.employeeNumber || emp.id,
-            email: emp.personalInfo.email || ''
-          },
-          status: 'pending',
-          baseSalary: 0,
-          overtime: 0,
-          bonuses: 0,
-          deductions: 0,
-          taxes: 0,
-          grossSalary: 0,
-          netSalary: 0,
-          adjustments: [],
-          includedExtras: [],
-          faults: 0,
-          attendance: 100
-        })),
+        employees: employeesWithRealData,
         createdBy: userId
       });
 
       generalPayroll.calculateTotals();
       await generalPayroll.save();
 
-      // 6. Crear registros de empleados en colección separada
+      // 7. Crear registros de empleados en colección separada con datos reales
       const employeePromises = generalPayroll.employees.map(empData => {
         const generalPayrollEmployee = new GeneralPayrollEmployee({
           generalPayrollId: generalPayroll.id,
           employeeId: empData.employeeId,
           employee: empData.employee,
-          status: 'pending'
+          status: 'pending',
+          baseSalary: empData.baseSalary,
+          overtime: empData.overtime,
+          bonuses: empData.bonuses,
+          deductions: empData.deductions,
+          taxes: empData.taxes,
+          grossSalary: empData.grossSalary,
+          netSalary: empData.netSalary
         });
         return generalPayrollEmployee.save();
       });
 
       await Promise.all(employeePromises);
 
-      logger.info('✅ Nómina general creada exitosamente', {
+      logger.info('✅ Nómina general creada exitosamente con datos reales', {
         id: generalPayroll.id,
         totalEmployees: generalPayroll.totals.totalEmployees,
         period: `${startDate} - ${endDate}`,
         frequency,
-        configWarnings: configWarnings.length
+        configWarnings: configWarnings.length,
+        totalGross: generalPayroll.totals.totalGrossSalary,
+        totalNet: generalPayroll.totals.totalNetSalary
       });
 
       return {
