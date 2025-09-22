@@ -907,6 +907,600 @@ class PayrollController {
     }
   }
 
+  /**
+   * Simular nómina general para un período
+   * POST /api/payroll/simulate
+   */
+  static async simulateGeneralPayroll(req, res) {
+    const startTime = Date.now();
+    const traceId = req.headers['x-trace-id'] || `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      const userId = req.user?.id || 'system';
+      const { period, scope, options = {} } = req.body;
+
+      logger.info('🧮 Iniciando simulación de nómina general', { 
+        userId, traceId, period, scope, options 
+      });
+
+      // 1. Validaciones de entrada
+      const validationResult = PayrollController.validateSimulationRequest(req.body);
+      if (!validationResult.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: validationResult.message,
+          details: validationResult.details,
+          traceId
+        });
+      }
+
+      // 2. Obtener empleados según scope
+      const employees = await PayrollController.getEmployeesForSimulation(scope);
+      if (employees.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'NO_EMPLOYEES_FOUND',
+          message: 'No se encontraron empleados activos para la simulación',
+          traceId
+        });
+      }
+
+      // 3. Configurar opciones por defecto
+      const simulationOptions = {
+        includeExtras: options.includeExtras !== false,
+        includeBonuses: options.includeBonuses !== false,
+        includeAbsencesAndLates: options.includeAbsencesAndLates !== false,
+        includeEmployerContribs: options.includeEmployerContribs || false,
+        taxRulesVersion: options.taxRulesVersion || 'MX_2025_09',
+        overtimePolicyId: options.overtimePolicyId || 'default',
+        roundingMode: options.roundingMode || 'HALF_UP',
+        currency: options.currency || 'MXN',
+        timezone: options.timezone || 'America/Mexico_City',
+        previewOnly: options.previewOnly !== false
+      };
+
+      // 4. Procesar cada empleado
+      const employeeResults = [];
+      const allWarnings = [];
+      
+      for (const employee of employees) {
+        try {
+          const employeeSimulation = await PayrollController.simulateEmployeePayroll(
+            employee, period, simulationOptions, traceId
+          );
+          employeeResults.push(employeeSimulation);
+          
+          if (employeeSimulation.warnings && employeeSimulation.warnings.length > 0) {
+            allWarnings.push(...employeeSimulation.warnings);
+          }
+        } catch (error) {
+          logger.warn('⚠️ Error simulando empleado', { 
+            employeeId: employee.id, error: error.message, traceId 
+          });
+          
+          // Continuar con otros empleados aunque uno falle
+          employeeResults.push({
+            employeeId: employee.id,
+            name: employee.personalInfo?.firstName ? 
+              `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}` : 
+              'Empleado desconocido',
+            position: employee.position?.title || 'Sin posición',
+            error: error.message,
+            components: {
+              base: 0,
+              overtime: 0,
+              bonuses: 0,
+              gross: 0,
+              deductions: { taxes: 0, internal: 0, total: 0 },
+              net: 0
+            },
+            warnings: [`Error procesando empleado: ${error.message}`]
+          });
+        }
+      }
+
+      // 5. Calcular totales
+      const summary = PayrollController.calculateSimulationSummary(employeeResults);
+
+      // 6. Generar respuesta
+      const simulationId = `sim_${period.startDate.replace(/-/g, '_')}_${period.endDate.replace(/-/g, '_')}`;
+      const computeMs = Date.now() - startTime;
+
+      const response = {
+        success: true,
+        message: 'Simulación generada',
+        simulation: {
+          id: simulationId,
+          period: {
+            type: period.type,
+            startDate: period.startDate,
+            endDate: period.endDate,
+            label: period.label
+          },
+          options: {
+            includeExtras: simulationOptions.includeExtras,
+            includeBonuses: simulationOptions.includeBonuses,
+            includeAbsencesAndLates: simulationOptions.includeAbsencesAndLates,
+            currency: simulationOptions.currency,
+            roundingMode: simulationOptions.roundingMode,
+            taxRulesVersion: simulationOptions.taxRulesVersion
+          },
+          summary: {
+            ...summary,
+            warnings: allWarnings
+          },
+          employees: employeeResults,
+          generatedAt: new Date().toISOString(),
+          computeMs
+        },
+        traceId
+      };
+
+      logger.info('✅ Simulación completada', { 
+        traceId, 
+        employeesProcessed: employeeResults.length,
+        computeMs,
+        summary: summary.totalEmployees 
+      });
+
+      res.json(response);
+
+    } catch (error) {
+      const computeMs = Date.now() - startTime;
+      logger.error('❌ Error en simulación de nómina general', { 
+        error: error.message, traceId, computeMs 
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Error interno del servidor durante la simulación',
+        traceId,
+        debug: {
+          error: error.message,
+          computeMs
+        }
+      });
+    }
+  }
+
+  /**
+   * Validar solicitud de simulación
+   */
+  static validateSimulationRequest(body) {
+    const { period, scope, options } = body;
+    const details = [];
+
+    // Validar período
+    if (!period) {
+      details.push({ field: 'period', issue: 'required' });
+    } else {
+      if (!period.type || !['daily', 'weekly', 'biweekly', 'monthly'].includes(period.type)) {
+        details.push({ field: 'period.type', issue: 'invalid_type' });
+      }
+      if (!period.startDate) {
+        details.push({ field: 'period.startDate', issue: 'required' });
+      }
+      if (!period.endDate) {
+        details.push({ field: 'period.endDate', issue: 'required' });
+      }
+      
+      if (period.startDate && period.endDate) {
+        const startDate = new Date(period.startDate);
+        const endDate = new Date(period.endDate);
+        
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          details.push({ field: 'period.dates', issue: 'invalid_format' });
+        } else if (startDate > endDate) {
+          details.push({ field: 'period.dates', issue: 'start_after_end' });
+        } else {
+          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+          if (daysDiff > 31) {
+            details.push({ field: 'period.duration', issue: 'exceeds_31_days' });
+          }
+        }
+      }
+    }
+
+    // Validar scope
+    if (!scope) {
+      details.push({ field: 'scope', issue: 'required' });
+    } else {
+      if (typeof scope.allEmployees !== 'boolean') {
+        details.push({ field: 'scope.allEmployees', issue: 'must_be_boolean' });
+      }
+      if (!scope.allEmployees && (!scope.employeeIds || !Array.isArray(scope.employeeIds))) {
+        details.push({ field: 'scope.employeeIds', issue: 'required_when_not_all' });
+      }
+    }
+
+    // Validar opciones
+    if (options) {
+      if (options.currency && !['MXN', 'USD'].includes(options.currency)) {
+        details.push({ field: 'options.currency', issue: 'unsupported_currency' });
+      }
+      if (options.roundingMode && !['HALF_UP', 'HALF_DOWN', 'UP', 'DOWN'].includes(options.roundingMode)) {
+        details.push({ field: 'options.roundingMode', issue: 'invalid_rounding_mode' });
+      }
+    }
+
+    return {
+      isValid: details.length === 0,
+      message: details.length > 0 ? 'Datos de entrada inválidos' : null,
+      details
+    };
+  }
+
+  /**
+   * Obtener empleados para simulación
+   */
+  static async getEmployeesForSimulation(scope) {
+    const { db } = require('../config/firebase');
+    
+    if (scope.allEmployees) {
+      // Obtener todos los empleados activos
+      const snapshot = await db.collection('employees')
+        .where('status', '==', 'active')
+        .get();
+      
+      const employees = [];
+      snapshot.forEach(doc => {
+        employees.push({ id: doc.id, ...doc.data() });
+      });
+      return employees;
+    } else {
+      // Obtener empleados específicos
+      const employees = [];
+      for (const employeeId of scope.employeeIds) {
+        try {
+          const doc = await db.collection('employees').doc(employeeId).get();
+          if (doc.exists && doc.data().status === 'active') {
+            employees.push({ id: doc.id, ...doc.data() });
+          }
+        } catch (error) {
+          logger.warn('⚠️ Error obteniendo empleado específico', { employeeId, error: error.message });
+        }
+      }
+      return employees;
+    }
+  }
+
+  /**
+   * Simular nómina de un empleado específico
+   */
+  static async simulateEmployeePayroll(employee, period, options, traceId) {
+    const { db } = require('../config/firebase');
+    
+    try {
+      // 1. Obtener configuración de nómina del empleado
+      const configDoc = await db.collection('payrollConfig')
+        .where('employeeId', '==', employee.id)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+      
+      let payrollConfig = null;
+      if (!configDoc.empty) {
+        payrollConfig = configDoc.docs[0].data();
+      }
+
+      // 2. Obtener extras pendientes si están habilitados
+      let extras = [];
+      if (options.includeExtras) {
+        const extrasSnapshot = await db.collection('payrollExtras')
+          .where('employeeId', '==', employee.id)
+          .where('status', '==', 'pending')
+          .get();
+        
+        extrasSnapshot.forEach(doc => {
+          const extra = doc.data();
+          // Verificar si el extra está en el período
+          const extraDate = new Date(extra.date);
+          const periodStart = new Date(period.startDate);
+          const periodEnd = new Date(period.endDate);
+          
+          if (extraDate >= periodStart && extraDate <= periodEnd) {
+            extras.push(extra);
+          }
+        });
+      }
+
+      // 3. Calcular componentes de nómina
+      const components = PayrollController.calculateEmployeeComponents(
+        employee, payrollConfig, extras, period, options
+      );
+
+      // 4. Generar breakdown detallado
+      const breakdown = PayrollController.generateEmployeeBreakdown(
+        employee, extras, components, options
+      );
+
+      // 5. Generar warnings
+      const warnings = PayrollController.generateEmployeeWarnings(
+        employee, payrollConfig, components
+      );
+
+      return {
+        employeeId: employee.id,
+        name: `${employee.personalInfo?.firstName || ''} ${employee.personalInfo?.lastName || ''}`.trim(),
+        position: employee.position?.title || 'Sin posición',
+        currency: options.currency,
+        contract: {
+          type: employee.contract?.type || 'permanent',
+          baseMonthly: employee.contract?.salary || 0,
+          sbc: employee.sbc || 0
+        },
+        components,
+        breakdown,
+        warnings
+      };
+
+    } catch (error) {
+      logger.error('❌ Error simulando empleado', { 
+        employeeId: employee.id, error: error.message, traceId 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Calcular componentes de nómina de un empleado
+   */
+  static calculateEmployeeComponents(employee, config, extras, period, options) {
+    const roundingMode = options.roundingMode || 'HALF_UP';
+    
+    // 1. Salario base prorrateado
+    const baseSalary = employee.contract?.salary || 0;
+    const workingDaysInPeriod = PayrollController.calculateWorkingDaysInPeriod(period, employee);
+    const workingDaysInMonth = 22; // Promedio días laborales por mes
+    const baseAmount = PayrollController.round(
+      (baseSalary / workingDaysInMonth) * workingDaysInPeriod, 
+      roundingMode
+    );
+
+    // 2. Horas extra
+    const overtimeAmount = PayrollController.round(
+      extras
+        .filter(extra => extra.type === 'overtime')
+        .reduce((sum, extra) => sum + (extra.amount || 0), 0),
+      roundingMode
+    );
+
+    // 3. Bonos
+    const bonusesAmount = PayrollController.round(
+      extras
+        .filter(extra => extra.type === 'bonus')
+        .reduce((sum, extra) => sum + (extra.amount || 0), 0),
+      roundingMode
+    );
+
+    // 4. Total bruto
+    const grossAmount = PayrollController.round(
+      baseAmount + overtimeAmount + bonusesAmount,
+      roundingMode
+    );
+
+    // 5. Deducciones fiscales
+    const taxDeductions = PayrollController.calculateTaxDeductions(
+      grossAmount, employee, config, options
+    );
+
+    // 6. Deducciones internas
+    const internalDeductions = PayrollController.round(
+      extras
+        .filter(extra => extra.type === 'deduction')
+        .reduce((sum, extra) => sum + (extra.amount || 0), 0),
+      roundingMode
+    );
+
+    // 7. Total deducciones
+    const totalDeductions = PayrollController.round(
+      taxDeductions + internalDeductions,
+      roundingMode
+    );
+
+    // 8. Neto a pagar
+    const netAmount = PayrollController.round(
+      grossAmount - totalDeductions,
+      roundingMode
+    );
+
+    return {
+      base: baseAmount,
+      overtime: overtimeAmount,
+      bonuses: bonusesAmount,
+      gross: grossAmount,
+      deductions: {
+        taxes: taxDeductions,
+        internal: internalDeductions,
+        total: totalDeductions
+      },
+      net: netAmount
+    };
+  }
+
+  /**
+   * Calcular días laborales en el período
+   */
+  static calculateWorkingDaysInPeriod(period, employee) {
+    const startDate = new Date(period.startDate);
+    const endDate = new Date(period.endDate);
+    let workingDays = 0;
+
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      const dayOfWeek = date.getDay(); // 0 = domingo, 6 = sábado
+      
+      // Verificar si el empleado trabaja este día según su horario personalizado
+      if (employee.contract?.customSchedule?.enabled) {
+        const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        const dayName = dayNames[dayOfWeek];
+        const daySchedule = employee.contract.customSchedule.days[dayName];
+        
+        if (daySchedule && daySchedule.enabled) {
+          workingDays++;
+        }
+      } else {
+        // Horario por defecto: lunes a viernes
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          workingDays++;
+        }
+      }
+    }
+
+    return workingDays;
+  }
+
+  /**
+   * Calcular deducciones fiscales
+   */
+  static calculateTaxDeductions(grossAmount, employee, config, options) {
+    // Implementación simplificada - en producción usar tablas de ISR/IMSS reales
+    const sbc = employee.sbc || grossAmount;
+    
+    // ISR simplificado (tabla progresiva)
+    let isr = 0;
+    if (grossAmount > 0) {
+      if (grossAmount <= 10000) {
+        isr = grossAmount * 0.0192;
+      } else if (grossAmount <= 20000) {
+        isr = 192 + (grossAmount - 10000) * 0.064;
+      } else if (grossAmount <= 30000) {
+        isr = 832 + (grossAmount - 20000) * 0.1088;
+      } else {
+        isr = 1920 + (grossAmount - 30000) * 0.16;
+      }
+    }
+
+    // IMSS simplificado
+    const imss = sbc * 0.03625; // Cuota obrera IMSS
+
+    return PayrollController.round(isr + imss, options.roundingMode || 'HALF_UP');
+  }
+
+  /**
+   * Generar breakdown detallado del empleado
+   */
+  static generateEmployeeBreakdown(employee, extras, components, options) {
+    const overtimeBreakdown = extras
+      .filter(extra => extra.type === 'overtime')
+      .map(extra => ({
+        type: extra.rate || '1.5x',
+        hours: extra.hours || 0,
+        amount: PayrollController.round(extra.amount || 0, options.roundingMode)
+      }));
+
+    const taxesBreakdown = [
+      { name: 'ISR', amount: PayrollController.round(components.deductions.taxes * 0.8, options.roundingMode) },
+      { name: 'IMSS', amount: PayrollController.round(components.deductions.taxes * 0.2, options.roundingMode) }
+    ];
+
+    const bonusesBreakdown = extras
+      .filter(extra => extra.type === 'bonus')
+      .map(extra => ({
+        name: extra.concept || 'Bono',
+        amount: PayrollController.round(extra.amount || 0, options.roundingMode)
+      }));
+
+    const deductionsInternalBreakdown = extras
+      .filter(extra => extra.type === 'deduction')
+      .map(extra => ({
+        name: extra.concept || 'Deducción',
+        amount: PayrollController.round(extra.amount || 0, options.roundingMode)
+      }));
+
+    return {
+      overtime: overtimeBreakdown,
+      taxes: taxesBreakdown,
+      bonuses: bonusesBreakdown,
+      deductionsInternal: deductionsInternalBreakdown
+    };
+  }
+
+  /**
+   * Generar warnings para un empleado
+   */
+  static generateEmployeeWarnings(employee, config, components) {
+    const warnings = [];
+
+    if (!config) {
+      warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
+    }
+
+    if (!employee.personalInfo?.rfc) {
+      warnings.push('Empleado sin RFC; puede afectar cálculos fiscales');
+    }
+
+    if (!employee.personalInfo?.curp) {
+      warnings.push('Empleado sin CURP; puede afectar cálculos fiscales');
+    }
+
+    if (!employee.sbc || employee.sbc === 0) {
+      warnings.push('Empleado sin SBC definido; usando salario base como SBC');
+    }
+
+    if (components.net < 0) {
+      warnings.push('Nómina neta negativa; revisar deducciones');
+    }
+
+    return warnings;
+  }
+
+  /**
+   * Calcular resumen de la simulación
+   */
+  static calculateSimulationSummary(employeeResults) {
+    const validResults = employeeResults.filter(result => !result.error);
+    
+    const totals = validResults.reduce((sum, result) => ({
+      grossTotal: sum.grossTotal + result.components.gross,
+      netTotal: sum.netTotal + result.components.net,
+      deductionsTotal: sum.deductionsTotal + result.components.deductions.total,
+      taxesTotal: sum.taxesTotal + result.components.deductions.taxes,
+      overtimeTotal: sum.overtimeTotal + result.components.overtime,
+      bonusesTotal: sum.bonusesTotal + result.components.bonuses
+    }), {
+      grossTotal: 0,
+      netTotal: 0,
+      deductionsTotal: 0,
+      taxesTotal: 0,
+      overtimeTotal: 0,
+      bonusesTotal: 0
+    });
+
+    return {
+      totalEmployees: validResults.length,
+      grossTotal: PayrollController.round(totals.grossTotal, 'HALF_UP'),
+      netTotal: PayrollController.round(totals.netTotal, 'HALF_UP'),
+      deductionsTotal: PayrollController.round(totals.deductionsTotal, 'HALF_UP'),
+      taxesTotal: PayrollController.round(totals.taxesTotal, 'HALF_UP'),
+      avgSalary: validResults.length > 0 ? 
+        PayrollController.round(totals.grossTotal / validResults.length, 'HALF_UP') : 0,
+      overtimeTotal: PayrollController.round(totals.overtimeTotal, 'HALF_UP'),
+      bonusesTotal: PayrollController.round(totals.bonusesTotal, 'HALF_UP')
+    };
+  }
+
+  /**
+   * Función de redondeo
+   */
+  static round(value, mode = 'HALF_UP') {
+    const factor = Math.pow(10, 2);
+    
+    switch (mode) {
+      case 'HALF_UP':
+        return Math.round(value * factor) / factor;
+      case 'HALF_DOWN':
+        return Math.floor(value * factor + 0.499999) / factor;
+      case 'UP':
+        return Math.ceil(value * factor) / factor;
+      case 'DOWN':
+        return Math.floor(value * factor) / factor;
+      default:
+        return Math.round(value * factor) / factor;
+    }
+  }
+
 
   /**
    * Subir archivo adjunto a nómina

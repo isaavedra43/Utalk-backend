@@ -274,6 +274,17 @@ router.get('/stats',
   PayrollController.getPayrollStats
 );
 
+/**
+ * Simular nómina general para un período
+ * POST /api/payroll/simulate
+ * Requiere: admin, payroll.manager
+ */
+router.post('/simulate', 
+  authMiddleware, 
+  requireRole(['admin', 'payroll.manager']), 
+  PayrollController.simulateGeneralPayroll
+);
+
 
 // ================================
 // RUTAS ADICIONALES PARA FUTURAS FUNCIONALIDADES
@@ -384,6 +395,9 @@ router.use('*', (req, res) => {
       },
       stats: {
         'GET /api/payroll/stats': 'Obtener estadísticas'
+      },
+      simulation: {
+        'POST /api/payroll/simulate': 'Simular nómina general'
       }
     }
   });
