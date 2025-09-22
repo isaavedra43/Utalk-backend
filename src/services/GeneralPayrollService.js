@@ -33,12 +33,101 @@ class GeneralPayrollService {
       // 1. Verificar si ya existe nómina general para el período
       const existingPayroll = await GeneralPayroll.findByPeriod(startDate, endDate);
       if (existingPayroll) {
-        logger.info('ℹ️ Nómina general ya existe para este período, devolviendo la existente', {
+        logger.info('ℹ️ Nómina general ya existe para este período', {
           existingPayrollId: existingPayroll.id,
-          period: `${startDate} - ${endDate}`
+          period: `${startDate} - ${endDate}`,
+          hasRealData: existingPayroll.totals?.totalGrossSalary > 0
         });
         
-        // Devolver la nómina existente en lugar de fallar
+        // Si la nómina existente tiene valores 0, actualizarla con datos reales
+        if (!existingPayroll.totals?.totalGrossSalary || existingPayroll.totals.totalGrossSalary === 0) {
+          logger.info('🔄 Nómina existente tiene valores 0, actualizando con datos reales');
+          
+          // Obtener y validar empleados activos
+          const activeEmployees = await this.getAndValidateEmployees(includeEmployees);
+          
+          // Validar y crear configuraciones de nómina individual si no existen
+          const configWarnings = await this.validateEmployeeConfigurations(activeEmployees);
+          
+          // Calcular datos reales para cada empleado usando simulación
+          const employeesWithRealData = await Promise.all(activeEmployees.map(async (emp) => {
+            try {
+              const simulation = await this.simulateEmployeePayroll(emp.id, {
+                startDate,
+                endDate,
+                type: frequency
+              });
+
+              return {
+                employeeId: emp.id,
+                employee: {
+                  id: emp.id,
+                  name: `${emp.personalInfo.firstName} ${emp.personalInfo.lastName}`,
+                  position: emp.position.title || 'Sin posición',
+                  department: emp.position.department || 'Sin departamento',
+                  code: emp.employeeNumber || emp.id,
+                  email: emp.personalInfo.email || ''
+                },
+                status: 'pending',
+                baseSalary: simulation.base || 0,
+                overtime: simulation.overtime || 0,
+                bonuses: simulation.bonuses || 0,
+                deductions: simulation.deductions || 0,
+                taxes: simulation.taxes || 0,
+                grossSalary: simulation.gross || 0,
+                netSalary: simulation.net || 0,
+                adjustments: [],
+                includedExtras: simulation.includedExtras || [],
+                faults: simulation.faults || 0,
+                attendance: simulation.attendance || 100,
+                warnings: simulation.warnings || []
+              };
+            } catch (simError) {
+              logger.error('❌ Error calculando datos reales para empleado existente', {
+                employeeId: emp.id,
+                error: simError.message
+              });
+              return null;
+            }
+          }));
+
+          // Filtrar empleados nulos (errores)
+          const validEmployeesData = employeesWithRealData.filter(emp => emp !== null);
+          
+          if (validEmployeesData.length > 0) {
+            // Actualizar la nómina existente con datos reales
+            existingPayroll.employees = validEmployeesData;
+            existingPayroll.calculateTotals();
+            await existingPayroll.save();
+
+            // Actualizar también los registros de empleados en la colección separada
+            for (const empData of validEmployeesData) {
+              const existingEmployee = await GeneralPayrollEmployee.findByEmployeeAndGeneral(
+                empData.employeeId,
+                existingPayroll.id
+              );
+              
+              if (existingEmployee) {
+                existingEmployee.baseSalary = empData.baseSalary;
+                existingEmployee.overtime = empData.overtime;
+                existingEmployee.bonuses = empData.bonuses;
+                existingEmployee.deductions = empData.deductions;
+                existingEmployee.taxes = empData.taxes;
+                existingEmployee.grossSalary = empData.grossSalary;
+                existingEmployee.netSalary = empData.netSalary;
+                await existingEmployee.save();
+              }
+            }
+
+            logger.info('✅ Nómina existente actualizada con datos reales', {
+              payrollId: existingPayroll.id,
+              totalGross: existingPayroll.totals.totalGrossSalary,
+              totalNet: existingPayroll.totals.totalNetSalary
+            });
+          }
+        }
+        
+        // Devolver la nómina existente (ahora con datos reales)
         return {
           ...existingPayroll,
           configWarnings: [],
