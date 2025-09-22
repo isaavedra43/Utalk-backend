@@ -574,14 +574,16 @@ class GeneralPayrollController {
       // Formatear empleados para el frontend según especificaciones
       const formattedEmployees = employees.map(emp => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
-        const originalGross = emp.baseSalary + emp.overtime + emp.bonuses;
-        const originalNet = emp.netSalary;
+        
+        // Usar datos reales de la simulación si están disponibles, sino usar datos de la nómina
+        const originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
+        const originalNet = emp.netSalary || 0;
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
         
         return {
           employeeId: emp.employeeId,
           name: emp.employee?.name || `${emp.employee?.firstName || ''} ${emp.employee?.lastName || ''}`.trim(),
-          position: emp.employee?.position?.title || 'Sin posición',
+          position: emp.employee?.position || emp.employee?.position?.title || 'CEO',
           originalPayroll: {
             gross: originalGross,
             net: originalNet
@@ -611,7 +613,7 @@ class GeneralPayrollController {
         data: {
           payroll: {
             id: generalPayroll.id,
-            period: generalPayroll.period?.label || `${generalPayroll.period?.startDate} - ${generalPayroll.period?.endDate}`,
+            period: generalPayroll.period?.label || `Semana del ${generalPayroll.period?.startDate?.split('-')[2]}/${generalPayroll.period?.startDate?.split('-')[1]} (${generalPayroll.period?.startDate} - ${generalPayroll.period?.endDate})`,
             startDate: generalPayroll.period?.startDate,
             endDate: generalPayroll.period?.endDate,
             status: generalPayroll.status
