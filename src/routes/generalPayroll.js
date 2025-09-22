@@ -37,6 +37,29 @@ router.get('/',
 );
 
 /**
+ * Obtener estadísticas generales de nómina para dashboard
+ * GET /api/payroll/general/stats
+ * Requiere: admin, superadmin, agent
+ */
+router.get('/stats', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'agent']), 
+  GeneralPayrollController.getDashboardStats
+);
+
+/**
+ * Obtener empleados disponibles para nómina general
+ * GET /api/payroll/general/available-employees
+ * Query: ?startDate=2024-01-01&endDate=2024-01-07
+ * Requiere: admin, superadmin, agent
+ */
+router.get('/available-employees', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'agent']), 
+  GeneralPayrollController.getAvailableEmployees
+);
+
+/**
  * Obtener nómina general específica
  * GET /api/payroll/general/:id
  * Requiere: admin, superadmin, agent
@@ -83,18 +106,6 @@ router.post('/:id/close',
 // ================================
 // GESTIÓN DE EMPLEADOS
 // ================================
-
-/**
- * Obtener empleados disponibles para nómina general
- * GET /api/payroll/general/available-employees
- * Query: ?startDate=2024-01-01&endDate=2024-01-07
- * Requiere: admin, superadmin, agent
- */
-router.get('/available-employees', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin', 'agent']), 
-  GeneralPayrollController.getAvailableEmployees
-);
 
 /**
  * Aplicar ajuste a empleado específico
@@ -155,17 +166,6 @@ router.get('/:id/individual-payrolls',
   authMiddleware, 
   requireRole(['admin', 'superadmin', 'agent']), 
   GeneralPayrollController.getIndividualPayrolls
-);
-
-/**
- * Obtener estadísticas generales de nómina para dashboard
- * GET /api/payroll/general/stats
- * Requiere: admin, superadmin
- */
-router.get('/stats', 
-  authMiddleware, 
-  requireRole(['admin', 'superadmin']), 
-  GeneralPayrollController.getDashboardStats
 );
 
 /**
