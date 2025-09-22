@@ -39,8 +39,8 @@ class GeneralPayrollService {
       // 2. Obtener y validar empleados activos
       const activeEmployees = await this.getAndValidateEmployees(includeEmployees);
       
-      // 3. Validar configuraciones de nómina individual
-      await this.validateEmployeeConfigurations(activeEmployees);
+      // 3. Validar y crear configuraciones de nómina individual si no existen
+      const configWarnings = await this.validateEmployeeConfigurations(activeEmployees);
       
       // 4. Validar que no hay conflictos con nóminas individuales
       await this.validateNoConflictingIndividualPayrolls(activeEmployees, startDate, endDate);
@@ -95,10 +95,14 @@ class GeneralPayrollService {
         id: generalPayroll.id,
         totalEmployees: generalPayroll.totals.totalEmployees,
         period: `${startDate} - ${endDate}`,
-        frequency
+        frequency,
+        configWarnings: configWarnings.length
       });
 
-      return generalPayroll;
+      return {
+        ...generalPayroll,
+        configWarnings: configWarnings
+      };
     } catch (error) {
       logger.error('❌ Error creando nómina general', error);
       throw error;
@@ -451,18 +455,50 @@ class GeneralPayrollService {
   }
 
   /**
-   * Validar configuraciones de nómina individual
+   * Validar y crear configuraciones de nómina individual si no existen
    */
   static async validateEmployeeConfigurations(employees) {
     try {
+      const warnings = [];
+      
       for (const employee of employees) {
-        const config = await PayrollConfig.findActiveByEmployee(employee.id);
+        let config = await PayrollConfig.findActiveByEmployee(employee.id);
         if (!config) {
-          throw new Error(`Empleado ${employee.personalInfo.firstName} ${employee.personalInfo.lastName} no tiene configuración de nómina activa`);
+          logger.warn('⚠️ Empleado sin configuración de nómina, creando automáticamente', {
+            employeeId: employee.id,
+            employeeName: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`
+          });
+          
+          // Crear configuración básica automáticamente
+          config = new PayrollConfig({
+            employeeId: employee.id,
+            baseSalary: employee.salary || 12000, // Salario por defecto si no está definido
+            frequency: 'monthly',
+            startDate: new Date().toISOString().split('T')[0],
+            isActive: true,
+            createdBy: 'system_auto_creation',
+            autoCreated: true // Marcar como creada automáticamente
+          });
+          
+          await config.save();
+          
+          warnings.push(`Configuración de nómina creada automáticamente para ${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`);
+          
+          logger.info('✅ Configuración de nómina creada automáticamente', {
+            employeeId: employee.id,
+            configId: config.id,
+            baseSalary: config.baseSalary
+          });
         }
       }
+      
+      if (warnings.length > 0) {
+        logger.info('ℹ️ Configuraciones creadas automáticamente', { warnings });
+      }
+      
+      return warnings;
     } catch (error) {
-      logger.error('❌ Error validando configuraciones', error);
+      logger.error('❌ Error validando/creando configuraciones', error);
       throw error;
     }
   }
@@ -492,10 +528,34 @@ class GeneralPayrollService {
    */
   static async simulateEmployeePayroll(employeeId, period) {
     try {
-      // 1. Obtener configuración del empleado
-      const config = await PayrollConfig.findActiveByEmployee(employeeId);
+      // 1. Obtener configuración del empleado o usar valores por defecto
+      let config = await PayrollConfig.findActiveByEmployee(employeeId);
+      let warnings = [];
+      
       if (!config) {
-        throw new Error(`Empleado ${employeeId} no tiene configuración de nómina`);
+        logger.warn('⚠️ Empleado sin configuración de nómina, usando valores por defecto', {
+          employeeId
+        });
+        
+        // Crear configuración temporal para cálculo
+        config = {
+          baseSalary: 12000, // Salario por defecto
+          frequency: 'monthly',
+          calculateSalaryForPeriod: function() {
+            // Cálculo básico según frecuencia
+            const daysInPeriod = this.calculateWorkingDaysInPeriod(period);
+            const monthlySalary = this.baseSalary;
+            return (monthlySalary / 30) * daysInPeriod;
+          },
+          calculateWorkingDaysInPeriod: function(period) {
+            const start = new Date(period.startDate);
+            const end = new Date(period.endDate);
+            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            return Math.min(days, 7); // Máximo 7 días para períodos cortos
+          }
+        };
+        
+        warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
       }
 
       // 2. Obtener datos del empleado
@@ -574,7 +634,8 @@ class GeneralPayrollService {
           description: extra.description || extra.reason
         })),
         faults: faults,
-        attendance: attendance
+        attendance: attendance,
+        warnings: warnings
       };
     } catch (error) {
       logger.error('❌ Error simulando empleado', { employeeId, error: error.message });

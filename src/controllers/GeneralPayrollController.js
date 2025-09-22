@@ -46,7 +46,7 @@ class GeneralPayrollController {
         });
       }
 
-      const generalPayroll = await GeneralPayrollService.createGeneralPayroll({
+      const result = await GeneralPayrollService.createGeneralPayroll({
         startDate: period.startDate,
         endDate: period.endDate,
         frequency: period.type,
@@ -60,15 +60,16 @@ class GeneralPayrollController {
         success: true,
         message: 'Nómina general creada exitosamente',
         data: {
-          id: generalPayroll.id,
-          period: generalPayroll.period,
-          status: generalPayroll.status,
-          totals: generalPayroll.totals,
-          employees: generalPayroll.employees.map(emp => ({
+          id: result.id,
+          period: result.period,
+          status: result.status,
+          totals: result.totals,
+          employees: result.employees.map(emp => ({
             id: emp.employeeId,
             employee: emp.employee,
             status: emp.status
-          }))
+          })),
+          warnings: result.configWarnings || []
         }
       });
 
