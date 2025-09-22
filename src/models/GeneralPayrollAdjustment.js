@@ -171,13 +171,18 @@ class GeneralPayrollAdjustment {
    */
   static async findByGeneralPayroll(generalPayrollId) {
     try {
+      // Consulta simplificada para evitar necesidad de índice compuesto
       const snapshot = await db.collection('generalPayrollAdjustments')
         .where('generalPayrollId', '==', generalPayrollId)
-        .where('status', '==', 'active')
-        .orderBy('appliedAt', 'desc')
         .get();
 
-      return snapshot.docs.map(doc => GeneralPayrollAdjustment.fromFirestore(doc));
+      // Filtrar por status y ordenar en memoria para evitar índice compuesto
+      const adjustments = snapshot.docs
+        .map(doc => GeneralPayrollAdjustment.fromFirestore(doc))
+        .filter(adj => adj.status === 'active')
+        .sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt));
+
+      return adjustments;
     } catch (error) {
       logger.error('❌ Error buscando ajustes por nómina general', error);
       throw error;
