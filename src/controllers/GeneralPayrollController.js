@@ -673,32 +673,20 @@ class GeneralPayrollController {
    */
   static async getDashboardStats(req, res) {
     try {
-      const { year, month, period } = req.query;
-      logger.info('📊 Obteniendo estadísticas generales de nómina para dashboard', { year, month, period });
+      logger.info('📊 Obteniendo estadísticas generales de nómina para dashboard');
 
-      // Obtener datos de Firebase
+      // Obtener empleados activos para métricas base
       const { db } = require('../config/firebase');
-      
-      // Construir query para nóminas generales con filtros opcionales
-      let payrollQuery = db.collection('generalPayroll');
-      
-      if (year) {
-        payrollQuery = payrollQuery.where('period.year', '==', parseInt(year));
-      }
-      if (month) {
-        payrollQuery = payrollQuery.where('period.month', '==', parseInt(month));
-      }
+      const employeesSnapshot = await db.collection('employees').where('status', '==', 'active').get();
+      const totalEmployees = employeesSnapshot.size;
 
-      const payrollSnapshot = await payrollQuery.get();
+      // Obtener nóminas generales (puede estar vacío)
+      const payrollSnapshot = await db.collection('generalPayroll').get();
       const payrolls = [];
       
       payrollSnapshot.forEach(doc => {
         payrolls.push({ id: doc.id, ...doc.data() });
       });
-
-      // Obtener empleados activos para métricas base
-      const employeesSnapshot = await db.collection('employees').where('status', '==', 'active').get();
-      const totalEmployees = employeesSnapshot.size;
 
       // Calcular métricas financieras (funcionan con datos vacíos)
       const grossTotal = payrolls.reduce((sum, p) => sum + (p.totals?.grossTotal || p.totals?.totalGrossSalary || 0), 0);
