@@ -673,108 +673,89 @@ class GeneralPayrollController {
    */
   static async getDashboardStats(req, res) {
     try {
-      logger.info('📊 Obteniendo estadísticas generales de nómina para dashboard');
+      const { year, month, period } = req.query;
+      logger.info('📊 Obteniendo estadísticas generales de nómina para dashboard', { year, month, period });
 
-      // Obtener todos los períodos de nómina general
+      // Obtener datos de Firebase
       const { db } = require('../config/firebase');
-      const payrollSnapshot = await db.collection('generalPayroll').get();
+      
+      // Construir query para nóminas generales con filtros opcionales
+      let payrollQuery = db.collection('generalPayroll');
+      
+      if (year) {
+        payrollQuery = payrollQuery.where('period.year', '==', parseInt(year));
+      }
+      if (month) {
+        payrollQuery = payrollQuery.where('period.month', '==', parseInt(month));
+      }
+
+      const payrollSnapshot = await payrollQuery.get();
       const payrolls = [];
       
       payrollSnapshot.forEach(doc => {
         payrolls.push({ id: doc.id, ...doc.data() });
       });
 
-      // Obtener todos los empleados activos
+      // Obtener empleados activos para métricas base
       const employeesSnapshot = await db.collection('employees').where('status', '==', 'active').get();
-      const employees = [];
-      
-      employeesSnapshot.forEach(doc => {
-        employees.push({ id: doc.id, ...doc.data() });
-      });
+      const totalEmployees = employeesSnapshot.size;
 
-      // Calcular métricas generales
-      const totalEmployees = employees.length;
-      const totalPayrolls = payrolls.length;
-      
-      // Calcular totales financieros
-      const totalGrossSalary = payrolls.reduce((sum, p) => sum + (p.totals?.totalGrossSalary || 0), 0);
-      const totalDeductions = payrolls.reduce((sum, p) => sum + (p.totals?.totalDeductions || 0), 0);
-      const totalNetSalary = payrolls.reduce((sum, p) => sum + (p.totals?.totalNetSalary || 0), 0);
+      // Calcular métricas financieras (funcionan con datos vacíos)
+      const grossTotal = payrolls.reduce((sum, p) => sum + (p.totals?.grossTotal || p.totals?.totalGrossSalary || 0), 0);
+      const netTotal = payrolls.reduce((sum, p) => sum + (p.totals?.netTotal || p.totals?.totalNetSalary || 0), 0);
+      const deductionsTotal = payrolls.reduce((sum, p) => sum + (p.totals?.deductionsTotal || p.totals?.totalDeductions || 0), 0);
+      const taxesTotal = payrolls.reduce((sum, p) => sum + (p.totals?.taxesTotal || 0), 0);
+      const overtimeTotal = payrolls.reduce((sum, p) => sum + (p.totals?.overtimeTotal || p.totals?.totalOvertime || 0), 0);
+      const bonusesTotal = payrolls.reduce((sum, p) => sum + (p.totals?.bonusesTotal || 0), 0);
 
-      // Agrupar por estado
-      const byStatus = payrolls.reduce((acc, payroll) => {
-        const status = payroll.status || 'draft';
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
+      // Contar períodos por estado
+      const pending = payrolls.filter(p => p.status === 'pending' || p.status === 'draft' || p.status === 'calculated').length;
+      const approved = payrolls.filter(p => p.status === 'approved').length;
+      const paid = payrolls.filter(p => p.status === 'paid' || p.status === 'closed').length;
 
-      // Calcular períodos pendientes
-      const pendingPayrolls = payrolls.filter(p => p.status === 'draft' || p.status === 'calculated');
-      const approvedPayrolls = payrolls.filter(p => p.status === 'approved');
-      const closedPayrolls = payrolls.filter(p => p.status === 'closed');
+      // Calcular promedio salarial
+      const avgSalary = totalEmployees > 0 ? grossTotal / totalEmployees : 0;
 
-      // Calcular horas extra pendientes (simulado)
-      const pendingOvertimeHours = payrolls
-        .filter(p => p.status === 'draft' || p.status === 'calculated')
-        .reduce((sum, p) => sum + (p.totals?.totalOvertime || 0), 0);
-
-      // Calcular incidencias del período (simulado)
-      const periodIncidents = payrolls
-        .filter(p => p.status === 'draft' || p.status === 'calculated')
-        .reduce((sum, p) => sum + (p.totals?.totalEmployees || 0), 0);
-
+      // SIEMPRE devolver estructura válida según especificación del frontend
       const stats = {
-        // Métricas principales
-        totalEmployees,
-        totalPayrolls,
-        pendingPayrolls: pendingPayrolls.length,
-        approvedPayrolls: approvedPayrolls.length,
-        closedPayrolls: closedPayrolls.length,
-        
-        // Métricas financieras
-        totalGrossSalary,
-        totalDeductions,
-        totalNetSalary,
-        averageGrossSalary: totalPayrolls > 0 ? totalGrossSalary / totalPayrolls : 0,
-        averageNetSalary: totalPayrolls > 0 ? totalNetSalary / totalPayrolls : 0,
-        
-        // Métricas específicas del dashboard
-        pendingOvertimeHours: Math.round(pendingOvertimeHours),
-        periodIncidents,
-        
-        // Distribución por estado
-        byStatus,
-        
-        // Métricas adicionales
-        completionRate: totalPayrolls > 0 ? Math.round((closedPayrolls.length / totalPayrolls) * 100) : 0,
-        averageProcessingTime: totalPayrolls > 0 ? 2.5 : 0, // días promedio (simulado)
-        
-        // Resumen por período
-        currentPeriod: {
-          year: new Date().getFullYear(),
-          month: new Date().getMonth() + 1,
-          totalGenerated: payrolls.filter(p => {
-            const payrollDate = new Date(p.createdAt);
-            return payrollDate.getFullYear() === new Date().getFullYear() && 
-                   payrollDate.getMonth() === new Date().getMonth();
-          }).length
+        summary: {
+          totalEmployees,
+          grossTotal: Math.round(grossTotal * 100) / 100,
+          netTotal: Math.round(netTotal * 100) / 100,
+          deductionsTotal: Math.round(deductionsTotal * 100) / 100,
+          taxesTotal: Math.round(taxesTotal * 100) / 100,
+          avgSalary: Math.round(avgSalary * 100) / 100,
+          overtimeTotal: Math.round(overtimeTotal * 100) / 100,
+          bonusesTotal: Math.round(bonusesTotal * 100) / 100
+        },
+        periods: {
+          current: new Date().toISOString().split('T')[0],
+          pending,
+          approved,
+          paid,
+          total: payrolls.length
         }
       };
 
+      logger.info('✅ Estadísticas calculadas exitosamente', { 
+        totalEmployees, 
+        totalPayrolls: payrolls.length,
+        hasData: payrolls.length > 0,
+        grossTotal,
+        netTotal
+      });
+
       res.json({
         success: true,
-        data: {
-          stats,
-          lastUpdated: new Date().toISOString()
-        }
+        data: stats
       });
 
     } catch (error) {
-      logger.error('❌ Error obteniendo estadísticas generales de nómina', error);
+      logger.error('❌ Error obteniendo estadísticas del dashboard', error);
       res.status(500).json({
         success: false,
         error: error.message,
-        details: 'Error interno del servidor obteniendo estadísticas generales'
+        details: 'Error interno del servidor obteniendo estadísticas'
       });
     }
   }
