@@ -30,10 +30,20 @@ class GeneralPayrollService {
         userId
       });
 
-      // 1. Validar que no exista nómina general para el período
+      // 1. Verificar si ya existe nómina general para el período
       const existingPayroll = await GeneralPayroll.findByPeriod(startDate, endDate);
       if (existingPayroll) {
-        throw new Error('Ya existe una nómina general para este período');
+        logger.info('ℹ️ Nómina general ya existe para este período, devolviendo la existente', {
+          existingPayrollId: existingPayroll.id,
+          period: `${startDate} - ${endDate}`
+        });
+        
+        // Devolver la nómina existente en lugar de fallar
+        return {
+          ...existingPayroll,
+          configWarnings: [],
+          isExisting: true
+        };
       }
 
       // 2. Obtener y validar empleados activos

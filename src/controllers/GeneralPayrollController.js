@@ -56,9 +56,14 @@ class GeneralPayrollController {
         includeBonuses: options.includeBonuses || false
       }, userId);
 
-      res.status(201).json({
+      const statusCode = result.isExisting ? 200 : 201;
+      const message = result.isExisting 
+        ? 'Nómina general existente encontrada' 
+        : 'Nómina general creada exitosamente';
+
+      res.status(statusCode).json({
         success: true,
-        message: 'Nómina general creada exitosamente',
+        message: message,
         data: {
           id: result.id,
           period: result.period,
@@ -69,7 +74,8 @@ class GeneralPayrollController {
             employee: emp.employee,
             status: emp.status
           })),
-          warnings: result.configWarnings || []
+          warnings: result.configWarnings || [],
+          isExisting: result.isExisting || false
         }
       });
 
