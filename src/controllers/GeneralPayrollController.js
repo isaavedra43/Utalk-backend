@@ -647,7 +647,119 @@ class GeneralPayrollController {
   }
 
   /**
-   * Obtener estadísticas de nómina general
+   * Obtener estadísticas generales de nómina para dashboard
+   * GET /api/payroll/general/stats
+   */
+  static async getDashboardStats(req, res) {
+    try {
+      logger.info('📊 Obteniendo estadísticas generales de nómina para dashboard');
+
+      // Obtener todos los períodos de nómina general
+      const { db } = require('../config/firebase');
+      const payrollSnapshot = await db.collection('generalPayroll').get();
+      const payrolls = [];
+      
+      payrollSnapshot.forEach(doc => {
+        payrolls.push({ id: doc.id, ...doc.data() });
+      });
+
+      // Obtener todos los empleados activos
+      const employeesSnapshot = await db.collection('employees').where('status', '==', 'active').get();
+      const employees = [];
+      
+      employeesSnapshot.forEach(doc => {
+        employees.push({ id: doc.id, ...doc.data() });
+      });
+
+      // Calcular métricas generales
+      const totalEmployees = employees.length;
+      const totalPayrolls = payrolls.length;
+      
+      // Calcular totales financieros
+      const totalGrossSalary = payrolls.reduce((sum, p) => sum + (p.totals?.totalGrossSalary || 0), 0);
+      const totalDeductions = payrolls.reduce((sum, p) => sum + (p.totals?.totalDeductions || 0), 0);
+      const totalNetSalary = payrolls.reduce((sum, p) => sum + (p.totals?.totalNetSalary || 0), 0);
+
+      // Agrupar por estado
+      const byStatus = payrolls.reduce((acc, payroll) => {
+        const status = payroll.status || 'draft';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      // Calcular períodos pendientes
+      const pendingPayrolls = payrolls.filter(p => p.status === 'draft' || p.status === 'calculated');
+      const approvedPayrolls = payrolls.filter(p => p.status === 'approved');
+      const closedPayrolls = payrolls.filter(p => p.status === 'closed');
+
+      // Calcular horas extra pendientes (simulado)
+      const pendingOvertimeHours = payrolls
+        .filter(p => p.status === 'draft' || p.status === 'calculated')
+        .reduce((sum, p) => sum + (p.totals?.totalOvertime || 0), 0);
+
+      // Calcular incidencias del período (simulado)
+      const periodIncidents = payrolls
+        .filter(p => p.status === 'draft' || p.status === 'calculated')
+        .reduce((sum, p) => sum + (p.totals?.totalEmployees || 0), 0);
+
+      const stats = {
+        // Métricas principales
+        totalEmployees,
+        totalPayrolls,
+        pendingPayrolls: pendingPayrolls.length,
+        approvedPayrolls: approvedPayrolls.length,
+        closedPayrolls: closedPayrolls.length,
+        
+        // Métricas financieras
+        totalGrossSalary,
+        totalDeductions,
+        totalNetSalary,
+        averageGrossSalary: totalPayrolls > 0 ? totalGrossSalary / totalPayrolls : 0,
+        averageNetSalary: totalPayrolls > 0 ? totalNetSalary / totalPayrolls : 0,
+        
+        // Métricas específicas del dashboard
+        pendingOvertimeHours: Math.round(pendingOvertimeHours),
+        periodIncidents,
+        
+        // Distribución por estado
+        byStatus,
+        
+        // Métricas adicionales
+        completionRate: totalPayrolls > 0 ? Math.round((closedPayrolls.length / totalPayrolls) * 100) : 0,
+        averageProcessingTime: totalPayrolls > 0 ? 2.5 : 0, // días promedio (simulado)
+        
+        // Resumen por período
+        currentPeriod: {
+          year: new Date().getFullYear(),
+          month: new Date().getMonth() + 1,
+          totalGenerated: payrolls.filter(p => {
+            const payrollDate = new Date(p.createdAt);
+            return payrollDate.getFullYear() === new Date().getFullYear() && 
+                   payrollDate.getMonth() === new Date().getMonth();
+          }).length
+        }
+      };
+
+      res.json({
+        success: true,
+        data: {
+          stats,
+          lastUpdated: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo estadísticas generales de nómina', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor obteniendo estadísticas generales'
+      });
+    }
+  }
+
+  /**
+   * Obtener estadísticas de nómina general específica
    * GET /api/payroll/general/:id/stats
    */
   static async getGeneralPayrollStats(req, res) {

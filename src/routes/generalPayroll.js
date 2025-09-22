@@ -158,7 +158,18 @@ router.get('/:id/individual-payrolls',
 );
 
 /**
- * Obtener estadísticas de nómina general
+ * Obtener estadísticas generales de nómina para dashboard
+ * GET /api/payroll/general/stats
+ * Requiere: admin, superadmin
+ */
+router.get('/stats', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  GeneralPayrollController.getDashboardStats
+);
+
+/**
+ * Obtener estadísticas de nómina general específica
  * GET /api/payroll/general/:id/stats
  * Requiere: admin, superadmin, agent
  */
