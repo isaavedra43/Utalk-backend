@@ -706,12 +706,9 @@ class GeneralPayrollController {
       };
 
       // Formatear empleados para el frontend según especificaciones
-      // Política: CALCULAR SIEMPRE desde datos reales (simulación determinística) y luego persistir.
+      // Política: CALCULAR SIEMPRE desde datos reales (simulación determinística) y responder con eso.
       const formattedEmployees = await Promise.all(employees.map(async (emp) => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
-
-        // Buscar en nómina general (fuente de verdad)
-        let employeeInGeneral = generalPayroll.employees.find(e => e.employeeId === emp.employeeId);
 
         // 1) Recalcular SIEMPRE con datos reales del período
         let originalGross = 0;
@@ -724,59 +721,11 @@ class GeneralPayrollController {
           };
 
           const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
+          // Tomar SIEMPRE los montos de la simulación para la respuesta
+          originalGross = simulation.gross || 0;
+          originalNet = simulation.net || 0;
 
-            // Asegurar entrada en generalPayroll.employees
-            if (!employeeInGeneral) {
-              employeeInGeneral = {
-                employeeId: emp.employeeId,
-                employee: emp.employee || {},
-                status: 'pending'
-              };
-              generalPayroll.employees = [...(generalPayroll.employees || []), employeeInGeneral];
-            }
-
-          // Actualizar campos con datos reales
-          employeeInGeneral.baseSalary = simulation.base || 0;
-          employeeInGeneral.overtime = simulation.overtime || 0;
-          employeeInGeneral.bonuses = simulation.bonuses || 0;
-          employeeInGeneral.deductions = simulation.deductions || 0;
-          employeeInGeneral.taxes = simulation.taxes || 0;
-          employeeInGeneral.grossSalary = simulation.gross || 0;
-          employeeInGeneral.netSalary = simulation.net || 0;
-          employeeInGeneral.includedExtras = simulation.includedExtras || [];
-
-          originalGross = employeeInGeneral.grossSalary;
-          originalNet = employeeInGeneral.netSalary;
-
-          // 2) Persistir (best-effort)
-          try {
-            if (typeof generalPayroll.calculateTotals === 'function') {
-              generalPayroll.calculateTotals();
-            }
-            await generalPayroll.save();
-          } catch (persistError) {
-            logger.error('❌ Error guardando nómina general tras recalcular', persistError);
-          }
-
-          try {
-            const gpEmp = await GeneralPayrollEmployee.findByEmployeeAndGeneral(emp.employeeId, generalPayroll.id);
-            if (gpEmp) {
-              gpEmp.baseSalary = employeeInGeneral.baseSalary;
-              gpEmp.overtime = employeeInGeneral.overtime;
-              gpEmp.bonuses = employeeInGeneral.bonuses;
-              gpEmp.deductions = employeeInGeneral.deductions;
-              gpEmp.taxes = employeeInGeneral.taxes;
-              gpEmp.grossSalary = employeeInGeneral.grossSalary;
-              gpEmp.netSalary = employeeInGeneral.netSalary;
-              gpEmp.includedExtras = employeeInGeneral.includedExtras;
-              gpEmp.updatedAt = new Date().toISOString();
-              await gpEmp.save();
-            }
-          } catch (persistEmpError) {
-            logger.error('❌ Error guardando GeneralPayrollEmployee tras recalcular', persistEmpError);
-          }
-
-          logger.info('✅ Datos usados para aprobación (recalculados)', {
+          logger.info('✅ Aprobación usando datos de simulación', {
             employeeId: emp.employeeId,
             originalGross,
             originalNet
