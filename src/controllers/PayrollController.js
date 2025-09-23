@@ -952,6 +952,7 @@ class PayrollController {
         includeBonuses: options.includeBonuses !== false,
         includeAbsencesAndLates: options.includeAbsencesAndLates !== false,
         includeEmployerContribs: options.includeEmployerContribs || false,
+        includeTaxes: options.includeTaxes !== undefined ? options.includeTaxes : false, // POR DEFECTO SIN IMPUESTOS
         taxRulesVersion: options.taxRulesVersion || 'MX_2025_09',
         overtimePolicyId: options.overtimePolicyId || 'default',
         roundingMode: options.roundingMode || 'HALF_UP',
@@ -959,6 +960,11 @@ class PayrollController {
         timezone: options.timezone || 'America/Mexico_City',
         previewOnly: options.previewOnly !== false
       };
+
+      logger.info('⚙️ Opciones de simulación configuradas', {
+        traceId,
+        simulationOptions
+      });
 
       // 4. Procesar cada empleado
       const employeeResults = [];
@@ -1323,10 +1329,24 @@ class PayrollController {
       roundingMode
     );
 
-    // 5. Deducciones fiscales
-    const taxDeductions = PayrollController.calculateTaxDeductions(
-      grossAmount, employee, config, options
-    );
+    // 5. Deducciones fiscales - RESPETAR configuración de impuestos
+    let taxDeductions = 0;
+    if (options.includeTaxes) {
+      taxDeductions = PayrollController.calculateTaxDeductions(
+        grossAmount, employee, config, options
+      );
+      logger.info('💸 Impuestos calculados', {
+        employeeId: employee.id,
+        grossAmount,
+        taxDeductions,
+        includeTaxes: options.includeTaxes
+      });
+    } else {
+      logger.info('🚫 Impuestos deshabilitados', {
+        employeeId: employee.id,
+        includeTaxes: options.includeTaxes
+      });
+    }
 
     // 6. Deducciones internas - USAR calculatedAmount
     const internalDeductions = PayrollController.round(

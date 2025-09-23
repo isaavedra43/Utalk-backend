@@ -1186,6 +1186,272 @@ class GeneralPayrollService {
       throw error;
     }
   }
+
+  // ================================
+  // GESTIÓN DE IMPUESTOS
+  // ================================
+
+  /**
+   * Toggle global de impuestos para toda la nómina
+   */
+  static async toggleGlobalTaxes(payrollId, taxesEnabled, userId) {
+    try {
+      logger.info('🏛️ Aplicando toggle global de impuestos', {
+        payrollId,
+        taxesEnabled,
+        userId
+      });
+
+      // 1. Obtener nómina general
+      const generalPayroll = await GeneralPayroll.findById(payrollId);
+      if (!generalPayroll) {
+        throw new Error('Nómina general no encontrada');
+      }
+
+      // 2. Actualizar configuración global de impuestos
+      generalPayroll.taxesConfiguration = generalPayroll.taxesConfiguration || {};
+      generalPayroll.taxesConfiguration.globalTaxesEnabled = taxesEnabled;
+      generalPayroll.taxesConfiguration.updatedAt = new Date().toISOString();
+      generalPayroll.taxesConfiguration.updatedBy = userId;
+
+      // 3. Recalcular todos los empleados con nueva configuración
+      const updatedEmployees = [];
+      for (const employee of generalPayroll.employees) {
+        // Verificar si el empleado tiene override individual
+        const hasIndividualOverride = generalPayroll.taxesConfiguration.employeeOverrides && 
+                                    generalPayroll.taxesConfiguration.employeeOverrides[employee.employeeId];
+        
+        // Si no tiene override, usar configuración global
+        if (!hasIndividualOverride) {
+          const newCalculations = await this.recalculateEmployeeWithTaxes(
+            employee, taxesEnabled, generalPayroll.period
+          );
+          
+          // Actualizar datos del empleado
+          Object.assign(employee, newCalculations);
+          updatedEmployees.push(employee.employeeId);
+        }
+      }
+
+      // 4. Recalcular totales
+      generalPayroll.calculateTotals();
+      await generalPayroll.save();
+
+      // 5. Actualizar empleados en colección separada
+      const employeePromises = updatedEmployees.map(async (employeeId) => {
+        const generalPayrollEmployee = await GeneralPayrollEmployee.findByEmployeeAndGeneral(
+          employeeId, payrollId
+        );
+        if (generalPayrollEmployee) {
+          const employeeData = generalPayroll.employees.find(e => e.employeeId === employeeId);
+          if (employeeData) {
+            Object.assign(generalPayrollEmployee, employeeData);
+            await generalPayrollEmployee.save();
+          }
+        }
+      });
+      await Promise.all(employeePromises);
+
+      logger.info('✅ Toggle global de impuestos aplicado', {
+        payrollId,
+        taxesEnabled,
+        affectedEmployees: updatedEmployees.length,
+        newTotals: generalPayroll.totals
+      });
+
+      return {
+        taxesEnabled,
+        affectedEmployees: updatedEmployees.length,
+        totals: generalPayroll.totals,
+        updatedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('❌ Error en toggle global de impuestos', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Toggle individual de impuestos para un empleado específico
+   */
+  static async toggleEmployeeTaxes(payrollId, employeeId, taxesEnabled, userId) {
+    try {
+      logger.info('👤 Aplicando toggle individual de impuestos', {
+        payrollId,
+        employeeId,
+        taxesEnabled,
+        userId
+      });
+
+      // 1. Obtener nómina general
+      const generalPayroll = await GeneralPayroll.findById(payrollId);
+      if (!generalPayroll) {
+        throw new Error('Nómina general no encontrada');
+      }
+
+      // 2. Encontrar empleado
+      const employee = generalPayroll.employees.find(emp => emp.employeeId === employeeId);
+      if (!employee) {
+        throw new Error('Empleado no encontrado en la nómina general');
+      }
+
+      // 3. Configurar override individual
+      generalPayroll.taxesConfiguration = generalPayroll.taxesConfiguration || {};
+      generalPayroll.taxesConfiguration.employeeOverrides = generalPayroll.taxesConfiguration.employeeOverrides || {};
+      generalPayroll.taxesConfiguration.employeeOverrides[employeeId] = taxesEnabled;
+      generalPayroll.taxesConfiguration.updatedAt = new Date().toISOString();
+      generalPayroll.taxesConfiguration.updatedBy = userId;
+
+      // 4. Recalcular empleado específico
+      const newCalculations = await this.recalculateEmployeeWithTaxes(
+        employee, taxesEnabled, generalPayroll.period
+      );
+
+      // 5. Actualizar datos del empleado
+      Object.assign(employee, newCalculations);
+
+      // 6. Recalcular totales
+      generalPayroll.calculateTotals();
+      await generalPayroll.save();
+
+      // 7. Actualizar empleado en colección separada
+      const generalPayrollEmployee = await GeneralPayrollEmployee.findByEmployeeAndGeneral(
+        employeeId, payrollId
+      );
+      if (generalPayrollEmployee) {
+        Object.assign(generalPayrollEmployee, employee);
+        await generalPayrollEmployee.save();
+      }
+
+      logger.info('✅ Toggle individual de impuestos aplicado', {
+        payrollId,
+        employeeId,
+        taxesEnabled,
+        newCalculations
+      });
+
+      return {
+        taxesEnabled,
+        employee: {
+          id: employee.employeeId,
+          name: employee.employee.name,
+          position: employee.employee.position
+        },
+        calculations: {
+          baseSalary: employee.baseSalary,
+          overtime: employee.overtime,
+          bonuses: employee.bonuses,
+          taxes: employee.taxes,
+          deductions: employee.deductions,
+          grossSalary: employee.grossSalary,
+          netSalary: employee.netSalary
+        },
+        updatedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('❌ Error en toggle individual de impuestos', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener configuración actual de impuestos
+   */
+  static async getTaxesConfiguration(payrollId) {
+    try {
+      const generalPayroll = await GeneralPayroll.findById(payrollId);
+      if (!generalPayroll) {
+        throw new Error('Nómina general no encontrada');
+      }
+
+      const taxesConfig = generalPayroll.taxesConfiguration || {};
+
+      return {
+        payrollId,
+        globalTaxesEnabled: taxesConfig.globalTaxesEnabled || false,
+        employeeOverrides: taxesConfig.employeeOverrides || {},
+        updatedAt: taxesConfig.updatedAt || null,
+        updatedBy: taxesConfig.updatedBy || null,
+        employees: generalPayroll.employees.map(emp => ({
+          employeeId: emp.employeeId,
+          name: emp.employee.name,
+          hasOverride: !!(taxesConfig.employeeOverrides && taxesConfig.employeeOverrides[emp.employeeId]),
+          taxesEnabled: this.isEmployeeTaxesEnabled(emp.employeeId, taxesConfig),
+          currentTaxes: emp.taxes || 0
+        }))
+      };
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo configuración de impuestos', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verificar si los impuestos están habilitados para un empleado específico
+   */
+  static isEmployeeTaxesEnabled(employeeId, taxesConfig) {
+    // Prioridad: Override individual > Configuración global
+    if (taxesConfig.employeeOverrides && taxesConfig.employeeOverrides.hasOwnProperty(employeeId)) {
+      return taxesConfig.employeeOverrides[employeeId];
+    }
+    
+    return taxesConfig.globalTaxesEnabled || false;
+  }
+
+  /**
+   * Recalcular empleado con nueva configuración de impuestos
+   */
+  static async recalculateEmployeeWithTaxes(employee, taxesEnabled, period) {
+    try {
+      // Mantener valores base (no cambian)
+      const baseSalary = employee.baseSalary;
+      const overtime = employee.overtime;
+      const bonuses = employee.bonuses;
+      const deductions = employee.deductions; // Deducciones internas (no impuestos)
+
+      // Calcular salario bruto
+      const grossSalary = baseSalary + overtime + bonuses;
+
+      // Calcular impuestos según configuración
+      let taxes = 0;
+      if (taxesEnabled) {
+        taxes = this.calculateSimplifiedTaxes(grossSalary);
+      }
+
+      // Calcular salario neto
+      const netSalary = Math.max(0, grossSalary - deductions - taxes);
+
+      logger.info('💰 Recálculo con impuestos', {
+        employeeId: employee.employeeId,
+        taxesEnabled,
+        baseSalary,
+        overtime,
+        bonuses,
+        deductions,
+        taxes,
+        grossSalary,
+        netSalary
+      });
+
+      return {
+        baseSalary,
+        overtime,
+        bonuses,
+        deductions,
+        taxes,
+        grossSalary,
+        netSalary,
+        updatedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('❌ Error recalculando empleado con impuestos', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = GeneralPayrollService;

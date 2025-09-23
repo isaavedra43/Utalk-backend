@@ -143,6 +143,45 @@ router.post('/:id/employee/:employeeId/mark-paid',
 );
 
 // ================================
+// GESTIÓN DE IMPUESTOS
+// ================================
+
+/**
+ * Toggle global de impuestos para toda la nómina
+ * PUT /api/payroll/general/:id/taxes/global
+ * Body: { taxesEnabled: boolean }
+ * Requiere: admin, superadmin
+ */
+router.put('/:id/taxes/global', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  GeneralPayrollController.toggleGlobalTaxes
+);
+
+/**
+ * Toggle individual de impuestos para un empleado específico
+ * PUT /api/payroll/general/:id/employee/:employeeId/taxes
+ * Body: { taxesEnabled: boolean }
+ * Requiere: admin, superadmin
+ */
+router.put('/:id/employee/:employeeId/taxes', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin']), 
+  GeneralPayrollController.toggleEmployeeTaxes
+);
+
+/**
+ * Obtener configuración actual de impuestos
+ * GET /api/payroll/general/:id/taxes/configuration
+ * Requiere: admin, superadmin, agent
+ */
+router.get('/:id/taxes/configuration', 
+  authMiddleware, 
+  requireRole(['admin', 'superadmin', 'agent']), 
+  GeneralPayrollController.getTaxesConfiguration
+);
+
+// ================================
 // ENDPOINTS ESPECÍFICOS PARA FRONTEND
 // ================================
 

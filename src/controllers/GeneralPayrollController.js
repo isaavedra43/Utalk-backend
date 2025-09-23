@@ -298,6 +298,140 @@ class GeneralPayrollController {
     }
   }
 
+  // ================================
+  // GESTIÓN DE IMPUESTOS
+  // ================================
+
+  /**
+   * Toggle global de impuestos para toda la nómina
+   * PUT /api/payroll/general/:id/taxes/global
+   */
+  static async toggleGlobalTaxes(req, res) {
+    try {
+      const { id } = req.params;
+      const { taxesEnabled } = req.body;
+      const userId = req.user?.id || 'system';
+
+      logger.info('🏛️ Toggle global de impuestos', { 
+        payrollId: id, 
+        taxesEnabled, 
+        userId 
+      });
+
+      // Validar entrada
+      if (typeof taxesEnabled !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'El campo taxesEnabled debe ser un booleano'
+        });
+      }
+
+      const result = await GeneralPayrollService.toggleGlobalTaxes(id, taxesEnabled, userId);
+
+      res.json({
+        success: true,
+        message: `Impuestos ${taxesEnabled ? 'habilitados' : 'deshabilitados'} globalmente`,
+        data: {
+          payrollId: id,
+          taxesEnabled: result.taxesEnabled,
+          affectedEmployees: result.affectedEmployees,
+          newTotals: result.totals,
+          updatedAt: result.updatedAt
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error en toggle global de impuestos', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor'
+      });
+    }
+  }
+
+  /**
+   * Toggle individual de impuestos para un empleado específico
+   * PUT /api/payroll/general/:id/employee/:employeeId/taxes
+   */
+  static async toggleEmployeeTaxes(req, res) {
+    try {
+      const { id, employeeId } = req.params;
+      const { taxesEnabled } = req.body;
+      const userId = req.user?.id || 'system';
+
+      logger.info('👤 Toggle individual de impuestos', { 
+        payrollId: id, 
+        employeeId, 
+        taxesEnabled, 
+        userId 
+      });
+
+      // Validar entrada
+      if (typeof taxesEnabled !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'El campo taxesEnabled debe ser un booleano'
+        });
+      }
+
+      const result = await GeneralPayrollService.toggleEmployeeTaxes(
+        id, employeeId, taxesEnabled, userId
+      );
+
+      res.json({
+        success: true,
+        message: `Impuestos ${taxesEnabled ? 'habilitados' : 'deshabilitados'} para empleado`,
+        data: {
+          payrollId: id,
+          employeeId: employeeId,
+          taxesEnabled: result.taxesEnabled,
+          employee: result.employee,
+          newCalculations: result.calculations,
+          updatedAt: result.updatedAt
+        }
+      });
+
+    } catch (error) {
+      logger.error('❌ Error en toggle individual de impuestos', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor'
+      });
+    }
+  }
+
+  /**
+   * Obtener configuración actual de impuestos
+   * GET /api/payroll/general/:id/taxes/configuration
+   */
+  static async getTaxesConfiguration(req, res) {
+    try {
+      const { id } = req.params;
+
+      logger.info('📋 Obteniendo configuración de impuestos', { payrollId: id });
+
+      const configuration = await GeneralPayrollService.getTaxesConfiguration(id);
+
+      res.json({
+        success: true,
+        message: 'Configuración de impuestos obtenida exitosamente',
+        data: configuration
+      });
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo configuración de impuestos', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Error interno del servidor'
+      });
+    }
+  }
+
   /**
    * Cerrar nómina general y generar individuales
    * POST /api/payroll/general/:id/close

@@ -46,6 +46,14 @@ class GeneralPayroll {
     this.closedBy = data.closedBy || null;
     this.closedAt = data.closedAt || null;
     
+    // Configuración de impuestos
+    this.taxesConfiguration = data.taxesConfiguration || {
+      globalTaxesEnabled: false, // Por defecto SIN impuestos
+      employeeOverrides: {}, // Overrides individuales por empleado
+      updatedAt: null,
+      updatedBy: null
+    };
+    
     // Notas adicionales
     this.notes = data.notes || '';
   }
@@ -100,6 +108,7 @@ class GeneralPayroll {
       status: this.status,
       employees: this.employees,
       totals: this.totals,
+      taxesConfiguration: this.taxesConfiguration,
       createdBy: this.createdBy,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
