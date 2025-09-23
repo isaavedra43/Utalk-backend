@@ -1185,24 +1185,29 @@ class PayrollController {
         payrollConfig = configDoc.docs[0].data();
       }
 
-      // 2. Obtener extras pendientes si están habilitados
+      // 2. Obtener extras aprobados usando el servicio correcto
       let extras = [];
       if (options.includeExtras) {
-        const extrasSnapshot = await db.collection('payrollExtras')
-          .where('employeeId', '==', employee.id)
-          .where('status', '==', 'pending')
-          .get();
-        
-        extrasSnapshot.forEach(doc => {
-          const extra = doc.data();
-          // Verificar si el extra está en el período
-          const extraDate = new Date(extra.date);
-          const periodStart = new Date(period.startDate);
-          const periodEnd = new Date(period.endDate);
-          
-          if (extraDate >= periodStart && extraDate <= periodEnd) {
-            extras.push(extra);
-          }
+        logger.info('🔍 Buscando extras aprobados para empleado', {
+          employeeId: employee.id,
+          traceId
+        });
+
+        // Usar el servicio correcto que ya funciona
+        extras = await PayrollService.getExtrasForPeriod(
+          employee.id, period.startDate, period.endDate
+        );
+
+        logger.info('📊 Extras encontrados para simulación', {
+          employeeId: employee.id,
+          extrasCount: extras.length,
+          extrasDetails: extras.map(e => ({
+            id: e.id,
+            type: e.type,
+            amount: e.calculatedAmount || e.amount,
+            status: e.status
+          })),
+          traceId
         });
       }
 
@@ -1250,6 +1255,14 @@ class PayrollController {
   static calculateEmployeeComponents(employee, config, extras, period, options) {
     const roundingMode = options.roundingMode || 'HALF_UP';
     
+    logger.info('🧮 Iniciando cálculo de componentes', {
+      employeeId: employee.id,
+      employeeName: `${employee.personalInfo?.firstName} ${employee.personalInfo?.lastName}`,
+      extrasCount: extras.length,
+      extrasTypes: extras.map(e => e.type),
+      extrasAmounts: extras.map(e => ({ type: e.type, amount: e.calculatedAmount || e.amount }))
+    });
+    
     // 1. Salario base prorrateado
     const baseSalary = employee.contract?.salary || 0;
     const workingDaysInPeriod = PayrollController.calculateWorkingDaysInPeriod(period, employee);
@@ -1259,21 +1272,50 @@ class PayrollController {
       roundingMode
     );
 
-    // 2. Horas extra
+    logger.info('💰 Salario base calculado', {
+      employeeId: employee.id,
+      baseSalary,
+      workingDaysInPeriod,
+      workingDaysInMonth,
+      baseAmount
+    });
+
+    // 2. Horas extra - USAR calculatedAmount que incluye multiplicadores
+    const overtimeExtras = extras.filter(extra => extra.type === 'overtime');
     const overtimeAmount = PayrollController.round(
-      extras
-        .filter(extra => extra.type === 'overtime')
-        .reduce((sum, extra) => sum + (extra.amount || 0), 0),
+      overtimeExtras.reduce((sum, extra) => sum + (extra.calculatedAmount || extra.amount || 0), 0),
       roundingMode
     );
 
+    logger.info('⏰ Horas extra calculadas', {
+      employeeId: employee.id,
+      overtimeExtrasCount: overtimeExtras.length,
+      overtimeExtras: overtimeExtras.map(e => ({
+        id: e.id,
+        hours: e.hours,
+        amount: e.calculatedAmount || e.amount,
+        type: e.overtimeType
+      })),
+      overtimeAmount
+    });
+
     // 3. Bonos
+    const bonusExtras = extras.filter(extra => extra.type === 'bonus');
     const bonusesAmount = PayrollController.round(
-      extras
-        .filter(extra => extra.type === 'bonus')
-        .reduce((sum, extra) => sum + (extra.amount || 0), 0),
+      bonusExtras.reduce((sum, extra) => sum + (extra.calculatedAmount || extra.amount || 0), 0),
       roundingMode
     );
+
+    logger.info('🎁 Bonos calculados', {
+      employeeId: employee.id,
+      bonusExtrasCount: bonusExtras.length,
+      bonusExtras: bonusExtras.map(e => ({
+        id: e.id,
+        amount: e.calculatedAmount || e.amount,
+        type: e.bonusType
+      })),
+      bonusesAmount
+    });
 
     // 4. Total bruto
     const grossAmount = PayrollController.round(
@@ -1286,11 +1328,11 @@ class PayrollController {
       grossAmount, employee, config, options
     );
 
-    // 6. Deducciones internas
+    // 6. Deducciones internas - USAR calculatedAmount
     const internalDeductions = PayrollController.round(
       extras
-        .filter(extra => extra.type === 'deduction')
-        .reduce((sum, extra) => sum + (extra.amount || 0), 0),
+        .filter(extra => extra.type === 'deduction' || extra.type === 'absence' || extra.type === 'loan' || extra.type === 'damage')
+        .reduce((sum, extra) => sum + (extra.calculatedAmount || extra.amount || 0), 0),
       roundingMode
     );
 

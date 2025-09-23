@@ -318,26 +318,48 @@ class PayrollService {
    */
   static async getExtrasForPeriod(employeeId, periodStart, periodEnd) {
     try {
-      // Buscar todos los extras del empleado que se superponen con el período
+      logger.info('🔍 Buscando extras para empleado', {
+        employeeId,
+        period: `${periodStart} - ${periodEnd}`
+      });
+
+      // Buscar todos los extras del empleado
       const allExtras = await PayrollMovement.findByEmployee(employeeId);
       
-      const periodStartDate = new Date(periodStart);
-      const periodEndDate = new Date(periodEnd);
+      logger.info('📊 Extras encontrados en base de datos', {
+        totalExtras: allExtras.length,
+        extrasByStatus: allExtras.reduce((acc, extra) => {
+          acc[extra.status] = (acc[extra.status] || 0) + 1;
+          return acc;
+        }, {}),
+        extrasDetails: allExtras.map(e => ({
+          id: e.id,
+          type: e.type,
+          status: e.status,
+          amount: e.calculatedAmount || e.amount,
+          appliedToPayroll: e.appliedToPayroll,
+          date: e.date
+        }))
+      });
 
       const applicableExtras = allExtras.filter(extra => {
         // CRÍTICO: Solo incluir extras aprobados y NO aplicados a nómina
-        // NO importa el período - incluir TODOS los extras no aplicados
-        if (extra.status !== 'approved' || extra.appliedToPayroll === true) {
+        const isApproved = extra.status === 'approved';
+        const notApplied = extra.appliedToPayroll !== true;
+        
+        if (!isApproved || !notApplied) {
           logger.debug('❌ Extra excluido', {
             extraId: extra.id,
+            type: extra.type,
             status: extra.status,
             appliedToPayroll: extra.appliedToPayroll,
-            reason: extra.status !== 'approved' ? 'no_approved' : 'already_applied'
+            amount: extra.calculatedAmount || extra.amount,
+            reason: !isApproved ? 'no_approved' : 'already_applied'
           });
           return false;
         }
 
-        logger.info('✅ Extra incluido', {
+        logger.info('✅ Extra incluido en simulación', {
           extraId: extra.id,
           type: extra.type,
           amount: extra.calculatedAmount || extra.amount,
@@ -346,21 +368,22 @@ class PayrollService {
           appliedToPayroll: extra.appliedToPayroll
         });
 
-        // INCLUIR TODOS los extras aprobados y no aplicados
-        // Sin restricción de período como lo solicita el usuario
         return true;
       });
 
-      logger.info('🔍 Filtrado de extras detallado', {
+      logger.info('🔍 Resultado final del filtrado de extras', {
         employeeId,
         totalExtras: allExtras.length,
         applicableExtras: applicableExtras.length,
-        extrasByStatus: allExtras.reduce((acc, extra) => {
-          acc[extra.status] = (acc[extra.status] || 0) + 1;
-          return acc;
-        }, {}),
-        extrasApplied: allExtras.filter(e => e.appliedToPayroll).length,
-        period: `${periodStart} - ${periodEnd}`
+        extrasApplied: allExtras.filter(e => e.appliedToPayroll === true).length,
+        extrasPending: allExtras.filter(e => e.status === 'pending').length,
+        extrasApproved: allExtras.filter(e => e.status === 'approved').length,
+        period: `${periodStart} - ${periodEnd}`,
+        finalExtras: applicableExtras.map(e => ({
+          id: e.id,
+          type: e.type,
+          amount: e.calculatedAmount || e.amount
+        }))
       });
 
       logger.info('📋 Extras encontrados para período', {

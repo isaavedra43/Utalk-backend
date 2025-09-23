@@ -704,12 +704,15 @@ class GeneralPayrollService {
           employeeId
         });
         
-        // Crear configuración temporal para cálculo
+        // Obtener salario del contrato del empleado
+        const employeeContractSalary = employee.contract?.salary || employee.salary?.baseSalary || 12222;
+        
+        // Crear configuración temporal para cálculo usando datos reales
         config = {
-          baseSalary: 12000, // Salario por defecto
+          baseSalary: employeeContractSalary,
           frequency: 'monthly',
           calculateSalaryForPeriod: function() {
-            // Cálculo básico según frecuencia
+            // Cálculo básico según frecuencia usando salario real del empleado
             const daysInPeriod = this.calculateWorkingDaysInPeriod(period);
             const monthlySalary = this.baseSalary;
             return (monthlySalary / 30) * daysInPeriod;
@@ -721,6 +724,12 @@ class GeneralPayrollService {
             return Math.min(days, 7); // Máximo 7 días para períodos cortos
           }
         };
+        
+        logger.info('✅ Configuración temporal creada con salario real', {
+          employeeId,
+          contractSalary: employeeContractSalary,
+          configBaseSalary: config.baseSalary
+        });
         
         warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
       }
@@ -735,9 +744,26 @@ class GeneralPayrollService {
       const baseSalary = config.calculateSalaryForPeriod();
 
       // 4. Obtener extras pendientes del período
+      logger.info('🔍 Obteniendo extras para simulación', {
+        employeeId,
+        period: `${period.startDate} - ${period.endDate}`
+      });
+      
       const pendingExtras = await PayrollService.getExtrasForPeriod(
         employeeId, period.startDate, period.endDate
       );
+
+      logger.info('📊 Extras obtenidos para simulación', {
+        employeeId,
+        extrasCount: pendingExtras.length,
+        extrasDetails: pendingExtras.map(e => ({
+          id: e.id,
+          type: e.type,
+          amount: e.calculatedAmount || e.amount,
+          status: e.status,
+          appliedToPayroll: e.appliedToPayroll
+        }))
+      });
 
       // 5. Separar percepciones y deducciones
       const perceptions = pendingExtras.filter(extra => {
@@ -748,6 +774,20 @@ class GeneralPayrollService {
       const deductions = pendingExtras.filter(extra => {
         const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
         return impactType === 'negative' || impactType === 'subtract';
+      });
+
+      logger.info('📈 Extras separados por tipo', {
+        employeeId,
+        perceptions: perceptions.length,
+        deductions: deductions.length,
+        perceptionsDetail: perceptions.map(e => ({
+          type: e.type,
+          amount: e.calculatedAmount || e.amount
+        })),
+        deductionsDetail: deductions.map(e => ({
+          type: e.type,
+          amount: e.calculatedAmount || e.amount
+        }))
       });
 
       // 6. Calcular totales
@@ -769,6 +809,18 @@ class GeneralPayrollService {
       const totalDeductionsWithTax = totalDeductions + taxes;
       const grossSalary = baseSalary + overtime + bonuses;
       const netSalary = Math.max(0, grossSalary - totalDeductionsWithTax);
+
+      logger.info('💰 Cálculos finales de simulación', {
+        employeeId,
+        baseSalary,
+        overtime,
+        bonuses,
+        totalDeductions,
+        taxes,
+        grossSalary,
+        netSalary,
+        totalExtrasUsed: pendingExtras.length
+      });
 
       // 8. Calcular asistencia (simplificado)
       const attendance = 100; // TODO: Integrar con módulo de asistencia
