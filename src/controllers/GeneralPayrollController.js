@@ -706,17 +706,16 @@ class GeneralPayrollController {
       };
 
       // Formatear empleados para el frontend según especificaciones
+      // Política: CALCULAR SIEMPRE desde datos reales (simulación determinística) y luego persistir.
       const formattedEmployees = await Promise.all(employees.map(async (emp) => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
 
         // Buscar en nómina general (fuente de verdad)
         let employeeInGeneral = generalPayroll.employees.find(e => e.employeeId === emp.employeeId);
 
-        // Valores iniciales
-        let originalGross = employeeInGeneral?.grossSalary || 0;
-        let originalNet = employeeInGeneral?.netSalary || 0;
-
         // 1) Recalcular SIEMPRE con datos reales del período
+        let originalGross = 0;
+        let originalNet = 0;
         try {
           const period = {
             startDate: generalPayroll.period?.startDate,
@@ -726,17 +725,17 @@ class GeneralPayrollController {
 
           const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
 
-          // Asegurar entrada en generalPayroll.employees
-          if (!employeeInGeneral) {
-            employeeInGeneral = {
-              employeeId: emp.employeeId,
-              employee: emp.employee || {},
-              status: 'pending'
-            };
-            generalPayroll.employees = [...(generalPayroll.employees || []), employeeInGeneral];
-          }
+            // Asegurar entrada en generalPayroll.employees
+            if (!employeeInGeneral) {
+              employeeInGeneral = {
+                employeeId: emp.employeeId,
+                employee: emp.employee || {},
+                status: 'pending'
+              };
+              generalPayroll.employees = [...(generalPayroll.employees || []), employeeInGeneral];
+            }
 
-          // Actualizar con datos reales
+          // Actualizar campos con datos reales
           employeeInGeneral.baseSalary = simulation.base || 0;
           employeeInGeneral.overtime = simulation.overtime || 0;
           employeeInGeneral.bonuses = simulation.bonuses || 0;
