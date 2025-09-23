@@ -773,7 +773,8 @@ class GeneralPayrollController {
           });
         }
 
-        const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
+        // Ajustes manuales (no extras)
+        const manualAdjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
 
         // Calcular componentes separados correctamente
         let baseSalaryOnly = 0;
@@ -812,6 +813,28 @@ class GeneralPayrollController {
           }
         }
 
+        // Obtener lista REAL de extras del período para mostrar detalle y estado correcto
+        let extrasList = [];
+        let extrasTotal = 0;
+        try {
+          const PayrollService = require('../services/PayrollService');
+          const periodStart = generalPayroll.period?.startDate;
+          const periodEnd = generalPayroll.period?.endDate;
+          extrasList = await PayrollService.getExtrasForPeriod(emp.employeeId, periodStart, periodEnd);
+          extrasTotal = extrasList.reduce((sum, e) => sum + (parseFloat(e.calculatedAmount || e.amount) || 0), 0);
+
+          // Alinear el monto de extras mostrado con la suma real encontrada
+          extrasAmount = extrasTotal || extrasAmount;
+        } catch (extrasErr) {
+          logger.warn('⚠️ No fue posible recuperar lista de extras; se usará resumen', {
+            employeeId: emp.employeeId,
+            error: extrasErr.message
+          });
+        }
+
+        // Total de ajustes a reflejar en la UI (extras reales + ajustes manuales)
+        const totalAdjustmentAmount = (extrasTotal || 0) + (manualAdjustmentAmount || 0);
+
         return {
           employeeId: emp.employeeId,
           name: emp.employee?.name || `${emp.employee?.firstName || ''} ${emp.employee?.lastName || ''}`.trim(),
@@ -821,15 +844,17 @@ class GeneralPayrollController {
             net: baseSalaryOnly     // Solo salario base
           },
           adjustments: [
-            // Incluir extras como "ajustes" para mostrar en la columna correcta
-            ...(extrasAmount > 0 ? [{
-              id: 'extras_summary',
-              type: 'extras',
-              concept: 'Horas Extra y Bonos',
-              amount: extrasAmount,
-              status: 'calculated',
+            // Extras reales del período con su estado y descripción
+            ...extrasList.map(extra => ({
+              id: extra.id,
+              type: extra.type,
+              concept: extra.description || extra.reason || (extra.type === 'overtime' ? 'Horas Extra' : 'Ajuste'),
+              amount: parseFloat(extra.calculatedAmount || extra.amount) || 0,
+              status: extra.status || 'approved',
+              approvedBy: extra.approvedBy || null,
+              approvedAt: extra.approvedAt || null,
               isExtras: true
-            }] : []),
+            })),
             // Ajustes manuales reales
             ...employeeAdjustments.map(adj => ({
               id: adj.id,
@@ -843,9 +868,10 @@ class GeneralPayrollController {
             }))
           ],
           finalPayroll: {
-            gross: originalGross + adjustmentAmount,  // Total final
-            net: originalNet + adjustmentAmount,      // Total final
-            difference: adjustmentAmount
+            // Total final = base + (extras + ajustes manuales)
+            gross: (baseSalaryOnly || 0) + totalAdjustmentAmount,
+            net: (baseSalaryOnly || 0) + totalAdjustmentAmount,
+            difference: totalAdjustmentAmount
           },
           status: emp.status,
           paymentStatus: emp.paymentStatus || 'pending',
