@@ -1192,6 +1192,18 @@ class GeneralPayrollService {
   // ================================
 
   /**
+   * Buscar nómina general por período
+   */
+  static async findByPeriod(startDate, endDate) {
+    try {
+      return await GeneralPayroll.findByPeriod(startDate, endDate);
+    } catch (error) {
+      logger.error('❌ Error buscando nómina por período', error);
+      throw error;
+    }
+  }
+
+  /**
    * Toggle global de impuestos para toda la nómina
    */
   static async toggleGlobalTaxes(payrollId, taxesEnabled, userId) {

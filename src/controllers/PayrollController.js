@@ -1,4 +1,5 @@
 const PayrollService = require('../services/PayrollService');
+const GeneralPayrollService = require('../services/GeneralPayrollService');
 const AttachmentService = require('../services/AttachmentService');
 const PayrollConfig = require('../models/PayrollConfig');
 const Payroll = require('../models/Payroll');
@@ -966,50 +967,131 @@ class PayrollController {
         simulationOptions
       });
 
-      // 4. Procesar cada empleado
-      const employeeResults = [];
-      const allWarnings = [];
-      
-      for (const employee of employees) {
-        try {
-          const employeeSimulation = await PayrollController.simulateEmployeePayroll(
-            employee, period, simulationOptions, traceId
-          );
-          employeeResults.push(employeeSimulation);
-          
-          if (employeeSimulation.warnings && employeeSimulation.warnings.length > 0) {
-            allWarnings.push(...employeeSimulation.warnings);
-          }
-        } catch (error) {
-          logger.warn('⚠️ Error simulando empleado', { 
-            employeeId: employee.id, error: error.message, traceId 
+      // 4. CREAR NÓMINA GENERAL REAL para la simulación
+      logger.info('🏗️ Creando nómina general para simulación', {
+        period,
+        employeesCount: employees.length,
+        traceId
+      });
+
+      // Crear o encontrar nómina general existente
+      let generalPayrollData;
+      try {
+        generalPayrollData = await GeneralPayrollService.createGeneralPayroll({
+          startDate: period.startDate,
+          endDate: period.endDate,
+          frequency: period.type,
+          includeEmployees: employees.map(emp => emp.id),
+          autoCalculate: true,
+          includeExtras: simulationOptions.includeExtras,
+          includeBonuses: simulationOptions.includeBonuses
+        }, userId);
+      } catch (error) {
+        // Si ya existe una nómina para este período, buscarla
+        if (error.message.includes('ya existe')) {
+          logger.info('📋 Nómina general ya existe, buscando existente', {
+            period: `${period.startDate} - ${period.endDate}`,
+            traceId
           });
           
-          // Continuar con otros empleados aunque uno falle
-          employeeResults.push({
-            employeeId: employee.id,
-            name: employee.personalInfo?.firstName ? 
-              `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}` : 
-              'Empleado desconocido',
-            position: employee.position?.title || 'Sin posición',
-            error: error.message,
-            components: {
-              base: 0,
-              overtime: 0,
-              bonuses: 0,
-              gross: 0,
-              deductions: { taxes: 0, internal: 0, total: 0 },
-              net: 0
+          // Buscar nómina existente por período
+          const existingPayroll = await GeneralPayrollService.findByPeriod(
+            period.startDate, period.endDate
+          );
+          
+          if (existingPayroll) {
+            generalPayrollData = existingPayroll;
+            logger.info('✅ Usando nómina general existente', {
+              generalPayrollId: existingPayroll.id,
+              status: existingPayroll.status
+            });
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
+        }
+      }
+
+      const generalPayrollId = generalPayrollData.id;
+
+      logger.info('✅ Nómina general creada para simulación', {
+        generalPayrollId,
+        status: generalPayrollData.status,
+        employeesCount: generalPayrollData.employees.length,
+        traceId
+      });
+
+      // 5. Procesar cada empleado (ya están calculados en la creación)
+      const employeeResults = [];
+      const allWarnings = generalPayrollData.configWarnings || [];
+      
+      for (const employeeData of generalPayrollData.employees) {
+        try {
+          // Formatear datos para respuesta del frontend
+          const employeeResult = {
+            employeeId: employeeData.employeeId,
+            name: employeeData.employee.name,
+            position: employeeData.employee.position,
+            currency: simulationOptions.currency,
+            contract: {
+              type: 'permanent',
+              baseMonthly: employeeData.baseSalary * (period.type === 'monthly' ? 1 : 
+                          period.type === 'biweekly' ? 2 : 4),
+              sbc: 42222 // TODO: Obtener SBC real
             },
-            warnings: [`Error procesando empleado: ${error.message}`]
+            components: {
+              base: employeeData.baseSalary,
+              overtime: employeeData.overtime,
+              bonuses: employeeData.bonuses,
+              gross: employeeData.grossSalary,
+              deductions: {
+                taxes: employeeData.taxes,
+                internal: employeeData.deductions,
+                total: employeeData.taxes + employeeData.deductions
+              },
+              net: employeeData.netSalary
+            },
+            breakdown: {
+              overtime: employeeData.includedExtras?.filter(e => e.type === 'overtime').map(e => ({
+                type: '1.5x',
+                hours: e.hours || 1,
+                amount: e.amount
+              })) || [],
+              taxes: [
+                { name: 'ISR', amount: Math.round(employeeData.taxes * 0.8) },
+                { name: 'IMSS', amount: Math.round(employeeData.taxes * 0.2) }
+              ],
+              bonuses: employeeData.includedExtras?.filter(e => e.type === 'bonus').map(e => ({
+                type: e.bonusType || 'performance',
+                amount: e.amount
+              })) || [],
+              deductionsInternal: employeeData.includedExtras?.filter(e => 
+                ['deduction', 'absence', 'loan', 'damage'].includes(e.type)
+              ).map(e => ({
+                type: e.type,
+                amount: e.amount
+              })) || []
+            },
+            warnings: employeeData.warnings || []
+          };
+
+          employeeResults.push(employeeResult);
+          
+          if (employeeResult.warnings && employeeResult.warnings.length > 0) {
+            allWarnings.push(...employeeResult.warnings);
+          }
+        } catch (error) {
+          logger.warn('⚠️ Error formateando empleado', { 
+            employeeId: employeeData.employeeId, error: error.message, traceId 
           });
         }
       }
 
-      // 5. Calcular totales
+      // 6. Calcular totales
       const summary = PayrollController.calculateSimulationSummary(employeeResults);
 
-      // 6. Generar respuesta
+      // 7. Generar respuesta
       const simulationId = `sim_${period.startDate.replace(/-/g, '_')}_${period.endDate.replace(/-/g, '_')}`;
       const computeMs = Date.now() - startTime;
 
@@ -1018,6 +1100,8 @@ class PayrollController {
         message: 'Simulación generada',
         simulation: {
           id: simulationId,
+          // INCLUIR ID REAL DE NÓMINA GENERAL para que el frontend pueda usarlo
+          generalPayrollId: generalPayrollId,
           period: {
             type: period.type,
             startDate: period.startDate,
@@ -1028,6 +1112,7 @@ class PayrollController {
             includeExtras: simulationOptions.includeExtras,
             includeBonuses: simulationOptions.includeBonuses,
             includeAbsencesAndLates: simulationOptions.includeAbsencesAndLates,
+            includeTaxes: simulationOptions.includeTaxes,
             currency: simulationOptions.currency,
             roundingMode: simulationOptions.roundingMode,
             taxRulesVersion: simulationOptions.taxRulesVersion
@@ -1038,7 +1123,15 @@ class PayrollController {
           },
           employees: employeeResults,
           generatedAt: new Date().toISOString(),
-          computeMs
+          computeMs,
+          // METADATA PARA EL FLUJO COMPLETO
+          payrollFlow: {
+            currentStep: 'simulation',
+            nextStep: 'adjustments',
+            canProceedToAdjustments: true,
+            generalPayrollId: generalPayrollId,
+            generalPayrollStatus: 'draft'
+          }
         },
         traceId
       };
