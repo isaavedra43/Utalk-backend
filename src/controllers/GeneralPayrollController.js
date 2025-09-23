@@ -706,41 +706,103 @@ class GeneralPayrollController {
       };
 
       // Formatear empleados para el frontend según especificaciones
-      const formattedEmployees = employees.map(emp => {
+      const formattedEmployees = await Promise.all(employees.map(async (emp) => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
-        
-        // BUSCAR DATOS ACTUALIZADOS EN GENERAL PAYROLL (fuente de verdad)
-        const employeeInGeneral = generalPayroll.employees.find(e => e.employeeId === emp.employeeId);
-        
-        let originalGross, originalNet;
-        if (employeeInGeneral) {
-          // Usar datos de la nómina general (fuente de verdad)
-          originalGross = employeeInGeneral.grossSalary || 0;
-          originalNet = employeeInGeneral.netSalary || 0;
-          
-          logger.info('✅ Usando datos de nómina general para aprobación', {
-            employeeId: emp.employeeId,
-            employeeName: employeeInGeneral.employee?.name,
-            originalGross,
-            originalNet,
-            baseSalary: employeeInGeneral.baseSalary,
-            overtime: employeeInGeneral.overtime,
-            bonuses: employeeInGeneral.bonuses
-          });
+
+        // Buscar en nómina general (fuente de verdad)
+        let employeeInGeneral = generalPayroll.employees.find(e => e.employeeId === emp.employeeId);
+
+        // Valores iniciales
+        let originalGross = employeeInGeneral?.grossSalary || 0;
+        let originalNet = employeeInGeneral?.netSalary || 0;
+
+        // Si detectamos valores 0, recalculamos con datos reales y SINCRONIZAMOS
+        if (!employeeInGeneral || (originalGross === 0 && originalNet === 0)) {
+          try {
+            logger.warn('♻️ Recalculando datos reales para aprobación (detected zeros)', {
+              employeeId: emp.employeeId
+            });
+
+            const period = {
+              startDate: generalPayroll.period?.startDate,
+              endDate: generalPayroll.period?.endDate,
+              type: generalPayroll.period?.type || 'biweekly'
+            };
+
+            const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
+
+            // Asegurar entrada en generalPayroll.employees
+            if (!employeeInGeneral) {
+              employeeInGeneral = {
+                employeeId: emp.employeeId,
+                employee: emp.employee || {},
+                status: 'pending'
+              };
+              generalPayroll.employees = [...(generalPayroll.employees || []), employeeInGeneral];
+            }
+
+            // Actualizar campos con datos reales
+            employeeInGeneral.baseSalary = simulation.base || 0;
+            employeeInGeneral.overtime = simulation.overtime || 0;
+            employeeInGeneral.bonuses = simulation.bonuses || 0;
+            employeeInGeneral.deductions = simulation.deductions || 0;
+            employeeInGeneral.taxes = simulation.taxes || 0;
+            employeeInGeneral.grossSalary = simulation.gross || 0;
+            employeeInGeneral.netSalary = simulation.net || 0;
+            employeeInGeneral.includedExtras = simulation.includedExtras || [];
+
+            // Persistir sincronización en colecciones
+            try {
+              if (typeof generalPayroll.calculateTotals === 'function') {
+                generalPayroll.calculateTotals();
+              }
+              await generalPayroll.save();
+            } catch (persistError) {
+              logger.error('❌ Error guardando nómina general tras recalcular', persistError);
+            }
+
+            try {
+              const gpEmp = await GeneralPayrollEmployee.findByEmployeeAndGeneral(emp.employeeId, generalPayroll.id);
+              if (gpEmp) {
+                gpEmp.baseSalary = employeeInGeneral.baseSalary;
+                gpEmp.overtime = employeeInGeneral.overtime;
+                gpEmp.bonuses = employeeInGeneral.bonuses;
+                gpEmp.deductions = employeeInGeneral.deductions;
+                gpEmp.taxes = employeeInGeneral.taxes;
+                gpEmp.grossSalary = employeeInGeneral.grossSalary;
+                gpEmp.netSalary = employeeInGeneral.netSalary;
+                gpEmp.includedExtras = employeeInGeneral.includedExtras;
+                gpEmp.updatedAt = new Date().toISOString();
+                await gpEmp.save();
+              }
+            } catch (persistEmpError) {
+              logger.error('❌ Error guardando GeneralPayrollEmployee tras recalcular', persistEmpError);
+            }
+
+            originalGross = employeeInGeneral.grossSalary;
+            originalNet = employeeInGeneral.netSalary;
+
+            logger.info('✅ Datos recalculados para aprobación', {
+              employeeId: emp.employeeId,
+              originalGross,
+              originalNet
+            });
+          } catch (recalcError) {
+            logger.error('❌ Error recalculando datos para aprobación', recalcError);
+            // Fallback mínimo para no romper respuesta
+            originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
+            originalNet = emp.netSalary || 0;
+          }
         } else {
-          // Fallback a datos de empleado individual (menos confiable)
-          originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
-          originalNet = emp.netSalary || 0;
-          
-          logger.warn('⚠️ Usando datos de empleado individual como fallback', {
+          logger.info('✅ Usando datos de nómina general para aprobación', {
             employeeId: emp.employeeId,
             originalGross,
             originalNet
           });
         }
-        
+
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
-        
+
         return {
           employeeId: emp.employeeId,
           name: emp.employee?.name || `${emp.employee?.firstName || ''} ${emp.employee?.lastName || ''}`.trim(),
@@ -767,7 +829,7 @@ class GeneralPayrollController {
           paymentStatus: emp.paymentStatus || 'pending',
           paymentMethod: emp.paymentMethod || null
         };
-      });
+      }));
 
       res.json({
         success: true,
