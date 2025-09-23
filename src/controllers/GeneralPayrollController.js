@@ -709,9 +709,36 @@ class GeneralPayrollController {
       const formattedEmployees = employees.map(emp => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
         
-        // Usar datos reales de la nómina general (ahora ya calculados correctamente)
-        const originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
-        const originalNet = emp.netSalary || 0;
+        // BUSCAR DATOS ACTUALIZADOS EN GENERAL PAYROLL (fuente de verdad)
+        const employeeInGeneral = generalPayroll.employees.find(e => e.employeeId === emp.employeeId);
+        
+        let originalGross, originalNet;
+        if (employeeInGeneral) {
+          // Usar datos de la nómina general (fuente de verdad)
+          originalGross = employeeInGeneral.grossSalary || 0;
+          originalNet = employeeInGeneral.netSalary || 0;
+          
+          logger.info('✅ Usando datos de nómina general para aprobación', {
+            employeeId: emp.employeeId,
+            employeeName: employeeInGeneral.employee?.name,
+            originalGross,
+            originalNet,
+            baseSalary: employeeInGeneral.baseSalary,
+            overtime: employeeInGeneral.overtime,
+            bonuses: employeeInGeneral.bonuses
+          });
+        } else {
+          // Fallback a datos de empleado individual (menos confiable)
+          originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
+          originalNet = emp.netSalary || 0;
+          
+          logger.warn('⚠️ Usando datos de empleado individual como fallback', {
+            employeeId: emp.employeeId,
+            originalGross,
+            originalNet
+          });
+        }
+        
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
         
         return {

@@ -100,24 +100,63 @@ class GeneralPayrollService {
             existingPayroll.calculateTotals();
             await existingPayroll.save();
 
-            // Actualizar también los registros de empleados en la colección separada
-            for (const empData of validEmployeesData) {
-              const existingEmployee = await GeneralPayrollEmployee.findByEmployeeAndGeneral(
-                empData.employeeId,
-                existingPayroll.id
-              );
-              
-              if (existingEmployee) {
-                existingEmployee.baseSalary = empData.baseSalary;
-                existingEmployee.overtime = empData.overtime;
-                existingEmployee.bonuses = empData.bonuses;
-                existingEmployee.deductions = empData.deductions;
-                existingEmployee.taxes = empData.taxes;
-                existingEmployee.grossSalary = empData.grossSalary;
-                existingEmployee.netSalary = empData.netSalary;
-                await existingEmployee.save();
-              }
-            }
+             // Actualizar también los registros de empleados en la colección separada
+             for (const empData of validEmployeesData) {
+               const existingEmployee = await GeneralPayrollEmployee.findByEmployeeAndGeneral(
+                 empData.employeeId,
+                 existingPayroll.id
+               );
+               
+               if (existingEmployee) {
+                 // Actualizar TODOS los campos con datos reales
+                 existingEmployee.baseSalary = empData.baseSalary;
+                 existingEmployee.overtime = empData.overtime;
+                 existingEmployee.bonuses = empData.bonuses;
+                 existingEmployee.deductions = empData.deductions;
+                 existingEmployee.taxes = empData.taxes;
+                 existingEmployee.grossSalary = empData.grossSalary;
+                 existingEmployee.netSalary = empData.netSalary;
+                 existingEmployee.includedExtras = empData.includedExtras;
+                 existingEmployee.faults = empData.faults;
+                 existingEmployee.attendance = empData.attendance;
+                 existingEmployee.updatedAt = new Date().toISOString();
+                 
+                 await existingEmployee.save();
+                 
+                 logger.info('✅ GeneralPayrollEmployee actualizado con datos reales', {
+                   employeeId: empData.employeeId,
+                   grossSalary: existingEmployee.grossSalary,
+                   netSalary: existingEmployee.netSalary,
+                   overtime: existingEmployee.overtime
+                 });
+               } else {
+                 // Si no existe, crear nuevo registro
+                 const newEmployee = new GeneralPayrollEmployee({
+                   generalPayrollId: existingPayroll.id,
+                   employeeId: empData.employeeId,
+                   employee: empData.employee,
+                   status: 'pending',
+                   baseSalary: empData.baseSalary,
+                   overtime: empData.overtime,
+                   bonuses: empData.bonuses,
+                   deductions: empData.deductions,
+                   taxes: empData.taxes,
+                   grossSalary: empData.grossSalary,
+                   netSalary: empData.netSalary,
+                   includedExtras: empData.includedExtras,
+                   faults: empData.faults,
+                   attendance: empData.attendance
+                 });
+                 
+                 await newEmployee.save();
+                 
+                 logger.info('✅ Nuevo GeneralPayrollEmployee creado', {
+                   employeeId: empData.employeeId,
+                   grossSalary: newEmployee.grossSalary,
+                   netSalary: newEmployee.netSalary
+                 });
+               }
+             }
 
             logger.info('✅ Nómina existente actualizada con datos reales', {
               payrollId: existingPayroll.id,
