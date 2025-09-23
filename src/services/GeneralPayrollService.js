@@ -69,13 +69,13 @@ class GeneralPayrollService {
                   email: emp.personalInfo.email || ''
                 },
                 status: 'pending',
-                baseSalary: simulation.base || 0,
+                baseSalary: simulation.base || simulation.baseSalary || 0,
                 overtime: simulation.overtime || 0,
                 bonuses: simulation.bonuses || 0,
                 deductions: simulation.deductions || 0,
                 taxes: simulation.taxes || 0,
-                grossSalary: simulation.gross || 0,
-                netSalary: simulation.net || 0,
+                grossSalary: simulation.gross || simulation.grossSalary || 0,
+                netSalary: simulation.net || simulation.netSalary || 0,
                 adjustments: [],
                 includedExtras: simulation.includedExtras || [],
                 faults: simulation.faults || 0,
@@ -217,13 +217,13 @@ class GeneralPayrollService {
               email: emp.personalInfo.email || ''
             },
             status: 'pending',
-            baseSalary: simulation.base || 0,
+            baseSalary: simulation.base || simulation.baseSalary || 0,
             overtime: simulation.overtime || 0,
             bonuses: simulation.bonuses || 0,
             deductions: simulation.deductions || 0,
             taxes: simulation.taxes || 0,
-            grossSalary: simulation.gross || 0,
-            netSalary: simulation.net || 0,
+            grossSalary: simulation.gross || simulation.grossSalary || 0,
+            netSalary: simulation.net || simulation.netSalary || 0,
             adjustments: [],
             includedExtras: simulation.includedExtras || [],
             faults: simulation.faults || 0,
@@ -738,6 +738,12 @@ class GeneralPayrollService {
       let config = await PayrollConfig.findActiveByEmployee(employeeId);
       let warnings = [];
       
+      // 2. Obtener datos del empleado PRIMERO
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        throw new Error(`Empleado ${employeeId} no encontrado`);
+      }
+
       if (!config) {
         logger.warn('⚠️ Empleado sin configuración de nómina, usando valores por defecto', {
           employeeId
@@ -773,14 +779,26 @@ class GeneralPayrollService {
         warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
       }
 
-      // 2. Obtener datos del empleado
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        throw new Error(`Empleado ${employeeId} no encontrado`);
-      }
-
       // 3. Calcular salario base según frecuencia
-      const baseSalary = config.calculateSalaryForPeriod();
+      let baseSalary = 0;
+      
+      if (config.calculateSalaryForPeriod) {
+        baseSalary = config.calculateSalaryForPeriod();
+      } else {
+        // Usar la misma lógica que la simulación exitosa
+        const contractSalary = employee.contract?.salary || 0;
+        const workingDaysInPeriod = this.calculateWorkingDaysInPeriod(period, employee);
+        const workingDaysInMonth = 22; // Promedio días laborales por mes
+        baseSalary = (contractSalary / workingDaysInMonth) * workingDaysInPeriod;
+      }
+      
+      logger.info('💰 Salario base calculado para aprobación', {
+        employeeId,
+        employeeName: `${employee.personalInfo?.firstName} ${employee.personalInfo?.lastName}`,
+        baseSalary,
+        contractSalary: employee.contract?.salary,
+        period: `${period.startDate} - ${period.endDate}`
+      });
 
       // 4. Obtener extras pendientes del período
       logger.info('🔍 Obteniendo extras para simulación', {
@@ -866,6 +884,16 @@ class GeneralPayrollService {
       const faults = 0; // TODO: Integrar con módulo de asistencia
 
       return {
+        // Campos compatibles con simulación exitosa
+        base: baseSalary,
+        overtime: overtime,
+        bonuses: bonuses,
+        gross: grossSalary,
+        net: netSalary,
+        deductions: totalDeductions,
+        taxes: taxes,
+        
+        // Campos adicionales para nómina general
         employeeId: employeeId,
         employee: {
           id: employee.id,
@@ -876,10 +904,6 @@ class GeneralPayrollService {
           email: employee.personalInfo.email || ''
         },
         baseSalary: baseSalary,
-        overtime: overtime,
-        bonuses: bonuses,
-        deductions: totalDeductions,
-        taxes: taxes,
         grossSalary: grossSalary,
         netSalary: netSalary,
         status: 'calculated',
@@ -1438,6 +1462,37 @@ class GeneralPayrollService {
     }
     
     return taxesConfig.globalTaxesEnabled || false;
+  }
+
+  /**
+   * Calcular días laborales en el período (mismo método que la simulación)
+   */
+  static calculateWorkingDaysInPeriod(period, employee) {
+    const startDate = new Date(period.startDate);
+    const endDate = new Date(period.endDate);
+    let workingDays = 0;
+
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      const dayOfWeek = date.getDay(); // 0 = domingo, 6 = sábado
+      
+      // Verificar si el empleado trabaja este día según su horario personalizado
+      if (employee.contract?.customSchedule?.enabled) {
+        const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        const dayName = dayNames[dayOfWeek];
+        const daySchedule = employee.contract.customSchedule.days[dayName];
+        
+        if (daySchedule && daySchedule.enabled) {
+          workingDays++;
+        }
+      } else {
+        // Horario por defecto: lunes a viernes
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          workingDays++;
+        }
+      }
+    }
+
+    return workingDays;
   }
 
   /**

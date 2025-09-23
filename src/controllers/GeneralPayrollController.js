@@ -710,31 +710,67 @@ class GeneralPayrollController {
       const formattedEmployees = await Promise.all(employees.map(async (emp) => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
 
-        // 1) Recalcular SIEMPRE con datos reales del período
-        let originalGross = 0;
-        let originalNet = 0;
-        try {
-          const period = {
-            startDate: generalPayroll.period?.startDate,
-            endDate: generalPayroll.period?.endDate,
-            type: generalPayroll.period?.type || 'biweekly'
-          };
+        // 1) Usar datos ya calculados en la nómina general, recalcular solo si están en 0
+        let originalGross = emp.grossSalary || 0;
+        let originalNet = emp.netSalary || 0;
+        
+        // Si los datos guardados están en 0, entonces recalcular
+        if (originalGross === 0 && originalNet === 0) {
+          try {
+            const period = {
+              startDate: generalPayroll.period?.startDate,
+              endDate: generalPayroll.period?.endDate,
+              type: generalPayroll.period?.type || generalPayroll.period?.frequency || 'biweekly'
+            };
 
-          const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
-          // Tomar SIEMPRE los montos de la simulación para la respuesta
-          originalGross = simulation.gross || 0;
-          originalNet = simulation.net || 0;
+            logger.info('🔄 Datos en 0, recalculando con simulación para aprobación', {
+              employeeId: emp.employeeId,
+              employeeName: emp.employee?.name,
+              period
+            });
 
-          logger.info('✅ Aprobación usando datos de simulación', {
+            const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
+            
+            logger.info('📊 Resultado de simulación para aprobación', {
+              employeeId: emp.employeeId,
+              simulation: {
+                base: simulation.base,
+                overtime: simulation.overtime,
+                bonuses: simulation.bonuses,
+                gross: simulation.gross,
+                net: simulation.net,
+                deductions: simulation.deductions,
+                taxes: simulation.taxes
+              }
+            });
+            
+            // Tomar los montos de la simulación
+            originalGross = simulation.gross || simulation.grossSalary || 0;
+            originalNet = simulation.net || simulation.netSalary || 0;
+
+            logger.info('✅ Aprobación usando datos de simulación recalculados', {
+              employeeId: emp.employeeId,
+              originalGross,
+              originalNet
+            });
+          } catch (recalcError) {
+            logger.error('❌ Error recalculando datos para aprobación', {
+              employeeId: emp.employeeId,
+              error: recalcError.message,
+              stack: recalcError.stack
+            });
+            // Fallback: usar datos existentes del empleado en la nómina general
+            originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
+            originalNet = originalGross;
+          }
+        } else {
+          logger.info('✅ Usando datos ya calculados de la nómina general', {
             employeeId: emp.employeeId,
+            employeeName: emp.employee?.name,
             originalGross,
-            originalNet
+            originalNet,
+            source: 'existing_data'
           });
-        } catch (recalcError) {
-          logger.error('❌ Error recalculando datos para aprobación', recalcError);
-          // Fallback mínimo para no romper respuesta
-          originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
-          originalNet = emp.netSalary || 0;
         }
 
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
