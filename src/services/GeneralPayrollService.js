@@ -731,167 +731,68 @@ class GeneralPayrollService {
 
   /**
    * Simular cálculo de nómina para un empleado específico
+   * UNIFICADO: Usa exactamente la misma lógica que la simulación exitosa
    */
   static async simulateEmployeePayroll(employeeId, period) {
     try {
-      // 1. Obtener configuración del empleado o usar valores por defecto
-      let config = await PayrollConfig.findActiveByEmployee(employeeId);
-      let warnings = [];
-      
-      // 2. Obtener datos del empleado PRIMERO
+      logger.info('🔄 Iniciando simulación unificada para empleado', {
+        employeeId,
+        period
+      });
+
+      // Obtener datos del empleado
       const employee = await Employee.findById(employeeId);
       if (!employee) {
         throw new Error(`Empleado ${employeeId} no encontrado`);
       }
 
-      if (!config) {
-        logger.warn('⚠️ Empleado sin configuración de nómina, usando valores por defecto', {
-          employeeId
-        });
-        
-        // Obtener salario del contrato del empleado
-        const employeeContractSalary = employee.contract?.salary || employee.salary?.baseSalary || 12222;
-        
-        // Crear configuración temporal para cálculo usando datos reales
-        config = {
-          baseSalary: employeeContractSalary,
-          frequency: 'monthly',
-          calculateSalaryForPeriod: function() {
-            // Cálculo básico según frecuencia usando salario real del empleado
-            const daysInPeriod = this.calculateWorkingDaysInPeriod(period);
-            const monthlySalary = this.baseSalary;
-            return (monthlySalary / 30) * daysInPeriod;
-          },
-          calculateWorkingDaysInPeriod: function(period) {
-            const start = new Date(period.startDate);
-            const end = new Date(period.endDate);
-            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-            return Math.min(days, 7); // Máximo 7 días para períodos cortos
-          }
-        };
-        
-        logger.info('✅ Configuración temporal creada con salario real', {
-          employeeId,
-          contractSalary: employeeContractSalary,
-          configBaseSalary: config.baseSalary
-        });
-        
-        warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
-      }
-
-      // 3. Calcular salario base según frecuencia
-      let baseSalary = 0;
+      // Obtener configuración de nómina (puede ser null)
+      const payrollConfig = await PayrollConfig.findActiveByEmployee(employeeId);
       
-      if (config.calculateSalaryForPeriod) {
-        baseSalary = config.calculateSalaryForPeriod();
-      } else {
-        // Usar la misma lógica que la simulación exitosa
-        const contractSalary = employee.contract?.salary || 0;
-        const workingDaysInPeriod = this.calculateWorkingDaysInPeriod(period, employee);
-        const workingDaysInMonth = 22; // Promedio días laborales por mes
-        baseSalary = (contractSalary / workingDaysInMonth) * workingDaysInPeriod;
-      }
-      
-      logger.info('💰 Salario base calculado para aprobación', {
-        employeeId,
-        employeeName: `${employee.personalInfo?.firstName} ${employee.personalInfo?.lastName}`,
-        baseSalary,
-        contractSalary: employee.contract?.salary,
-        period: `${period.startDate} - ${period.endDate}`
-      });
-
-      // 4. Obtener extras pendientes del período
-      logger.info('🔍 Obteniendo extras para simulación', {
-        employeeId,
-        period: `${period.startDate} - ${period.endDate}`
-      });
-      
-      const pendingExtras = await PayrollService.getExtrasForPeriod(
+      // Obtener extras usando el mismo método que la simulación exitosa
+      const extras = await PayrollService.getExtrasForPeriod(
         employeeId, period.startDate, period.endDate
       );
 
-      logger.info('📊 Extras obtenidos para simulación', {
+      logger.info('📊 Extras encontrados para simulación unificada', {
         employeeId,
-        extrasCount: pendingExtras.length,
-        extrasDetails: pendingExtras.map(e => ({
+        extrasCount: extras.length,
+        extrasDetails: extras.map(e => ({
           id: e.id,
           type: e.type,
           amount: e.calculatedAmount || e.amount,
-          status: e.status,
-          appliedToPayroll: e.appliedToPayroll
+          status: e.status
         }))
       });
 
-      // 5. Separar percepciones y deducciones
-      const perceptions = pendingExtras.filter(extra => {
-        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
-        return impactType === 'positive' || impactType === 'add';
-      });
+      // Usar exactamente la misma lógica que PayrollController.calculateEmployeeComponents
+      const PayrollController = require('../controllers/PayrollController');
+      const components = PayrollController.calculateEmployeeComponents(
+        employee, 
+        payrollConfig, 
+        extras, 
+        period, 
+        { 
+          includeTaxes: false, // Sin impuestos por defecto
+          roundingMode: 'HALF_UP',
+          currency: 'MXN'
+        }
+      );
 
-      const deductions = pendingExtras.filter(extra => {
-        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
-        return impactType === 'negative' || impactType === 'subtract';
-      });
-
-      logger.info('📈 Extras separados por tipo', {
+      logger.info('✅ Componentes calculados con método unificado', {
         employeeId,
-        perceptions: perceptions.length,
-        deductions: deductions.length,
-        perceptionsDetail: perceptions.map(e => ({
-          type: e.type,
-          amount: e.calculatedAmount || e.amount
-        })),
-        deductionsDetail: deductions.map(e => ({
-          type: e.type,
-          amount: e.calculatedAmount || e.amount
-        }))
+        components
       });
-
-      // 6. Calcular totales
-      const overtime = perceptions
-        .filter(e => e.type === 'overtime')
-        .reduce((sum, e) => sum + (e.calculatedAmount || e.amount), 0);
-
-      const bonuses = perceptions
-        .filter(e => e.type === 'bonus')
-        .reduce((sum, e) => sum + (e.calculatedAmount || e.amount), 0);
-
-      const totalDeductions = deductions
-        .reduce((sum, e) => sum + Math.abs(e.calculatedAmount || e.amount), 0);
-
-      // 7. Calcular impuestos (simplificado por ahora)
-      const grossSalaryForTax = baseSalary + overtime + bonuses;
-      const taxes = this.calculateSimplifiedTaxes(grossSalaryForTax);
-
-      const totalDeductionsWithTax = totalDeductions + taxes;
-      const grossSalary = baseSalary + overtime + bonuses;
-      const netSalary = Math.max(0, grossSalary - totalDeductionsWithTax);
-
-      logger.info('💰 Cálculos finales de simulación', {
-        employeeId,
-        baseSalary,
-        overtime,
-        bonuses,
-        totalDeductions,
-        taxes,
-        grossSalary,
-        netSalary,
-        totalExtrasUsed: pendingExtras.length
-      });
-
-      // 8. Calcular asistencia (simplificado)
-      const attendance = 100; // TODO: Integrar con módulo de asistencia
-      const faults = 0; // TODO: Integrar con módulo de asistencia
 
       return {
         // Campos compatibles con simulación exitosa
-        base: baseSalary,
-        overtime: overtime,
-        bonuses: bonuses,
-        gross: grossSalary,
-        net: netSalary,
-        deductions: totalDeductions,
-        taxes: taxes,
+        base: components.base,
+        overtime: components.overtime,
+        bonuses: components.bonuses,
+        gross: components.gross,
+        net: components.net,
+        deductions: components.deductions.total,
+        taxes: components.deductions.taxes,
         
         // Campos adicionales para nómina general
         employeeId: employeeId,
@@ -903,24 +804,24 @@ class GeneralPayrollService {
           code: employee.employeeNumber || employee.id,
           email: employee.personalInfo.email || ''
         },
-        baseSalary: baseSalary,
-        grossSalary: grossSalary,
-        netSalary: netSalary,
+        baseSalary: components.base,
+        grossSalary: components.gross,
+        netSalary: components.net,
         status: 'calculated',
         paymentStatus: 'unpaid',
         adjustments: [],
-        includedExtras: pendingExtras.map(extra => ({
+        includedExtras: extras.map(extra => ({
           id: extra.id,
           type: extra.type,
           amount: extra.calculatedAmount || extra.amount,
           description: extra.description || extra.reason
         })),
-        faults: faults,
-        attendance: attendance,
-        warnings: warnings
+        faults: 0,
+        attendance: 100,
+        warnings: payrollConfig ? [] : ['Empleado sin configuración de nómina; usando valores por defecto']
       };
     } catch (error) {
-      logger.error('❌ Error simulando empleado', { employeeId, error: error.message });
+      logger.error('❌ Error en simulación unificada', { employeeId, error: error.message });
       throw error;
     }
   }
@@ -1148,17 +1049,6 @@ class GeneralPayrollService {
     }
   }
 
-  /**
-   * Calcular impuestos simplificados
-   */
-  static calculateSimplifiedTaxes(grossSalary) {
-    // Cálculo simplificado de ISR
-    // En producción debería usar TaxCalculationService
-    if (grossSalary <= 8000) return 0;
-    if (grossSalary <= 15000) return grossSalary * 0.05;
-    if (grossSalary <= 30000) return grossSalary * 0.10;
-    return grossSalary * 0.15;
-  }
 
   /**
    * Obtener empleados disponibles para nómina general
@@ -1464,36 +1354,6 @@ class GeneralPayrollService {
     return taxesConfig.globalTaxesEnabled || false;
   }
 
-  /**
-   * Calcular días laborales en el período (mismo método que la simulación)
-   */
-  static calculateWorkingDaysInPeriod(period, employee) {
-    const startDate = new Date(period.startDate);
-    const endDate = new Date(period.endDate);
-    let workingDays = 0;
-
-    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-      const dayOfWeek = date.getDay(); // 0 = domingo, 6 = sábado
-      
-      // Verificar si el empleado trabaja este día según su horario personalizado
-      if (employee.contract?.customSchedule?.enabled) {
-        const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-        const dayName = dayNames[dayOfWeek];
-        const daySchedule = employee.contract.customSchedule.days[dayName];
-        
-        if (daySchedule && daySchedule.enabled) {
-          workingDays++;
-        }
-      } else {
-        // Horario por defecto: lunes a viernes
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          workingDays++;
-        }
-      }
-    }
-
-    return workingDays;
-  }
 
   /**
    * Recalcular empleado con nueva configuración de impuestos

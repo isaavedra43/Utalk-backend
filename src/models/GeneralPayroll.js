@@ -291,12 +291,23 @@ class GeneralPayroll {
     }
 
     const totals = this.employees.reduce((acc, emp) => {
-      acc.totalGrossSalary += emp.grossSalary || 0;
-      acc.totalDeductions += emp.deductions || 0;
-      acc.totalNetSalary += emp.netSalary || 0;
-      acc.totalOvertime += emp.overtime || 0;
-      acc.totalBonuses += emp.bonuses || 0;
-      acc.totalTaxes += emp.taxes || 0;
+      // Función auxiliar para convertir a número seguro
+      const toNumber = (value) => {
+        if (typeof value === 'number') return isNaN(value) ? 0 : value;
+        if (typeof value === 'string') {
+          const num = parseFloat(value);
+          return isNaN(num) ? 0 : num;
+        }
+        return 0;
+      };
+
+      // Asegurar que todos los valores sean números válidos
+      acc.totalGrossSalary += toNumber(emp.grossSalary);
+      acc.totalDeductions += toNumber(emp.deductions);
+      acc.totalNetSalary += toNumber(emp.netSalary);
+      acc.totalOvertime += toNumber(emp.overtime);
+      acc.totalBonuses += toNumber(emp.bonuses);
+      acc.totalTaxes += toNumber(emp.taxes);
       return acc;
     }, {
       totalGrossSalary: 0,
