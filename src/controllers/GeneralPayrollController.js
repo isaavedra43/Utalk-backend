@@ -775,26 +775,76 @@ class GeneralPayrollController {
 
         const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
 
+        // Calcular componentes separados correctamente
+        let baseSalaryOnly = 0;
+        let extrasAmount = 0;
+        
+        if (originalGross > 0) {
+          // Si tenemos datos calculados, separar base de extras
+          baseSalaryOnly = emp.baseSalary || 0;
+          extrasAmount = (emp.overtime || 0) + (emp.bonuses || 0);
+          
+          // Si no tenemos datos separados, calcular desde el total
+          if (baseSalaryOnly === 0 && extrasAmount === 0) {
+            // Usar la simulación para obtener los componentes separados
+            try {
+              const period = {
+                startDate: generalPayroll.period?.startDate,
+                endDate: generalPayroll.period?.endDate,
+                type: generalPayroll.period?.type || generalPayroll.period?.frequency || 'biweekly'
+              };
+
+              const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
+              baseSalaryOnly = simulation.base || 0;
+              extrasAmount = (simulation.overtime || 0) + (simulation.bonuses || 0);
+              
+              logger.info('📊 Componentes separados desde simulación', {
+                employeeId: emp.employeeId,
+                baseSalaryOnly,
+                extrasAmount,
+                totalGross: baseSalaryOnly + extrasAmount
+              });
+            } catch (error) {
+              logger.error('❌ Error obteniendo componentes separados', error);
+              baseSalaryOnly = originalGross;
+              extrasAmount = 0;
+            }
+          }
+        }
+
         return {
           employeeId: emp.employeeId,
           name: emp.employee?.name || `${emp.employee?.firstName || ''} ${emp.employee?.lastName || ''}`.trim(),
           position: emp.employee?.position || emp.employee?.position?.title || 'CEO',
           originalPayroll: {
-            gross: originalGross,
-            net: originalNet
+            gross: baseSalaryOnly,  // Solo salario base
+            net: baseSalaryOnly     // Solo salario base
           },
-          adjustments: employeeAdjustments.map(adj => ({
-            id: adj.id,
-            type: adj.type,
-            concept: adj.concept,
-            amount: adj.amount,
-            status: adj.status,
-            approvedBy: adj.approvedBy,
-            approvedAt: adj.approvedAt
-          })),
+          adjustments: [
+            // Incluir extras como "ajustes" para mostrar en la columna correcta
+            ...(extrasAmount > 0 ? [{
+              id: 'extras_summary',
+              type: 'extras',
+              concept: 'Horas Extra y Bonos',
+              amount: extrasAmount,
+              status: 'calculated',
+              isExtras: true
+            }] : []),
+            // Ajustes manuales reales
+            ...employeeAdjustments.map(adj => ({
+              id: adj.id,
+              type: adj.type,
+              concept: adj.concept,
+              amount: adj.amount,
+              status: adj.status,
+              approvedBy: adj.approvedBy,
+              approvedAt: adj.approvedAt,
+              isExtras: false
+            }))
+          ],
           finalPayroll: {
-            gross: originalGross + adjustmentAmount,
-            net: originalNet + adjustmentAmount,
+            gross: originalGross + adjustmentAmount,  // Total final
+            net: originalNet + adjustmentAmount,      // Total final
             difference: adjustmentAmount
           },
           status: emp.status,
