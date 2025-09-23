@@ -67,6 +67,13 @@ const AVAILABLE_MODULES = {
     description: 'Configuración del sistema',
     icon: 'settings',
     path: '/settings'
+  },
+  hr: {
+    id: 'hr',
+    name: 'Recursos Humanos',
+    description: 'Módulo de empleados, nóminas y asistencias',
+    icon: 'hr',
+    path: '/hr'
   }
 };
 
@@ -91,6 +98,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     modules: {
       dashboard: { read: true, write: false, configure: false },
       conversations: { read: true, write: true, configure: false },
+      hr: { read: false, write: false, configure: false },
       contacts: { read: false, write: false, configure: false },
       campaigns: { read: false, write: false, configure: false },
       team: { read: false, write: false, configure: false },
@@ -104,6 +112,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     // Viewer solo puede leer dashboard
     modules: {
       dashboard: { read: true, write: false, configure: false },
+      hr: { read: false, write: false, configure: false },
       conversations: { read: false, write: false, configure: false },
       contacts: { read: false, write: false, configure: false },
       campaigns: { read: false, write: false, configure: false },
@@ -118,6 +127,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     // Supervisor tiene acceso amplio pero no configuración
     modules: {
       dashboard: { read: true, write: true, configure: false },
+      hr: { read: true, write: true, configure: false },
       conversations: { read: true, write: true, configure: false },
       contacts: { read: true, write: true, configure: false },
       campaigns: { read: true, write: true, configure: false },
