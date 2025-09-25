@@ -10,6 +10,7 @@ const messageRoutes = require('../routes/messages');
 const campaignRoutes = require('../routes/campaigns');
 const teamRoutes = require('../routes/team');
 const agentRoutes = require('../routes/agents');
+const adminMigrationRoutes = require('../routes/admin-migration');
 const knowledgeRoutes = require('../routes/knowledge');
 const mediaRoutes = require('../routes/media');
 const dashboardRoutes = require('../routes/dashboard');
@@ -109,6 +110,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/campaigns', campaignRoutes);
     app.use('/api/team', teamRoutes);
     app.use('/api/agents', agentRoutes);
+    app.use('/api/admin-migration', adminMigrationRoutes);
     app.use('/api/module-permissions', modulePermissionsRoutes);
     app.use('/api/knowledge', knowledgeRoutes);
     app.use('/api/media', mediaRoutes);

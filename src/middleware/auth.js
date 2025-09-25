@@ -310,6 +310,66 @@ const authMiddleware = async (req, res, next) => {
     // ✅ SUPER ROBUSTO: Adjuntar la instancia completa del usuario de Firestore a la petición
     req.user = userFromDb;
 
+    // 🔄 COMPATIBILIDAD: Migrar permisos automáticamente si es necesario
+    if (userFromDb.role === 'admin' && (!userFromDb.permissions?.modules || Object.keys(userFromDb.permissions.modules).length === 0)) {
+      logger.info('🔄 Detectado admin con permisos antiguos, migrando automáticamente', {
+        category: 'AUTH_AUTO_MIGRATION',
+        userEmail: userFromDb.email,
+        currentPermissionsType: Array.isArray(userFromDb.permissions) ? 'array' : 'object'
+      });
+
+      try {
+        const { getDefaultPermissionsForRole } = require('../config/modulePermissions');
+        const newModulePermissions = getDefaultPermissionsForRole('admin');
+        
+        const hybridPermissions = {
+          read: true,
+          write: true,
+          approve: true,
+          configure: true,
+          modules: newModulePermissions.modules,
+          legacy: Array.isArray(userFromDb.permissions) ? userFromDb.permissions : [
+            'users.read', 'users.write', 'users.delete',
+            'conversations.read', 'conversations.write', 'conversations.delete',
+            'messages.read', 'messages.write',
+            'campaigns.read', 'campaigns.write', 'campaigns.delete',
+            'dashboard.read', 'settings.read', 'settings.write',
+            'crm.read', 'crm.write'
+          ]
+        };
+
+        // Actualizar permisos en la base de datos
+        await userFromDb.update({
+          permissions: hybridPermissions,
+          updatedAt: new Date(),
+          migrationInfo: {
+            migratedAt: new Date(),
+            fromFormat: Array.isArray(userFromDb.permissions) ? 'array' : 'object',
+            toFormat: 'hybrid',
+            version: '1.0.0',
+            migratedBy: 'auto_migration'
+          }
+        });
+
+        // Actualizar el objeto user en memoria
+        userFromDb.permissions = hybridPermissions;
+        req.user = userFromDb;
+
+        logger.info('✅ Migración automática de permisos completada', {
+          category: 'AUTH_AUTO_MIGRATION_SUCCESS',
+          userEmail: userFromDb.email,
+          modulesCount: Object.keys(hybridPermissions.modules).length
+        });
+      } catch (migrationError) {
+        logger.error('❌ Error en migración automática de permisos', {
+          category: 'AUTH_AUTO_MIGRATION_ERROR',
+          userEmail: userFromDb.email,
+          error: migrationError.message
+        });
+        // No fallar la autenticación por error de migración
+      }
+    }
+
     // ✅ SUPER ROBUSTO: Logging de éxito con métricas
     const duration = Date.now() - startTime;
     logger.info('✅ Usuario autenticado correctamente', {
