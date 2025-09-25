@@ -311,11 +311,19 @@ const authMiddleware = async (req, res, next) => {
     req.user = userFromDb;
 
     // 🔄 COMPATIBILIDAD: Migrar permisos automáticamente si es necesario
-    if (userFromDb.role === 'admin' && (!userFromDb.permissions?.modules || Object.keys(userFromDb.permissions.modules).length === 0)) {
+    const needsMigration = userFromDb.role === 'admin' && (
+      Array.isArray(userFromDb.permissions) || 
+      !userFromDb.permissions?.modules || 
+      Object.keys(userFromDb.permissions.modules || {}).length === 0
+    );
+
+    if (needsMigration) {
       logger.info('🔄 Detectado admin con permisos antiguos, migrando automáticamente', {
         category: 'AUTH_AUTO_MIGRATION',
         userEmail: userFromDb.email,
-        currentPermissionsType: Array.isArray(userFromDb.permissions) ? 'array' : 'object'
+        currentPermissionsType: Array.isArray(userFromDb.permissions) ? 'array' : 'object',
+        hasModules: !!userFromDb.permissions?.modules,
+        modulesCount: Object.keys(userFromDb.permissions?.modules || {}).length
       });
 
       try {
@@ -358,13 +366,15 @@ const authMiddleware = async (req, res, next) => {
         logger.info('✅ Migración automática de permisos completada', {
           category: 'AUTH_AUTO_MIGRATION_SUCCESS',
           userEmail: userFromDb.email,
-          modulesCount: Object.keys(hybridPermissions.modules).length
+          modulesCount: Object.keys(hybridPermissions.modules).length,
+          accessibleModules: Object.keys(hybridPermissions.modules)
         });
       } catch (migrationError) {
         logger.error('❌ Error en migración automática de permisos', {
           category: 'AUTH_AUTO_MIGRATION_ERROR',
           userEmail: userFromDb.email,
-          error: migrationError.message
+          error: migrationError.message,
+          stack: migrationError.stack
         });
         // No fallar la autenticación por error de migración
       }

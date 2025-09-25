@@ -202,4 +202,130 @@ router.get('/check-permissions', async (req, res) => {
   }
 });
 
+/**
+ * @route POST /api/admin-migration/force-migrate
+ * @desc Forzar migración de permisos del admin (sin autenticación)
+ * @access Public (solo para emergencias)
+ */
+router.post('/force-migrate', async (req, res) => {
+  try {
+    logger.info('🚨 FORZANDO migración de permisos de admin', {
+      category: 'ADMIN_FORCE_MIGRATION',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
+
+    // Buscar el usuario admin
+    const adminEmail = 'admin@company.com';
+    const usersQuery = await firestore
+      .collection('users')
+      .where('email', '==', adminEmail)
+      .limit(1)
+      .get();
+
+    if (usersQuery.empty) {
+      logger.error('❌ Usuario admin no encontrado', {
+        category: 'ADMIN_FORCE_MIGRATION_ERROR',
+        adminEmail
+      });
+      return ResponseHandler.notFoundError(res, 'Usuario admin no encontrado');
+    }
+
+    const adminDoc = usersQuery.docs[0];
+    const adminData = adminDoc.data();
+
+    logger.info('📋 Datos actuales del admin (FORZADO)', {
+      category: 'ADMIN_FORCE_MIGRATION',
+      email: adminData.email,
+      role: adminData.role,
+      currentPermissions: adminData.permissions,
+      permissionsType: Array.isArray(adminData.permissions) ? 'array' : 'object'
+    });
+
+    // Generar nuevos permisos de módulos para admin
+    const newModulePermissions = getDefaultPermissionsForRole('admin');
+    
+    logger.info('🔄 Generando nuevos permisos de módulos (FORZADO)', {
+      category: 'ADMIN_FORCE_MIGRATION',
+      modulesCount: Object.keys(newModulePermissions.modules).length,
+      sampleModules: Object.keys(newModulePermissions.modules).slice(0, 5)
+    });
+
+    // Crear estructura de permisos híbrida (compatible con ambos sistemas)
+    const hybridPermissions = {
+      // Permisos del sistema (legacy) - mantener compatibilidad
+      read: true,
+      write: true,
+      approve: true,
+      configure: true,
+      
+      // Permisos de módulos (nuevo sistema)
+      modules: newModulePermissions.modules,
+      
+      // Permisos legacy como array (para compatibilidad)
+      legacy: Array.isArray(adminData.permissions) ? adminData.permissions : [
+        'users.read', 'users.write', 'users.delete',
+        'conversations.read', 'conversations.write', 'conversations.delete',
+        'messages.read', 'messages.write',
+        'campaigns.read', 'campaigns.write', 'campaigns.delete',
+        'dashboard.read', 'settings.read', 'settings.write',
+        'crm.read', 'crm.write'
+      ]
+    };
+
+    // Actualizar el documento del admin
+    await adminDoc.ref.update({
+      permissions: hybridPermissions,
+      updatedAt: new Date(),
+      migrationInfo: {
+        migratedAt: new Date(),
+        fromFormat: Array.isArray(adminData.permissions) ? 'array' : 'object',
+        toFormat: 'hybrid',
+        version: '1.0.0',
+        migratedBy: 'force_migration'
+      }
+    });
+
+    logger.info('✅ Migración FORZADA de permisos de admin completada', {
+      category: 'ADMIN_FORCE_MIGRATION_SUCCESS',
+      adminEmail,
+      newPermissionsStructure: {
+        hasLegacyPermissions: true,
+        hasModulePermissions: true,
+        modulesCount: Object.keys(hybridPermissions.modules).length,
+        legacyPermissionsCount: hybridPermissions.legacy.length
+      }
+    });
+
+    return ResponseHandler.success(res, {
+      admin: {
+        email: adminData.email,
+        name: adminData.name,
+        role: adminData.role
+      },
+      migration: {
+        success: true,
+        forced: true,
+        modulesCount: Object.keys(hybridPermissions.modules).length,
+        legacyPermissionsCount: hybridPermissions.legacy.length,
+        migratedAt: new Date().toISOString()
+      },
+      permissions: {
+        hasModules: true,
+        hasLegacy: true,
+        accessibleModules: Object.keys(hybridPermissions.modules)
+      }
+    }, 'Migración FORZADA de permisos de admin completada exitosamente');
+
+  } catch (error) {
+    logger.error('💥 Error en migración FORZADA de permisos de admin', {
+      category: 'ADMIN_FORCE_MIGRATION_ERROR',
+      error: error.message,
+      stack: error.stack
+    });
+    
+    return ResponseHandler.error(res, error);
+  }
+});
+
 module.exports = router;
