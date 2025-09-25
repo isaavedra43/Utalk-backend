@@ -318,7 +318,7 @@ const authMiddleware = async (req, res, next) => {
     );
 
     if (needsMigration) {
-      logger.info('🔄 Detectado admin con permisos antiguos, migrando automáticamente', {
+      logger.info('🔄 ADMIN CON PERMISOS ANTIGUOS DETECTADO - MIGRANDO AUTOMÁTICAMENTE', {
         category: 'AUTH_AUTO_MIGRATION',
         userEmail: userFromDb.email,
         currentPermissionsType: Array.isArray(userFromDb.permissions) ? 'array' : 'object',
@@ -346,6 +346,12 @@ const authMiddleware = async (req, res, next) => {
           ]
         };
 
+        logger.info('💾 ACTUALIZANDO PERMISOS EN BASE DE DATOS', {
+          category: 'AUTH_AUTO_MIGRATION_DB_UPDATE',
+          userEmail: userFromDb.email,
+          newModulesCount: Object.keys(hybridPermissions.modules).length
+        });
+
         // Actualizar permisos en la base de datos
         await userFromDb.update({
           permissions: hybridPermissions,
@@ -363,18 +369,20 @@ const authMiddleware = async (req, res, next) => {
         userFromDb.permissions = hybridPermissions;
         req.user = userFromDb;
 
-        logger.info('✅ Migración automática de permisos completada', {
+        logger.info('✅ MIGRACIÓN AUTOMÁTICA COMPLETADA - ADMIN AHORA TIENE ACCESO COMPLETO', {
           category: 'AUTH_AUTO_MIGRATION_SUCCESS',
           userEmail: userFromDb.email,
           modulesCount: Object.keys(hybridPermissions.modules).length,
-          accessibleModules: Object.keys(hybridPermissions.modules)
+          accessibleModules: Object.keys(hybridPermissions.modules),
+          migrationCompleted: true
         });
       } catch (migrationError) {
-        logger.error('❌ Error en migración automática de permisos', {
+        logger.error('❌ ERROR CRÍTICO EN MIGRACIÓN AUTOMÁTICA', {
           category: 'AUTH_AUTO_MIGRATION_ERROR',
           userEmail: userFromDb.email,
           error: migrationError.message,
-          stack: migrationError.stack
+          stack: migrationError.stack,
+          criticalError: true
         });
         // No fallar la autenticación por error de migración
       }
