@@ -69,13 +69,13 @@ class GeneralPayrollService {
                   email: emp.personalInfo.email || ''
                 },
                 status: 'pending',
-                baseSalary: simulation.base || 0,
+                baseSalary: simulation.base || simulation.baseSalary || 0,
                 overtime: simulation.overtime || 0,
                 bonuses: simulation.bonuses || 0,
                 deductions: simulation.deductions || 0,
                 taxes: simulation.taxes || 0,
-                grossSalary: simulation.gross || 0,
-                netSalary: simulation.net || 0,
+                grossSalary: simulation.gross || simulation.grossSalary || 0,
+                netSalary: simulation.net || simulation.netSalary || 0,
                 adjustments: [],
                 includedExtras: simulation.includedExtras || [],
                 faults: simulation.faults || 0,
@@ -217,13 +217,13 @@ class GeneralPayrollService {
               email: emp.personalInfo.email || ''
             },
             status: 'pending',
-            baseSalary: simulation.base || 0,
+            baseSalary: simulation.base || simulation.baseSalary || 0,
             overtime: simulation.overtime || 0,
             bonuses: simulation.bonuses || 0,
             deductions: simulation.deductions || 0,
             taxes: simulation.taxes || 0,
-            grossSalary: simulation.gross || 0,
-            netSalary: simulation.net || 0,
+            grossSalary: simulation.gross || simulation.grossSalary || 0,
+            netSalary: simulation.net || simulation.netSalary || 0,
             adjustments: [],
             includedExtras: simulation.includedExtras || [],
             faults: simulation.faults || 0,
@@ -731,141 +731,70 @@ class GeneralPayrollService {
 
   /**
    * Simular cálculo de nómina para un empleado específico
+   * UNIFICADO: Usa exactamente la misma lógica que la simulación exitosa
    */
   static async simulateEmployeePayroll(employeeId, period) {
     try {
-      // 1. Obtener configuración del empleado o usar valores por defecto
-      let config = await PayrollConfig.findActiveByEmployee(employeeId);
-      let warnings = [];
-      
-      if (!config) {
-        logger.warn('⚠️ Empleado sin configuración de nómina, usando valores por defecto', {
-          employeeId
-        });
-        
-        // Obtener salario del contrato del empleado
-        const employeeContractSalary = employee.contract?.salary || employee.salary?.baseSalary || 12222;
-        
-        // Crear configuración temporal para cálculo usando datos reales
-        config = {
-          baseSalary: employeeContractSalary,
-          frequency: 'monthly',
-          calculateSalaryForPeriod: function() {
-            // Cálculo básico según frecuencia usando salario real del empleado
-            const daysInPeriod = this.calculateWorkingDaysInPeriod(period);
-            const monthlySalary = this.baseSalary;
-            return (monthlySalary / 30) * daysInPeriod;
-          },
-          calculateWorkingDaysInPeriod: function(period) {
-            const start = new Date(period.startDate);
-            const end = new Date(period.endDate);
-            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-            return Math.min(days, 7); // Máximo 7 días para períodos cortos
-          }
-        };
-        
-        logger.info('✅ Configuración temporal creada con salario real', {
-          employeeId,
-          contractSalary: employeeContractSalary,
-          configBaseSalary: config.baseSalary
-        });
-        
-        warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
-      }
+      logger.info('🔄 Iniciando simulación unificada para empleado', {
+        employeeId,
+        period
+      });
 
-      // 2. Obtener datos del empleado
+      // Obtener datos del empleado
       const employee = await Employee.findById(employeeId);
       if (!employee) {
         throw new Error(`Empleado ${employeeId} no encontrado`);
       }
 
-      // 3. Calcular salario base según frecuencia
-      const baseSalary = config.calculateSalaryForPeriod();
-
-      // 4. Obtener extras pendientes del período
-      logger.info('🔍 Obteniendo extras para simulación', {
-        employeeId,
-        period: `${period.startDate} - ${period.endDate}`
-      });
+      // Obtener configuración de nómina (puede ser null)
+      const payrollConfig = await PayrollConfig.findActiveByEmployee(employeeId);
       
-      const pendingExtras = await PayrollService.getExtrasForPeriod(
+      // Obtener extras usando el mismo método que la simulación exitosa
+      const extras = await PayrollService.getExtrasForPeriod(
         employeeId, period.startDate, period.endDate
       );
 
-      logger.info('📊 Extras obtenidos para simulación', {
+      logger.info('📊 Extras encontrados para simulación unificada', {
         employeeId,
-        extrasCount: pendingExtras.length,
-        extrasDetails: pendingExtras.map(e => ({
+        extrasCount: extras.length,
+        extrasDetails: extras.map(e => ({
           id: e.id,
           type: e.type,
           amount: e.calculatedAmount || e.amount,
-          status: e.status,
-          appliedToPayroll: e.appliedToPayroll
+          status: e.status
         }))
       });
 
-      // 5. Separar percepciones y deducciones
-      const perceptions = pendingExtras.filter(extra => {
-        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
-        return impactType === 'positive' || impactType === 'add';
-      });
+      // Usar exactamente la misma lógica que PayrollController.calculateEmployeeComponents
+      const PayrollController = require('../controllers/PayrollController');
+      const components = PayrollController.calculateEmployeeComponents(
+        employee, 
+        payrollConfig, 
+        extras, 
+        period, 
+        { 
+          includeTaxes: false, // Sin impuestos por defecto
+          roundingMode: 'HALF_UP',
+          currency: 'MXN'
+        }
+      );
 
-      const deductions = pendingExtras.filter(extra => {
-        const impactType = extra.getImpactType ? extra.getImpactType() : extra.impactType;
-        return impactType === 'negative' || impactType === 'subtract';
-      });
-
-      logger.info('📈 Extras separados por tipo', {
+      logger.info('✅ Componentes calculados con método unificado', {
         employeeId,
-        perceptions: perceptions.length,
-        deductions: deductions.length,
-        perceptionsDetail: perceptions.map(e => ({
-          type: e.type,
-          amount: e.calculatedAmount || e.amount
-        })),
-        deductionsDetail: deductions.map(e => ({
-          type: e.type,
-          amount: e.calculatedAmount || e.amount
-        }))
+        components
       });
-
-      // 6. Calcular totales
-      const overtime = perceptions
-        .filter(e => e.type === 'overtime')
-        .reduce((sum, e) => sum + (e.calculatedAmount || e.amount), 0);
-
-      const bonuses = perceptions
-        .filter(e => e.type === 'bonus')
-        .reduce((sum, e) => sum + (e.calculatedAmount || e.amount), 0);
-
-      const totalDeductions = deductions
-        .reduce((sum, e) => sum + Math.abs(e.calculatedAmount || e.amount), 0);
-
-      // 7. Calcular impuestos (simplificado por ahora)
-      const grossSalaryForTax = baseSalary + overtime + bonuses;
-      const taxes = this.calculateSimplifiedTaxes(grossSalaryForTax);
-
-      const totalDeductionsWithTax = totalDeductions + taxes;
-      const grossSalary = baseSalary + overtime + bonuses;
-      const netSalary = Math.max(0, grossSalary - totalDeductionsWithTax);
-
-      logger.info('💰 Cálculos finales de simulación', {
-        employeeId,
-        baseSalary,
-        overtime,
-        bonuses,
-        totalDeductions,
-        taxes,
-        grossSalary,
-        netSalary,
-        totalExtrasUsed: pendingExtras.length
-      });
-
-      // 8. Calcular asistencia (simplificado)
-      const attendance = 100; // TODO: Integrar con módulo de asistencia
-      const faults = 0; // TODO: Integrar con módulo de asistencia
 
       return {
+        // Campos compatibles con simulación exitosa
+        base: components.base,
+        overtime: components.overtime,
+        bonuses: components.bonuses,
+        gross: components.gross,
+        net: components.net,
+        deductions: components.deductions.total,
+        taxes: components.deductions.taxes,
+        
+        // Campos adicionales para nómina general
         employeeId: employeeId,
         employee: {
           id: employee.id,
@@ -875,28 +804,24 @@ class GeneralPayrollService {
           code: employee.employeeNumber || employee.id,
           email: employee.personalInfo.email || ''
         },
-        baseSalary: baseSalary,
-        overtime: overtime,
-        bonuses: bonuses,
-        deductions: totalDeductions,
-        taxes: taxes,
-        grossSalary: grossSalary,
-        netSalary: netSalary,
+        baseSalary: components.base,
+        grossSalary: components.gross,
+        netSalary: components.net,
         status: 'calculated',
         paymentStatus: 'unpaid',
         adjustments: [],
-        includedExtras: pendingExtras.map(extra => ({
+        includedExtras: extras.map(extra => ({
           id: extra.id,
           type: extra.type,
           amount: extra.calculatedAmount || extra.amount,
           description: extra.description || extra.reason
         })),
-        faults: faults,
-        attendance: attendance,
-        warnings: warnings
+        faults: 0,
+        attendance: 100,
+        warnings: payrollConfig ? [] : ['Empleado sin configuración de nómina; usando valores por defecto']
       };
     } catch (error) {
-      logger.error('❌ Error simulando empleado', { employeeId, error: error.message });
+      logger.error('❌ Error en simulación unificada', { employeeId, error: error.message });
       throw error;
     }
   }
@@ -1124,17 +1049,6 @@ class GeneralPayrollService {
     }
   }
 
-  /**
-   * Calcular impuestos simplificados
-   */
-  static calculateSimplifiedTaxes(grossSalary) {
-    // Cálculo simplificado de ISR
-    // En producción debería usar TaxCalculationService
-    if (grossSalary <= 8000) return 0;
-    if (grossSalary <= 15000) return grossSalary * 0.05;
-    if (grossSalary <= 30000) return grossSalary * 0.10;
-    return grossSalary * 0.15;
-  }
 
   /**
    * Obtener empleados disponibles para nómina general
@@ -1439,6 +1353,7 @@ class GeneralPayrollService {
     
     return taxesConfig.globalTaxesEnabled || false;
   }
+
 
   /**
    * Recalcular empleado con nueva configuración de impuestos

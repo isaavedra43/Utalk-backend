@@ -710,56 +710,168 @@ class GeneralPayrollController {
       const formattedEmployees = await Promise.all(employees.map(async (emp) => {
         const employeeAdjustments = adjustments.filter(adj => adj.employeeId === emp.employeeId);
 
-        // 1) Recalcular SIEMPRE con datos reales del período
-        let originalGross = 0;
-        let originalNet = 0;
-        try {
-          const period = {
-            startDate: generalPayroll.period?.startDate,
-            endDate: generalPayroll.period?.endDate,
-            type: generalPayroll.period?.type || 'biweekly'
-          };
+        // 1) Usar datos ya calculados en la nómina general, recalcular solo si están en 0
+        let originalGross = emp.grossSalary || 0;
+        let originalNet = emp.netSalary || 0;
+        
+        // Si los datos guardados están en 0, entonces recalcular
+        if (originalGross === 0 && originalNet === 0) {
+          try {
+            const period = {
+              startDate: generalPayroll.period?.startDate,
+              endDate: generalPayroll.period?.endDate,
+              type: generalPayroll.period?.type || generalPayroll.period?.frequency || 'biweekly'
+            };
 
-          const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
-          // Tomar SIEMPRE los montos de la simulación para la respuesta
-          originalGross = simulation.gross || 0;
-          originalNet = simulation.net || 0;
+            logger.info('🔄 Datos en 0, recalculando con simulación para aprobación', {
+              employeeId: emp.employeeId,
+              employeeName: emp.employee?.name,
+              period
+            });
 
-          logger.info('✅ Aprobación usando datos de simulación', {
+            const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
+            
+            logger.info('📊 Resultado de simulación para aprobación', {
+              employeeId: emp.employeeId,
+              simulation: {
+                base: simulation.base,
+                overtime: simulation.overtime,
+                bonuses: simulation.bonuses,
+                gross: simulation.gross,
+                net: simulation.net,
+                deductions: simulation.deductions,
+                taxes: simulation.taxes
+              }
+            });
+            
+            // Tomar los montos de la simulación
+            originalGross = simulation.gross || simulation.grossSalary || 0;
+            originalNet = simulation.net || simulation.netSalary || 0;
+
+            logger.info('✅ Aprobación usando datos de simulación recalculados', {
+              employeeId: emp.employeeId,
+              originalGross,
+              originalNet
+            });
+          } catch (recalcError) {
+            logger.error('❌ Error recalculando datos para aprobación', {
+              employeeId: emp.employeeId,
+              error: recalcError.message,
+              stack: recalcError.stack
+            });
+            // Fallback: usar datos existentes del empleado en la nómina general
+            originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
+            originalNet = originalGross;
+          }
+        } else {
+          logger.info('✅ Usando datos ya calculados de la nómina general', {
             employeeId: emp.employeeId,
+            employeeName: emp.employee?.name,
             originalGross,
-            originalNet
+            originalNet,
+            source: 'existing_data'
           });
-        } catch (recalcError) {
-          logger.error('❌ Error recalculando datos para aprobación', recalcError);
-          // Fallback mínimo para no romper respuesta
-          originalGross = (emp.baseSalary || 0) + (emp.overtime || 0) + (emp.bonuses || 0);
-          originalNet = emp.netSalary || 0;
         }
 
-        const adjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
+        // Ajustes manuales (no extras)
+        const manualAdjustmentAmount = employeeAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
+
+        // Calcular componentes separados correctamente
+        let baseSalaryOnly = 0;
+        let extrasAmount = 0;
+        
+        if (originalGross > 0) {
+          // Si tenemos datos calculados, separar base de extras
+          baseSalaryOnly = emp.baseSalary || 0;
+          extrasAmount = (emp.overtime || 0) + (emp.bonuses || 0);
+          
+          // Si no tenemos datos separados, calcular desde el total
+          if (baseSalaryOnly === 0 && extrasAmount === 0) {
+            // Usar la simulación para obtener los componentes separados
+            try {
+              const period = {
+                startDate: generalPayroll.period?.startDate,
+                endDate: generalPayroll.period?.endDate,
+                type: generalPayroll.period?.type || generalPayroll.period?.frequency || 'biweekly'
+              };
+
+              const simulation = await GeneralPayrollService.simulateEmployeePayroll(emp.employeeId, period);
+              baseSalaryOnly = simulation.base || 0;
+              extrasAmount = (simulation.overtime || 0) + (simulation.bonuses || 0);
+              
+              logger.info('📊 Componentes separados desde simulación', {
+                employeeId: emp.employeeId,
+                baseSalaryOnly,
+                extrasAmount,
+                totalGross: baseSalaryOnly + extrasAmount
+              });
+            } catch (error) {
+              logger.error('❌ Error obteniendo componentes separados', error);
+              baseSalaryOnly = originalGross;
+              extrasAmount = 0;
+            }
+          }
+        }
+
+        // Obtener lista REAL de extras del período para mostrar detalle y estado correcto
+        let extrasList = [];
+        let extrasTotal = 0;
+        try {
+          const PayrollService = require('../services/PayrollService');
+          const periodStart = generalPayroll.period?.startDate;
+          const periodEnd = generalPayroll.period?.endDate;
+          extrasList = await PayrollService.getExtrasForPeriod(emp.employeeId, periodStart, periodEnd);
+          extrasTotal = extrasList.reduce((sum, e) => sum + (parseFloat(e.calculatedAmount || e.amount) || 0), 0);
+
+          // Alinear el monto de extras mostrado con la suma real encontrada
+          extrasAmount = extrasTotal || extrasAmount;
+        } catch (extrasErr) {
+          logger.warn('⚠️ No fue posible recuperar lista de extras; se usará resumen', {
+            employeeId: emp.employeeId,
+            error: extrasErr.message
+          });
+        }
+
+        // Total de ajustes a reflejar en la UI (extras reales + ajustes manuales)
+        const totalAdjustmentAmount = (extrasTotal || 0) + (manualAdjustmentAmount || 0);
 
         return {
           employeeId: emp.employeeId,
           name: emp.employee?.name || `${emp.employee?.firstName || ''} ${emp.employee?.lastName || ''}`.trim(),
           position: emp.employee?.position || emp.employee?.position?.title || 'CEO',
           originalPayroll: {
-            gross: originalGross,
-            net: originalNet
+            gross: baseSalaryOnly,  // Solo salario base
+            net: baseSalaryOnly     // Solo salario base
           },
-          adjustments: employeeAdjustments.map(adj => ({
-            id: adj.id,
-            type: adj.type,
-            concept: adj.concept,
-            amount: adj.amount,
-            status: adj.status,
-            approvedBy: adj.approvedBy,
-            approvedAt: adj.approvedAt
-          })),
+          adjustments: [
+            // Extras reales del período con su estado y descripción
+            ...extrasList.map(extra => ({
+              id: extra.id,
+              type: extra.type,
+              concept: extra.description || extra.reason || (extra.type === 'overtime' ? 'Horas Extra' : 'Ajuste'),
+              amount: parseFloat(extra.calculatedAmount || extra.amount) || 0,
+              status: extra.status || 'approved',
+              approvedBy: extra.approvedBy || null,
+              approvedAt: extra.approvedAt || null,
+              isExtras: true
+            })),
+            // Ajustes manuales reales
+            ...employeeAdjustments.map(adj => ({
+              id: adj.id,
+              type: adj.type,
+              concept: adj.concept,
+              amount: adj.amount,
+              status: adj.status,
+              approvedBy: adj.approvedBy,
+              approvedAt: adj.approvedAt,
+              isExtras: false
+            }))
+          ],
           finalPayroll: {
-            gross: originalGross + adjustmentAmount,
-            net: originalNet + adjustmentAmount,
-            difference: adjustmentAmount
+            // Total final = base + (extras + ajustes manuales)
+            gross: (baseSalaryOnly || 0) + totalAdjustmentAmount,
+            net: (baseSalaryOnly || 0) + totalAdjustmentAmount,
+            difference: totalAdjustmentAmount
           },
           status: emp.status,
           paymentStatus: emp.paymentStatus || 'pending',

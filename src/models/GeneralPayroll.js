@@ -237,8 +237,19 @@ class GeneralPayroll {
       }
       query = query.limit(limit);
 
-      const snapshot = await query.get();
-      const payrolls = snapshot.docs.map(doc => GeneralPayroll.fromFirestore(doc));
+      let snapshot = await query.get();
+      let payrolls = snapshot.docs.map(doc => GeneralPayroll.fromFirestore(doc));
+
+      // Fallback: si no hay resultados (p. ej. filtros muy restrictivos o vista recién creada),
+      // devolver las más recientes para que el frontend pueda continuar la edición
+      if (payrolls.length === 0) {
+        const fallbackQuery = db
+          .collection('generalPayrolls')
+          .orderBy('createdAt', 'desc')
+          .limit(limit);
+        snapshot = await fallbackQuery.get();
+        payrolls = snapshot.docs.map(doc => GeneralPayroll.fromFirestore(doc));
+      }
 
       // Contar total para paginación
       let totalQuery = db.collection('generalPayrolls');
@@ -254,7 +265,12 @@ class GeneralPayroll {
       }
 
       const totalSnapshot = await totalQuery.get();
-      const total = totalSnapshot.size;
+      let total = totalSnapshot.size;
+      if (total === 0) {
+        // Total de fallback
+        const fallbackTotalSnapshot = await db.collection('generalPayrolls').get();
+        total = fallbackTotalSnapshot.size;
+      }
 
       return {
         payrolls,
@@ -291,12 +307,23 @@ class GeneralPayroll {
     }
 
     const totals = this.employees.reduce((acc, emp) => {
-      acc.totalGrossSalary += emp.grossSalary || 0;
-      acc.totalDeductions += emp.deductions || 0;
-      acc.totalNetSalary += emp.netSalary || 0;
-      acc.totalOvertime += emp.overtime || 0;
-      acc.totalBonuses += emp.bonuses || 0;
-      acc.totalTaxes += emp.taxes || 0;
+      // Función auxiliar para convertir a número seguro
+      const toNumber = (value) => {
+        if (typeof value === 'number') return isNaN(value) ? 0 : value;
+        if (typeof value === 'string') {
+          const num = parseFloat(value);
+          return isNaN(num) ? 0 : num;
+        }
+        return 0;
+      };
+
+      // Asegurar que todos los valores sean números válidos
+      acc.totalGrossSalary += toNumber(emp.grossSalary);
+      acc.totalDeductions += toNumber(emp.deductions);
+      acc.totalNetSalary += toNumber(emp.netSalary);
+      acc.totalOvertime += toNumber(emp.overtime);
+      acc.totalBonuses += toNumber(emp.bonuses);
+      acc.totalTaxes += toNumber(emp.taxes);
       return acc;
     }, {
       totalGrossSalary: 0,

@@ -98,8 +98,16 @@ class ModulePermissionsController {
    */
   static async getMyModulePermissions(req, res, next) {
     try {
-      const userPermissions = req.user.permissions || {};
-      const accessibleModules = getAccessibleModules(userPermissions);
+      let userPermissions = req.user.permissions || {};
+      let accessibleModules = getAccessibleModules(userPermissions);
+
+      // Fallback: si por alguna razón el usuario no tiene permisos cargados,
+      // asignar permisos por defecto del rol para evitar que el frontend falle
+      if (!accessibleModules || accessibleModules.length === 0) {
+        const defaultPerms = getDefaultPermissionsForRole(req.user.role || 'viewer');
+        userPermissions = defaultPerms;
+        accessibleModules = getAccessibleModules(defaultPerms);
+      }
       
       logger.info('✅ Mis permisos de módulos obtenidos', {
         userEmail: req.user.email,

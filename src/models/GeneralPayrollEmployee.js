@@ -22,14 +22,14 @@ class GeneralPayrollEmployee {
       email: data.employee?.email || ''
     };
     
-    // Cálculos de nómina
-    this.baseSalary = data.baseSalary || 0;
-    this.overtime = data.overtime || 0;
-    this.bonuses = data.bonuses || 0;
-    this.deductions = data.deductions || 0;
-    this.taxes = data.taxes || 0;
-    this.grossSalary = data.grossSalary || 0;
-    this.netSalary = data.netSalary || 0;
+    // Cálculos de nómina - asegurar que sean números válidos
+    this.baseSalary = parseFloat(data.baseSalary) || 0;
+    this.overtime = parseFloat(data.overtime) || 0;
+    this.bonuses = parseFloat(data.bonuses) || 0;
+    this.deductions = parseFloat(data.deductions) || 0;
+    this.taxes = parseFloat(data.taxes) || 0;
+    this.grossSalary = parseFloat(data.grossSalary) || 0;
+    this.netSalary = parseFloat(data.netSalary) || 0;
     
     // Estado del empleado en la nómina
     this.status = data.status || 'pending'; // 'pending' | 'approved' | 'paid'
