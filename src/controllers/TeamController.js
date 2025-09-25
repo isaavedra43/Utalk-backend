@@ -6,6 +6,12 @@ const Campaign = require('../models/Campaign');
 const { firestore } = require('../config/firebase');
 const moment = require('moment');
 const { ResponseHandler } = require('../utils/responseHandler');
+const { 
+  getDefaultPermissionsForRole, 
+  generateDefaultPermissions,
+  getAccessibleModules,
+  validateModulePermissions
+} = require('../config/modulePermissions');
 
 class TeamController {
   /**
@@ -913,7 +919,14 @@ class TeamController {
             phone: user.phone || null,
             avatar: TeamController.generateAvatar(user.name),
             isActive: user.isActive !== false,
-            permissions: TeamController.generatePermissions(user.role),
+            permissions: {
+              // Permisos del sistema (legacy)
+              ...TeamController.generatePermissions(user.role),
+              // Permisos de módulos (nuevo sistema)
+              ...user.permissions,
+              // Módulos accesibles para el frontend
+              accessibleModules: getAccessibleModules(user.permissions || {})
+            },
             performance: {
               totalChats: kpis.summary?.totalChats || 0,
               csat: kpis.summary?.averageRating || 4.5,
@@ -1009,6 +1022,35 @@ class TeamController {
       // 🔧 Generar contraseña temporal si no se proporciona
       const finalPassword = password || TeamController.generateTemporaryPassword();
 
+      // 📝 Generar permisos de módulos
+      let modulePermissions = {};
+      if (permissions && permissions.modules) {
+        // Validar permisos personalizados de módulos
+        const validation = validateModulePermissions({ modules: permissions.modules });
+        if (!validation.valid) {
+          logger.warn('⚠️ Permisos de módulos inválidos, usando por defecto', {
+            email,
+            role,
+            validationError: validation.error,
+            userEmail: req.user?.email
+          });
+          modulePermissions = getDefaultPermissionsForRole(role);
+        } else {
+          modulePermissions = { modules: permissions.modules };
+        }
+      } else {
+        // Usar permisos por defecto del rol
+        modulePermissions = getDefaultPermissionsForRole(role);
+      }
+
+      logger.info('📋 Permisos de módulos generados para nuevo agente', {
+        email,
+        role,
+        modulesCount: Object.keys(modulePermissions.modules || {}).length,
+        accessibleModules: getAccessibleModules(modulePermissions).map(m => m.id),
+        userEmail: req.user?.email
+      });
+
       // 📝 Crear usuario
       const userData = {
         name,
@@ -1018,7 +1060,12 @@ class TeamController {
         phone: phone || null,
         isActive: true,
         department: 'general', // Departamento por defecto
-        permissions: TeamController.generatePermissions(role), // Permisos principales
+        permissions: {
+          // Permisos del sistema (legacy)
+          ...TeamController.generatePermissions(role),
+          // Permisos de módulos (nuevo sistema)
+          ...modulePermissions
+        },
         performance: {
           totalChats: 0,
           csat: 0,
@@ -1028,7 +1075,8 @@ class TeamController {
         metadata: {
           createdBy: req.user.email,
           createdVia: 'admin_panel',
-          permissions: TeamController.normalizePermissions(permissions, role)
+          permissions: TeamController.normalizePermissions(permissions, role),
+          modulePermissions: modulePermissions
         }
       };
 
@@ -1038,6 +1086,7 @@ class TeamController {
       const kpis = await TeamController.getUserKPIs(newUser.email, '30d');
 
       // 🔧 Formatear respuesta para frontend
+      const accessibleModules = getAccessibleModules(newUser.permissions);
       const agentResponse = {
         id: newUser.id || newUser.email,
         name: newUser.name,
@@ -1046,7 +1095,14 @@ class TeamController {
         phone: newUser.phone,
         avatar: TeamController.generateAvatar(newUser.name),
         isActive: newUser.isActive,
-        permissions: TeamController.generatePermissions(newUser.role),
+        permissions: {
+          // Permisos del sistema (legacy)
+          ...TeamController.generatePermissions(newUser.role),
+          // Permisos de módulos (nuevo sistema)
+          ...newUser.permissions,
+          // Módulos accesibles para el frontend
+          accessibleModules: accessibleModules
+        },
         performance: {
           totalChats: 0,
           csat: 0,
@@ -1058,9 +1114,13 @@ class TeamController {
       };
 
       logger.info('✅ Agente creado exitosamente', {
+        category: 'AGENT_CREATED_SUCCESS',
         agentId: newUser.id,
         agentEmail: newUser.email,
         agentName: newUser.name,
+        agentRole: newUser.role,
+        accessibleModulesCount: accessibleModules.length,
+        accessibleModules: accessibleModules.map(m => m.id),
         userEmail: req.user?.email
       });
 
