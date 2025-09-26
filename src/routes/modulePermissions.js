@@ -133,32 +133,4 @@ router.get('/users-summary',
   ModulePermissionsController.getUsersPermissionsSummary
 );
 
-/**
- * @route GET /api/module-permissions/validate/:email/:moduleId/:action
- * @desc Validar acceso específico de un usuario a un módulo
- * @access Private (admin o propio usuario)
- */
-router.get('/validate/:email/:moduleId/:action',
-  authMiddleware,
-  validateRequest({
-    params: Joi.object({
-      email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
-      moduleId: Joi.string().min(1).max(100).required(),
-      action: Joi.string().valid('read', 'write', 'configure').required()
-    })
-  }),
-  ModulePermissionsController.validateModuleAccess
-);
-
-/**
- * @route GET /api/module-permissions/stats
- * @desc Obtener estadísticas de permisos de módulos
- * @access Private (solo admin)
- */
-router.get('/stats',
-  authMiddleware,
-  requireAdmin,
-  ModulePermissionsController.getModulePermissionsStats
-);
-
 module.exports = router;

@@ -12,297 +12,131 @@
  * Módulos disponibles en el sistema
  */
 const AVAILABLE_MODULES = {
-  // MÓDULOS CORE
   dashboard: {
     id: 'dashboard',
     name: 'Dashboard',
-    description: 'Panel principal con métricas y estadísticas del sistema',
-    icon: '📊',
-    path: '/dashboard',
-    level: 'basic',
-    category: 'core'
+    description: 'Panel principal con métricas y estadísticas',
+    icon: 'dashboard',
+    path: '/dashboard'
   },
-  notifications: {
-    id: 'notifications',
-    name: 'Notificaciones',
-    description: 'Centro de notificaciones del sistema',
-    icon: '🔔',
-    path: '/notifications',
-    level: 'basic',
-    category: 'core'
-  },
-
-  // MÓDULOS DE COMUNICACIÓN
-  chat: {
-    id: 'chat',
-    name: 'Chat',
-    description: 'Mensajería y conversaciones con clientes',
-    icon: '💬',
-    path: '/conversations',
-    level: 'basic',
-    category: 'communication'
-  },
-  phone: {
-    id: 'phone',
-    name: 'Teléfono',
-    description: 'Sistema de llamadas VoIP',
-    icon: '📞',
-    path: '/phone',
-    level: 'basic',
-    category: 'communication'
-  },
-  'internal-chat': {
-    id: 'internal-chat',
-    name: 'Chat Interno',
-    description: 'Comunicación interna entre agentes',
-    icon: '💭',
-    path: '/internal-chat',
-    level: 'basic',
-    category: 'communication'
-  },
-
-  // MÓDULOS CRM
-  clients: {
-    id: 'clients',
-    name: 'Clientes',
-    description: 'Gestión de contactos y clientes',
-    icon: '👥',
-    path: '/contacts',
-    level: 'intermediate',
-    category: 'crm'
-  },
-
-  // MÓDULOS DE GESTIÓN
-  team: {
-    id: 'team',
-    name: 'Equipo',
-    description: 'Gestión de agentes y equipos de trabajo',
-    icon: '👨‍💼',
-    path: '/team',
-    level: 'advanced',
-    category: 'management'
-  },
-  hr: {
-    id: 'hr',
-    name: 'Recursos Humanos',
-    description: 'Empleados, nóminas y gestión de RRHH',
-    icon: '🏢',
-    path: '/hr',
-    level: 'advanced',
-    category: 'management'
-  },
-  supervision: {
-    id: 'supervision',
-    name: 'Supervisión',
-    description: 'Monitoreo y supervisión de agentes',
-    icon: '👁️',
-    path: '/supervision',
-    level: 'advanced',
-    category: 'management'
-  },
-
-  // MÓDULOS DE MARKETING
-  campaigns: {
-    id: 'campaigns',
-    name: 'Campañas',
-    description: 'Campañas de marketing y envíos masivos',
-    icon: '📢',
-    path: '/campaigns',
-    level: 'intermediate',
-    category: 'marketing'
-  },
-
-  // MÓDULOS DE OPERACIONES
-  providers: {
-    id: 'providers',
-    name: 'Proveedores',
-    description: 'Gestión de proveedores y servicios externos',
-    icon: '🏭',
-    path: '/providers',
-    level: 'advanced',
-    category: 'operations'
-  },
-  warehouse: {
-    id: 'warehouse',
-    name: 'Almacén',
-    description: 'Gestión de inventario y almacén',
-    icon: '📦',
-    path: '/warehouse',
-    level: 'intermediate',
-    category: 'operations'
-  },
-  shipping: {
-    id: 'shipping',
-    name: 'Envíos',
-    description: 'Logística y gestión de envíos',
-    icon: '🚚',
-    path: '/shipping',
-    level: 'intermediate',
-    category: 'operations'
-  },
-
-  // MÓDULOS DE IA
-  copilot: {
-    id: 'copilot',
-    name: 'Copiloto IA',
-    description: 'Asistente de inteligencia artificial',
-    icon: '🤖',
-    path: '/ai',
-    level: 'intermediate',
-    category: 'ai'
-  },
-
-  // MÓDULOS DE SOPORTE
-  'knowledge-base': {
-    id: 'knowledge-base',
-    name: 'Base de Conocimiento',
-    description: 'Documentación y recursos de ayuda',
-    icon: '📚',
-    path: '/knowledge',
-    level: 'basic',
-    category: 'support'
-  },
-  analytics: {
-    id: 'analytics',
-    name: 'Analytics',
-    description: 'Reportes y análisis avanzados',
-    icon: '📈',
-    path: '/analytics',
-    level: 'intermediate',
-    category: 'support'
-  },
-
-  // MÓDULOS DE CONFIGURACIÓN
-  services: {
-    id: 'services',
-    name: 'Servicios',
-    description: 'Configuración de servicios del sistema',
-    icon: '⚙️',
-    path: '/settings',
-    level: 'advanced',
-    category: 'configuration'
-  },
-
-  // COMPATIBILIDAD CON MÓDULOS EXISTENTES
   conversations: {
     id: 'conversations',
     name: 'Chat',
     description: 'Conversaciones y mensajería',
-    icon: '💬',
-    path: '/conversations',
-    level: 'basic',
-    category: 'communication'
+    icon: 'chat',
+    path: '/conversations'
   },
   contacts: {
     id: 'contacts',
     name: 'Clientes',
     description: 'Gestión de contactos y clientes',
-    icon: '👥',
-    path: '/contacts',
-    level: 'intermediate',
-    category: 'crm'
+    icon: 'people',
+    path: '/contacts'
+  },
+  campaigns: {
+    id: 'campaigns',
+    name: 'Campañas',
+    description: 'Campañas de marketing y envíos',
+    icon: 'campaign',
+    path: '/campaigns'
+  },
+  team: {
+    id: 'team',
+    name: 'Equipo',
+    description: 'Gestión de agentes y permisos',
+    icon: 'team',
+    path: '/team'
+  },
+  analytics: {
+    id: 'analytics',
+    name: 'Analytics',
+    description: 'Reportes y análisis avanzados',
+    icon: 'analytics',
+    path: '/analytics'
   },
   ai: {
     id: 'ai',
     name: 'IA',
     description: 'Configuración de inteligencia artificial',
-    icon: '🤖',
-    path: '/ai',
-    level: 'intermediate',
-    category: 'ai'
+    icon: 'ai',
+    path: '/ai'
   },
   settings: {
     id: 'settings',
     name: 'Configuración',
     description: 'Configuración del sistema',
-    icon: '⚙️',
-    path: '/settings',
-    level: 'advanced',
-    category: 'configuration'
+    icon: 'settings',
+    path: '/settings'
+  },
+  hr: {
+    id: 'hr',
+    name: 'Recursos Humanos',
+    description: 'Módulo de empleados, nóminas y asistencias',
+    icon: 'hr',
+    path: '/hr'
   }
 };
 
 /**
  * Permisos por defecto por rol
  */
-/**
- * Generar permisos por defecto basados en rol y categoría de módulo
- */
-function generateDefaultPermissions(role) {
-  const permissions = {};
-  
-  Object.keys(AVAILABLE_MODULES).forEach(moduleId => {
-    const module = AVAILABLE_MODULES[moduleId];
-    
-    switch(role) {
-      case 'admin':
-        // ADMIN: Acceso completo a todos los módulos
-        permissions[moduleId] = { 
-          read: true, 
-          write: true, 
-          configure: true 
-        };
-        break;
-        
-      case 'supervisor':
-        // SUPERVISOR: Lectura y escritura, configuración limitada
-        permissions[moduleId] = { 
-          read: true, 
-          write: true, 
-          configure: module.level !== 'advanced' 
-        };
-        break;
-        
-      case 'agent':
-        // AGENTE: Solo módulos básicos de comunicación y core
-        const allowedCategories = ['core', 'communication', 'support'];
-        const hasAccess = allowedCategories.includes(module.category);
-        permissions[moduleId] = { 
-          read: hasAccess, 
-          write: hasAccess && module.level === 'basic', 
-          configure: false 
-        };
-        break;
-        
-      case 'viewer':
-        // VISUALIZADOR: Solo lectura en módulos core
-        const isCore = module.category === 'core';
-        permissions[moduleId] = { 
-          read: isCore, 
-          write: false, 
-          configure: false 
-        };
-        break;
-        
-      default:
-        // Por defecto, sin acceso
-        permissions[moduleId] = { 
-          read: false, 
-          write: false, 
-          configure: false 
-        };
-    }
-  });
-  
-  return permissions;
-}
-
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: {
-    modules: generateDefaultPermissions('admin'),
-    description: 'Acceso completo a todos los módulos del sistema'
-  },
-  supervisor: {
-    modules: generateDefaultPermissions('supervisor'),
-    description: 'Acceso amplio con configuración limitada en módulos avanzados'
+    // Admin tiene acceso completo a todos los módulos
+    modules: Object.keys(AVAILABLE_MODULES).reduce((acc, moduleId) => {
+      acc[moduleId] = {
+        read: true,
+        write: true,
+        configure: true
+      };
+      return acc;
+    }, {}),
+    description: 'Acceso completo a todos los módulos'
   },
   agent: {
-    modules: generateDefaultPermissions('agent'),
-    description: 'Acceso a módulos de comunicación y soporte básico'
+    // Agente solo ve chat y dashboard básico
+    modules: {
+      dashboard: { read: true, write: false, configure: false },
+      conversations: { read: true, write: true, configure: false },
+      hr: { read: false, write: false, configure: false },
+      contacts: { read: false, write: false, configure: false },
+      campaigns: { read: false, write: false, configure: false },
+      team: { read: false, write: false, configure: false },
+      analytics: { read: false, write: false, configure: false },
+      ai: { read: false, write: false, configure: false },
+      settings: { read: false, write: false, configure: false }
+    },
+    description: 'Acceso limitado: solo chat y dashboard básico'
   },
   viewer: {
-    modules: generateDefaultPermissions('viewer'),
-    description: 'Solo visualización de módulos core del sistema'
+    // Viewer solo puede leer dashboard
+    modules: {
+      dashboard: { read: true, write: false, configure: false },
+      hr: { read: false, write: false, configure: false },
+      conversations: { read: false, write: false, configure: false },
+      contacts: { read: false, write: false, configure: false },
+      campaigns: { read: false, write: false, configure: false },
+      team: { read: false, write: false, configure: false },
+      analytics: { read: false, write: false, configure: false },
+      ai: { read: false, write: false, configure: false },
+      settings: { read: false, write: false, configure: false }
+    },
+    description: 'Solo visualización del dashboard'
+  },
+  supervisor: {
+    // Supervisor tiene acceso amplio pero no configuración
+    modules: {
+      dashboard: { read: true, write: true, configure: false },
+      hr: { read: true, write: true, configure: false },
+      conversations: { read: true, write: true, configure: false },
+      contacts: { read: true, write: true, configure: false },
+      campaigns: { read: true, write: true, configure: false },
+      team: { read: true, write: false, configure: false },
+      analytics: { read: true, write: false, configure: false },
+      ai: { read: true, write: false, configure: false },
+      settings: { read: false, write: false, configure: false }
+    },
+    description: 'Acceso amplio sin configuración del sistema'
   }
 };
 
@@ -324,23 +158,6 @@ function getAvailableModules() {
  * Verificar si un usuario tiene acceso a un módulo
  */
 function hasModuleAccess(userPermissions, moduleId, action = 'read') {
-  // ✅ VERIFICAR SI TIENE PERMISO "all" - ACCESO COMPLETO AUTOMÁTICO
-  if (Array.isArray(userPermissions)) {
-    // Si es array, verificar si contiene "all"
-    if (userPermissions.includes('all')) {
-      return true; // ACCESO COMPLETO
-    }
-  } else if (userPermissions && typeof userPermissions === 'object') {
-    // Si es objeto, verificar si tiene "all" en legacy o en el objeto principal
-    if (userPermissions.legacy && userPermissions.legacy.includes('all')) {
-      return true; // ACCESO COMPLETO
-    }
-    if (userPermissions.all === true || userPermissions.all === 'all') {
-      return true; // ACCESO COMPLETO
-    }
-  }
-
-  // ✅ VERIFICACIÓN ESTÁNDAR DE MÓDULOS
   if (!userPermissions || !userPermissions.modules) {
     return false;
   }
@@ -357,25 +174,6 @@ function hasModuleAccess(userPermissions, moduleId, action = 'read') {
  * Obtener módulos accesibles para un usuario
  */
 function getAccessibleModules(userPermissions) {
-  // ✅ VERIFICAR SI TIENE PERMISO "all" - DEVOLVER TODOS LOS MÓDULOS
-  let hasAllAccess = false;
-  
-  if (Array.isArray(userPermissions)) {
-    hasAllAccess = userPermissions.includes('all');
-  } else if (userPermissions && typeof userPermissions === 'object') {
-    hasAllAccess = (userPermissions.legacy && userPermissions.legacy.includes('all')) ||
-                   (userPermissions.all === true || userPermissions.all === 'all');
-  }
-  
-  if (hasAllAccess) {
-    // Si tiene "all", devolver todos los módulos con acceso completo
-    return Object.keys(AVAILABLE_MODULES).map(moduleId => ({
-      ...AVAILABLE_MODULES[moduleId],
-      permissions: { read: true, write: true, configure: true }
-    }));
-  }
-
-  // ✅ VERIFICACIÓN ESTÁNDAR
   if (!userPermissions || !userPermissions.modules) {
     return [];
   }
@@ -430,102 +228,12 @@ function validateModulePermissions(permissions) {
   return { valid: true };
 }
 
-/**
- * Obtener estadísticas de permisos
- */
-function getModulePermissionsStats(users = []) {
-  const stats = {
-    totalModules: Object.keys(AVAILABLE_MODULES).length,
-    modulesByCategory: {},
-    modulesByLevel: {}
-  };
-
-  // Agrupar módulos por categoría y nivel
-  Object.values(AVAILABLE_MODULES).forEach(module => {
-    stats.modulesByCategory[module.category] = (stats.modulesByCategory[module.category] || 0) + 1;
-    stats.modulesByLevel[module.level] = (stats.modulesByLevel[module.level] || 0) + 1;
-  });
-
-  return stats;
-}
-
-/**
- * Validar acceso específico a módulo
- */
-function validateSpecificAccess(userEmail, moduleId, action, userPermissions) {
-  const logger = require('../utils/logger');
-  
-  try {
-    logger.info('🔍 Validando acceso a módulo', {
-      category: 'MODULE_ACCESS_VALIDATION',
-      userEmail,
-      moduleId,
-      action,
-      timestamp: new Date().toISOString()
-    });
-
-    if (!AVAILABLE_MODULES[moduleId]) {
-      logger.warn('⚠️ Módulo no encontrado', {
-        category: 'MODULE_ACCESS_VALIDATION_ERROR',
-        moduleId,
-        userEmail,
-        error: 'MODULE_NOT_FOUND'
-      });
-      return { hasAccess: false, error: 'Módulo no encontrado' };
-    }
-
-    // ✅ VERIFICAR SI TIENE PERMISO "all"
-    let hasAllAccess = false;
-    let accessReason = 'STANDARD_CHECK';
-    
-    if (Array.isArray(userPermissions)) {
-      hasAllAccess = userPermissions.includes('all');
-      if (hasAllAccess) accessReason = 'PERMISSION_ALL_ARRAY';
-    } else if (userPermissions && typeof userPermissions === 'object') {
-      hasAllAccess = (userPermissions.legacy && userPermissions.legacy.includes('all')) ||
-                     (userPermissions.all === true || userPermissions.all === 'all');
-      if (hasAllAccess) accessReason = 'PERMISSION_ALL_OBJECT';
-    }
-
-    const hasAccess = hasModuleAccess(userPermissions, moduleId, action);
-    
-    logger.info(hasAccess ? '✅ Acceso concedido' : '❌ Acceso denegado', {
-      category: 'MODULE_ACCESS_VALIDATION_RESULT',
-      userEmail,
-      moduleId,
-      action,
-      hasAccess,
-      hasAllAccess,
-      accessReason,
-      permissions: userPermissions?.modules?.[moduleId],
-      isArray: Array.isArray(userPermissions),
-      hasLegacy: !!userPermissions?.legacy,
-      legacyIncludesAll: userPermissions?.legacy?.includes('all')
-    });
-
-    return { hasAccess, error: null, hasAllAccess, accessReason };
-  } catch (error) {
-    logger.error('💥 Error validando acceso a módulo', {
-      category: 'MODULE_ACCESS_VALIDATION_ERROR',
-      userEmail,
-      moduleId,
-      action,
-      error: error.message,
-      stack: error.stack
-    });
-    return { hasAccess: false, error: error.message };
-  }
-}
-
 module.exports = {
   AVAILABLE_MODULES,
   DEFAULT_ROLE_PERMISSIONS,
-  generateDefaultPermissions,
   getDefaultPermissionsForRole,
   getAvailableModules,
   hasModuleAccess,
   getAccessibleModules,
-  validateModulePermissions,
-  getModulePermissionsStats,
-  validateSpecificAccess
+  validateModulePermissions
 };

@@ -9,7 +9,7 @@
  */
 
 const logger = require('../utils/logger');
-const { hasModuleAccess, getAvailableModules, validateSpecificAccess } = require('../config/modulePermissions');
+const { hasModuleAccess, getAvailableModules } = require('../config/modulePermissions');
 
 /**
  * Middleware para verificar acceso a un módulo específico
@@ -69,22 +69,20 @@ const requireModuleAccess = (moduleId, action = 'read') => {
       });
     }
 
-    // Verificar permisos del usuario usando la función mejorada
+    // Verificar permisos del usuario
     const userPermissions = req.user.permissions || {};
-    const validation = validateSpecificAccess(req.user.email, moduleId, action, userPermissions);
+    const hasAccess = hasModuleAccess(userPermissions, moduleId, action);
 
-    if (!validation.hasAccess) {
+    if (!hasAccess) {
       logger.warn('🚫 Acceso denegado a módulo', {
         category: 'MODULE_ACCESS_DENIED',
         moduleId,
         action,
         userEmail: req.user.email,
         userRole: req.user.role,
-        userPermissions: userPermissions.modules?.[moduleId] || null,
-        validationError: validation.error,
+        userPermissions: userPermissions,
         ip: req.ip,
-        url: req.originalUrl,
-        timestamp: new Date().toISOString()
+        url: req.originalUrl
       });
       
       return res.status(403).json({
@@ -92,27 +90,25 @@ const requireModuleAccess = (moduleId, action = 'read') => {
         error: {
           type: 'AUTHORIZATION_ERROR',
           code: 'MODULE_ACCESS_DENIED',
-          message: `Sin permisos para acceder al módulo '${moduleId}' con acción '${action}'`,
+          message: `Sin permisos para acceder al módulo '${moduleId}'`,
           details: {
             moduleId,
             action,
             userRole: req.user.role,
-            requiredAction: action,
-            validationError: validation.error
+            requiredAction: action
           },
           timestamp: new Date().toISOString()
         }
       });
     }
 
-    logger.info('✅ Acceso autorizado a módulo', {
+    logger.debug('✅ Acceso autorizado a módulo', {
       category: 'MODULE_ACCESS_GRANTED',
       moduleId,
       action,
       userEmail: req.user.email,
       userRole: req.user.role,
-      url: req.originalUrl,
-      timestamp: new Date().toISOString()
+      url: req.originalUrl
     });
 
     next();
@@ -178,17 +174,15 @@ const requireMultipleModuleAccess = (modules) => {
         });
       }
 
-      // Verificar permisos usando validación mejorada
-      const validation = validateSpecificAccess(req.user.email, moduleId, action, userPermissions);
-      if (!validation.hasAccess) {
+      // Verificar permisos
+      const hasAccess = hasModuleAccess(userPermissions, moduleId, action);
+      if (!hasAccess) {
         logger.warn('🚫 Acceso denegado en verificación múltiple', {
           category: 'MULTIPLE_MODULE_ACCESS_DENIED',
           moduleId,
           action,
           userEmail: req.user.email,
-          userRole: req.user.role,
-          validationError: validation.error,
-          timestamp: new Date().toISOString()
+          userRole: req.user.role
         });
         
         return res.status(403).json({
@@ -196,13 +190,8 @@ const requireMultipleModuleAccess = (modules) => {
           error: {
             type: 'AUTHORIZATION_ERROR',
             code: 'MODULE_ACCESS_DENIED',
-            message: `Sin permisos para acceder al módulo '${moduleId}' con acción '${action}'`,
-            details: { 
-              moduleId, 
-              action, 
-              userRole: req.user.role,
-              validationError: validation.error
-            },
+            message: `Sin permisos para acceder al módulo '${moduleId}'`,
+            details: { moduleId, action, userRole: req.user.role },
             timestamp: new Date().toISOString()
           }
         });
@@ -248,15 +237,14 @@ const requireAnyModuleAccess = (modules) => {
         continue; // Saltar módulos que no existen
       }
 
-      // Verificar permisos usando validación mejorada
-      const validation = validateSpecificAccess(req.user.email, moduleId, action, userPermissions);
-      if (validation.hasAccess) {
-        logger.info('✅ Acceso autorizado a al menos un módulo', {
+      // Verificar permisos
+      const hasAccess = hasModuleAccess(userPermissions, moduleId, action);
+      if (hasAccess) {
+        logger.debug('✅ Acceso autorizado a al menos un módulo', {
           category: 'ANY_MODULE_ACCESS_GRANTED',
           grantedModule: { moduleId, action },
           userEmail: req.user.email,
-          userRole: req.user.role,
-          timestamp: new Date().toISOString()
+          userRole: req.user.role
         });
         
         return next();

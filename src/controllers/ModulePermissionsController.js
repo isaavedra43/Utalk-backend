@@ -15,9 +15,7 @@ const {
   getAvailableModules, 
   getDefaultPermissionsForRole, 
   getAccessibleModules,
-  validateModulePermissions,
-  getModulePermissionsStats,
-  validateSpecificAccess
+  validateModulePermissions 
 } = require('../config/modulePermissions');
 
 class ModulePermissionsController {
@@ -309,7 +307,6 @@ class ModulePermissionsController {
       });
 
       logger.info('✅ Resumen de permisos de usuarios obtenido', {
-        category: 'MODULE_PERMISSIONS_SUMMARY',
         requestedBy: req.user.email,
         usersCount: summary.length
       });
@@ -320,152 +317,8 @@ class ModulePermissionsController {
       }, 'Resumen de permisos de usuarios obtenido exitosamente');
     } catch (error) {
       logger.error('❌ Error obteniendo resumen de permisos de usuarios', {
-        category: 'MODULE_PERMISSIONS_SUMMARY_ERROR',
         requestedBy: req.user?.email,
-        error: error.message,
-        stack: error.stack
-      });
-      return ResponseHandler.error(res, error);
-    }
-  }
-
-  /**
-   * GET /api/module-permissions/validate/:email/:moduleId/:action
-   * Validar acceso específico de un usuario a un módulo
-   */
-  static async validateModuleAccess(req, res, next) {
-    try {
-      const { email, moduleId, action } = req.params;
-
-      logger.info('🔍 Iniciando validación de acceso a módulo', {
-        category: 'MODULE_ACCESS_VALIDATION_REQUEST',
-        targetUser: email,
-        requestedBy: req.user.email,
-        moduleId,
-        action
-      });
-
-      // Verificar que el usuario solicitante es admin o está consultando sus propios permisos
-      if (req.user.role !== 'admin' && req.user.email !== email) {
-        logger.warn('⚠️ Intento de validación no autorizada', {
-          category: 'MODULE_ACCESS_VALIDATION_UNAUTHORIZED',
-          targetUser: email,
-          requestedBy: req.user.email,
-          moduleId,
-          action
-        });
-        return ResponseHandler.authorizationError(res, 'Solo puedes validar tus propios permisos');
-      }
-
-      const user = await User.getByEmail(email);
-      if (!user) {
-        logger.warn('⚠️ Usuario no encontrado para validación', {
-          category: 'MODULE_ACCESS_VALIDATION_USER_NOT_FOUND',
-          targetUser: email,
-          requestedBy: req.user.email,
-          moduleId,
-          action
-        });
-        return ResponseHandler.notFoundError(res, `Usuario ${email} no encontrado`);
-      }
-
-      const userPermissions = user.permissions || {};
-      const validation = validateSpecificAccess(email, moduleId, action, userPermissions);
-
-      return ResponseHandler.success(res, {
-        hasAccess: validation.hasAccess,
-        user: {
-          email: user.email,
-          name: user.name,
-          role: user.role
-        },
-        module: {
-          id: moduleId,
-          action: action
-        },
-        validation: validation
-      }, validation.hasAccess ? 'Acceso validado correctamente' : 'Acceso denegado al módulo');
-    } catch (error) {
-      logger.error('💥 Error validando acceso a módulo', {
-        category: 'MODULE_ACCESS_VALIDATION_ERROR',
-        targetUser: req.params?.email,
-        requestedBy: req.user?.email,
-        moduleId: req.params?.moduleId,
-        action: req.params?.action,
-        error: error.message,
-        stack: error.stack
-      });
-      return ResponseHandler.error(res, error);
-    }
-  }
-
-  /**
-   * GET /api/module-permissions/stats
-   * Obtener estadísticas de permisos de módulos
-   */
-  static async getModulePermissionsStats(req, res, next) {
-    try {
-      // Solo admins pueden consultar estadísticas
-      if (req.user.role !== 'admin') {
-        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden consultar estadísticas de permisos');
-      }
-
-      logger.info('📊 Generando estadísticas de permisos de módulos', {
-        category: 'MODULE_PERMISSIONS_STATS_REQUEST',
-        requestedBy: req.user.email
-      });
-
-      // Obtener todos los usuarios activos para estadísticas
-      const users = await User.getAllActive();
-      const stats = getModulePermissionsStats(users);
-
-      // Estadísticas adicionales de usuarios
-      const userStats = {
-        totalUsers: users.length,
-        usersByRole: {},
-        activeUsers: users.filter(u => u.isActive).length,
-        inactiveUsers: users.filter(u => !u.isActive).length
-      };
-
-      users.forEach(user => {
-        userStats.usersByRole[user.role] = (userStats.usersByRole[user.role] || 0) + 1;
-      });
-
-      // Módulos más utilizados
-      const moduleUsage = {};
-      users.forEach(user => {
-        const userPermissions = user.permissions || {};
-        const accessibleModules = getAccessibleModules(userPermissions);
-        accessibleModules.forEach(module => {
-          moduleUsage[module.id] = (moduleUsage[module.id] || 0) + 1;
-        });
-      });
-
-      const mostUsedModules = Object.entries(moduleUsage)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 10)
-        .map(([moduleId, count]) => ({ moduleId, count }));
-
-      const fullStats = {
-        ...stats,
-        users: userStats,
-        mostUsedModules
-      };
-
-      logger.info('✅ Estadísticas de permisos generadas', {
-        category: 'MODULE_PERMISSIONS_STATS_SUCCESS',
-        requestedBy: req.user.email,
-        totalModules: stats.totalModules,
-        totalUsers: userStats.totalUsers
-      });
-
-      return ResponseHandler.success(res, fullStats, 'Estadísticas de permisos obtenidas exitosamente');
-    } catch (error) {
-      logger.error('💥 Error generando estadísticas de permisos', {
-        category: 'MODULE_PERMISSIONS_STATS_ERROR',
-        requestedBy: req.user?.email,
-        error: error.message,
-        stack: error.stack
+        error: error.message
       });
       return ResponseHandler.error(res, error);
     }
