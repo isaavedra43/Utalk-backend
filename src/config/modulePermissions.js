@@ -324,6 +324,23 @@ function getAvailableModules() {
  * Verificar si un usuario tiene acceso a un módulo
  */
 function hasModuleAccess(userPermissions, moduleId, action = 'read') {
+  // ✅ VERIFICAR SI TIENE PERMISO "all" - ACCESO COMPLETO AUTOMÁTICO
+  if (Array.isArray(userPermissions)) {
+    // Si es array, verificar si contiene "all"
+    if (userPermissions.includes('all')) {
+      return true; // ACCESO COMPLETO
+    }
+  } else if (userPermissions && typeof userPermissions === 'object') {
+    // Si es objeto, verificar si tiene "all" en legacy o en el objeto principal
+    if (userPermissions.legacy && userPermissions.legacy.includes('all')) {
+      return true; // ACCESO COMPLETO
+    }
+    if (userPermissions.all === true || userPermissions.all === 'all') {
+      return true; // ACCESO COMPLETO
+    }
+  }
+
+  // ✅ VERIFICACIÓN ESTÁNDAR DE MÓDULOS
   if (!userPermissions || !userPermissions.modules) {
     return false;
   }
@@ -340,6 +357,25 @@ function hasModuleAccess(userPermissions, moduleId, action = 'read') {
  * Obtener módulos accesibles para un usuario
  */
 function getAccessibleModules(userPermissions) {
+  // ✅ VERIFICAR SI TIENE PERMISO "all" - DEVOLVER TODOS LOS MÓDULOS
+  let hasAllAccess = false;
+  
+  if (Array.isArray(userPermissions)) {
+    hasAllAccess = userPermissions.includes('all');
+  } else if (userPermissions && typeof userPermissions === 'object') {
+    hasAllAccess = (userPermissions.legacy && userPermissions.legacy.includes('all')) ||
+                   (userPermissions.all === true || userPermissions.all === 'all');
+  }
+  
+  if (hasAllAccess) {
+    // Si tiene "all", devolver todos los módulos con acceso completo
+    return Object.keys(AVAILABLE_MODULES).map(moduleId => ({
+      ...AVAILABLE_MODULES[moduleId],
+      permissions: { read: true, write: true, configure: true }
+    }));
+  }
+
+  // ✅ VERIFICACIÓN ESTÁNDAR
   if (!userPermissions || !userPermissions.modules) {
     return [];
   }
@@ -438,6 +474,19 @@ function validateSpecificAccess(userEmail, moduleId, action, userPermissions) {
       return { hasAccess: false, error: 'Módulo no encontrado' };
     }
 
+    // ✅ VERIFICAR SI TIENE PERMISO "all"
+    let hasAllAccess = false;
+    let accessReason = 'STANDARD_CHECK';
+    
+    if (Array.isArray(userPermissions)) {
+      hasAllAccess = userPermissions.includes('all');
+      if (hasAllAccess) accessReason = 'PERMISSION_ALL_ARRAY';
+    } else if (userPermissions && typeof userPermissions === 'object') {
+      hasAllAccess = (userPermissions.legacy && userPermissions.legacy.includes('all')) ||
+                     (userPermissions.all === true || userPermissions.all === 'all');
+      if (hasAllAccess) accessReason = 'PERMISSION_ALL_OBJECT';
+    }
+
     const hasAccess = hasModuleAccess(userPermissions, moduleId, action);
     
     logger.info(hasAccess ? '✅ Acceso concedido' : '❌ Acceso denegado', {
@@ -446,10 +495,15 @@ function validateSpecificAccess(userEmail, moduleId, action, userPermissions) {
       moduleId,
       action,
       hasAccess,
-      permissions: userPermissions?.modules?.[moduleId]
+      hasAllAccess,
+      accessReason,
+      permissions: userPermissions?.modules?.[moduleId],
+      isArray: Array.isArray(userPermissions),
+      hasLegacy: !!userPermissions?.legacy,
+      legacyIncludesAll: userPermissions?.legacy?.includes('all')
     });
 
-    return { hasAccess, error: null };
+    return { hasAccess, error: null, hasAllAccess, accessReason };
   } catch (error) {
     logger.error('💥 Error validando acceso a módulo', {
       category: 'MODULE_ACCESS_VALIDATION_ERROR',
