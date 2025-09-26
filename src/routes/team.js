@@ -259,6 +259,16 @@ router.put('/agents/:id',
 );
 
 /**
+ * 📊 @route GET /api/team/agents/stats
+ * @desc Obtener estadísticas generales de agentes
+ * @access Private (Admin, Supervisor)
+ */
+router.get('/agents/stats',
+  authMiddleware,
+  TeamController.getAgentsStats
+);
+
+/**
  * 🆕 @route DELETE /api/team/agents/:id
  * @desc Eliminar agente
  * @access Private (Admin)
@@ -269,16 +279,6 @@ router.delete('/agents/:id',
   teamValidators.validateIdParam,
   teamValidators.validateDeleteAgent,
   TeamController.deleteAgent
-);
-
-/**
- * 📊 @route GET /api/team/agents/stats
- * @desc Obtener estadísticas generales de agentes
- * @access Private (Admin, Supervisor)
- */
-router.get('/agents/stats',
-  authMiddleware,
-  TeamController.getAgentsStats
 );
 
 /**
