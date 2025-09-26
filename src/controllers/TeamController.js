@@ -1490,36 +1490,30 @@ class TeamController {
         userEmail: req.user?.email
       });
 
-      // 🔍 Buscar agente existente (búsqueda directa en Firestore)
+      // 🔍 Buscar agente existente (usando User.list que SÍ funciona)
       let existingUser = null;
       
       try {
-        logger.info('🔍 Buscando usuario directamente en Firestore', { id });
+        logger.info('🔍 Buscando usuario con User.list', { id });
         
-        // Búsqueda directa por ID (email) - método más confiable
-        const userDoc = await firestore.collection('users').doc(id).get();
+        // Usar el mismo método que funciona en listAgents
+        const users = await User.list({ limit: 1000 }); // Obtener todos los usuarios
         
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          existingUser = {
-            id: userDoc.id,
-            email: userData.email,
-            name: userData.name,
-            role: userData.role,
-            isActive: userData.isActive,
-            ...userData
-          };
-          logger.info('✅ Usuario encontrado con búsqueda directa', {
+        // Buscar por email
+        existingUser = users.find(user => user.email === id);
+        
+        if (existingUser) {
+          logger.info('✅ Usuario encontrado con User.list', {
             id,
             found: true,
-            userEmail: userData.email,
-            userName: userData.name
+            userEmail: existingUser.email,
+            userName: existingUser.name
           });
         } else {
-          logger.warn('⚠️ Usuario no encontrado con búsqueda directa', { id });
+          logger.warn('⚠️ Usuario no encontrado con User.list', { id });
         }
       } catch (error) {
-        logger.error('❌ Error en búsqueda directa en Firestore', {
+        logger.error('❌ Error en User.list', {
           id,
           error: error.message
         });
