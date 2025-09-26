@@ -1490,72 +1490,39 @@ class TeamController {
         userEmail: req.user?.email
       });
 
-      // 🔍 Buscar agente existente (múltiples métodos para compatibilidad)
+      // 🔍 Buscar agente existente (búsqueda directa en Firestore)
       let existingUser = null;
       
       try {
-        // Intentar primero con findByEmail
-        existingUser = await User.findByEmail(id);
-        logger.info('✅ Usuario encontrado con findByEmail', {
-          id,
-          found: !!existingUser
-        });
+        logger.info('🔍 Buscando usuario directamente en Firestore', { id });
+        
+        // Búsqueda directa por ID (email) - método más confiable
+        const userDoc = await firestore.collection('users').doc(id).get();
+        
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          existingUser = {
+            id: userDoc.id,
+            email: userData.email,
+            name: userData.name,
+            role: userData.role,
+            isActive: userData.isActive,
+            ...userData
+          };
+          logger.info('✅ Usuario encontrado con búsqueda directa', {
+            id,
+            found: true,
+            userEmail: userData.email,
+            userName: userData.name
+          });
+        } else {
+          logger.warn('⚠️ Usuario no encontrado con búsqueda directa', { id });
+        }
       } catch (error) {
-        logger.warn('⚠️ Error en User.findByEmail, intentando con getById', {
+        logger.error('❌ Error en búsqueda directa en Firestore', {
           id,
           error: error.message
         });
-      }
-      
-      // Si no se encontró, intentar con getById (si existe)
-      if (!existingUser) {
-        try {
-          if (typeof User.getById === 'function') {
-            existingUser = await User.getById(id);
-            logger.info('✅ Usuario encontrado con getById', {
-              id,
-              found: !!existingUser
-            });
-          } else {
-            logger.warn('⚠️ User.getById no está disponible');
-          }
-        } catch (error) {
-          logger.warn('⚠️ Error en User.getById', {
-            id,
-            error: error.message
-          });
-        }
-      }
-      
-      // Si aún no se encontró, intentar búsqueda directa en Firestore
-      if (!existingUser) {
-        try {
-          logger.info('🔍 Intentando búsqueda directa en Firestore', { id });
-          const userDoc = await firestore.collection('users').doc(id).get();
-          if (userDoc.exists) {
-            const userData = userDoc.data();
-            existingUser = {
-              id: userDoc.id,
-              email: userData.email,
-              name: userData.name,
-              role: userData.role,
-              isActive: userData.isActive,
-              ...userData
-            };
-            logger.info('✅ Usuario encontrado con búsqueda directa', {
-              id,
-              email: userData.email,
-              name: userData.name
-            });
-          } else {
-            logger.warn('⚠️ Documento no existe en Firestore', { id });
-          }
-        } catch (error) {
-          logger.error('❌ Error en búsqueda directa de Firestore', {
-            id,
-            error: error.message
-          });
-        }
       }
       
       if (!existingUser) {
