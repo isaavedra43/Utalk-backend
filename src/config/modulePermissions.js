@@ -22,14 +22,6 @@ const AVAILABLE_MODULES = {
     path: '/dashboard',
     level: 'basic'
   },
-  conversations: {
-    id: 'conversations',
-    name: 'Chat',
-    description: 'Conversaciones y mensajería',
-    icon: 'chat',
-    path: '/conversations',
-    level: 'basic'
-  },
   contacts: {
     id: 'contacts',
     name: 'Clientes',
@@ -209,7 +201,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     modules: {
       // Módulos principales para agentes
       dashboard: { read: true, write: false, configure: false },
-      conversations: { read: true, write: true, configure: false },
+      chat: { read: true, write: true, configure: false },
       chat: { read: true, write: true, configure: false },
       contacts: { read: true, write: true, configure: false },
       clients: { read: true, write: true, configure: false },
@@ -239,7 +231,6 @@ const DEFAULT_ROLE_PERMISSIONS = {
     // Viewer solo puede leer dashboard y algunos módulos básicos
     modules: {
       dashboard: { read: true, write: false, configure: false },
-      conversations: { read: true, write: false, configure: false },
       chat: { read: true, write: false, configure: false },
       contacts: { read: true, write: false, configure: false },
       clients: { read: true, write: false, configure: false },
@@ -270,7 +261,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     modules: {
       // Acceso completo a módulos operativos
       dashboard: { read: true, write: true, configure: false },
-      conversations: { read: true, write: true, configure: false },
+      chat: { read: true, write: true, configure: false },
       chat: { read: true, write: true, configure: false },
       contacts: { read: true, write: true, configure: false },
       clients: { read: true, write: true, configure: false },
@@ -393,7 +384,7 @@ function validateModulePermissions(permissions) {
 function getModulesByCategory() {
   return {
     core: ['dashboard', 'notifications'],
-    communication: ['conversations', 'chat', 'internal-chat', 'phone'],
+    communication: ['chat', 'internal-chat', 'phone'],
     customers: ['contacts', 'clients'],
     marketing: ['campaigns'],
     management: ['team', 'hr', 'supervision'],
