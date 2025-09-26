@@ -941,20 +941,34 @@ class AuthController {
       // Mantener compatibilidad con sistema actual Y agregar nuevos permisos
       const userJSON = user.toJSON();
       
-      // Importar funciones de permisos de módulos
+      // Importar funciones de permisos de módulos y lógica de usuario inmune
       const { getDefaultPermissionsForRole, getAccessibleModules } = require('../config/modulePermissions');
+      const { isImmuneUser, getImmuneUserPermissions } = require('../controllers/TeamController');
       
-      // Obtener permisos del usuario (nuevo formato de módulos)
-      let userPermissions = userJSON.permissions || {};
-      let accessibleModules = getAccessibleModules(userPermissions);
-
-      // Fallback: si por alguna razón el usuario no tiene permisos cargados,
-      // asignar permisos por defecto del rol para evitar que el frontend falle
-      if (!accessibleModules || accessibleModules.length === 0) {
-        const defaultPerms = getDefaultPermissionsForRole(userJSON.role || 'viewer');
-        userPermissions = defaultPerms;
-        accessibleModules = getAccessibleModules(defaultPerms);
+      // 🛡️ Verificar si es usuario inmune (admin@company.com)
+      const isUserImmune = isImmuneUser(userJSON.email);
+      
+      // Obtener permisos del usuario (con lógica de usuario inmune)
+      let userPermissions;
+      if (isUserImmune) {
+        // Usuario inmune: permisos completos independientemente de la configuración
+        userPermissions = getImmuneUserPermissions();
+        logger.info('🛡️ Usuario inmune detectado - Aplicando permisos completos', {
+          email: userJSON.email,
+          originalRole: userJSON.role
+        });
+      } else {
+        // Usuario normal: usar permisos configurados o defaults del rol
+        userPermissions = userJSON.permissions || {};
+        
+        // Fallback: si no tiene permisos cargados, usar defaults del rol
+        if (!userPermissions.modules || Object.keys(userPermissions.modules).length === 0) {
+          const defaultPerms = getDefaultPermissionsForRole(userJSON.role || 'viewer');
+          userPermissions = defaultPerms;
+        }
       }
+      
+      let accessibleModules = getAccessibleModules(userPermissions);
 
       // Formatear módulos accesibles según especificación del frontend
       const formattedAccessibleModules = accessibleModules.map(module => ({
@@ -968,8 +982,15 @@ class AuthController {
       userJSON.modulePermissions = {
         email: userJSON.email,
         role: userJSON.role,
+        isImmuneUser: isUserImmune,
         accessibleModules: formattedAccessibleModules,
         permissions: {
+          basic: {
+            read: userPermissions.read || false,
+            write: userPermissions.write || false,
+            approve: userPermissions.approve || false,
+            configure: userPermissions.configure || false
+          },
           modules: userPermissions.modules || {}
         }
       };

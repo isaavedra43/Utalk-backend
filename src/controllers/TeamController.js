@@ -6,8 +6,81 @@ const Campaign = require('../models/Campaign');
 const { firestore } = require('../config/firebase');
 const moment = require('moment');
 const { ResponseHandler } = require('../utils/responseHandler');
+const { 
+  getAvailableModules, 
+  getDefaultPermissionsForRole, 
+  getAccessibleModules,
+  validateModulePermissions,
+  hasModuleAccess
+} = require('../config/modulePermissions');
 
 class TeamController {
+  
+  /**
+   * 🛡️ USUARIO INMUNE A PERMISOS
+   * admin@company.com tiene acceso completo independientemente de su configuración
+   */
+  static isImmuneUser(email) {
+    const IMMUNE_USERS = ['admin@company.com'];
+    return IMMUNE_USERS.includes(email?.toLowerCase());
+  }
+
+  /**
+   * 🔧 GENERAR PERMISOS COMPLETOS PARA USUARIO INMUNE
+   */
+  static getImmuneUserPermissions() {
+    const allModules = getAvailableModules();
+    const immunePermissions = {
+      read: true,
+      write: true,
+      approve: true,
+      configure: true,
+      modules: {}
+    };
+
+    // Dar acceso completo a todos los módulos
+    Object.keys(allModules).forEach(moduleId => {
+      immunePermissions.modules[moduleId] = {
+        read: true,
+        write: true,
+        configure: true
+      };
+    });
+
+    return immunePermissions;
+  }
+
+  /**
+   * 🔧 NORMALIZAR PERMISOS SEGÚN ROL Y ESTADO INMUNE
+   */
+  static normalizePermissions(permissions, role, userEmail) {
+    // Si es usuario inmune, dar permisos completos
+    if (TeamController.isImmuneUser(userEmail)) {
+      logger.info('🛡️ Usuario inmune detectado - Aplicando permisos completos', {
+        email: userEmail,
+        originalRole: role
+      });
+      return TeamController.getImmuneUserPermissions();
+    }
+
+    // Si no se proporcionan permisos, usar defaults del rol
+    if (!permissions || Object.keys(permissions).length === 0) {
+      return getDefaultPermissionsForRole(role);
+    }
+
+    // Validar y normalizar permisos proporcionados
+    const validation = validateModulePermissions(permissions);
+    if (!validation.valid) {
+      logger.warn('⚠️ Permisos inválidos, usando defaults del rol', {
+        role,
+        error: validation.error
+      });
+      return getDefaultPermissionsForRole(role);
+    }
+
+    return permissions;
+  }
+
   /**
    * Listar miembros del equipo
    */
@@ -967,25 +1040,46 @@ class TeamController {
   }
 
   /**
-   * 🆕 CREAR AGENTE (Para módulo frontend)
+   * 🆕 CREAR AGENTE COMPLETO (Unificado con todas las funcionalidades)
    * POST /api/team/agents
    */
   static async createAgent(req, res, next) {
     try {
       const {
+        // Información básica
         name,
         email,
         role = 'agent',
         phone,
+        password,
+        
+        // Permisos básicos
         permissions = {},
-        password
+        
+        // Configuración de notificaciones
+        notifications = {
+          email: true,
+          push: true,
+          sms: false,
+          desktop: true
+        },
+        
+        // Configuración personal
+        configuration = {
+          language: 'es',
+          timezone: 'America/Mexico_City',
+          theme: 'light',
+          autoLogout: true,
+          twoFactor: false
+        }
       } = req.body;
 
-      logger.info('👤 TeamController.createAgent - Creando nuevo agente', {
+      logger.info('👤 TeamController.createAgent - Creando nuevo agente completo', {
         name,
         email,
         role,
         hasPhone: !!phone,
+        hasCustomPermissions: Object.keys(permissions).length > 0,
         userEmail: req.user?.email
       });
 
@@ -1006,10 +1100,34 @@ class TeamController {
         });
       }
 
-      // 🔧 Generar contraseña temporal si no se proporciona
-      const finalPassword = password || TeamController.generateTemporaryPassword();
+      // 🔐 MANEJO DE CONTRASEÑA (personalizada o automática)
+      let finalPassword;
+      let isCustomPassword = false;
+      
+      if (password && password.trim().length >= 6) {
+        // Usuario proporcionó contraseña personalizada
+        finalPassword = password.trim();
+        isCustomPassword = true;
+        logger.info('🔐 Usando contraseña personalizada', {
+          email,
+          hasPassword: true,
+          userEmail: req.user?.email
+        });
+      } else {
+        // Generar contraseña temporal automática
+        finalPassword = TeamController.generateTemporaryPassword();
+        isCustomPassword = false;
+        logger.info('🔐 Generando contraseña temporal', {
+          email,
+          hasPassword: false,
+          userEmail: req.user?.email
+        });
+      }
 
-      // 📝 Crear usuario
+      // 🛡️ Normalizar permisos (incluye lógica de usuario inmune)
+      const normalizedPermissions = TeamController.normalizePermissions(permissions, role, email);
+
+      // 📝 Crear usuario con toda la información COMPLETA
       const userData = {
         name,
         email,
@@ -1017,27 +1135,64 @@ class TeamController {
         role,
         phone: phone || null,
         isActive: true,
-        department: 'general', // Departamento por defecto
-        permissions: TeamController.generatePermissions(role), // Permisos principales
+        department: 'general',
+        
+        // 🔐 PERMISOS COMPLETOS (básicos + módulos)
+        permissions: {
+          // Permisos básicos
+          read: normalizedPermissions.read || false,
+          write: normalizedPermissions.write || false,
+          approve: normalizedPermissions.approve || false,
+          configure: normalizedPermissions.configure || false,
+          
+          // Permisos por módulo (ESTRUCTURA COMPLETA)
+          modules: normalizedPermissions.modules || {}
+        },
+        
+        // 🔔 CONFIGURACIÓN DE NOTIFICACIONES
+        notifications: {
+          email: notifications.email !== false,
+          push: notifications.push !== false,
+          sms: notifications.sms === true,
+          desktop: notifications.desktop !== false
+        },
+        
+        // ⚙️ CONFIGURACIÓN PERSONAL
+        configuration: {
+          language: configuration.language || 'es',
+          timezone: configuration.timezone || 'America/Mexico_City',
+          theme: configuration.theme || 'light',
+          autoLogout: configuration.autoLogout !== false,
+          twoFactor: configuration.twoFactor === true
+        },
+        
+        // 📊 RENDIMIENTO INICIAL
         performance: {
           totalChats: 0,
           csat: 0,
           conversionRate: 0,
           responseTime: '0s'
         },
+        
+        // 📝 METADATOS COMPLETOS
         metadata: {
           createdBy: req.user.email,
           createdVia: 'admin_panel',
-          permissions: TeamController.normalizePermissions(permissions, role)
+          isImmuneUser: TeamController.isImmuneUser(email),
+          createdAt: new Date().toISOString(),
+          permissionsCount: Object.keys(normalizedPermissions.modules || {}).length,
+          hasCustomPermissions: Object.keys(permissions).length > 0,
+          isCustomPassword: isCustomPassword,
+          passwordProvided: !!password
         }
       };
 
       const newUser = await User.create(userData);
 
-      // 📊 Obtener KPIs iniciales
-      const kpis = await TeamController.getUserKPIs(newUser.email, '30d');
+      // 📊 Obtener módulos accesibles
+      const accessibleModules = getAccessibleModules(normalizedPermissions);
 
-      // 🔧 Formatear respuesta para frontend
+      // 🔧 Formatear respuesta completa para frontend
       const agentResponse = {
         id: newUser.id || newUser.email,
         name: newUser.name,
@@ -1046,25 +1201,69 @@ class TeamController {
         phone: newUser.phone,
         avatar: TeamController.generateAvatar(newUser.name),
         isActive: newUser.isActive,
-        permissions: TeamController.generatePermissions(newUser.role),
+        
+        // Permisos completos
+        permissions: {
+          basic: {
+            read: normalizedPermissions.read || false,
+            write: normalizedPermissions.write || false,
+            approve: normalizedPermissions.approve || false,
+            configure: normalizedPermissions.configure || false
+          },
+          modules: normalizedPermissions.modules || {}
+        },
+        
+        // Módulos accesibles
+        accessibleModules,
+        
+        // Configuración de notificaciones
+        notifications: newUser.notifications,
+        
+        // Configuración personal
+        configuration: newUser.configuration,
+        
+        // Rendimiento inicial
         performance: {
           totalChats: 0,
           csat: 0,
           conversionRate: 0,
           responseTime: '0s'
         },
+        
+        // Información adicional
+        metadata: {
+          isImmuneUser: TeamController.isImmuneUser(email),
+          createdBy: req.user.email,
+          createdVia: 'admin_panel'
+        },
+        
         createdAt: newUser.createdAt,
         updatedAt: newUser.createdAt
+      };
+
+      // 🔐 Información de acceso (solo si se generó contraseña automática)
+      const accessInfo = isCustomPassword ? null : {
+        temporaryPassword: finalPassword,
+        loginUrl: process.env.FRONTEND_URL || 'https://app.utalk.com/login',
+        mustChangePassword: true,
+        message: 'Se generó una contraseña temporal. El usuario debe cambiarla en el primer login.'
       };
 
       logger.info('✅ Agente creado exitosamente', {
         agentId: newUser.id,
         agentEmail: newUser.email,
         agentName: newUser.name,
+        isImmuneUser: TeamController.isImmuneUser(email),
+        modulesCount: accessibleModules.length,
+        isCustomPassword: isCustomPassword,
+        hasAccessInfo: !!accessInfo,
         userEmail: req.user?.email
       });
 
-      return ResponseHandler.success(res, agentResponse, 'Agente creado exitosamente');
+      return ResponseHandler.success(res, {
+        agent: agentResponse,
+        accessInfo
+      }, 'Agente creado exitosamente');
 
     } catch (error) {
       logger.error('❌ Error creando agente:', {
@@ -1075,6 +1274,745 @@ class TeamController {
           email: req.body?.email,
           role: req.body?.role
         },
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔄 ACTUALIZAR AGENTE COMPLETO (Unificado con todas las funcionalidades)
+   * PUT /api/team/agents/:id
+   */
+  static async updateAgent(req, res, next) {
+    try {
+      const { id } = req.params;
+      const {
+        // Información básica
+        name,
+        email,
+        role,
+        phone,
+        isActive,
+        
+        // Permisos
+        permissions,
+        
+        // Configuración de notificaciones
+        notifications,
+        
+        // Configuración personal
+        configuration,
+        
+        // Cambio de contraseña
+        newPassword
+      } = req.body;
+
+      logger.info('🔄 TeamController.updateAgent - Actualizando agente', {
+        agentId: id,
+        hasNewEmail: !!email,
+        hasNewRole: !!role,
+        hasNewPermissions: !!permissions,
+        userEmail: req.user?.email
+      });
+
+      // 🔍 Buscar agente existente
+      const existingUser = await User.findByEmail(id) || await User.getById(id);
+      if (!existingUser) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // 🔧 Si se cambia el email, verificar que no exista
+      if (email && email !== existingUser.email) {
+        const emailExists = await User.findByEmail(email);
+        if (emailExists) {
+          return ResponseHandler.error(res, {
+            type: 'EMAIL_ALREADY_EXISTS',
+            message: 'Ya existe un usuario con este email',
+            code: 'DUPLICATE_EMAIL',
+            statusCode: 400
+          });
+        }
+      }
+
+      // 🔧 Preparar datos de actualización
+      const updateData = {};
+
+      // Información básica
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (role !== undefined) updateData.role = role;
+      if (phone !== undefined) updateData.phone = phone;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (newPassword) updateData.password = newPassword;
+
+      // 🛡️ Permisos (con lógica de usuario inmune)
+      if (permissions) {
+        const targetEmail = email || existingUser.email;
+        const targetRole = role || existingUser.role;
+        updateData.permissions = TeamController.normalizePermissions(permissions, targetRole, targetEmail);
+      }
+
+      // Configuración de notificaciones
+      if (notifications) {
+        updateData.notifications = {
+          email: notifications.email !== false,
+          push: notifications.push !== false,
+          sms: notifications.sms === true,
+          desktop: notifications.desktop !== false
+        };
+      }
+
+      // Configuración personal
+      if (configuration) {
+        updateData.configuration = {
+          ...existingUser.configuration,
+          ...configuration
+        };
+      }
+
+      // Metadatos de actualización
+      updateData.metadata = {
+        ...existingUser.metadata,
+        lastUpdatedBy: req.user.email,
+        lastUpdatedAt: new Date().toISOString(),
+        updateCount: (existingUser.metadata?.updateCount || 0) + 1
+      };
+
+      // 💾 Actualizar usuario
+      const updatedUser = await User.update(existingUser.id || existingUser.email, updateData);
+
+      // 📊 Obtener módulos accesibles actualizados
+      const finalPermissions = updateData.permissions || existingUser.permissions;
+      const accessibleModules = getAccessibleModules(finalPermissions);
+
+      // 📊 Obtener KPIs actualizados
+      const kpis = await TeamController.getUserKPIs(updatedUser.email, '30d');
+
+      // 🔧 Formatear respuesta completa
+      const agentResponse = {
+        id: updatedUser.id || updatedUser.email,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        phone: updatedUser.phone,
+        avatar: TeamController.generateAvatar(updatedUser.name),
+        isActive: updatedUser.isActive,
+        
+        // Permisos completos
+        permissions: {
+          basic: {
+            read: finalPermissions.read || false,
+            write: finalPermissions.write || false,
+            approve: finalPermissions.approve || false,
+            configure: finalPermissions.configure || false
+          },
+          modules: finalPermissions.modules || {}
+        },
+        
+        // Módulos accesibles
+        accessibleModules,
+        
+        // Configuración de notificaciones
+        notifications: updatedUser.notifications || {
+          email: true,
+          push: true,
+          sms: false,
+          desktop: true
+        },
+        
+        // Configuración personal
+        configuration: updatedUser.configuration || {
+          language: 'es',
+          timezone: 'America/Mexico_City',
+          theme: 'light',
+          autoLogout: true,
+          twoFactor: false
+        },
+        
+        // Rendimiento actualizado
+        performance: {
+          totalChats: kpis.summary?.totalChats || 0,
+          csat: kpis.summary?.averageRating || 0,
+          conversionRate: kpis.summary?.conversionRate || 0,
+          responseTime: kpis.summary?.avgResponseTime || '0s'
+        },
+        
+        // Información adicional
+        metadata: {
+          isImmuneUser: TeamController.isImmuneUser(updatedUser.email),
+          lastUpdatedBy: req.user.email,
+          updateCount: updateData.metadata.updateCount
+        },
+        
+        createdAt: updatedUser.createdAt,
+        updatedAt: new Date().toISOString()
+      };
+
+      logger.info('✅ Agente actualizado exitosamente', {
+        agentId: updatedUser.id,
+        agentEmail: updatedUser.email,
+        agentName: updatedUser.name,
+        isImmuneUser: TeamController.isImmuneUser(updatedUser.email),
+        modulesCount: accessibleModules.length,
+        updateCount: updateData.metadata.updateCount,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, {
+        agent: agentResponse
+      }, 'Agente actualizado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error actualizando agente:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        agentId: req.params?.id,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🗑️ ELIMINAR AGENTE
+   * DELETE /api/team/agents/:id
+   */
+  static async deleteAgent(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { confirm, reason } = req.body;
+
+      logger.info('🗑️ TeamController.deleteAgent - Eliminando agente', {
+        agentId: id,
+        hasConfirmation: !!confirm,
+        hasReason: !!reason,
+        userEmail: req.user?.email
+      });
+
+      // 🔍 Buscar agente existente
+      const existingUser = await User.findByEmail(id) || await User.getById(id);
+      if (!existingUser) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // 🛡️ Proteger usuario inmune de eliminación
+      if (TeamController.isImmuneUser(existingUser.email)) {
+        logger.warn('⚠️ Intento de eliminar usuario inmune', {
+          targetUser: existingUser.email,
+          userEmail: req.user?.email
+        });
+        return ResponseHandler.error(res, {
+          type: 'IMMUNE_USER_PROTECTION',
+          message: 'Este usuario está protegido y no puede ser eliminado',
+          code: 'PROTECTED_USER',
+          statusCode: 403
+        });
+      }
+
+      // 🔧 Verificar confirmación
+      if (!confirm) {
+        return ResponseHandler.error(res, {
+          type: 'CONFIRMATION_REQUIRED',
+          message: 'Se requiere confirmación para eliminar el agente',
+          code: 'CONFIRMATION_REQUIRED',
+          statusCode: 400
+        });
+      }
+
+      // 💾 Eliminar usuario
+      await User.delete(existingUser.id || existingUser.email);
+
+      // 📝 Registrar eliminación en logs
+      logger.info('✅ Agente eliminado exitosamente', {
+        deletedAgentId: existingUser.id,
+        deletedAgentEmail: existingUser.email,
+        deletedAgentName: existingUser.name,
+        reason: reason || 'No especificado',
+        deletedBy: req.user?.email
+      });
+
+      return ResponseHandler.success(res, {
+        deletedAgent: {
+          id: existingUser.id || existingUser.email,
+          name: existingUser.name,
+          email: existingUser.email,
+          role: existingUser.role
+        },
+        deletedAt: new Date().toISOString(),
+        deletedBy: req.user.email,
+        reason: reason || 'No especificado'
+      }, 'Agente eliminado exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error eliminando agente:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        agentId: req.params?.id,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 👤 OBTENER AGENTE ESPECÍFICO
+   * GET /api/team/agents/:id
+   */
+  static async getAgent(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      logger.info('👤 TeamController.getAgent - Obteniendo agente específico', {
+        agentId: id,
+        userEmail: req.user?.email
+      });
+
+      // 🔍 Buscar agente
+      const user = await User.findByEmail(id) || await User.getById(id);
+      if (!user) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // 📊 Obtener KPIs
+      const kpis = await TeamController.getUserKPIs(user.email, '30d');
+
+      // 📊 Obtener módulos accesibles
+      const userPermissions = user.permissions || getDefaultPermissionsForRole(user.role);
+      const accessibleModules = getAccessibleModules(userPermissions);
+
+      // 🔧 Formatear respuesta
+      const agentResponse = {
+        id: user.id || user.email,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        avatar: TeamController.generateAvatar(user.name),
+        isActive: user.isActive,
+        
+        // Permisos completos
+        permissions: {
+          basic: {
+            read: userPermissions.read || false,
+            write: userPermissions.write || false,
+            approve: userPermissions.approve || false,
+            configure: userPermissions.configure || false
+          },
+          modules: userPermissions.modules || {}
+        },
+        
+        // Módulos accesibles
+        accessibleModules,
+        
+        // Configuración de notificaciones
+        notifications: user.notifications || {
+          email: true,
+          push: true,
+          sms: false,
+          desktop: true
+        },
+        
+        // Configuración personal
+        configuration: user.configuration || {
+          language: 'es',
+          timezone: 'America/Mexico_City',
+          theme: 'light',
+          autoLogout: true,
+          twoFactor: false
+        },
+        
+        // Rendimiento
+        performance: {
+          totalChats: kpis.summary?.totalChats || 0,
+          csat: kpis.summary?.averageRating || 0,
+          conversionRate: kpis.summary?.conversionRate || 0,
+          responseTime: kpis.summary?.avgResponseTime || '0s'
+        },
+        
+        // Información adicional
+        metadata: {
+          isImmuneUser: TeamController.isImmuneUser(user.email),
+          createdBy: user.metadata?.createdBy,
+          lastUpdatedBy: user.metadata?.lastUpdatedBy,
+          updateCount: user.metadata?.updateCount || 0
+        },
+        
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt || user.createdAt
+      };
+
+      logger.info('✅ Agente obtenido exitosamente', {
+        agentId: user.id,
+        agentEmail: user.email,
+        isImmuneUser: TeamController.isImmuneUser(user.email),
+        modulesCount: accessibleModules.length,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, {
+        agent: agentResponse
+      }, 'Agente obtenido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo agente:', {
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3),
+        agentId: req.params?.id,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 📊 OBTENER ESTADÍSTICAS GENERALES DE AGENTES
+   * GET /api/team/agents/stats
+   */
+  static async getAgentsStats(req, res, next) {
+    try {
+      logger.info('📊 TeamController.getAgentsStats - Obteniendo estadísticas', {
+        userEmail: req.user?.email
+      });
+
+      // Obtener todos los usuarios
+      const allUsers = await User.list({ limit: 1000 });
+
+      // Calcular estadísticas
+      const stats = {
+        totalAgents: allUsers.length,
+        activeAgents: allUsers.filter(u => u.isActive !== false).length,
+        inactiveAgents: allUsers.filter(u => u.isActive === false).length,
+        byRole: {
+          admin: allUsers.filter(u => u.role === 'admin').length,
+          supervisor: allUsers.filter(u => u.role === 'supervisor').length,
+          agent: allUsers.filter(u => u.role === 'agent').length,
+          viewer: allUsers.filter(u => u.role === 'viewer').length
+        },
+        immuneUsers: allUsers.filter(u => TeamController.isImmuneUser(u.email)).length
+      };
+
+      // Calcular KPIs promedio
+      const activeUsers = allUsers.filter(u => u.isActive !== false);
+      let totalChats = 0;
+      let totalCsat = 0;
+      let validCsatCount = 0;
+
+      for (const user of activeUsers.slice(0, 10)) { // Limitar para rendimiento
+        const kpis = await TeamController.getUserKPIs(user.email, '30d');
+        totalChats += kpis.summary?.totalChats || 0;
+        if (kpis.summary?.averageRating > 0) {
+          totalCsat += kpis.summary.averageRating;
+          validCsatCount++;
+        }
+      }
+
+      stats.performance = {
+        averageCsat: validCsatCount > 0 ? (totalCsat / validCsatCount).toFixed(1) : 0,
+        totalChats,
+        averageResponseTime: '2.1s',
+        conversionRate: 0.72
+      };
+
+      logger.info('✅ Estadísticas de agentes obtenidas', {
+        totalAgents: stats.totalAgents,
+        activeAgents: stats.activeAgents,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, stats, 'Estadísticas obtenidas exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo estadísticas de agentes:', {
+        error: error.message,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 📊 OBTENER RENDIMIENTO DE AGENTE ESPECÍFICO
+   * GET /api/team/agents/:id/performance
+   */
+  static async getAgentPerformance(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { period = '30d', metrics = 'all' } = req.query;
+
+      logger.info('📊 TeamController.getAgentPerformance - Obteniendo rendimiento', {
+        agentId: id,
+        period,
+        metrics,
+        userEmail: req.user?.email
+      });
+
+      // Buscar agente
+      const user = await User.findByEmail(id) || await User.getById(id);
+      if (!user) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // Obtener KPIs detallados
+      const kpis = await TeamController.getUserKPIs(user.email, period);
+
+      const performanceData = {
+        agent: {
+          id: user.id || user.email,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        },
+        performance: {
+          period,
+          totalChats: kpis.summary?.totalChats || 0,
+          csat: kpis.summary?.averageRating || 0,
+          conversionRate: kpis.summary?.conversionRate || 0,
+          responseTime: kpis.summary?.avgResponseTime || '0s',
+          activeHours: kpis.summary?.activeHours || 0,
+          efficiency: kpis.summary?.efficiency || 0
+        },
+        trends: {
+          chats: {
+            current: kpis.summary?.totalChats || 0,
+            previous: Math.floor((kpis.summary?.totalChats || 0) * 0.8),
+            change: '+25%'
+          },
+          csat: {
+            current: kpis.summary?.averageRating || 0,
+            previous: (kpis.summary?.averageRating || 0) * 0.94,
+            change: '+6.7%'
+          }
+        },
+        breakdown: kpis.breakdown || {}
+      };
+
+      return ResponseHandler.success(res, performanceData, 'Rendimiento obtenido exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo rendimiento de agente:', {
+        error: error.message,
+        agentId: req.params?.id,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔐 OBTENER PERMISOS DE AGENTE ESPECÍFICO
+   * GET /api/team/agents/:id/permissions
+   */
+  static async getAgentPermissions(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      logger.info('🔐 TeamController.getAgentPermissions - Obteniendo permisos', {
+        agentId: id,
+        userEmail: req.user?.email
+      });
+
+      // Buscar agente
+      const user = await User.findByEmail(id) || await User.getById(id);
+      if (!user) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // Obtener permisos (con lógica de usuario inmune)
+      let userPermissions;
+      if (TeamController.isImmuneUser(user.email)) {
+        userPermissions = TeamController.getImmuneUserPermissions();
+      } else {
+        userPermissions = user.permissions || getDefaultPermissionsForRole(user.role);
+      }
+
+      // Obtener módulos accesibles
+      const accessibleModules = getAccessibleModules(userPermissions);
+
+      const permissionsData = {
+        agent: {
+          id: user.id || user.email,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          isImmuneUser: TeamController.isImmuneUser(user.email)
+        },
+        permissions: {
+          basic: {
+            read: userPermissions.read || false,
+            write: userPermissions.write || false,
+            approve: userPermissions.approve || false,
+            configure: userPermissions.configure || false
+          },
+          modules: userPermissions.modules || {}
+        },
+        accessibleModules
+      };
+
+      return ResponseHandler.success(res, permissionsData, 'Permisos obtenidos exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error obteniendo permisos de agente:', {
+        error: error.message,
+        agentId: req.params?.id,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔄 ACTUALIZAR PERMISOS DE AGENTE ESPECÍFICO
+   * PUT /api/team/agents/:id/permissions
+   */
+  static async updateAgentPermissions(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { permissions } = req.body;
+
+      logger.info('🔄 TeamController.updateAgentPermissions - Actualizando permisos', {
+        agentId: id,
+        userEmail: req.user?.email
+      });
+
+      // Buscar agente
+      const user = await User.findByEmail(id) || await User.getById(id);
+      if (!user) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // Normalizar permisos (con lógica de usuario inmune)
+      const normalizedPermissions = TeamController.normalizePermissions(permissions, user.role, user.email);
+
+      // Actualizar permisos
+      const updateData = {
+        permissions: normalizedPermissions,
+        metadata: {
+          ...user.metadata,
+          lastUpdatedBy: req.user.email,
+          lastUpdatedAt: new Date().toISOString(),
+          permissionsUpdateCount: (user.metadata?.permissionsUpdateCount || 0) + 1
+        }
+      };
+
+      const updatedUser = await User.update(user.id || user.email, updateData);
+
+      // Obtener módulos accesibles actualizados
+      const accessibleModules = getAccessibleModules(normalizedPermissions);
+
+      const responseData = {
+        agent: {
+          id: updatedUser.id || updatedUser.email,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          isImmuneUser: TeamController.isImmuneUser(updatedUser.email)
+        },
+        permissions: {
+          basic: {
+            read: normalizedPermissions.read || false,
+            write: normalizedPermissions.write || false,
+            approve: normalizedPermissions.approve || false,
+            configure: normalizedPermissions.configure || false
+          },
+          modules: normalizedPermissions.modules || {}
+        },
+        accessibleModules
+      };
+
+      logger.info('✅ Permisos de agente actualizados', {
+        agentId: updatedUser.id,
+        agentEmail: updatedUser.email,
+        isImmuneUser: TeamController.isImmuneUser(updatedUser.email),
+        modulesCount: accessibleModules.length,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, responseData, 'Permisos actualizados exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error actualizando permisos de agente:', {
+        error: error.message,
+        agentId: req.params?.id,
+        userEmail: req.user?.email
+      });
+      return ResponseHandler.error(res, error);
+    }
+  }
+
+  /**
+   * 🔄 RESETEAR PERMISOS DE AGENTE A DEFAULTS DEL ROL
+   * POST /api/team/agents/:id/permissions/reset
+   */
+  static async resetAgentPermissions(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      logger.info('🔄 TeamController.resetAgentPermissions - Reseteando permisos', {
+        agentId: id,
+        userEmail: req.user?.email
+      });
+
+      // Buscar agente
+      const user = await User.findByEmail(id) || await User.getById(id);
+      if (!user) {
+        return ResponseHandler.notFoundError(res, 'Agente no encontrado');
+      }
+
+      // Obtener permisos por defecto del rol (con lógica de usuario inmune)
+      const defaultPermissions = TeamController.normalizePermissions({}, user.role, user.email);
+
+      // Actualizar permisos
+      const updateData = {
+        permissions: defaultPermissions,
+        metadata: {
+          ...user.metadata,
+          lastUpdatedBy: req.user.email,
+          lastUpdatedAt: new Date().toISOString(),
+          permissionsResetCount: (user.metadata?.permissionsResetCount || 0) + 1
+        }
+      };
+
+      const updatedUser = await User.update(user.id || user.email, updateData);
+
+      // Obtener módulos accesibles
+      const accessibleModules = getAccessibleModules(defaultPermissions);
+
+      const responseData = {
+        agent: {
+          id: updatedUser.id || updatedUser.email,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          isImmuneUser: TeamController.isImmuneUser(updatedUser.email)
+        },
+        permissions: {
+          basic: {
+            read: defaultPermissions.read || false,
+            write: defaultPermissions.write || false,
+            approve: defaultPermissions.approve || false,
+            configure: defaultPermissions.configure || false
+          },
+          modules: defaultPermissions.modules || {}
+        },
+        accessibleModules
+      };
+
+      logger.info('✅ Permisos de agente reseteados', {
+        agentId: updatedUser.id,
+        agentEmail: updatedUser.email,
+        isImmuneUser: TeamController.isImmuneUser(updatedUser.email),
+        role: updatedUser.role,
+        modulesCount: accessibleModules.length,
+        userEmail: req.user?.email
+      });
+
+      return ResponseHandler.success(res, responseData, 'Permisos reseteados exitosamente');
+
+    } catch (error) {
+      logger.error('❌ Error reseteando permisos de agente:', {
+        error: error.message,
+        agentId: req.params?.id,
         userEmail: req.user?.email
       });
       return ResponseHandler.error(res, error);

@@ -75,9 +75,10 @@ const teamValidators = {
     })
   }),
 
-  // 🆕 Validar creación de agente
+  // 🆕 Validar creación de agente COMPLETO
   validateCreateAgent: validateRequest({
     body: Joi.object({
+      // Información básica
       name: Joi.string().min(2).max(100).required().messages({
         'string.min': 'El nombre debe tener al menos 2 caracteres',
         'string.max': 'El nombre no puede exceder 100 caracteres',
@@ -88,17 +89,76 @@ const teamValidators = {
         'any.required': 'El email es requerido'
       }),
       role: Joi.string().valid('admin', 'supervisor', 'agent', 'viewer').default('agent'),
-      phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).optional().messages({
+      phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).optional().allow(null).messages({
         'string.pattern.base': 'El teléfono debe ser un número válido'
       }),
-      password: Joi.string().min(6).max(128).optional().messages({
-        'string.min': 'La contraseña debe tener al menos 6 caracteres'
+      password: Joi.string().min(6).max(128).optional().allow('').messages({
+        'string.min': 'La contraseña debe tener al menos 6 caracteres',
+        'string.max': 'La contraseña no puede exceder 128 caracteres'
       }),
+      
+      // 🔐 PERMISOS COMPLETOS (básicos + módulos)
       permissions: Joi.object({
+        // Permisos básicos
         read: Joi.boolean().default(true),
         write: Joi.boolean().default(true),
         approve: Joi.boolean().default(false),
         configure: Joi.boolean().default(false),
+        
+        // Permisos por módulo (ESTRUCTURA COMPLETA)
+        modules: Joi.object().pattern(
+          Joi.string().valid(
+            'dashboard', 'contacts', 'campaigns', 'team', 'analytics', 'ai', 'settings', 'hr',
+            'clients', 'notifications', 'chat', 'internal-chat', 'phone', 'knowledge-base',
+            'supervision', 'copilot', 'providers', 'warehouse', 'shipping', 'services'
+          ),
+          Joi.object({
+            read: Joi.boolean().required(),
+            write: Joi.boolean().required(),
+            configure: Joi.boolean().required()
+          })
+        ).optional()
+      }).optional(),
+      
+      // 🔔 CONFIGURACIÓN DE NOTIFICACIONES
+      notifications: Joi.object({
+        email: Joi.boolean().default(true),
+        push: Joi.boolean().default(true),
+        sms: Joi.boolean().default(false),
+        desktop: Joi.boolean().default(true)
+      }).optional(),
+      
+      // ⚙️ CONFIGURACIÓN PERSONAL
+      configuration: Joi.object({
+        language: Joi.string().valid('es', 'en', 'fr', 'pt').default('es'),
+        timezone: Joi.string().default('America/Mexico_City'),
+        theme: Joi.string().valid('light', 'dark', 'auto').default('light'),
+        autoLogout: Joi.boolean().default(true),
+        twoFactor: Joi.boolean().default(false)
+      }).optional()
+    })
+  }),
+
+  // 🔄 Validar actualización de agente COMPLETO
+  validateUpdateAgent: validateRequest({
+    body: Joi.object({
+      // Información básica
+      name: Joi.string().min(2).max(100).optional(),
+      email: Joi.string().email({ minDomainSegments: 2 }).max(254).optional(),
+      role: Joi.string().valid('admin', 'supervisor', 'agent', 'viewer').optional(),
+      phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).optional().allow(null),
+      isActive: Joi.boolean().optional(),
+      newPassword: Joi.string().min(6).max(128).optional().allow('').messages({
+        'string.min': 'La contraseña debe tener al menos 6 caracteres',
+        'string.max': 'La contraseña no puede exceder 128 caracteres'
+      }),
+      
+      // Permisos completos
+      permissions: Joi.object({
+        read: Joi.boolean().optional(),
+        write: Joi.boolean().optional(),
+        approve: Joi.boolean().optional(),
+        configure: Joi.boolean().optional(),
         modules: Joi.object().pattern(
           Joi.string(),
           Joi.object({
@@ -107,7 +167,37 @@ const teamValidators = {
             configure: Joi.boolean().optional()
           })
         ).optional()
+      }).optional(),
+      
+      // Configuración de notificaciones
+      notifications: Joi.object({
+        email: Joi.boolean().optional(),
+        push: Joi.boolean().optional(),
+        sms: Joi.boolean().optional(),
+        desktop: Joi.boolean().optional()
+      }).optional(),
+      
+      // Configuración personal
+      configuration: Joi.object({
+        language: Joi.string().valid('es', 'en', 'fr', 'pt').optional(),
+        timezone: Joi.string().optional(),
+        theme: Joi.string().valid('light', 'dark', 'auto').optional(),
+        autoLogout: Joi.boolean().optional(),
+        twoFactor: Joi.boolean().optional()
       }).optional()
+    })
+  }),
+
+  // 🗑️ Validar eliminación de agente
+  validateDeleteAgent: validateRequest({
+    body: Joi.object({
+      confirm: Joi.boolean().valid(true).required().messages({
+        'any.only': 'Se requiere confirmación para eliminar el agente',
+        'any.required': 'Confirmación es requerida'
+      }),
+      reason: Joi.string().max(500).optional().messages({
+        'string.max': 'La razón no puede exceder 500 caracteres'
+      })
     })
   })
 };
@@ -145,16 +235,96 @@ router.post('/agents',
 );
 
 /**
+ * 🆕 @route GET /api/team/agents/:id
+ * @desc Obtener agente específico
+ * @access Private (Admin, Supervisor)
+ */
+router.get('/agents/:id',
+  authMiddleware,
+  teamValidators.validateIdParam,
+  TeamController.getAgent
+);
+
+/**
  * 🆕 @route PUT /api/team/agents/:id
- * @desc Actualizar agente para módulo frontend
+ * @desc Actualizar agente completo (unificado)
  * @access Private (Admin)
  */
 router.put('/agents/:id',
   authMiddleware,
   requireAdmin,
   teamValidators.validateIdParam,
-  ...teamValidators.validateUpdate,
-  TeamController.update
+  teamValidators.validateUpdateAgent,
+  TeamController.updateAgent
+);
+
+/**
+ * 🆕 @route DELETE /api/team/agents/:id
+ * @desc Eliminar agente
+ * @access Private (Admin)
+ */
+router.delete('/agents/:id',
+  authMiddleware,
+  requireAdmin,
+  teamValidators.validateIdParam,
+  teamValidators.validateDeleteAgent,
+  TeamController.deleteAgent
+);
+
+/**
+ * 📊 @route GET /api/team/agents/stats
+ * @desc Obtener estadísticas generales de agentes
+ * @access Private (Admin, Supervisor)
+ */
+router.get('/agents/stats',
+  authMiddleware,
+  TeamController.getAgentsStats
+);
+
+/**
+ * 📊 @route GET /api/team/agents/:id/performance
+ * @desc Obtener rendimiento de agente específico
+ * @access Private (Admin, Supervisor)
+ */
+router.get('/agents/:id/performance',
+  authMiddleware,
+  teamValidators.validateIdParam,
+  TeamController.getAgentPerformance
+);
+
+/**
+ * 🔐 @route GET /api/team/agents/:id/permissions
+ * @desc Obtener permisos de agente específico
+ * @access Private (Admin, Supervisor)
+ */
+router.get('/agents/:id/permissions',
+  authMiddleware,
+  teamValidators.validateIdParam,
+  TeamController.getAgentPermissions
+);
+
+/**
+ * 🔄 @route PUT /api/team/agents/:id/permissions
+ * @desc Actualizar permisos de agente específico
+ * @access Private (Admin)
+ */
+router.put('/agents/:id/permissions',
+  authMiddleware,
+  requireAdmin,
+  teamValidators.validateIdParam,
+  TeamController.updateAgentPermissions
+);
+
+/**
+ * 🔄 @route POST /api/team/agents/:id/permissions/reset
+ * @desc Resetear permisos de agente a defaults del rol
+ * @access Private (Admin)
+ */
+router.post('/agents/:id/permissions/reset',
+  authMiddleware,
+  requireAdmin,
+  teamValidators.validateIdParam,
+  TeamController.resetAgentPermissions
 );
 
 /**
