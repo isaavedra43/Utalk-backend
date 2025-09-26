@@ -548,6 +548,61 @@ class User {
       throw error;
     }
   }
+
+  /**
+   * 🗑️ ELIMINAR USUARIO (Soft Delete)
+   * Marca el usuario como inactivo en lugar de eliminarlo físicamente
+   */
+  static async delete(userId) {
+    try {
+      logger.info('🗑️ User.delete - Eliminando usuario', {
+        userId: userId
+      });
+
+      // Verificar que el usuario existe
+      const userDoc = await firestore.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        logger.warn('⚠️ Usuario no encontrado para eliminar', {
+          userId: userId
+        });
+        return null;
+      }
+
+      const userData = userDoc.data();
+
+      // Soft delete - marcar como inactivo
+      await firestore.collection('users').doc(userId).update({
+        isActive: false,
+        deletedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        deletedBy: 'system' // Se puede pasar como parámetro si es necesario
+      });
+
+      logger.info('✅ Usuario eliminado exitosamente (soft delete)', {
+        userId: userId,
+        userEmail: userData.email,
+        userName: userData.name
+      });
+
+      return { 
+        id: userId, 
+        email: userData.email,
+        name: userData.name,
+        deleted: true,
+        deletedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('❌ Error eliminando usuario', {
+        category: 'USER_DELETE_ERROR',
+        userId: userId,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 3)
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = User;

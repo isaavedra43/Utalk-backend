@@ -1520,8 +1520,12 @@ class TeamController {
         });
       }
 
-      // 💾 Eliminar usuario
-      await User.delete(existingUser.id || existingUser.email);
+      // 💾 Eliminar usuario (soft delete)
+      const deleteResult = await User.delete(existingUser.id || existingUser.email);
+      
+      if (!deleteResult) {
+        return ResponseHandler.notFoundError(res, 'No se pudo eliminar el agente');
+      }
 
       // 📝 Registrar eliminación en logs
       logger.info('✅ Agente eliminado exitosamente', {
@@ -1534,12 +1538,13 @@ class TeamController {
 
       return ResponseHandler.success(res, {
         deletedAgent: {
-          id: existingUser.id || existingUser.email,
-          name: existingUser.name,
-          email: existingUser.email,
-          role: existingUser.role
+          id: deleteResult.id,
+          name: deleteResult.name,
+          email: deleteResult.email,
+          role: existingUser.role,
+          isActive: false
         },
-        deletedAt: new Date().toISOString(),
+        deletedAt: deleteResult.deletedAt,
         deletedBy: req.user.email,
         reason: reason || 'No especificado'
       }, 'Agente eliminado exitosamente');
