@@ -550,6 +550,28 @@ class User {
   }
 
   /**
+   * 🆕 OBTENER usuario por ID (email)
+   */
+  static async getById(id) {
+    try {
+      // En nuestro sistema, el ID es el email
+      const doc = await firestore.collection('users').doc(id).get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      return new User({ id: doc.id, ...doc.data() });
+    } catch (error) {
+      logger.error('Error obteniendo usuario por ID:', {
+        id,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 🗑️ ELIMINAR USUARIO (Soft Delete)
    * Marca el usuario como inactivo en lugar de eliminarlo físicamente
    */
