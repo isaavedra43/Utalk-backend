@@ -1563,11 +1563,32 @@ class TeamController {
         });
       }
 
-      // 💾 Eliminar usuario (soft delete)
-      const deleteResult = await User.delete(existingUser.id || existingUser.email);
-      
-      if (!deleteResult) {
-        return ResponseHandler.notFoundError(res, 'No se pudo eliminar el agente');
+      // 💾 Eliminar usuario (hard delete - eliminar físicamente de Firestore)
+      try {
+        logger.info('🗑️ Eliminando usuario físicamente de Firestore', {
+          userId: existingUser.id,
+          userEmail: existingUser.email
+        });
+        
+        // Eliminar físicamente el documento de Firestore
+        await firestore.collection('users').doc(existingUser.id).delete();
+        
+        logger.info('✅ Usuario eliminado físicamente de Firestore', {
+          userId: existingUser.id,
+          userEmail: existingUser.email
+        });
+      } catch (error) {
+        logger.error('❌ Error eliminando usuario de Firestore', {
+          userId: existingUser.id,
+          userEmail: existingUser.email,
+          error: error.message
+        });
+        return ResponseHandler.error(res, {
+          type: 'DELETE_ERROR',
+          message: 'Error eliminando el agente de la base de datos',
+          code: 'DELETE_FAILED',
+          statusCode: 500
+        });
       }
 
       // 📝 Registrar eliminación en logs
@@ -1581,16 +1602,17 @@ class TeamController {
 
       return ResponseHandler.success(res, {
         deletedAgent: {
-          id: deleteResult.id,
-          name: deleteResult.name,
-          email: deleteResult.email,
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
           role: existingUser.role,
-          isActive: false
+          permanentlyDeleted: true
         },
-        deletedAt: deleteResult.deletedAt,
+        deletedAt: new Date().toISOString(),
         deletedBy: req.user.email,
-        reason: reason || 'No especificado'
-      }, 'Agente eliminado exitosamente');
+        reason: reason || 'No especificado',
+        deleteType: 'hard_delete'
+      }, 'Agente eliminado permanentemente');
 
     } catch (error) {
       logger.error('❌ Error eliminando agente:', {
