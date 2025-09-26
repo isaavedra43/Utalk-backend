@@ -941,12 +941,38 @@ class AuthController {
       // Mantener compatibilidad con sistema actual Y agregar nuevos permisos
       const userJSON = user.toJSON();
       
-      // Agregar permisos de módulos si existen
-      if (userJSON.permissions && userJSON.permissions.modules) {
-        userJSON.modulePermissions = {
-          modules: userJSON.permissions.modules
-        };
+      // Importar funciones de permisos de módulos
+      const { getDefaultPermissionsForRole, getAccessibleModules } = require('../config/modulePermissions');
+      
+      // Obtener permisos del usuario (nuevo formato de módulos)
+      let userPermissions = userJSON.permissions || {};
+      let accessibleModules = getAccessibleModules(userPermissions);
+
+      // Fallback: si por alguna razón el usuario no tiene permisos cargados,
+      // asignar permisos por defecto del rol para evitar que el frontend falle
+      if (!accessibleModules || accessibleModules.length === 0) {
+        const defaultPerms = getDefaultPermissionsForRole(userJSON.role || 'viewer');
+        userPermissions = defaultPerms;
+        accessibleModules = getAccessibleModules(defaultPerms);
       }
+
+      // Formatear módulos accesibles según especificación del frontend
+      const formattedAccessibleModules = accessibleModules.map(module => ({
+        id: module.id,
+        name: module.name,
+        description: module.description,
+        level: module.level || 'basic'
+      }));
+
+      // Agregar permisos de módulos en el formato que espera el frontend
+      userJSON.modulePermissions = {
+        email: userJSON.email,
+        role: userJSON.role,
+        accessibleModules: formattedAccessibleModules,
+        permissions: {
+          modules: userPermissions.modules || {}
+        }
+      };
 
       return ResponseHandler.success(res, { user: userJSON }, 'Perfil obtenido correctamente');
     } catch (error) {
