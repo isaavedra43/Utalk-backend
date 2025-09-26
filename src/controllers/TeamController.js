@@ -1490,30 +1490,42 @@ class TeamController {
         userEmail: req.user?.email
       });
 
-      // 🔍 Buscar agente existente (usando User.list que SÍ funciona)
+      // 🔍 Buscar agente existente (búsqueda directa en Firestore con query)
       let existingUser = null;
       
       try {
-        logger.info('🔍 Buscando usuario con User.list', { id });
+        logger.info('🔍 Buscando usuario con query en Firestore', { id });
         
-        // Usar el mismo método que funciona en listAgents
-        const users = await User.list({ limit: 1000 }); // Obtener todos los usuarios
+        // Búsqueda por email usando query (más confiable que doc directo)
+        const usersSnapshot = await firestore
+          .collection('users')
+          .where('email', '==', id)
+          .limit(1)
+          .get();
         
-        // Buscar por email
-        existingUser = users.find(user => user.email === id);
-        
-        if (existingUser) {
-          logger.info('✅ Usuario encontrado con User.list', {
+        if (!usersSnapshot.empty) {
+          const userDoc = usersSnapshot.docs[0];
+          const userData = userDoc.data();
+          existingUser = {
+            id: userDoc.id,
+            email: userData.email,
+            name: userData.name,
+            role: userData.role,
+            isActive: userData.isActive,
+            ...userData
+          };
+          logger.info('✅ Usuario encontrado con query en Firestore', {
             id,
             found: true,
-            userEmail: existingUser.email,
-            userName: existingUser.name
+            userEmail: userData.email,
+            userName: userData.name,
+            docId: userDoc.id
           });
         } else {
-          logger.warn('⚠️ Usuario no encontrado con User.list', { id });
+          logger.warn('⚠️ Usuario no encontrado con query en Firestore', { id });
         }
       } catch (error) {
-        logger.error('❌ Error en User.list', {
+        logger.error('❌ Error en query de Firestore', {
           id,
           error: error.message
         });
