@@ -938,7 +938,17 @@ class AuthController {
         role: user.role,
       });
 
-      return ResponseHandler.success(res, { user: user.toJSON() }, 'Perfil obtenido correctamente');
+      // Mantener compatibilidad con sistema actual Y agregar nuevos permisos
+      const userJSON = user.toJSON();
+      
+      // Agregar permisos de módulos si existen
+      if (userJSON.permissions && userJSON.permissions.modules) {
+        userJSON.modulePermissions = {
+          modules: userJSON.permissions.modules
+        };
+      }
+
+      return ResponseHandler.success(res, { user: userJSON }, 'Perfil obtenido correctamente');
     } catch (error) {
       logger.error('Error obteniendo perfil', {
         error: error.message,

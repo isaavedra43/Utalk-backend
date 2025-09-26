@@ -4,13 +4,14 @@
  * Maneja la gestión de permisos de visualización por módulo.
  * Permite configurar qué módulos puede ver cada usuario.
  * 
- * @version 1.0.0
+ * @version 2.0.0 - COMPATIBLE CON SISTEMA ACTUAL
  * @author Backend Team
  */
 
 const { ResponseHandler, CommonErrors, ApiError } = require('../utils/responseHandler');
 const logger = require('../utils/logger');
 const User = require('../models/User');
+const { firestore, FieldValue } = require('../config/firebase');
 const { 
   getAvailableModules, 
   getDefaultPermissionsForRole, 
@@ -27,14 +28,24 @@ class ModulePermissionsController {
     try {
       const modules = getAvailableModules();
       
+      // Formatear módulos según especificación del frontend
+      const formattedModules = {};
+      Object.entries(modules).forEach(([moduleId, moduleInfo]) => {
+        formattedModules[moduleId] = {
+          id: moduleInfo.id,
+          name: moduleInfo.name,
+          description: moduleInfo.description,
+          level: moduleInfo.level || 'basic'
+        };
+      });
+      
       logger.info('✅ Módulos disponibles obtenidos', {
         userEmail: req.user?.email,
-        modulesCount: Object.keys(modules).length
+        modulesCount: Object.keys(formattedModules).length
       });
 
       return ResponseHandler.success(res, {
-        modules,
-        total: Object.keys(modules).length
+        modules: formattedModules
       }, 'Módulos disponibles obtenidos exitosamente');
     } catch (error) {
       logger.error('❌ Error obteniendo módulos disponibles', {
@@ -52,24 +63,42 @@ class ModulePermissionsController {
   static async getUserModulePermissions(req, res, next) {
     try {
       const { email } = req.params;
-      
-      // Verificar que el usuario solicitante es admin o está consultando sus propios permisos
+
+      // Solo admins pueden ver permisos de otros usuarios
       if (req.user.role !== 'admin' && req.user.email !== email) {
-        return ResponseHandler.authorizationError(res, 'Solo puedes consultar tus propios permisos');
+        return ResponseHandler.authorizationError(res, 'Solo puedes ver tus propios permisos');
       }
 
+      // Validar que el usuario existe
       const user = await User.getByEmail(email);
       if (!user) {
         return ResponseHandler.notFoundError(res, `Usuario ${email} no encontrado`);
       }
 
-      const userPermissions = user.permissions || {};
-      const accessibleModules = getAccessibleModules(userPermissions);
+      // Obtener permisos del usuario
+      let userPermissions = user.permissions || {};
+      let accessibleModules = getAccessibleModules(userPermissions);
+
+      // Fallback: si por alguna razón el usuario no tiene permisos cargados,
+      // asignar permisos por defecto del rol
+      if (!accessibleModules || accessibleModules.length === 0) {
+        const defaultPerms = getDefaultPermissionsForRole(user.role || 'viewer');
+        userPermissions = defaultPerms;
+        accessibleModules = getAccessibleModules(defaultPerms);
+      }
+
+      // Formatear módulos accesibles según especificación del frontend
+      const formattedAccessibleModules = accessibleModules.map(module => ({
+        id: module.id,
+        name: module.name,
+        description: module.description,
+        level: module.level || 'basic'
+      }));
       
-      logger.info('✅ Permisos de módulos obtenidos', {
-        requestedUser: email,
+      logger.info('✅ Permisos de usuario obtenidos', {
+        targetUser: email,
         requestedBy: req.user.email,
-        accessibleModulesCount: accessibleModules.length
+        accessibleModulesCount: formattedAccessibleModules.length
       });
 
       return ResponseHandler.success(res, {
@@ -78,13 +107,18 @@ class ModulePermissionsController {
           name: user.name,
           role: user.role
         },
-        permissions: userPermissions,
-        accessibleModules,
-        totalAccessible: accessibleModules.length
-      }, 'Permisos de módulos obtenidos exitosamente');
+        permissions: {
+          email: user.email,
+          role: user.role,
+          accessibleModules: formattedAccessibleModules,
+          permissions: {
+            modules: userPermissions.modules || {}
+          }
+        }
+      }, 'Permisos de usuario obtenidos exitosamente');
     } catch (error) {
-      logger.error('❌ Error obteniendo permisos de módulos', {
-        requestedUser: req.params?.email,
+      logger.error('❌ Error obteniendo permisos de usuario', {
+        targetUser: req.params?.email,
         requestedBy: req.user?.email,
         error: error.message
       });
@@ -98,7 +132,14 @@ class ModulePermissionsController {
    */
   static async getMyModulePermissions(req, res, next) {
     try {
-      let userPermissions = req.user.permissions || {};
+      // Obtener usuario completo desde Firestore
+      const user = await User.getByEmail(req.user.email);
+      if (!user) {
+        return ResponseHandler.notFoundError(res, 'Usuario no encontrado');
+      }
+
+      // Obtener permisos del usuario (nuevo formato de módulos)
+      let userPermissions = user.permissions || {};
       let accessibleModules = getAccessibleModules(userPermissions);
 
       // Fallback: si por alguna razón el usuario no tiene permisos cargados,
@@ -108,16 +149,29 @@ class ModulePermissionsController {
         userPermissions = defaultPerms;
         accessibleModules = getAccessibleModules(defaultPerms);
       }
+
+      // Formatear módulos accesibles según especificación del frontend
+      const formattedAccessibleModules = accessibleModules.map(module => ({
+        id: module.id,
+        name: module.name,
+        description: module.description,
+        level: module.level || 'basic'
+      }));
       
       logger.info('✅ Mis permisos de módulos obtenidos', {
         userEmail: req.user.email,
-        accessibleModulesCount: accessibleModules.length
+        accessibleModulesCount: formattedAccessibleModules.length
       });
 
       return ResponseHandler.success(res, {
-        permissions: userPermissions,
-        accessibleModules,
-        totalAccessible: accessibleModules.length
+        permissions: {
+          email: req.user.email,
+          role: req.user.role,
+          accessibleModules: formattedAccessibleModules,
+          permissions: {
+            modules: userPermissions.modules || {}
+          }
+        }
       }, 'Mis permisos de módulos obtenidos exitosamente');
     } catch (error) {
       logger.error('❌ Error obteniendo mis permisos de módulos', {
@@ -154,13 +208,22 @@ class ModulePermissionsController {
         return ResponseHandler.validationError(res, validation.error);
       }
 
-      // Actualizar permisos del usuario
-      const updates = {
-        permissions: permissions,
-        updatedAt: new Date()
-      };
+      // Actualizar permisos del usuario en Firestore
+      const userQuery = await firestore
+        .collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
 
-      await user.update(updates);
+      if (userQuery.empty) {
+        return ResponseHandler.notFoundError(res, `Usuario ${email} no encontrado en Firestore`);
+      }
+
+      const userDoc = userQuery.docs[0];
+      await userDoc.ref.update({
+        permissions: permissions,
+        updatedAt: FieldValue.serverTimestamp()
+      });
       
       logger.info('✅ Permisos de módulos actualizados', {
         targetUser: email,
@@ -208,33 +271,42 @@ class ModulePermissionsController {
       // Obtener permisos por defecto del rol
       const defaultPermissions = getDefaultPermissionsForRole(user.role);
 
-      // Actualizar permisos del usuario
-      const updates = {
-        permissions: defaultPermissions,
-        updatedAt: new Date()
-      };
+      // Actualizar permisos del usuario en Firestore
+      const userQuery = await firestore
+        .collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
 
-      await user.update(updates);
+      if (userQuery.empty) {
+        return ResponseHandler.notFoundError(res, `Usuario ${email} no encontrado en Firestore`);
+      }
+
+      const userDoc = userQuery.docs[0];
+      await userDoc.ref.update({
+        permissions: defaultPermissions,
+        updatedAt: FieldValue.serverTimestamp()
+      });
       
       logger.info('✅ Permisos de módulos reseteados', {
         targetUser: email,
-        resetBy: req.user.email,
-        role: user.role
+        updatedBy: req.user.email,
+        role: user.role,
+        modulesCount: Object.keys(defaultPermissions.modules || {}).length
       });
 
-      return ResponseHandler.success(res, {
+      return ResponseHandler.updated(res, {
         user: {
           email: user.email,
           name: user.name,
           role: user.role
         },
-        permissions: defaultPermissions,
-        message: `Permisos reseteados a configuración por defecto del rol '${user.role}'`
+        permissions: defaultPermissions
       }, 'Permisos de módulos reseteados exitosamente');
     } catch (error) {
       logger.error('❌ Error reseteando permisos de módulos', {
         targetUser: req.params?.email,
-        resetBy: req.user?.email,
+        updatedBy: req.user?.email,
         error: error.message
       });
       return ResponseHandler.error(res, error);
@@ -248,27 +320,25 @@ class ModulePermissionsController {
   static async getRoleDefaultPermissions(req, res, next) {
     try {
       const { role } = req.params;
-      
-      // Solo admins pueden consultar permisos de roles
+
+      // Solo admins pueden consultar permisos por defecto
       if (req.user.role !== 'admin') {
-        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden consultar permisos de roles');
+        return ResponseHandler.authorizationError(res, 'Solo los administradores pueden consultar permisos por defecto');
       }
 
+      // Obtener permisos por defecto del rol
       const defaultPermissions = getDefaultPermissionsForRole(role);
-      const accessibleModules = getAccessibleModules(defaultPermissions);
       
       logger.info('✅ Permisos por defecto del rol obtenidos', {
         role,
         requestedBy: req.user.email,
-        accessibleModulesCount: accessibleModules.length
+        modulesCount: Object.keys(defaultPermissions.modules || {}).length
       });
 
       return ResponseHandler.success(res, {
         role,
-        permissions: defaultPermissions,
-        accessibleModules,
-        totalAccessible: accessibleModules.length
-      }, `Permisos por defecto del rol '${role}' obtenidos exitosamente`);
+        permissions: defaultPermissions
+      }, 'Permisos por defecto del rol obtenidos exitosamente');
     } catch (error) {
       logger.error('❌ Error obteniendo permisos por defecto del rol', {
         role: req.params?.role,
@@ -291,19 +361,24 @@ class ModulePermissionsController {
       }
 
       // Obtener todos los usuarios activos
-      const users = await User.getAllActive();
+      const usersQuery = await firestore
+        .collection('users')
+        .where('isActive', '==', true)
+        .get();
       
-      const summary = users.map(user => {
-        const userPermissions = user.permissions || {};
+      const summary = [];
+      usersQuery.forEach(doc => {
+        const userData = doc.data();
+        const userPermissions = userData.permissions || {};
         const accessibleModules = getAccessibleModules(userPermissions);
         
-        return {
-          email: user.email,
-          name: user.name,
-          role: user.role,
+        summary.push({
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
           accessibleModulesCount: accessibleModules.length,
           accessibleModules: accessibleModules.map(m => m.id)
-        };
+        });
       });
 
       logger.info('✅ Resumen de permisos de usuarios obtenido', {
