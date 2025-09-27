@@ -1316,21 +1316,72 @@ class TeamController {
         userEmail: req.user?.email
       });
 
-      // 🔍 Buscar agente existente
-      const existingUser = await User.findByEmail(id) || await User.getById(id);
+      // 🔍 Buscar agente existente (usando query de Firestore como en deleteAgent)
+      let existingUser = null;
+      
+      try {
+        logger.info('🔍 Buscando usuario para actualizar con query en Firestore', { id });
+        
+        // Búsqueda por email usando query (mismo método que funciona en deleteAgent)
+        const usersSnapshot = await firestore
+          .collection('users')
+          .where('email', '==', id)
+          .limit(1)
+          .get();
+        
+        if (!usersSnapshot.empty) {
+          const userDoc = usersSnapshot.docs[0];
+          const userData = userDoc.data();
+          existingUser = {
+            id: userDoc.id,
+            email: userData.email,
+            name: userData.name,
+            role: userData.role,
+            isActive: userData.isActive,
+            ...userData
+          };
+          logger.info('✅ Usuario encontrado para actualizar', {
+            id,
+            found: true,
+            userEmail: userData.email,
+            userName: userData.name,
+            docId: userDoc.id
+          });
+        } else {
+          logger.warn('⚠️ Usuario no encontrado para actualizar', { id });
+        }
+      } catch (error) {
+        logger.error('❌ Error en query de Firestore para actualizar', {
+          id,
+          error: error.message
+        });
+      }
+      
       if (!existingUser) {
         return ResponseHandler.notFoundError(res, 'Agente no encontrado');
       }
 
       // 🔧 Si se cambia el email, verificar que no exista
       if (email && email !== existingUser.email) {
-        const emailExists = await User.findByEmail(email);
-        if (emailExists) {
-          return ResponseHandler.error(res, {
-            type: 'EMAIL_ALREADY_EXISTS',
-            message: 'Ya existe un usuario con este email',
-            code: 'DUPLICATE_EMAIL',
-            statusCode: 400
+        try {
+          const emailSnapshot = await firestore
+            .collection('users')
+            .where('email', '==', email)
+            .limit(1)
+            .get();
+          
+          if (!emailSnapshot.empty) {
+            return ResponseHandler.error(res, {
+              type: 'EMAIL_ALREADY_EXISTS',
+              message: 'Ya existe un usuario con este email',
+              code: 'DUPLICATE_EMAIL',
+              statusCode: 400
+            });
+          }
+        } catch (error) {
+          logger.error('❌ Error verificando email duplicado', {
+            email,
+            error: error.message
           });
         }
       }
@@ -1379,8 +1430,45 @@ class TeamController {
         updateCount: (existingUser.metadata?.updateCount || 0) + 1
       };
 
-      // 💾 Actualizar usuario
-      const updatedUser = await User.update(existingUser.id || existingUser.email, updateData);
+      // 💾 Actualizar usuario directamente en Firestore
+      try {
+        logger.info('💾 Actualizando usuario en Firestore', {
+          userId: existingUser.id,
+          userEmail: existingUser.email,
+          updateFields: Object.keys(updateData)
+        });
+        
+        // Actualizar directamente en Firestore
+        await firestore.collection('users').doc(existingUser.id).update({
+          ...updateData,
+          updatedAt: new Date().toISOString()
+        });
+        
+        // Obtener el usuario actualizado
+        const updatedUserDoc = await firestore.collection('users').doc(existingUser.id).get();
+        const updatedUserData = updatedUserDoc.data();
+        const updatedUser = {
+          id: updatedUserDoc.id,
+          ...updatedUserData
+        };
+        
+        logger.info('✅ Usuario actualizado en Firestore', {
+          userId: existingUser.id,
+          userEmail: existingUser.email
+        });
+      } catch (error) {
+        logger.error('❌ Error actualizando usuario en Firestore', {
+          userId: existingUser.id,
+          userEmail: existingUser.email,
+          error: error.message
+        });
+        return ResponseHandler.error(res, {
+          type: 'UPDATE_ERROR',
+          message: 'Error actualizando el agente en la base de datos',
+          code: 'UPDATE_FAILED',
+          statusCode: 500
+        });
+      }
 
       // 📊 Obtener módulos accesibles actualizados
       const finalPermissions = updateData.permissions || existingUser.permissions;
