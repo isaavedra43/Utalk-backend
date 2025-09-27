@@ -153,23 +153,12 @@ const teamValidators = {
         'string.max': 'La contraseña no puede exceder 128 caracteres'
       }),
       
-      // Permisos completos (acepta ambas estructuras)
+      // Permisos completos
       permissions: Joi.object({
-        // Estructura 1: permisos básicos directos (como envía el frontend)
         read: Joi.boolean().optional(),
         write: Joi.boolean().optional(),
         approve: Joi.boolean().optional(),
         configure: Joi.boolean().optional(),
-        
-        // Estructura 2: permisos básicos anidados
-        basic: Joi.object({
-          read: Joi.boolean().optional(),
-          write: Joi.boolean().optional(),
-          approve: Joi.boolean().optional(),
-          configure: Joi.boolean().optional()
-        }).optional(),
-        
-        // Módulos (ambas estructuras)
         modules: Joi.object().pattern(
           Joi.string(),
           Joi.object({
