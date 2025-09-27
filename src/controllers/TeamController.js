@@ -1401,7 +1401,25 @@ class TeamController {
       if (permissions) {
         const targetEmail = email || existingUser.email;
         const targetRole = role || existingUser.role;
-        updateData.permissions = TeamController.normalizePermissions(permissions, targetRole, targetEmail);
+        
+        // Normalizar estructura de permisos (aceptar ambas estructuras del frontend)
+        let normalizedPermissions = permissions;
+        
+        // Si viene con permisos básicos directos (como envía el frontend), convertirlos a estructura básica
+        if (permissions.read !== undefined || permissions.write !== undefined || 
+            permissions.approve !== undefined || permissions.configure !== undefined) {
+          normalizedPermissions = {
+            basic: {
+              read: permissions.read || false,
+              write: permissions.write || false,
+              approve: permissions.approve || false,
+              configure: permissions.configure || false
+            },
+            modules: permissions.modules || {}
+          };
+        }
+        
+        updateData.permissions = TeamController.normalizePermissions(normalizedPermissions, targetRole, targetEmail);
       }
 
       // Configuración de notificaciones
