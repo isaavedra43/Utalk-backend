@@ -1,652 +1,314 @@
 /**
- * 🛡️ MIDDLEWARE DE VALIDACIÓN CENTRALIZADA
+ * 🔍 MIDDLEWARE DE VALIDACIÓN
  * 
- * Sistema de validación robusto para todas las rutas del backend
- * Usa Joi para validación de esquemas y sanitización de datos
- * Incluye validaciones de permisos estandarizadas
+ * Middleware para validar parámetros de rutas y datos de entrada
+ * específicos para el módulo de documentos de empleados.
  * 
+ * @version 1.0.0
  * @author Backend Team
- * @version 2.1.0
  */
 
-const Joi = require('joi');
+const { ResponseHandler } = require('../utils/responseHandler');
+const Employee = require('../models/Employee');
+const EmployeeDocument = require('../models/EmployeeDocument');
 const logger = require('../utils/logger');
-const { ApiError } = require('../utils/responseHandler');
 
 /**
- * Middleware de validación principal
- * Valida body, query, params y headers según el esquema proporcionado
+ * Valida que el employeeId sea válido y que el empleado exista
  */
-function validateRequest(schema = {}, options = {}) {
-  return (req, res, next) => {
-    try {
-      const {
-        body = {},
-        query = {},
-        params = {},
-        headers = {}
-      } = schema;
-
-      const validationErrors = [];
-      const sanitizedData = {};
-
-      // Validar body
-      if (Object.keys(body).length > 0) {
-        const bodyValidation = validateSchema(req.body, body, 'body');
-        if (bodyValidation.error) {
-          validationErrors.push(bodyValidation.error);
-        } else {
-          sanitizedData.body = bodyValidation.value;
-        }
-      }
-
-      // Validar query parameters
-      if (Object.keys(query).length > 0) {
-        const queryValidation = validateSchema(req.query, query, 'query');
-        if (queryValidation.error) {
-          validationErrors.push(queryValidation.error);
-        } else {
-          sanitizedData.query = queryValidation.value;
-        }
-      }
-
-      // Validar URL parameters
-      if (Object.keys(params).length > 0) {
-        const paramsValidation = validateSchema(req.params, params, 'params');
-        if (paramsValidation.error) {
-          validationErrors.push(paramsValidation.error);
-        } else {
-          sanitizedData.params = paramsValidation.value;
-        }
-      }
-
-      // Validar headers específicos
-      if (Object.keys(headers).length > 0) {
-        const headersValidation = validateSchema(req.headers, headers, 'headers');
-        if (headersValidation.error) {
-          validationErrors.push(headersValidation.error);
-        } else {
-          sanitizedData.headers = headersValidation.value;
-        }
-      }
-
-      // Si hay errores de validación, retornar error 400
-      if (validationErrors.length > 0) {
-        const errorDetails = validationErrors.map(error => ({
-          field: error.field,
-          message: error.message,
-          value: error.value,
-          type: error.type
-        }));
-
-        logger.warn('Validación de request falló', {
-          endpoint: req.originalUrl,
-          method: req.method,
-          userId: req.user?.id,
-          errors: errorDetails
-        });
-
-        return res.status(400).json({
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: 'Datos de entrada inválidos',
-          details: errorDetails,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Reemplazar datos originales con datos sanitizados
-      if (sanitizedData.body) req.body = sanitizedData.body;
-      if (sanitizedData.query) req.query = sanitizedData.query;
-      if (sanitizedData.params) req.params = sanitizedData.params;
-      if (sanitizedData.headers) req.headers = { ...req.headers, ...sanitizedData.headers };
-
-      // Log removido para reducir ruido en producción
-
-      next();
-
-    } catch (error) {
-      logger.error('Error en middleware de validación:', error);
-      next(new ApiError('VALIDATION_SYSTEM_ERROR', 'Error interno del sistema de validación', 500));
-    }
-  };
-}
-
-/**
- * Validar un esquema específico
- */
-function validateSchema(data, schema, fieldType) {
+const validateEmployeeId = async (req, res, next) => {
   try {
-    const { error, value } = schema.validate(data, {
-      abortEarly: false,
-      stripUnknown: true,
-      allowUnknown: true  // 🔧 CAMBIADO: Permitir campos desconocidos
+    const { employeeId } = req.params;
+
+    if (!employeeId) {
+      return ResponseHandler.validationError(res, 'El ID del empleado es requerido');
+    }
+
+    // Validar formato del ID (UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(employeeId)) {
+      return ResponseHandler.validationError(res, 'Formato de ID de empleado inválido');
+    }
+
+    // Verificar que el empleado existe
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return ResponseHandler.notFoundError(res, 'Empleado no encontrado');
+    }
+
+    // Verificar que el empleado esté activo (opcional)
+    if (employee.status !== 'active') {
+      logger.warn('Acceso a empleado inactivo', {
+        employeeId,
+        status: employee.status,
+        user: req.user?.email
+      });
+    }
+
+    // Agregar empleado al request para uso posterior
+    req.employee = employee;
+
+    next();
+  } catch (error) {
+    logger.error('Error validando employeeId', {
+      employeeId: req.params.employeeId,
+      error: error.message
     });
 
-    if (error) {
-      const validationError = {
-        field: fieldType,
-        message: 'Datos inválidos',
-        details: error.details.map(detail => ({
-          field: detail.path.join('.'),
-          message: detail.message,
-          type: detail.type,
-          value: detail.context?.value
-        }))
-      };
+    return ResponseHandler.error(res, {
+      type: 'VALIDATION_ERROR',
+      code: 'EMPLOYEE_VALIDATION_ERROR',
+      message: 'Error validando empleado'
+    }, 500);
+  }
+};
 
-      return { error: validationError };
+/**
+ * Valida que el documentId sea válido y que el documento exista
+ */
+const validateDocumentId = async (req, res, next) => {
+  try {
+    const { documentId } = req.params;
+
+    if (!documentId) {
+      return ResponseHandler.validationError(res, 'El ID del documento es requerido');
     }
 
-    return { value };
+    // Validar formato del ID (UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return ResponseHandler.validationError(res, 'Formato de ID de documento inválido');
+    }
 
+    // Verificar que el documento existe
+    const document = await EmployeeDocument.findById(documentId);
+    if (!document) {
+      return ResponseHandler.notFoundError(res, 'Documento no encontrado');
+    }
+
+    // Verificar que el documento no esté eliminado
+    if (document.audit.deletedAt) {
+      return ResponseHandler.notFoundError(res, 'Documento no encontrado');
+    }
+
+    // Agregar documento al request para uso posterior
+    req.document = document;
+
+    next();
   } catch (error) {
-    logger.error(`Error validando ${fieldType}:`, error);
-    return {
-      error: {
-        field: fieldType,
-        message: 'Error interno de validación',
-        details: [{ field: 'unknown', message: error.message }]
-      }
-    };
+    logger.error('Error validando documentId', {
+      documentId: req.params.documentId,
+      error: error.message
+    });
+
+    return ResponseHandler.error(res, {
+      type: 'VALIDATION_ERROR',
+      code: 'DOCUMENT_VALIDATION_ERROR',
+      message: 'Error validando documento'
+    }, 500);
   }
-}
-
-/**
- * Middleware de validación para archivos
- */
-function validateFile(options = {}) {
-  return (req, res, next) => {
-    try {
-      const {
-        maxSize = 10 * 1024 * 1024, // 10MB por defecto
-        allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
-        maxFiles = 1,
-        required = false
-      } = options;
-
-      // Verificar si hay archivos
-      if (!req.files && !req.file) {
-        if (required) {
-          return res.status(400).json({
-            success: false,
-            error: 'FILE_REQUIRED',
-            message: 'Se requiere al menos un archivo',
-            timestamp: new Date().toISOString()
-          });
-        }
-        return next();
-      }
-
-      const files = req.files || [req.file];
-      
-      // Validar número de archivos
-      if (files.length > maxFiles) {
-        return res.status(400).json({
-          success: false,
-          error: 'TOO_MANY_FILES',
-          message: `Máximo ${maxFiles} archivo(s) permitido(s)`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Validar cada archivo
-      for (const file of files) {
-        // Validar tamaño
-        if (file.size > maxSize) {
-          return res.status(400).json({
-            success: false,
-            error: 'FILE_TOO_LARGE',
-            message: `Archivo ${file.originalname} excede el tamaño máximo de ${formatFileSize(maxSize)}`,
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Validar tipo
-        if (!allowedTypes.includes(file.mimetype)) {
-          return res.status(400).json({
-            success: false,
-            error: 'INVALID_FILE_TYPE',
-            message: `Tipo de archivo no permitido: ${file.mimetype}`,
-            allowedTypes,
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Validar nombre de archivo
-        if (!file.originalname || file.originalname.length > 255) {
-          return res.status(400).json({
-            success: false,
-            error: 'INVALID_FILENAME',
-            message: 'Nombre de archivo inválido',
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-
-      logger.info('Validación de archivos exitosa', {
-        endpoint: req.originalUrl,
-        fileCount: files.length,
-        totalSize: files.reduce((sum, f) => sum + f.size, 0)
-      });
-
-      next();
-
-    } catch (error) {
-      logger.error('Error en validación de archivos:', error);
-      next(new ApiError('FILE_VALIDATION_ERROR', 'Error validando archivos', 500));
-    }
-  };
-}
-
-/**
- * Middleware de validación para IDs
- * 🔧 CORRECCIÓN CRÍTICA: Usar conversationId ya normalizado si está disponible
- */
-function validateId(paramName = 'id') {
-  return (req, res, next) => {
-    try {
-      // 🔧 CORRECCIÓN CRÍTICA: Usar el ID ya normalizado si está disponible
-      const id = req.normalizedConversationId || req.params[paramName];
-      
-      if (!id) {
-        return res.status(400).json({
-          success: false,
-          error: 'MISSING_ID',
-          message: `ID requerido en parámetro: ${paramName}`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 🔧 CORRECCIÓN: Validar tanto UUID como conversationId (ya normalizado)
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
-      
-      // Verificar si es UUID
-      if (uuidRegex.test(id)) {
-        return next();
-      }
-      
-      // Verificar si es conversationId
-      if (conversationIdRegex.test(id)) {
-        return next();
-      }
-      
-      // Si no es ninguno de los formatos válidos
-      logger.warn('ID con formato inválido (ya normalizado)', {
-        paramName,
-        id: id,
-        endpoint: req.originalUrl,
-        method: req.method
-      });
-      
-      return res.status(400).json({
-        success: false,
-        error: 'INVALID_ID_FORMAT',
-        message: `Formato de ID inválido: ${paramName}. Debe ser UUID o conversationId (conv_+phone1_+phone2)`,
-        value: id,
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (error) {
-      logger.error('Error en validación de ID:', error);
-      next(new ApiError('ID_VALIDATION_ERROR', 'Error validando ID', 500));
-    }
-  };
-}
-
-/**
- * Middleware de validación específica para conversationId
- * 🔧 CORRECCIÓN CRÍTICA: Usar el conversationId ya normalizado por normalizeConversationId
- */
-function validateConversationId(paramName = 'conversationId') {
-  return (req, res, next) => {
-    try {
-      // 🔧 CORRECCIÓN CRÍTICA: Usar el conversationId ya normalizado
-      // El middleware normalizeConversationId ya se encarga de la decodificación
-      const id = req.normalizedConversationId || req.params[paramName] || req.query[paramName];
-      
-      if (!id) {
-        return res.status(400).json({
-          success: false,
-          error: 'MISSING_CONVERSATION_ID',
-          message: `conversationId requerido en parámetro: ${paramName}`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 🔧 CORRECCIÓN: El conversationId ya está normalizado, solo validar formato
-      const conversationIdRegex = /^conv_(\+?\d+)_(\+?\d+)$/;
-      
-      if (!conversationIdRegex.test(id)) {
-        logger.warn('ConversationId con formato inválido (ya normalizado)', {
-          paramName,
-          conversationId: id,
-          endpoint: req.originalUrl,
-          method: req.method
-        });
-        
-        return res.status(400).json({
-          success: false,
-          error: 'INVALID_CONVERSATION_ID_FORMAT',
-          message: `Formato de conversationId inválido: ${paramName}. Debe ser conv_+phone1_+phone2`,
-          value: id,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 🔧 CORRECCIÓN: Actualizar el request con el ID decodificado
-      if (req.params[paramName]) {
-        req.params[paramName] = decodedId;
-      }
-      if (req.query[paramName]) {
-        req.query[paramName] = decodedId;
-      }
-
-      next();
-
-    } catch (error) {
-      logger.error('Error en validación de conversationId:', error);
-      next(new ApiError('CONVERSATION_ID_VALIDATION_ERROR', 'Error validando conversationId', 500));
-    }
-  };
-}
-
-/**
- * Middleware de validación para paginación
- */
-function validatePagination() {
-  return (req, res, next) => {
-    try {
-      const { page, limit, cursor } = req.query;
-      
-      const errors = [];
-
-      // Validar página
-      if (page !== undefined) {
-        const pageNum = parseInt(page);
-        if (isNaN(pageNum) || pageNum < 1) {
-          errors.push({
-            field: 'page',
-            message: 'Página debe ser un número mayor a 0',
-            value: page
-          });
-        }
-      }
-
-      // Validar límite
-      if (limit !== undefined) {
-        const limitNum = parseInt(limit);
-        if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-          errors.push({
-            field: 'limit',
-            message: 'Límite debe ser un número entre 1 y 100',
-            value: limit
-          });
-        }
-      }
-
-      // Validar cursor
-      if (cursor !== undefined && typeof cursor !== 'string') {
-        errors.push({
-          field: 'cursor',
-          message: 'Cursor debe ser una cadena válida',
-          value: cursor
-        });
-      }
-
-      if (errors.length > 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'PAGINATION_VALIDATION_ERROR',
-          message: 'Parámetros de paginación inválidos',
-          details: errors,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      next();
-
-    } catch (error) {
-      logger.error('Error en validación de paginación:', error);
-      next(new ApiError('PAGINATION_ERROR', 'Error validando paginación', 500));
-    }
-  };
-}
-
-/**
- * Middleware de validación para búsquedas
- */
-function validateSearch() {
-  return (req, res, next) => {
-    try {
-      const { search, q } = req.query;
-      const searchTerm = search || q;
-
-      if (searchTerm !== undefined) {
-        if (typeof searchTerm !== 'string') {
-          return res.status(400).json({
-            success: false,
-            error: 'INVALID_SEARCH_TERM',
-            message: 'Término de búsqueda debe ser una cadena',
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        if (searchTerm.length < 2) {
-          return res.status(400).json({
-            success: false,
-            error: 'SEARCH_TERM_TOO_SHORT',
-            message: 'Término de búsqueda debe tener al menos 2 caracteres',
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        if (searchTerm.length > 200) {
-          return res.status(400).json({
-            success: false,
-            error: 'SEARCH_TERM_TOO_LONG',
-            message: 'Término de búsqueda no puede exceder 200 caracteres',
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-
-      next();
-
-    } catch (error) {
-      logger.error('Error en validación de búsqueda:', error);
-      next(new ApiError('SEARCH_VALIDATION_ERROR', 'Error validando búsqueda', 500));
-    }
-  };
-}
-
-/**
- * Utilidad para formatear tamaño de archivo
- */
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-/**
- * Validar array de mensajes
- */
-function validateMessagesArrayResponse(messages) {
-  if (!Array.isArray(messages)) {
-    throw new Error('Messages debe ser un array');
-  }
-  return messages.filter(msg => msg && typeof msg === 'object' && msg.id);
-}
-
-/**
- * 🔧 MIDDLEWARE PARA VALIDAR DOCUMENTOS DE FIREBASE
- * Previene errores de toJSON() y otros métodos de Firestore
- */
-const validateFirestoreDocument = (doc, res, documentType = 'documento') => {
-  if (!doc) {
-    return {
-      isValid: false,
-      error: {
-        success: false,
-        error: "DOCUMENT_NOT_FOUND",
-        message: `El ${documentType} no fue encontrado`,
-        suggestion: "Verifica que el ID sea correcto y que el documento exista"
-      }
-    };
-  }
-
-  // Si es un documento de Firestore con método exists
-  if (typeof doc.exists === 'boolean' && !doc.exists) {
-    return {
-      isValid: false,
-      error: {
-        success: false,
-        error: "DOCUMENT_NOT_FOUND",
-        message: `El ${documentType} no existe en la base de datos`,
-        suggestion: "Verifica que el ID sea correcto"
-      }
-    };
-  }
-
-  return {
-    isValid: true,
-    data: doc
-  };
 };
 
 /**
- * 🔧 FUNCIÓN PARA CONVERTIR DOCUMENTOS DE FIREBASE DE FORMA SEGURA
+ * Valida que el usuario tenga acceso al empleado específico
+ * (útil para supervisores que solo pueden ver empleados de su departamento)
  */
-const safeFirestoreToJSON = (doc) => {
-  if (!doc) return null;
-  
-  // Si es un documento de Firestore con toJSON
-  if (typeof doc.toJSON === 'function') {
-    return doc.toJSON();
+const validateEmployeeAccess = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const employee = req.employee;
+
+    // Admin y HR admin pueden acceder a todos los empleados
+    if (['admin', 'hr_admin'].includes(user.role) || user.hrRole === 'HR_ADMIN') {
+      return next();
+    }
+
+    // HR manager puede acceder a empleados de su departamento
+    if (user.role === 'hr_manager' || user.hrRole === 'HR_MANAGER') {
+      // Si el usuario tiene un departamento asignado, verificar que coincida
+      if (user.department && user.department !== employee.position.department) {
+        return ResponseHandler.authorizationError(res, 'No tienes acceso a empleados de otros departamentos');
+      }
+    }
+
+    // Supervisor puede acceder a empleados de su equipo
+    if (user.role === 'supervisor' || user.hrRole === 'SUPERVISOR') {
+      // Verificar si el empleado reporta al supervisor
+      if (employee.position.reportsTo !== user.id) {
+        return ResponseHandler.authorizationError(res, 'No tienes acceso a este empleado');
+      }
+    }
+
+    // Empleado solo puede acceder a sus propios documentos
+    if (user.role === 'employee' || user.hrRole === 'EMPLOYEE') {
+      if (employee.id !== user.id) {
+        return ResponseHandler.authorizationError(res, 'Solo puedes acceder a tus propios documentos');
+      }
+    }
+
+    next();
+  } catch (error) {
+    logger.error('Error validando acceso al empleado', {
+      employeeId: req.params.employeeId,
+      userId: req.user?.id,
+      error: error.message
+    });
+
+    return ResponseHandler.error(res, {
+      type: 'AUTHORIZATION_ERROR',
+      code: 'EMPLOYEE_ACCESS_VALIDATION_ERROR',
+      message: 'Error validando acceso al empleado'
+    }, 500);
   }
-  
-  // Si es un objeto plano, devolver directamente
-  if (typeof doc === 'object') {
-    return doc;
-  }
-  
-  return null;
 };
 
 /**
- * 🔐 VALIDACIONES DE PERMISOS ESTANDARIZADAS
+ * Valida parámetros de paginación
  */
+const validatePagination = (req, res, next) => {
+  try {
+    const { page, limit } = req.query;
 
-/**
- * Middleware para validar roles de usuario
- */
-function requireRole(allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: 'Usuario no autenticado'
-      });
+    if (page !== undefined) {
+      const pageNum = parseInt(page);
+      if (isNaN(pageNum) || pageNum < 1) {
+        return ResponseHandler.validationError(res, 'La página debe ser un número mayor a 0');
+      }
+      req.query.page = pageNum;
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: 'FORBIDDEN',
-        message: `Acceso denegado. Roles permitidos: ${allowedRoles.join(', ')}`
-      });
+    if (limit !== undefined) {
+      const limitNum = parseInt(limit);
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return ResponseHandler.validationError(res, 'El límite debe ser un número entre 1 y 100');
+      }
+      req.query.limit = limitNum;
     }
 
     next();
-  };
-}
+  } catch (error) {
+    logger.error('Error validando paginación', {
+      query: req.query,
+      error: error.message
+    });
+
+    return ResponseHandler.error(res, {
+      type: 'VALIDATION_ERROR',
+      code: 'PAGINATION_VALIDATION_ERROR',
+      message: 'Error validando parámetros de paginación'
+    }, 500);
+  }
+};
 
 /**
- * Middleware para validar permisos específicos
+ * Valida parámetros de búsqueda
  */
-function requirePermission(permission) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: 'Usuario no autenticado'
-      });
+const validateSearch = (req, res, next) => {
+  try {
+    const { search, category, confidential, sortBy, sortOrder } = req.query;
+
+    // Validar búsqueda
+    if (search !== undefined && typeof search !== 'string') {
+      return ResponseHandler.validationError(res, 'El parámetro de búsqueda debe ser texto');
     }
 
-    if (!req.user.permissions || !req.user.permissions.includes(permission)) {
-      return res.status(403).json({
-        success: false,
-        error: 'FORBIDDEN',
-        message: `Permiso requerido: ${permission}`
-      });
+    // Validar categoría
+    if (category !== undefined) {
+      const validCategories = ['contract', 'id', 'tax', 'certification', 'other'];
+      if (!validCategories.includes(category)) {
+        return ResponseHandler.validationError(res, `Categoría inválida. Debe ser una de: ${validCategories.join(', ')}`);
+      }
+    }
+
+    // Validar confidencialidad
+    if (confidential !== undefined) {
+      if (!['true', 'false'].includes(confidential)) {
+        return ResponseHandler.validationError(res, 'confidential debe ser "true" o "false"');
+      }
+    }
+
+    // Validar ordenamiento
+    if (sortBy !== undefined) {
+      const validSortFields = ['uploadedAt', 'originalName', 'fileSize', 'category'];
+      if (!validSortFields.includes(sortBy)) {
+        return ResponseHandler.validationError(res, `Campo de ordenamiento inválido. Debe ser uno de: ${validSortFields.join(', ')}`);
+      }
+    }
+
+    if (sortOrder !== undefined) {
+      if (!['asc', 'desc'].includes(sortOrder)) {
+        return ResponseHandler.validationError(res, 'Orden inválido. Debe ser "asc" o "desc"');
+      }
     }
 
     next();
-  };
-}
+  } catch (error) {
+    logger.error('Error validando parámetros de búsqueda', {
+      query: req.query,
+      error: error.message
+    });
+
+    return ResponseHandler.error(res, {
+      type: 'VALIDATION_ERROR',
+      code: 'SEARCH_VALIDATION_ERROR',
+      message: 'Error validando parámetros de búsqueda'
+    }, 500);
+  }
+};
 
 /**
- * Middleware para validar propiedad de recursos
+ * Valida datos de actualización de documento
  */
-function requireOwnership(resourceType, getResourceId) {
-  return async (req, res, next) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          error: 'UNAUTHORIZED',
-          message: 'Usuario no autenticado'
-        });
-      }
+const validateDocumentUpdate = (req, res, next) => {
+  try {
+    const { description, tags, isConfidential, expiresAt } = req.body;
 
-      // Admins pueden acceder a todo
-      if (req.user.role === 'admin') {
-        return next();
-      }
-
-      const resourceId = getResourceId(req);
-      if (!resourceId) {
-        return res.status(400).json({
-          success: false,
-          error: 'MISSING_RESOURCE_ID',
-          message: 'ID del recurso requerido'
-        });
-      }
-
-      // Aquí implementarías la lógica para verificar propiedad
-      // Por ahora, asumimos que el recurso tiene un campo createdBy o ownerId
-      // Esta función debería ser implementada según el modelo específico
-
-      next();
-    } catch (error) {
-      logger.error('Error validando propiedad de recurso:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'OWNERSHIP_VALIDATION_ERROR',
-        message: 'Error validando propiedad del recurso'
-      });
+    // Validar descripción
+    if (description !== undefined && typeof description !== 'string') {
+      return ResponseHandler.validationError(res, 'La descripción debe ser texto');
     }
-  };
-}
+
+    // Validar tags
+    if (tags !== undefined) {
+      if (typeof tags !== 'string' && !Array.isArray(tags)) {
+        return ResponseHandler.validationError(res, 'Los tags deben ser texto o array');
+      }
+    }
+
+    // Validar confidencialidad
+    if (isConfidential !== undefined) {
+      if (typeof isConfidential !== 'boolean' && !['true', 'false'].includes(isConfidential)) {
+        return ResponseHandler.validationError(res, 'isConfidential debe ser true o false');
+      }
+    }
+
+    // Validar fecha de expiración
+    if (expiresAt !== undefined && expiresAt !== null) {
+      if (typeof expiresAt !== 'string' || isNaN(Date.parse(expiresAt))) {
+        return ResponseHandler.validationError(res, 'expiresAt debe ser una fecha válida en formato ISO');
+      }
+    }
+
+    next();
+  } catch (error) {
+    logger.error('Error validando datos de actualización', {
+      body: req.body,
+      error: error.message
+    });
+
+    return ResponseHandler.error(res, {
+      type: 'VALIDATION_ERROR',
+      code: 'DOCUMENT_UPDATE_VALIDATION_ERROR',
+      message: 'Error validando datos de actualización'
+    }, 500);
+  }
+};
 
 module.exports = {
-  validateRequest,
-  validateFile,
-  validateId,
-  validateConversationId,
+  validateEmployeeId,
+  validateDocumentId,
+  validateEmployeeAccess,
   validatePagination,
   validateSearch,
-  formatFileSize,
-  validateMessagesArrayResponse,
-  validateFirestoreDocument,
-  safeFirestoreToJSON,
-  requireRole,
-  requirePermission,
-  requireOwnership
-}; 
+  validateDocumentUpdate
+};
