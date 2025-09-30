@@ -186,8 +186,8 @@ class EmployeeDocument {
 
       // 🔧 CORRECCIÓN CRÍTICA: Verificar si Firebase está disponible
       if (!db) {
-        console.warn('Firebase no está disponible, simulando guardado exitoso');
-        return this;
+        console.error('❌ Firebase no está disponible - no se puede guardar el documento');
+        throw new Error('Firebase no está disponible');
       }
 
       // Verificar que el empleado existe
@@ -202,18 +202,36 @@ class EmployeeDocument {
       }
 
       const docRef = db.collection('employee_documents').doc(this.id);
-      await docRef.set(this.toFirestore());
+      const firestoreData = this.toFirestore();
+      
+      console.log('📝 Guardando documento en Firestore:', {
+        collection: 'employee_documents',
+        documentId: this.id,
+        employeeId: this.employeeId,
+        fileName: this.originalName,
+        category: this.category,
+        auditDeletedAt: firestoreData.audit.deletedAt
+      });
+      
+      await docRef.set(firestoreData);
 
-      console.log('✅ Documento guardado exitosamente en Firebase:', {
+      // Verificar que se guardó correctamente
+      const savedDoc = await docRef.get();
+      if (!savedDoc.exists) {
+        throw new Error('El documento no se guardó correctamente en Firestore');
+      }
+
+      console.log('✅ Documento guardado y verificado exitosamente en Firebase:', {
         id: this.id,
         employeeId: this.employeeId,
         fileName: this.originalName,
-        category: this.category
+        category: this.category,
+        exists: savedDoc.exists
       });
 
       return this;
     } catch (error) {
-      console.error('Error saving employee document:', error);
+      console.error('❌ Error saving employee document:', error);
       throw error;
     }
   }
@@ -337,18 +355,27 @@ class EmployeeDocument {
         .where('employeeId', '==', employeeId)
         .where('audit.deletedAt', '==', null);
 
+      console.log('🔍 Consulta base creada:', {
+        collection: 'employee_documents',
+        whereEmployeeId: employeeId,
+        whereDeletedAt: null
+      });
+
       // Filtro por categoría
       if (category) {
         query = query.where('category', '==', category);
+        console.log('➕ Filtro de categoría agregado:', category);
       }
 
       // Filtro por confidencialidad
       if (confidential !== null) {
         query = query.where('isConfidential', '==', confidential);
+        console.log('➕ Filtro de confidencialidad agregado:', confidential);
       }
 
       // Ordenamiento
       query = query.orderBy(sortBy, sortOrder);
+      console.log('📊 Ordenamiento configurado:', { sortBy, sortOrder });
 
       // Paginación
       const offset = (page - 1) * limit;
