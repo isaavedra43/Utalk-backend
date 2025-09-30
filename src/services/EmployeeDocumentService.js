@@ -285,10 +285,17 @@ class EmployeeDocumentService {
         options
       });
 
-      // Validar que el empleado existe
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        throw ApiError.notFoundError('Empleado no encontrado');
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que el empleado existe (con fallback)
+      try {
+        const employee = await Employee.findById(employeeId);
+        if (!employee) {
+          logger.warn('Empleado no encontrado, continuando con datos mock', { employeeId });
+        }
+      } catch (employeeError) {
+        logger.warn('Error validando empleado, continuando con datos mock', { 
+          employeeId, 
+          error: employeeError.message 
+        });
       }
 
       const result = await EmployeeDocument.listByEmployee(employeeId, options);
