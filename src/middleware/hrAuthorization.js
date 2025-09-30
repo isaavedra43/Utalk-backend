@@ -83,12 +83,30 @@ const HR_ROLES = {
  * Obtiene el rol HR del usuario
  */
 function getHRRole(user) {
-  // Por defecto, todos los usuarios autenticados son empleados
-  if (!user.hrRole) {
-    return HR_ROLES.EMPLOYEE;
+  // Mapear roles del sistema a roles HR
+  if (user.role === 'admin') {
+    return HR_ROLES.HR_ADMIN;
   }
   
-  return HR_ROLES[user.hrRole] || HR_ROLES.EMPLOYEE;
+  if (user.role === 'hr_admin') {
+    return HR_ROLES.HR_ADMIN;
+  }
+  
+  if (user.role === 'hr_manager') {
+    return HR_ROLES.HR_MANAGER;
+  }
+  
+  if (user.role === 'supervisor') {
+    return HR_ROLES.SUPERVISOR;
+  }
+  
+  // Si tiene hrRole específico, usarlo
+  if (user.hrRole && HR_ROLES[user.hrRole]) {
+    return HR_ROLES[user.hrRole];
+  }
+  
+  // Por defecto, todos los usuarios autenticados son empleados
+  return HR_ROLES.EMPLOYEE;
 }
 
 /**
