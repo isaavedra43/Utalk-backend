@@ -104,7 +104,7 @@ class EmployeeController {
           new Date().toISOString().split('T')[0]
         ).catch(() => ({})),
         VacationBalance.getSummary(id).catch(() => ({})),
-        EmployeeDocument.listByEmployee(id, { limit: 10 }).catch(() => []),
+        EmployeeDocument.listByEmployee(id, { limit: 10 }).then(result => result.documents || []).catch(() => []),
         Incident.listByEmployee(id, { limit: 5 }).catch(() => []),
         Evaluation.listByEmployee(id, { limit: 5 }).catch(() => []),
         Skill.listByEmployee(id, { limit: 20 }).catch(() => []),
