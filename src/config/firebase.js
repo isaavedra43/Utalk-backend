@@ -222,11 +222,18 @@ setImmediate(() => {
   });
 });
 
+// 🔧 CORRECCIÓN CRÍTICA: Exportar getters para que siempre devuelvan el valor actual
 module.exports = {
-  firestore,
-  storage,
+  get firestore() {
+    return firestore;
+  },
+  get storage() {
+    return storage;
+  },
   admin,
-  db: firestore, // Alias para compatibilidad
+  get db() {
+    return firestore; // Siempre devuelve el valor actual de firestore
+  },
   FieldValue: admin.firestore.FieldValue,
   Timestamp: admin.firestore.Timestamp,
   initializeFirebase
