@@ -8,10 +8,107 @@
  * @author Backend Team
  */
 
+const Joi = require('joi');
 const { ResponseHandler } = require('../utils/responseHandler');
 const Employee = require('../models/Employee');
 const EmployeeDocument = require('../models/EmployeeDocument');
 const logger = require('../utils/logger');
+
+/**
+ * Middleware genérico para validar requests con esquemas Joi
+ * @param {Object} schemas - Objeto con esquemas para body, params, query
+ * @returns {Function} Middleware de validación
+ */
+const validateRequest = (schemas = {}) => {
+  return (req, res, next) => {
+    try {
+      const errors = [];
+
+      // Validar body
+      if (schemas.body) {
+        const { error, value } = schemas.body.validate(req.body, {
+          abortEarly: false,
+          stripUnknown: true
+        });
+        
+        if (error) {
+          errors.push(...error.details.map(detail => ({
+            field: `body.${detail.path.join('.')}`,
+            code: detail.type,
+            message: detail.message
+          })));
+        } else {
+          req.body = value;
+        }
+      }
+
+      // Validar params
+      if (schemas.params) {
+        const { error, value } = schemas.params.validate(req.params, {
+          abortEarly: false,
+          stripUnknown: true
+        });
+        
+        if (error) {
+          errors.push(...error.details.map(detail => ({
+            field: `params.${detail.path.join('.')}`,
+            code: detail.type,
+            message: detail.message
+          })));
+        } else {
+          req.params = value;
+        }
+      }
+
+      // Validar query
+      if (schemas.query) {
+        const { error, value } = schemas.query.validate(req.query, {
+          abortEarly: false,
+          stripUnknown: true
+        });
+        
+        if (error) {
+          errors.push(...error.details.map(detail => ({
+            field: `query.${detail.path.join('.')}`,
+            code: detail.type,
+            message: detail.message
+          })));
+        } else {
+          req.query = value;
+        }
+      }
+
+      // Si hay errores, devolver respuesta de error
+      if (errors.length > 0) {
+        logger.warn('Validación de request falló', {
+          requestId: req.id || 'unknown',
+          errors: errors,
+          userAgent: req.headers['user-agent'],
+          ip: req.ip
+        });
+
+        return res.status(400).json({
+          error: 'validation_error',
+          message: 'Datos de entrada inválidos',
+          details: errors
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error en middleware de validación', {
+        requestId: req.id || 'unknown',
+        error: error.message,
+        stack: error.stack
+      });
+
+      return res.status(500).json({
+        error: 'internal_error',
+        message: 'Error interno del servidor'
+      });
+    }
+  };
+};
 
 /**
  * Valida que el employeeId sea válido y que el empleado exista
@@ -305,6 +402,7 @@ const validateDocumentUpdate = (req, res, next) => {
 };
 
 module.exports = {
+  validateRequest,
   validateEmployeeId,
   validateDocumentId,
   validateEmployeeAccess,
