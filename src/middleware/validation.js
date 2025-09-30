@@ -298,6 +298,66 @@ const validatePagination = (req, res, next) => {
 };
 
 /**
+ * Middleware genérico para validar IDs en parámetros
+ * @param {string} fieldName - Nombre del campo a validar (ej: 'messageId', 'conversationId')
+ * @returns {Function} Middleware de validación
+ */
+const validateId = (fieldName) => {
+  return (req, res, next) => {
+    try {
+      const value = req.params[fieldName];
+
+      if (!value) {
+        return res.status(400).json({
+          error: 'validation_error',
+          message: `El parámetro ${fieldName} es requerido`,
+          details: [{
+            field: `params.${fieldName}`,
+            code: 'any.required',
+            message: `${fieldName} es requerido`
+          }]
+        });
+      }
+
+      // Validar formato UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        return res.status(400).json({
+          error: 'validation_error',
+          message: `Formato de ${fieldName} inválido`,
+          details: [{
+            field: `params.${fieldName}`,
+            code: 'string.pattern.base',
+            message: `${fieldName} debe ser un UUID válido`
+          }]
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error validando ID', {
+        fieldName,
+        value: req.params[fieldName],
+        error: error.message
+      });
+
+      return res.status(500).json({
+        error: 'internal_error',
+        message: 'Error interno del servidor'
+      });
+    }
+  };
+};
+
+/**
+ * Middleware específico para validar conversationId
+ * @returns {Function} Middleware de validación
+ */
+const validateConversationId = () => {
+  return validateId('conversationId');
+};
+
+/**
  * Valida parámetros de búsqueda
  */
 const validateSearch = (req, res, next) => {
@@ -403,6 +463,8 @@ const validateDocumentUpdate = (req, res, next) => {
 
 module.exports = {
   validateRequest,
+  validateId,
+  validateConversationId,
   validateEmployeeId,
   validateDocumentId,
   validateEmployeeAccess,
