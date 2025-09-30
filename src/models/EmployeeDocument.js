@@ -302,8 +302,16 @@ class EmployeeDocument {
 
       // 🔧 CORRECCIÓN CRÍTICA: Verificar si Firebase está disponible
       if (!db) {
-        console.warn('Firebase no está disponible, retornando datos mock para desarrollo');
-        return this.getMockDocuments(employeeId, options);
+        console.warn('Firebase no está disponible, retornando respuesta vacía');
+        return {
+          documents: [],
+          pagination: {
+            page: options.page || 1,
+            limit: options.limit || 20,
+            total: 0,
+            totalPages: 0
+          }
+        };
       }
 
       let query = db.collection('employee_documents')
@@ -384,128 +392,47 @@ class EmployeeDocument {
       };
     } catch (error) {
       console.error('Error listing employee documents:', error);
-      // 🔧 CORRECCIÓN CRÍTICA: En caso de error, retornar datos mock
-      console.warn('Error en Firebase, retornando datos mock para desarrollo');
-      return this.getMockDocuments(employeeId, options);
-    }
-  }
-
-  /**
-   * 🔧 MÉTODO MOCK PARA DESARROLLO
-   * Retorna datos de prueba cuando Firebase no está disponible
-   */
-  static getMockDocuments(employeeId, options = {}) {
-    const {
-      page = 1,
-      limit = 20,
-      search = '',
-      category = '',
-      confidential = null
-    } = options;
-
-    // Datos mock de documentos
-    const mockDocuments = [
-      {
-        id: 'doc_1',
-        employeeId: employeeId,
-        originalName: 'Contrato Laboral 2024.pdf',
-        fileSize: 245760,
-        mimeType: 'application/pdf',
-        category: 'contract',
-        subcategory: 'labor_contract',
-        isConfidential: true,
-        tags: ['contrato', '2024', 'laboral'],
-        description: 'Contrato laboral firmado en enero 2024',
-        uploader: {
-          id: 'admin@company.com',
-          email: 'admin@company.com',
-          name: 'Admin'
-        },
-        uploadedAt: '2024-01-15T10:30:00Z',
-        version: 1,
-        storage: {
-          provider: 'firebase',
-          path: `/uploads/employees/${employeeId}/contracts/contrato_laboral_2024.pdf`
-        },
-        metadata: {
-          department: 'IT',
-          position: 'Senior Developer',
-          effectiveDate: '2024-01-01',
-          expiryDate: '2025-12-31'
+      // 🔧 CORRECCIÓN CRÍTICA: En caso de error, retornar respuesta vacía
+      console.warn('Error en Firebase, retornando respuesta vacía');
+      return {
+        documents: [],
+        pagination: {
+          page: options.page || 1,
+          limit: options.limit || 20,
+          total: 0,
+          totalPages: 0
         }
-      },
-      {
-        id: 'doc_2',
-        employeeId: employeeId,
-        originalName: 'INE.pdf',
-        fileSize: 156789,
-        mimeType: 'application/pdf',
-        category: 'identification',
-        subcategory: 'id_card',
-        isConfidential: false,
-        tags: ['identificación', 'INE'],
-        description: 'Identificación oficial',
-        uploader: {
-          id: 'admin@company.com',
-          email: 'admin@company.com',
-          name: 'Admin'
-        },
-        uploadedAt: '2024-01-10T09:15:00Z',
-        version: 1,
-        storage: {
-          provider: 'firebase',
-          path: `/uploads/employees/${employeeId}/identification/INE.pdf`
-        },
-        metadata: {}
-      }
-    ];
-
-    // Aplicar filtros
-    let filteredDocuments = mockDocuments;
-
-    if (category) {
-      filteredDocuments = filteredDocuments.filter(doc => doc.category === category);
+      };
     }
-
-    if (confidential !== null) {
-      filteredDocuments = filteredDocuments.filter(doc => doc.isConfidential === confidential);
-    }
-
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredDocuments = filteredDocuments.filter(doc => {
-        const originalName = (doc.originalName || '').toLowerCase();
-        const description = (doc.description || '').toLowerCase();
-        const tags = (doc.tags || []).join(' ').toLowerCase();
-        
-        return originalName.includes(searchLower) || 
-               description.includes(searchLower) || 
-               tags.includes(searchLower);
-      });
-    }
-
-    // Paginación
-    const total = filteredDocuments.length;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedDocuments = filteredDocuments.slice(startIndex, endIndex);
-
-    return {
-      documents: paginatedDocuments,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
-    };
   }
+
 
   /**
    * Obtiene resumen de documentos de un empleado
    */
   static async getSummaryByEmployee(employeeId) {
     try {
+      // 🔧 CORRECCIÓN CRÍTICA: Verificar si Firebase está disponible
+      if (!db) {
+        console.warn('Firebase no está disponible, retornando resumen vacío');
+        return {
+          totalCount: 0,
+          totalSizeBytes: 0,
+          categories: {
+            contract: 0,
+            identification: 0,
+            payroll: 0,
+            medical: 0,
+            training: 0,
+            performance: 0,
+            other: 0
+          },
+          confidentialCount: 0,
+          publicCount: 0,
+          lastUploadAt: null
+        };
+      }
+
       const snapshot = await db.collection('employee_documents')
         .where('employeeId', '==', employeeId)
         .where('audit.deletedAt', '==', null)
@@ -548,9 +475,24 @@ class EmployeeDocument {
       return summary;
     } catch (error) {
       console.error('Error getting employee documents summary:', error);
-      // 🔧 CORRECCIÓN CRÍTICA: En caso de error, retornar resumen mock
-      console.warn('Error en Firebase, retornando resumen mock para desarrollo');
-      return this.getMockSummary(employeeId);
+      // 🔧 CORRECCIÓN CRÍTICA: En caso de error, retornar resumen vacío
+      console.warn('Error en Firebase, retornando resumen vacío');
+      return {
+        totalCount: 0,
+        totalSizeBytes: 0,
+        categories: {
+          contract: 0,
+          identification: 0,
+          payroll: 0,
+          medical: 0,
+          training: 0,
+          performance: 0,
+          other: 0
+        },
+        confidentialCount: 0,
+        publicCount: 0,
+        lastUploadAt: null
+      };
     }
   }
 
@@ -642,27 +584,6 @@ class EmployeeDocument {
     }
   }
 
-  /**
-   * 🔧 MÉTODO MOCK PARA RESUMEN DE DOCUMENTOS
-   */
-  static getMockSummary(employeeId) {
-    return {
-      totalCount: 2,
-      totalSizeBytes: 402549, // 245760 + 156789
-      categories: {
-        contract: 1,
-        identification: 1,
-        payroll: 0,
-        medical: 0,
-        training: 0,
-        performance: 0,
-        other: 0
-      },
-      confidentialCount: 1,
-      publicCount: 1,
-      lastUploadAt: '2024-01-15T10:30:00Z'
-    };
-  }
 }
 
 module.exports = EmployeeDocument;

@@ -177,7 +177,7 @@ class EmployeeDocumentController {
         categories: ['contract', 'identification', 'payroll', 'medical', 'training', 'performance', 'other'],
         confidentialCount: formattedDocuments.filter(doc => doc.isConfidential).length,
         publicCount: formattedDocuments.filter(doc => !doc.isConfidential).length
-      }, 'Documentos obtenidos exitosamente');
+      }, result.pagination.total === 0 ? 'No hay documentos disponibles' : 'Documentos obtenidos exitosamente');
 
     } catch (error) {
       logger.error('Error listando documentos de empleado', {
