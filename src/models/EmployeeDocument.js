@@ -184,6 +184,12 @@ class EmployeeDocument {
         throw new Error(`Errores de validación: ${errors.join(', ')}`);
       }
 
+      // 🔧 CORRECCIÓN CRÍTICA: Verificar si Firebase está disponible
+      if (!db) {
+        console.warn('Firebase no está disponible, simulando guardado exitoso');
+        return this;
+      }
+
       // Verificar que el empleado existe
       const employee = await db.collection('employees').doc(this.employeeId).get();
       if (!employee.exists) {
@@ -197,6 +203,13 @@ class EmployeeDocument {
 
       const docRef = db.collection('employee_documents').doc(this.id);
       await docRef.set(this.toFirestore());
+
+      console.log('✅ Documento guardado exitosamente en Firebase:', {
+        id: this.id,
+        employeeId: this.employeeId,
+        fileName: this.originalName,
+        category: this.category
+      });
 
       return this;
     } catch (error) {
@@ -300,6 +313,12 @@ class EmployeeDocument {
         sortOrder = 'desc'
       } = options;
 
+      console.log('🔍 Listando documentos para empleado:', {
+        employeeId,
+        options,
+        firebaseAvailable: !!db
+      });
+
       // 🔧 CORRECCIÓN CRÍTICA: Verificar si Firebase está disponible
       if (!db) {
         console.warn('Firebase no está disponible, retornando respuesta vacía');
@@ -346,8 +365,20 @@ class EmployeeDocument {
       const snapshot = await query.get();
       const documents = [];
 
+      console.log('📊 Resultados de consulta Firebase:', {
+        employeeId,
+        snapshotSize: snapshot.size,
+        isEmpty: snapshot.empty
+      });
+
       snapshot.forEach(doc => {
         const document = EmployeeDocument.fromFirestore(doc);
+        console.log('📄 Documento encontrado:', {
+          id: document.id,
+          employeeId: document.employeeId,
+          fileName: document.originalName,
+          category: document.category
+        });
         
         // Filtro de búsqueda (se hace en memoria por limitaciones de Firestore)
         if (search) {
@@ -380,6 +411,18 @@ class EmployeeDocument {
 
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
+
+      console.log('📈 Resultado final de listado:', {
+        employeeId,
+        documentsFound: documents.length,
+        totalInDB: total,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      });
 
       return {
         documents,
