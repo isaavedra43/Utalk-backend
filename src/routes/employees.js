@@ -16,6 +16,7 @@ const ReportsController = require('../controllers/ReportsController');
 const { authMiddleware } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
 const { intelligentRateLimit } = require('../middleware/intelligentRateLimit');
+const Joi = require('joi');
 
 // Configuración de multer para subida de archivos
 const storage = multer.memoryStorage();
@@ -43,6 +44,254 @@ const upload = multer({
   }
 });
 
+// 🛡️ VALIDADORES ESPECÍFICOS PARA EMPLEADOS
+const employeeValidators = {
+  // Validación para crear empleado
+  validateCreate: validateRequest({
+    body: Joi.object({
+      // Información básica del empleado
+      employeeNumber: Joi.string().min(1).max(20).optional().messages({
+        'string.min': 'El número de empleado debe tener al menos 1 carácter',
+        'string.max': 'El número de empleado no puede exceder 20 caracteres'
+      }),
+      
+      firstName: Joi.string().min(2).max(50).required().messages({
+        'any.required': 'El nombre es obligatorio',
+        'string.empty': 'El nombre no puede estar vacío',
+        'string.min': 'El nombre debe tener al menos 2 caracteres',
+        'string.max': 'El nombre no puede exceder 50 caracteres'
+      }),
+      
+      lastName: Joi.string().min(2).max(50).required().messages({
+        'any.required': 'Los apellidos son obligatorios',
+        'string.empty': 'Los apellidos no pueden estar vacíos',
+        'string.min': 'Los apellidos deben tener al menos 2 caracteres',
+        'string.max': 'Los apellidos no pueden exceder 50 caracteres'
+      }),
+      
+      email: Joi.string().email().required().messages({
+        'any.required': 'El email es obligatorio',
+        'string.empty': 'El email no puede estar vacío',
+        'string.email': 'El email debe tener un formato válido (ejemplo@dominio.com)'
+      }),
+      
+      phone: Joi.string().min(10).max(15).required().messages({
+        'any.required': 'El teléfono es obligatorio',
+        'string.empty': 'El teléfono no puede estar vacío',
+        'string.min': 'El teléfono debe tener al menos 10 dígitos',
+        'string.max': 'El teléfono no puede exceder 15 dígitos'
+      }),
+      
+      status: Joi.string().valid('active', 'inactive', 'pending', 'terminated').default('active').messages({
+        'any.only': 'El estado debe ser: active, inactive, pending o terminated'
+      }),
+      
+      hireDate: Joi.date().iso().required().messages({
+        'any.required': 'La fecha de contratación es obligatoria',
+        'date.format': 'La fecha debe estar en formato ISO (YYYY-MM-DD)'
+      }),
+      
+      // Información personal
+      personalInfo: Joi.object({
+        rfc: Joi.string().min(10).max(13).optional().messages({
+          'string.min': 'El RFC debe tener al menos 10 caracteres',
+          'string.max': 'El RFC no puede exceder 13 caracteres'
+        }),
+        curp: Joi.string().length(18).optional().messages({
+          'string.length': 'El CURP debe tener exactamente 18 caracteres'
+        }),
+        nss: Joi.string().min(8).max(11).optional().messages({
+          'string.min': 'El NSS debe tener al menos 8 caracteres',
+          'string.max': 'El NSS no puede exceder 11 caracteres'
+        }),
+        birthDate: Joi.date().iso().optional().messages({
+          'date.format': 'La fecha de nacimiento debe estar en formato ISO (YYYY-MM-DD)'
+        }),
+        gender: Joi.string().valid('male', 'female', 'other').optional(),
+        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed').optional(),
+        
+        // Dirección
+        address: Joi.object({
+          street: Joi.string().max(100).optional(),
+          number: Joi.string().max(20).optional(),
+          neighborhood: Joi.string().max(50).optional(),
+          city: Joi.string().max(50).optional(),
+          state: Joi.string().max(50).optional(),
+          zipCode: Joi.string().max(10).optional(),
+          country: Joi.string().max(50).optional()
+        }).optional(),
+        
+        // Contacto de emergencia
+        emergencyContact: Joi.object({
+          name: Joi.string().max(100).optional(),
+          relationship: Joi.string().max(50).optional(),
+          phone: Joi.string().max(15).optional(),
+          email: Joi.string().email().optional()
+        }).optional(),
+        
+        // Información bancaria
+        bankInfo: Joi.object({
+          bankName: Joi.string().max(100).optional(),
+          accountNumber: Joi.string().max(20).optional(),
+          clabe: Joi.string().length(18).optional().messages({
+            'string.length': 'La CLABE debe tener exactamente 18 caracteres'
+          }),
+          accountType: Joi.string().valid('checking', 'savings').optional()
+        }).optional()
+      }).optional(),
+      
+      // Posición y trabajo
+      position: Joi.object({
+        title: Joi.string().min(2).max(100).required().messages({
+          'any.required': 'El título del puesto es obligatorio',
+          'string.min': 'El título debe tener al menos 2 caracteres',
+          'string.max': 'El título no puede exceder 100 caracteres'
+        }),
+        department: Joi.string().min(2).max(50).required().messages({
+          'any.required': 'El departamento es obligatorio',
+          'string.min': 'El departamento debe tener al menos 2 caracteres',
+          'string.max': 'El departamento no puede exceder 50 caracteres'
+        }),
+        level: Joi.string().valid('Entry', 'Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director', 'Executive').required().messages({
+          'any.required': 'El nivel del puesto es obligatorio',
+          'any.only': 'El nivel debe ser: Entry, Junior, Mid, Senior, Lead, Manager, Director o Executive'
+        }),
+        reportsTo: Joi.string().max(100).optional(),
+        jobDescription: Joi.string().max(1000).optional(),
+        requirements: Joi.array().items(Joi.string().max(200)).max(10).optional(),
+        skills: Joi.array().items(Joi.string().max(50)).max(20).optional(),
+        salaryRange: Joi.object({
+          min: Joi.number().min(0).optional(),
+          max: Joi.number().min(0).optional()
+        }).optional()
+      }).required(),
+      
+      // Ubicación
+      location: Joi.object({
+        name: Joi.string().max(100).optional(),
+        address: Joi.object({
+          street: Joi.string().max(100).optional(),
+          number: Joi.string().max(20).optional(),
+          neighborhood: Joi.string().max(50).optional(),
+          city: Joi.string().max(50).optional(),
+          state: Joi.string().max(50).optional(),
+          zipCode: Joi.string().max(10).optional(),
+          country: Joi.string().max(50).optional()
+        }).optional(),
+        timezone: Joi.string().max(50).optional(),
+        isRemote: Joi.boolean().optional()
+      }).optional(),
+      
+      // Contrato
+      contract: Joi.object({
+        type: Joi.string().valid('permanent', 'temporary', 'intern', 'contractor').required().messages({
+          'any.required': 'El tipo de contrato es obligatorio',
+          'any.only': 'El tipo debe ser: permanent, temporary, intern o contractor'
+        }),
+        startDate: Joi.date().iso().required().messages({
+          'any.required': 'La fecha de inicio del contrato es obligatoria',
+          'date.format': 'La fecha debe estar en formato ISO (YYYY-MM-DD)'
+        }),
+        endDate: Joi.date().iso().optional().messages({
+          'date.format': 'La fecha de fin debe estar en formato ISO (YYYY-MM-DD)'
+        }),
+        workingHours: Joi.number().min(1).max(80).optional().messages({
+          'number.min': 'Las horas de trabajo deben ser al menos 1',
+          'number.max': 'Las horas de trabajo no pueden exceder 80'
+        }),
+        workingDays: Joi.string().max(100).optional(),
+        workingHoursRange: Joi.string().max(20).optional(),
+        customSchedule: Joi.object().optional(),
+        benefits: Joi.array().items(Joi.string().max(100)).max(20).optional(),
+        clauses: Joi.array().items(Joi.string().max(500)).max(10).optional(),
+        schedule: Joi.string().max(500).optional()
+      }).required(),
+      
+      // Salario
+      salary: Joi.object({
+        baseSalary: Joi.number().min(0).required().messages({
+          'any.required': 'El salario base es obligatorio',
+          'number.min': 'El salario base debe ser mayor o igual a 0'
+        }),
+        currency: Joi.string().valid('MXN', 'USD', 'EUR').default('MXN').messages({
+          'any.only': 'La moneda debe ser: MXN, USD o EUR'
+        }),
+        frequency: Joi.string().valid('hourly', 'daily', 'weekly', 'biweekly', 'monthly', 'yearly').default('monthly').messages({
+          'any.only': 'La frecuencia debe ser: hourly, daily, weekly, biweekly, monthly o yearly'
+        }),
+        paymentMethod: Joi.string().valid('cash', 'check', 'bank_transfer', 'payroll_card').default('bank_transfer').messages({
+          'any.only': 'El método de pago debe ser: cash, check, bank_transfer o payroll_card'
+        }),
+        allowances: Joi.array().items(Joi.object({
+          name: Joi.string().max(100).required(),
+          amount: Joi.number().min(0).required(),
+          type: Joi.string().valid('fixed', 'percentage').required()
+        })).max(10).optional(),
+        deductions: Joi.array().items(Joi.object({
+          name: Joi.string().max(100).required(),
+          amount: Joi.number().min(0).required(),
+          type: Joi.string().valid('fixed', 'percentage').required()
+        })).max(10).optional()
+      }).required(),
+      
+      // Información adicional
+      sbc: Joi.number().min(0).optional().messages({
+        'number.min': 'El SBC debe ser mayor o igual a 0'
+      }),
+      vacationBalance: Joi.number().min(0).max(365).optional().messages({
+        'number.min': 'El balance de vacaciones debe ser mayor o igual a 0',
+        'number.max': 'El balance de vacaciones no puede exceder 365 días'
+      }),
+      sickLeaveBalance: Joi.number().min(0).max(365).optional().messages({
+        'number.min': 'El balance de incapacidades debe ser mayor o igual a 0',
+        'number.max': 'El balance de incapacidades no puede exceder 365 días'
+      }),
+      
+      // Métricas (opcional para creación)
+      metrics: Joi.object({
+        totalEarnings: Joi.number().min(0).optional(),
+        totalDeductions: Joi.number().min(0).optional(),
+        netPay: Joi.number().min(0).optional(),
+        attendanceRate: Joi.number().min(0).max(100).optional(),
+        lateArrivals: Joi.number().min(0).optional(),
+        absences: Joi.number().min(0).optional(),
+        vacationDaysUsed: Joi.number().min(0).optional(),
+        vacationDaysRemaining: Joi.number().min(0).optional(),
+        overtimeHours: Joi.number().min(0).optional(),
+        overtimeAmount: Joi.number().min(0).optional(),
+        incidentsCount: Joi.number().min(0).optional(),
+        incidentsLast30Days: Joi.number().min(0).optional(),
+        documentCompliance: Joi.number().min(0).max(100).optional(),
+        trainingCompletion: Joi.number().min(0).max(100).optional(),
+        performanceScore: Joi.number().min(0).max(100).optional()
+      }).optional()
+    }).options({ allowUnknown: false })
+  }),
+
+  // Validación para filtros de lista
+  validateListQuery: validateRequest({
+    query: Joi.object({
+      page: Joi.number().integer().min(1).default(1).messages({
+        'number.min': 'La página debe ser mayor a 0'
+      }),
+      limit: Joi.number().integer().min(1).max(100).default(20).messages({
+        'number.min': 'El límite debe ser mayor a 0',
+        'number.max': 'El límite no puede exceder 100'
+      }),
+      search: Joi.string().max(100).optional(),
+      sortBy: Joi.string().valid('firstName', 'lastName', 'email', 'department', 'hireDate', 'createdAt').default('createdAt').messages({
+        'any.only': 'El campo de ordenamiento debe ser: firstName, lastName, email, department, hireDate o createdAt'
+      }),
+      sortOrder: Joi.string().valid('asc', 'desc').default('desc').messages({
+        'any.only': 'El orden debe ser: asc o desc'
+      }),
+      status: Joi.string().valid('active', 'inactive', 'pending', 'terminated').optional(),
+      department: Joi.string().max(50).optional(),
+      level: Joi.string().valid('Entry', 'Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director', 'Executive').optional()
+    }).options({ allowUnknown: false })
+  })
+};
+
 // Aplicar autenticación a todas las rutas
 router.use(authMiddleware);
 
@@ -54,7 +303,7 @@ router.use(intelligentRateLimit);
  */
 
 // Listar empleados con filtros y paginación
-router.get('/', EmployeeController.list);
+router.get('/', employeeValidators.validateListQuery, EmployeeController.list);
 
 // Buscar empleados
 router.get('/search', EmployeeController.search);
@@ -85,14 +334,7 @@ router.post('/fix-status/:employeeId?', EmployeeController.fixEmployeeStatus);
 
 // Crear nuevo empleado
 router.post('/', 
-  validateRequest([
-    'personalInfo.firstName',
-    'personalInfo.lastName', 
-    'personalInfo.phone',
-    'position.title',
-    'position.department',
-    'contract.salary'
-  ]), 
+  employeeValidators.validateCreate,
   EmployeeController.create
 );
 
@@ -336,21 +578,8 @@ router.put('/:id/vacations/:requestId', VacationController.update);
  * Estas rutas se implementarán en el siguiente controlador
  */
 
-// TODO: Implementar rutas de documentos
-router.get('/:id/documents', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Funcionalidad de documentos en desarrollo',
-    data: { documents: [] }
-  });
-});
-
-router.post('/:id/documents', upload.single('file'), (req, res) => {
-  res.json({
-    success: true,
-    message: 'Funcionalidad de subida de documentos en desarrollo'
-  });
-});
+// Las rutas de documentos están implementadas en src/routes/employee-documents.js
+// y se registran en src/config/routes.js como /api/employees
 
 /**
  * RUTAS DE INCIDENCIAS

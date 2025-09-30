@@ -144,17 +144,23 @@ class EmployeeDocumentController {
       const formattedDocuments = result.documents.map(doc => ({
         id: doc.id,
         employeeId: doc.employeeId,
+        fileName: doc.originalName,
         originalName: doc.originalName,
         fileSize: doc.fileSize,
         mimeType: doc.mimeType,
         category: doc.category,
-        description: doc.description,
-        tags: doc.tags,
+        subcategory: doc.subcategory,
         isConfidential: doc.isConfidential,
-        version: doc.version,
+        tags: doc.tags,
+        description: doc.description,
+        uploadedBy: doc.uploader.email,
         uploadedAt: doc.uploadedAt,
-        expiresAt: doc.expiresAt,
-        uploader: doc.uploader
+        lastModified: doc.uploadedAt,
+        version: doc.version,
+        status: 'active',
+        downloadCount: 0,
+        filePath: doc.storage.path,
+        metadata: doc.metadata
       }));
 
       logger.info('Documentos listados exitosamente', {
@@ -165,9 +171,13 @@ class EmployeeDocumentController {
         limit: limitNum
       });
 
-      return ResponseHandler.paginated(res, {
-        documents: formattedDocuments
-      }, result.pagination, 'Documentos obtenidos exitosamente');
+      return ResponseHandler.success(res, {
+        documents: formattedDocuments,
+        totalCount: result.pagination.total,
+        categories: ['contract', 'identification', 'payroll', 'medical', 'training', 'performance', 'other'],
+        confidentialCount: formattedDocuments.filter(doc => doc.isConfidential).length,
+        publicCount: formattedDocuments.filter(doc => !doc.isConfidential).length
+      }, 'Documentos obtenidos exitosamente');
 
     } catch (error) {
       logger.error('Error listando documentos de empleado', {
@@ -203,7 +213,15 @@ class EmployeeDocumentController {
   static async uploadDocument(req, res, next) {
     try {
       const { employeeId } = req.params;
-      const { category, description, tags, isConfidential, expiresAt } = req.body;
+      const { 
+        category, 
+        subcategory,
+        description, 
+        tags, 
+        isConfidential, 
+        expiresAt,
+        metadata
+      } = req.body;
       const file = req.file;
 
       // Validar que se proporcionó un archivo
@@ -220,32 +238,40 @@ class EmployeeDocumentController {
         return ResponseHandler.validationError(res, 'isConfidential es requerido');
       }
 
-      const metadata = {
+      const documentMetadata = {
         category,
+        subcategory,
         description,
         tags,
         isConfidential,
-        expiresAt
+        expiresAt,
+        metadata: metadata ? JSON.parse(metadata) : {}
       };
 
       const service = new EmployeeDocumentService();
-      const document = await service.uploadDocument(employeeId, file, metadata, req.user);
+      const document = await service.uploadDocument(employeeId, file, documentMetadata, req.user);
 
       // Formatear respuesta para el frontend
       const formattedDocument = {
         id: document.id,
         employeeId: document.employeeId,
+        fileName: document.originalName,
         originalName: document.originalName,
         fileSize: document.fileSize,
         mimeType: document.mimeType,
         category: document.category,
-        description: document.description,
-        tags: document.tags,
+        subcategory: document.subcategory,
         isConfidential: document.isConfidential,
-        version: document.version,
+        tags: document.tags,
+        description: document.description,
+        uploadedBy: document.uploader.email,
         uploadedAt: document.uploadedAt,
-        expiresAt: document.expiresAt,
-        uploader: document.uploader
+        lastModified: document.uploadedAt,
+        version: document.version,
+        status: 'active',
+        downloadCount: 0,
+        filePath: document.storage.path,
+        metadata: document.metadata
       };
 
       logger.info('Documento subido exitosamente', {
@@ -414,13 +440,14 @@ class EmployeeDocumentController {
   static async updateDocument(req, res, next) {
     try {
       const { employeeId, documentId } = req.params;
-      const { description, tags, isConfidential, expiresAt } = req.body;
+      const { description, tags, isConfidential, expiresAt, metadata } = req.body;
 
       const updateData = {};
       if (description !== undefined) updateData.description = description;
       if (tags !== undefined) updateData.tags = tags;
       if (isConfidential !== undefined) updateData.isConfidential = isConfidential;
       if (expiresAt !== undefined) updateData.expiresAt = expiresAt;
+      if (metadata !== undefined) updateData.metadata = metadata;
 
       // Validar que al menos un campo se está actualizando
       if (Object.keys(updateData).length === 0) {

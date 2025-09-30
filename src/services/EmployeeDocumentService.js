@@ -46,7 +46,7 @@ class EmployeeDocumentService {
       'video/webm'
     ];
     
-    this.validCategories = ['contract', 'id', 'tax', 'certification', 'other'];
+    this.validCategories = ['contract', 'identification', 'payroll', 'medical', 'training', 'performance', 'other'];
   }
 
   /**
@@ -185,6 +185,7 @@ class EmployeeDocumentService {
         fileSize: file.size,
         mimeType: file.mimetype,
         category: metadata.category,
+        subcategory: metadata.subcategory || null,
         description: metadata.description || null,
         tags: this.parseTags(metadata.tags),
         isConfidential: metadata.isConfidential === 'true' || metadata.isConfidential === true,
@@ -202,7 +203,8 @@ class EmployeeDocumentService {
         audit: {
           createdBy: uploader.email,
           createdAt: new Date().toISOString()
-        }
+        },
+        metadata: metadata.metadata || {}
       });
 
       // Guardar documento
@@ -483,6 +485,9 @@ class EmployeeDocumentService {
       // Validar datos de actualización
       if (updateData.tags) {
         updateData.tags = this.parseTags(updateData.tags);
+      }
+      if (updateData.metadata && typeof updateData.metadata === 'string') {
+        updateData.metadata = JSON.parse(updateData.metadata);
       }
 
       // Actualizar documento

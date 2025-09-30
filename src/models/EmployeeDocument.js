@@ -21,7 +21,8 @@ class EmployeeDocument {
     this.originalName = data.originalName || '';
     this.fileSize = data.fileSize || 0;
     this.mimeType = data.mimeType || '';
-    this.category = data.category || 'other'; // 'contract' | 'id' | 'tax' | 'certification' | 'other'
+    this.category = data.category || 'other'; // 'contract' | 'identification' | 'payroll' | 'medical' | 'training' | 'performance' | 'other'
+    this.subcategory = data.subcategory || null;
     this.description = data.description || null;
     this.tags = data.tags || [];
     this.isConfidential = data.isConfidential || false;
@@ -85,7 +86,7 @@ class EmployeeDocument {
     }
 
     // Validar categoría
-    const validCategories = ['contract', 'id', 'tax', 'certification', 'other'];
+    const validCategories = ['contract', 'identification', 'payroll', 'medical', 'training', 'performance', 'other'];
     if (!validCategories.includes(this.category)) {
       errors.push(`Categoría inválida. Debe ser una de: ${validCategories.join(', ')}`);
     }
@@ -151,6 +152,7 @@ class EmployeeDocument {
       fileSize: this.fileSize,
       mimeType: this.mimeType,
       category: this.category,
+      subcategory: this.subcategory,
       description: this.description,
       tags: this.tags,
       isConfidential: this.isConfidential,
@@ -223,6 +225,9 @@ class EmployeeDocument {
       }
       if (data.metadata !== undefined) {
         this.metadata = { ...this.metadata, ...data.metadata };
+      }
+      if (data.subcategory !== undefined) {
+        this.subcategory = data.subcategory;
       }
 
       this.audit.updatedAt = new Date().toISOString();
@@ -392,9 +397,11 @@ class EmployeeDocument {
         totalSizeBytes: 0,
         categories: {
           contract: 0,
-          id: 0,
-          tax: 0,
-          certification: 0,
+          identification: 0,
+          payroll: 0,
+          medical: 0,
+          training: 0,
+          performance: 0,
           other: 0
         },
         lastUploadAt: null
@@ -478,9 +485,11 @@ class EmployeeDocument {
         totalSizeBytes: 0,
         categories: {
           contract: 0,
-          id: 0,
-          tax: 0,
-          certification: 0,
+          identification: 0,
+          payroll: 0,
+          medical: 0,
+          training: 0,
+          performance: 0,
           other: 0
         },
         confidentialCount: 0,

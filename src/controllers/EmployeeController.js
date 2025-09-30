@@ -721,43 +721,64 @@ class EmployeeController {
 
   /**
    * Valida los datos de un empleado antes de guardar
+   * NOTA: Las validaciones principales ahora se manejan en el middleware de validación
+   * Esta función se mantiene para validaciones de negocio específicas
    */
   static validateEmployeeData(employeeData) {
     const errors = [];
 
-    // Validar campos requeridos
-    if (!employeeData.personalInfo?.firstName || employeeData.personalInfo.firstName.length < 2) {
-      errors.push('El nombre es requerido y debe tener al menos 2 caracteres');
-    }
-
-    if (!employeeData.personalInfo?.lastName || employeeData.personalInfo.lastName.length < 2) {
-      errors.push('Los apellidos son requeridos y deben tener al menos 2 caracteres');
-    }
-
-    if (!employeeData.personalInfo?.phone || employeeData.personalInfo.phone.length < 10) {
-      errors.push('El teléfono es requerido');
-    }
-
-    if (!employeeData.position?.level) {
-      errors.push('El nivel del puesto es requerido');
-    } else {
-      const validLevels = ['Entry', 'Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director', 'Executive'];
-      if (!validLevels.includes(employeeData.position.level)) {
-        errors.push('El nivel del puesto no es válido');
+    // Validaciones de negocio específicas que no se pueden hacer con Joi
+    
+    // Validar que la fecha de fin del contrato sea posterior a la fecha de inicio
+    if (employeeData.contract?.startDate && employeeData.contract?.endDate) {
+      const startDate = new Date(employeeData.contract.startDate);
+      const endDate = new Date(employeeData.contract.endDate);
+      
+      if (endDate <= startDate) {
+        errors.push('La fecha de fin del contrato debe ser posterior a la fecha de inicio');
       }
     }
 
-    // Validar email si se proporciona
-    if (employeeData.personalInfo?.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(employeeData.personalInfo.email)) {
-        errors.push('El formato del email no es válido');
+    // Validar que el salario base sea coherente con el nivel del puesto
+    if (employeeData.position?.level && employeeData.salary?.baseSalary) {
+      const level = employeeData.position.level;
+      const salary = employeeData.salary.baseSalary;
+      
+      // Validaciones de salario mínimo por nivel (en pesos mexicanos)
+      const minSalaries = {
+        'Entry': 5000,
+        'Junior': 8000,
+        'Mid': 12000,
+        'Senior': 18000,
+        'Lead': 25000,
+        'Manager': 35000,
+        'Director': 50000,
+        'Executive': 80000
+      };
+      
+      if (minSalaries[level] && salary < minSalaries[level]) {
+        errors.push(`El salario para el nivel ${level} debe ser al menos $${minSalaries[level]} MXN`);
       }
     }
 
-    // Validar salario
-    if (employeeData.salary?.baseSalary && (isNaN(employeeData.salary.baseSalary) || employeeData.salary.baseSalary < 0)) {
-      errors.push('El salario debe ser un número válido mayor o igual a 0');
+    // Validar que el RFC tenga formato correcto si se proporciona
+    if (employeeData.personalInfo?.rfc) {
+      const rfc = employeeData.personalInfo.rfc.toUpperCase();
+      const rfcRegex = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
+      
+      if (!rfcRegex.test(rfc)) {
+        errors.push('El RFC no tiene un formato válido');
+      }
+    }
+
+    // Validar que el CURP tenga formato correcto si se proporciona
+    if (employeeData.personalInfo?.curp) {
+      const curp = employeeData.personalInfo.curp.toUpperCase();
+      const curpRegex = /^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[A-Z0-9]{2}$/;
+      
+      if (!curpRegex.test(curp)) {
+        errors.push('El CURP no tiene un formato válido');
+      }
     }
 
     return errors;
