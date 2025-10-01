@@ -115,11 +115,7 @@ class Material {
       
       const material = Material.fromFirestore(doc);
       
-      // Verificar que pertenece al usuario
-      if (material && material.userId !== userId) {
-        return null;
-      }
-      
+      // Antes se validaba por userId; ahora es global
       return material;
     } catch (error) {
       console.error('Error buscando material:', error);
@@ -141,8 +137,7 @@ class Material {
         offset = 0
       } = options;
 
-      let query = db.collection('materials')
-        .where('userId', '==', userId);
+      let query = db.collection('materials');
 
       // Filtrar por estado activo
       if (active !== null) {
@@ -181,10 +176,10 @@ class Material {
         );
       }
 
-      // Contar total
+      // Contar total (sin filtrar por usuario)
       const totalQuery = active !== null 
-        ? db.collection('materials').where('userId', '==', userId).where('isActive', '==', active)
-        : db.collection('materials').where('userId', '==', userId);
+        ? db.collection('materials').where('isActive', '==', active)
+        : db.collection('materials');
       
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
@@ -210,7 +205,6 @@ class Material {
   static async listByCategory(userId, category) {
     try {
       const snapshot = await db.collection('materials')
-        .where('userId', '==', userId)
         .where('category', '==', category)
         .where('isActive', '==', true)
         .orderBy('name', 'asc')
@@ -229,7 +223,6 @@ class Material {
   static async getCategories(userId) {
     try {
       const snapshot = await db.collection('materials')
-        .where('userId', '==', userId)
         .where('isActive', '==', true)
         .get();
 

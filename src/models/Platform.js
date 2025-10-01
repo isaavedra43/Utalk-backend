@@ -152,11 +152,7 @@ class Platform {
       
       const platform = Platform.fromFirestore(doc);
       
-      // Verificar que pertenece al usuario
-      if (platform && platform.userId !== userId) {
-        return null;
-      }
-      
+      // Antes se validaba por userId; ahora es global
       return platform;
     } catch (error) {
       console.error('Error buscando plataforma:', error);
@@ -178,8 +174,7 @@ class Platform {
       } = options;
 
       let query = db.collection('providers').doc(providerId)
-        .collection('platforms')
-        .where('userId', '==', userId);
+        .collection('platforms');
 
       // Filtrar por estado
       if (status) {
@@ -210,10 +205,10 @@ class Platform {
         platforms = platforms.filter(p => new Date(p.receptionDate) <= end);
       }
 
-      // Contar total
+      // Contar total (global)
       const totalQuery = status 
-        ? db.collection('providers').doc(providerId).collection('platforms').where('userId', '==', userId).where('status', '==', status)
-        : db.collection('providers').doc(providerId).collection('platforms').where('userId', '==', userId);
+        ? db.collection('providers').doc(providerId).collection('platforms').where('status', '==', status)
+        : db.collection('providers').doc(providerId).collection('platforms');
       
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
@@ -252,10 +247,8 @@ class Platform {
         offset = 0
       } = options;
 
-      // Obtener todos los proveedores del usuario
-      const providersSnapshot = await db.collection('providers')
-        .where('userId', '==', userId)
-        .get();
+      // Obtener todos los proveedores (global)
+      const providersSnapshot = await db.collection('providers').get();
 
       let allPlatforms = [];
 
@@ -269,8 +262,7 @@ class Platform {
         if (provider && providerData.name !== provider) continue;
 
         let query = db.collection('providers').doc(currentProviderId)
-          .collection('platforms')
-          .where('userId', '==', userId);
+          .collection('platforms');
 
         // Filtrar por estado
         if (status) {

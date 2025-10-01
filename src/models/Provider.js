@@ -115,11 +115,7 @@ class Provider {
       
       const provider = Provider.fromFirestore(doc);
       
-      // Verificar que pertenece al usuario
-      if (provider && provider.userId !== userId) {
-        return null;
-      }
-      
+      // Antes se validaba por userId; ahora es global
       return provider;
     } catch (error) {
       console.error('Error buscando proveedor:', error);
@@ -139,8 +135,7 @@ class Provider {
         offset = 0
       } = options;
 
-      let query = db.collection('providers')
-        .where('userId', '==', userId);
+      let query = db.collection('providers');
 
       // Filtrar por estado activo
       if (active !== null) {
@@ -170,10 +165,10 @@ class Provider {
         );
       }
 
-      // Contar total
+      // Contar total (sin filtrar por usuario)
       const totalQuery = active !== null 
-        ? db.collection('providers').where('userId', '==', userId).where('isActive', '==', active)
-        : db.collection('providers').where('userId', '==', userId);
+        ? db.collection('providers').where('isActive', '==', active)
+        : db.collection('providers');
       
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
@@ -198,10 +193,9 @@ class Provider {
    */
   static async getStats(userId, providerId) {
     try {
-      // Obtener todas las plataformas del proveedor
+      // Obtener todas las plataformas del proveedor (global)
       const platformsSnapshot = await db.collection('providers').doc(providerId)
         .collection('platforms')
-        .where('userId', '==', userId)
         .get();
 
       const platforms = platformsSnapshot.docs.map(doc => ({
@@ -219,7 +213,7 @@ class Provider {
         totalPlatforms,
         totalLinearMeters,
         lastDelivery,
-        averageDeliveryTime: 2.5 // Placeholder - calcular si tienes datos de tiempo
+        averageDeliveryTime: 2.5
       };
     } catch (error) {
       console.error('Error obteniendo estadísticas del proveedor:', error);

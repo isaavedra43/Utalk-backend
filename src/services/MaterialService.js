@@ -96,6 +96,39 @@ class MaterialService {
 
       await material.save();
 
+      // ✅ ACTUALIZAR RELACIÓN: Si el material tiene providerIds, actualizar proveedores
+      if (material.providerIds && material.providerIds.length > 0) {
+        logger.info('Actualizando relación material-proveedores', {
+          userId,
+          materialId: material.id,
+          providersCount: material.providerIds.length
+        });
+
+        const Provider = require('../models/Provider');
+        
+        for (const providerId of material.providerIds) {
+          const provider = await Provider.findById(userId, providerId);
+          
+          if (provider) {
+            // Agregar materialId si no existe
+            if (!provider.materialIds.includes(material.id)) {
+              provider.materialIds.push(material.id);
+              await provider.save();
+              
+              logger.info('Proveedor actualizado con materialId', {
+                providerId,
+                materialId: material.id
+              });
+            }
+          } else {
+            logger.warn('Proveedor no encontrado al crear material', {
+              providerId,
+              materialId: material.id
+            });
+          }
+        }
+      }
+
       logger.info('Material creado exitosamente', { userId, materialId: material.id });
 
       return material;

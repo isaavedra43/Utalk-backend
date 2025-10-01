@@ -84,6 +84,37 @@ class ProviderService {
 
       await provider.save();
 
+      // ✅ ACTUALIZAR RELACIÓN: Agregar providerId a los materiales
+      if (provider.materialIds && provider.materialIds.length > 0) {
+        logger.info('Actualizando relación proveedor-materiales', {
+          userId,
+          providerId: provider.id,
+          materialsCount: provider.materialIds.length
+        });
+
+        for (const materialId of provider.materialIds) {
+          const material = await Material.findById(userId, materialId);
+          
+          if (material) {
+            // Agregar providerId si no existe
+            if (!material.providerIds.includes(provider.id)) {
+              material.providerIds.push(provider.id);
+              await material.save();
+              
+              logger.info('Material actualizado con providerId', {
+                materialId,
+                providerId: provider.id
+              });
+            }
+          } else {
+            logger.warn('Material no encontrado al crear proveedor', {
+              materialId,
+              providerId: provider.id
+            });
+          }
+        }
+      }
+
       logger.info('Proveedor creado exitosamente', { userId, providerId: provider.id });
 
       return provider;
@@ -104,6 +135,36 @@ class ProviderService {
       
       if (!provider) {
         throw ApiError.notFoundError('Proveedor no encontrado');
+      }
+
+      // ✅ ACTUALIZAR RELACIÓN: Si se modifican los materialIds
+      if (updates.materialIds) {
+        const oldMaterialIds = provider.materialIds || [];
+        const newMaterialIds = updates.materialIds || [];
+
+        // Materiales eliminados: quitar providerId
+        const removedMaterials = oldMaterialIds.filter(id => !newMaterialIds.includes(id));
+        for (const materialId of removedMaterials) {
+          const material = await Material.findById(userId, materialId);
+          if (material) {
+            material.providerIds = material.providerIds.filter(id => id !== providerId);
+            await material.save();
+            logger.info('Proveedor removido del material', { materialId, providerId });
+          }
+        }
+
+        // Materiales agregados: agregar providerId
+        const addedMaterials = newMaterialIds.filter(id => !oldMaterialIds.includes(id));
+        for (const materialId of addedMaterials) {
+          const material = await Material.findById(userId, materialId);
+          if (material) {
+            if (!material.providerIds.includes(providerId)) {
+              material.providerIds.push(providerId);
+              await material.save();
+              logger.info('Proveedor agregado al material', { materialId, providerId });
+            }
+          }
+        }
       }
 
       await provider.update(updates);
