@@ -315,15 +315,6 @@ class EmployeeDocumentController {
     try {
       const { employeeId, documentId } = req.params;
 
-      // 🔍 LOG DE DEPURACIÓN CRÍTICO
-      console.log('🔍 downloadDocument controller recibió:', {
-        employeeId,
-        documentId,
-        allParams: req.params,
-        url: req.url,
-        originalUrl: req.originalUrl
-      });
-
       const service = new EmployeeDocumentService();
       const result = await service.downloadDocument(employeeId, documentId, req.user);
 
