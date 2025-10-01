@@ -112,9 +112,9 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/knowledge', knowledgeRoutes);
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
+    // 🔧 ORDEN CRÍTICO: Rutas específicas de documentos PRIMERO
+    app.use('/api/employees', employeeDocumentRoutes);
     app.use('/api/employees', employeeRoutes);
-    // 🔧 SOLUCIÓN DEFINITIVA: Prefijo único para evitar conflictos de rutas
-    app.use('/api/employee-documents', employeeDocumentRoutes);
     app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll/general', require('../routes/generalPayroll'));
