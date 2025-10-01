@@ -183,10 +183,36 @@ class ProviderService {
       const provider = await Provider.findById(userId, providerId);
       
       if (!provider) {
-        throw ApiError.notFoundError('Proveedor no encontrado');
+        // Si el proveedor no existe, retornar todos los materiales activos del usuario
+        logger.warn('Proveedor no encontrado, retornando todos los materiales activos', { 
+          userId, 
+          providerId 
+        });
+        
+        const allMaterialsResult = await Material.listByUser(userId, { 
+          active: true,
+          limit: 1000 
+        });
+        
+        return allMaterialsResult.materials;
       }
 
-      // Obtener materiales del proveedor
+      // Si el proveedor no tiene materiales asociados, retornar todos los materiales activos
+      if (!provider.materialIds || provider.materialIds.length === 0) {
+        logger.info('Proveedor sin materiales asociados, retornando todos los materiales activos', {
+          userId,
+          providerId
+        });
+        
+        const allMaterialsResult = await Material.listByUser(userId, { 
+          active: true,
+          limit: 1000 
+        });
+        
+        return allMaterialsResult.materials;
+      }
+
+      // Obtener materiales específicos del proveedor
       const materials = await Promise.all(
         provider.materialIds.map(materialId => Material.findById(userId, materialId))
       );
