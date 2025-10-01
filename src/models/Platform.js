@@ -25,6 +25,7 @@ class Platform {
     this.totalLength = data.totalLength || 0;
     this.status = data.status || 'in_progress'; // in_progress | completed | exported
     this.notes = data.notes || '';
+    this.evidenceCount = data.evidenceCount || 0;
     this.createdBy = data.createdBy;
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
@@ -63,6 +64,7 @@ class Platform {
       totalLength: this.totalLength,
       status: this.status,
       notes: this.notes,
+      evidenceCount: this.evidenceCount,
       createdBy: this.createdBy,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt

@@ -11,12 +11,23 @@ const router = express.Router();
 
 // Middleware de autenticación
 const { authMiddleware } = require('../middleware/auth');
+const multer = require('multer');
+
+// Configuración de Multer para subida de archivos
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+    files: 20
+  }
+});
 
 // Controladores
 const InventoryProviderController = require('../controllers/InventoryProviderController');
 const InventoryPlatformController = require('../controllers/InventoryPlatformController');
 const InventoryMaterialController = require('../controllers/InventoryMaterialController');
 const InventoryConfigurationController = require('../controllers/InventoryConfigurationController');
+const InventoryEvidenceController = require('../controllers/InventoryEvidenceController');
 
 /**
  * 🔐 MIDDLEWARE DE AUTENTICACIÓN
@@ -153,6 +164,31 @@ router.put('/materials/:materialId',
 // DELETE /api/inventory/materials/:materialId
 router.delete('/materials/:materialId',
   InventoryMaterialController.delete
+);
+
+/**
+ * 📸 EVIDENCIAS
+ */
+
+// GET /api/inventory/evidence/stats/:platformId (PRIMERO - ruta específica)
+router.get('/evidence/stats/:platformId',
+  InventoryEvidenceController.getStats
+);
+
+// POST /api/inventory/evidence/upload
+router.post('/evidence/upload',
+  upload.array('files', 20),
+  InventoryEvidenceController.upload
+);
+
+// GET /api/inventory/evidence/:platformId
+router.get('/evidence/:platformId',
+  InventoryEvidenceController.getByPlatform
+);
+
+// DELETE /api/inventory/evidence/:evidenceId
+router.delete('/evidence/:evidenceId',
+  InventoryEvidenceController.delete
 );
 
 module.exports = router;
