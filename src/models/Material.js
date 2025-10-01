@@ -63,8 +63,7 @@ class Material {
   async save() {
     try {
       this.updatedAt = new Date();
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('materials').doc(this.id);
+      const docRef = db.collection('materials').doc(this.id);
       
       await docRef.set(this.toFirestore());
       return this;
@@ -82,8 +81,7 @@ class Material {
       Object.assign(this, updates);
       this.updatedAt = new Date();
       
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('materials').doc(this.id);
+      const docRef = db.collection('materials').doc(this.id);
       
       await docRef.update(this.toFirestore());
       return this;
@@ -98,8 +96,7 @@ class Material {
    */
   async delete() {
     try {
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('materials').doc(this.id);
+      const docRef = db.collection('materials').doc(this.id);
       
       await docRef.delete();
       return true;
@@ -114,10 +111,16 @@ class Material {
    */
   static async findById(userId, materialId) {
     try {
-      const doc = await db.collection('users').doc(userId)
-        .collection('materials').doc(materialId).get();
+      const doc = await db.collection('materials').doc(materialId).get();
       
-      return Material.fromFirestore(doc);
+      const material = Material.fromFirestore(doc);
+      
+      // Verificar que pertenece al usuario
+      if (material && material.userId !== userId) {
+        return null;
+      }
+      
+      return material;
     } catch (error) {
       console.error('Error buscando material:', error);
       throw error;
@@ -138,8 +141,8 @@ class Material {
         offset = 0
       } = options;
 
-      let query = db.collection('users').doc(userId)
-        .collection('materials');
+      let query = db.collection('materials')
+        .where('userId', '==', userId);
 
       // Filtrar por estado activo
       if (active !== null) {
@@ -180,8 +183,8 @@ class Material {
 
       // Contar total
       const totalQuery = active !== null 
-        ? db.collection('users').doc(userId).collection('materials').where('isActive', '==', active)
-        : db.collection('users').doc(userId).collection('materials');
+        ? db.collection('materials').where('userId', '==', userId).where('isActive', '==', active)
+        : db.collection('materials').where('userId', '==', userId);
       
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
@@ -206,8 +209,8 @@ class Material {
    */
   static async listByCategory(userId, category) {
     try {
-      const snapshot = await db.collection('users').doc(userId)
-        .collection('materials')
+      const snapshot = await db.collection('materials')
+        .where('userId', '==', userId)
         .where('category', '==', category)
         .where('isActive', '==', true)
         .orderBy('name', 'asc')
@@ -225,8 +228,8 @@ class Material {
    */
   static async getCategories(userId) {
     try {
-      const snapshot = await db.collection('users').doc(userId)
-        .collection('materials')
+      const snapshot = await db.collection('materials')
+        .where('userId', '==', userId)
         .where('isActive', '==', true)
         .get();
 

@@ -74,8 +74,7 @@ class InventoryConfiguration {
   async save() {
     try {
       this.lastUpdated = new Date();
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('inventory_configuration').doc('settings');
+      const docRef = db.collection('inventory_configuration').doc(this.userId);
       
       await docRef.set(this.toFirestore());
       return this;
@@ -90,8 +89,7 @@ class InventoryConfiguration {
    */
   static async getByUser(userId) {
     try {
-      const doc = await db.collection('users').doc(userId)
-        .collection('inventory_configuration').doc('settings').get();
+      const doc = await db.collection('inventory_configuration').doc(userId).get();
       
       if (!doc.exists) {
         // Crear configuración por defecto
@@ -129,8 +127,7 @@ class InventoryConfiguration {
 
       this.lastUpdated = new Date();
       
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('inventory_configuration').doc('settings');
+      const docRef = db.collection('inventory_configuration').doc(this.userId);
       
       await docRef.update(this.toFirestore());
       return this;

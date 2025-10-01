@@ -23,8 +23,9 @@ class PlatformService {
 
       // Obtener filtros disponibles
       const providersSnapshot = await require('../config/firebase').db
-        .collection('users').doc(userId)
-        .collection('providers').get();
+        .collection('providers')
+        .where('userId', '==', userId)
+        .get();
       
       const availableProviders = providersSnapshot.docs.map(doc => doc.data().name);
 

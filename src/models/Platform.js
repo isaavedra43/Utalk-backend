@@ -93,8 +93,7 @@ class Platform {
       this.calculateTotals();
       this.updatedAt = new Date();
       
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('providers').doc(this.providerId)
+      const docRef = db.collection('providers').doc(this.providerId)
         .collection('platforms').doc(this.id);
       
       await docRef.set(this.toFirestore());
@@ -114,8 +113,7 @@ class Platform {
       this.calculateTotals();
       this.updatedAt = new Date();
       
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('providers').doc(this.providerId)
+      const docRef = db.collection('providers').doc(this.providerId)
         .collection('platforms').doc(this.id);
       
       await docRef.update(this.toFirestore());
@@ -131,8 +129,7 @@ class Platform {
    */
   async delete() {
     try {
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('providers').doc(this.providerId)
+      const docRef = db.collection('providers').doc(this.providerId)
         .collection('platforms').doc(this.id);
       
       await docRef.delete();
@@ -148,11 +145,17 @@ class Platform {
    */
   static async findById(userId, providerId, platformId) {
     try {
-      const doc = await db.collection('users').doc(userId)
-        .collection('providers').doc(providerId)
+      const doc = await db.collection('providers').doc(providerId)
         .collection('platforms').doc(platformId).get();
       
-      return Platform.fromFirestore(doc);
+      const platform = Platform.fromFirestore(doc);
+      
+      // Verificar que pertenece al usuario
+      if (platform && platform.userId !== userId) {
+        return null;
+      }
+      
+      return platform;
     } catch (error) {
       console.error('Error buscando plataforma:', error);
       throw error;
@@ -172,9 +175,9 @@ class Platform {
         offset = 0
       } = options;
 
-      let query = db.collection('users').doc(userId)
-        .collection('providers').doc(providerId)
-        .collection('platforms');
+      let query = db.collection('providers').doc(providerId)
+        .collection('platforms')
+        .where('userId', '==', userId);
 
       // Filtrar por estado
       if (status) {
@@ -207,8 +210,8 @@ class Platform {
 
       // Contar total
       const totalQuery = status 
-        ? db.collection('users').doc(userId).collection('providers').doc(providerId).collection('platforms').where('status', '==', status)
-        : db.collection('users').doc(userId).collection('providers').doc(providerId).collection('platforms');
+        ? db.collection('providers').doc(providerId).collection('platforms').where('userId', '==', userId).where('status', '==', status)
+        : db.collection('providers').doc(providerId).collection('platforms').where('userId', '==', userId);
       
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
@@ -247,9 +250,10 @@ class Platform {
         offset = 0
       } = options;
 
-      // Obtener todos los proveedores
-      const providersSnapshot = await db.collection('users').doc(userId)
-        .collection('providers').get();
+      // Obtener todos los proveedores del usuario
+      const providersSnapshot = await db.collection('providers')
+        .where('userId', '==', userId)
+        .get();
 
       let allPlatforms = [];
 
@@ -262,9 +266,9 @@ class Platform {
         if (providerId && currentProviderId !== providerId) continue;
         if (provider && providerData.name !== provider) continue;
 
-        let query = db.collection('users').doc(userId)
-          .collection('providers').doc(currentProviderId)
-          .collection('platforms');
+        let query = db.collection('providers').doc(currentProviderId)
+          .collection('platforms')
+          .where('userId', '==', userId);
 
         // Filtrar por estado
         if (status) {

@@ -63,8 +63,7 @@ class Provider {
   async save() {
     try {
       this.updatedAt = new Date();
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('providers').doc(this.id);
+      const docRef = db.collection('providers').doc(this.id);
       
       await docRef.set(this.toFirestore());
       return this;
@@ -82,8 +81,7 @@ class Provider {
       Object.assign(this, updates);
       this.updatedAt = new Date();
       
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('providers').doc(this.id);
+      const docRef = db.collection('providers').doc(this.id);
       
       await docRef.update(this.toFirestore());
       return this;
@@ -98,8 +96,7 @@ class Provider {
    */
   async delete() {
     try {
-      const docRef = db.collection('users').doc(this.userId)
-        .collection('providers').doc(this.id);
+      const docRef = db.collection('providers').doc(this.id);
       
       await docRef.delete();
       return true;
@@ -114,10 +111,16 @@ class Provider {
    */
   static async findById(userId, providerId) {
     try {
-      const doc = await db.collection('users').doc(userId)
-        .collection('providers').doc(providerId).get();
+      const doc = await db.collection('providers').doc(providerId).get();
       
-      return Provider.fromFirestore(doc);
+      const provider = Provider.fromFirestore(doc);
+      
+      // Verificar que pertenece al usuario
+      if (provider && provider.userId !== userId) {
+        return null;
+      }
+      
+      return provider;
     } catch (error) {
       console.error('Error buscando proveedor:', error);
       throw error;
@@ -136,8 +139,8 @@ class Provider {
         offset = 0
       } = options;
 
-      let query = db.collection('users').doc(userId)
-        .collection('providers');
+      let query = db.collection('providers')
+        .where('userId', '==', userId);
 
       // Filtrar por estado activo
       if (active !== null) {
@@ -169,8 +172,8 @@ class Provider {
 
       // Contar total
       const totalQuery = active !== null 
-        ? db.collection('users').doc(userId).collection('providers').where('isActive', '==', active)
-        : db.collection('users').doc(userId).collection('providers');
+        ? db.collection('providers').where('userId', '==', userId).where('isActive', '==', active)
+        : db.collection('providers').where('userId', '==', userId);
       
       const totalSnapshot = await totalQuery.get();
       const total = totalSnapshot.size;
@@ -196,9 +199,10 @@ class Provider {
   static async getStats(userId, providerId) {
     try {
       // Obtener todas las plataformas del proveedor
-      const platformsSnapshot = await db.collection('users').doc(userId)
-        .collection('providers').doc(providerId)
-        .collection('platforms').get();
+      const platformsSnapshot = await db.collection('providers').doc(providerId)
+        .collection('platforms')
+        .where('userId', '==', userId)
+        .get();
 
       const platforms = platformsSnapshot.docs.map(doc => ({
         id: doc.id,
