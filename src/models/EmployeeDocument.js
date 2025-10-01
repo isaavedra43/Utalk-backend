@@ -310,9 +310,8 @@ class EmployeeDocument {
    */
   static async findById(documentId, employeeId = null) {
     try {
-      // Si no se proporciona employeeId, buscar en todos los empleados (lento)
       if (!employeeId) {
-        console.warn('findById sin employeeId - búsqueda lenta en todas las subcolecciones');
+        console.warn('findById sin employeeId - búsqueda lenta');
         // Buscar en la colección antigua primero para compatibilidad
         const oldDoc = await db.collection('employee_documents').doc(documentId).get();
         if (oldDoc.exists) {
@@ -321,14 +320,28 @@ class EmployeeDocument {
         return null;
       }
 
-      // 🔧 CORRECCIÓN: Buscar en subcolección del empleado
-      const doc = await db.collection('employees').doc(employeeId)
+      // 🔧 CORRECCIÓN: Buscar PRIMERO en subcolección nueva
+      const newDoc = await db.collection('employees').doc(employeeId)
         .collection('documents').doc(documentId).get();
       
-      if (!doc.exists) {
-        return null;
+      if (newDoc.exists) {
+        return EmployeeDocument.fromFirestore(newDoc);
       }
-      return EmployeeDocument.fromFirestore(doc);
+
+      // 🔧 COMPATIBILIDAD: Si no está en la subcolección, buscar en colección antigua
+      console.log('📍 Documento no encontrado en subcolección, buscando en colección antigua...');
+      const oldDoc = await db.collection('employee_documents').doc(documentId).get();
+      
+      if (oldDoc.exists) {
+        const document = EmployeeDocument.fromFirestore(oldDoc);
+        // Verificar que pertenece al empleado correcto
+        if (document.employeeId === employeeId) {
+          console.log('✅ Documento encontrado en colección antigua');
+          return document;
+        }
+      }
+
+      return null;
     } catch (error) {
       console.error('Error finding document by ID:', error);
       throw error;
@@ -456,7 +469,49 @@ class EmployeeDocument {
       }
 
       const totalSnapshot = await totalQuery.get();
-      const total = totalSnapshot.size;
+      let total = totalSnapshot.size;
+
+      // 🔧 COMPATIBILIDAD: También buscar documentos en la colección antigua
+      try {
+        let oldQuery = db.collection('employee_documents')
+          .where('employeeId', '==', employeeId)
+          .where('audit.deletedAt', '==', null);
+        
+        if (category) {
+          oldQuery = oldQuery.where('category', '==', category);
+        }
+        if (confidential !== null) {
+          oldQuery = oldQuery.where('isConfidential', '==', confidential);
+        }
+        
+        const oldSnapshot = await oldQuery.get();
+        
+        console.log('📍 Documentos encontrados en colección antigua:', oldSnapshot.size);
+        
+        oldSnapshot.forEach(doc => {
+          const document = EmployeeDocument.fromFirestore(doc);
+          
+          // Filtro de búsqueda
+          if (search) {
+            const searchLower = search.toLowerCase();
+            const originalName = (document.originalName || '').toLowerCase();
+            const description = (document.description || '').toLowerCase();
+            const tags = (document.tags || []).join(' ').toLowerCase();
+            
+            if (originalName.includes(searchLower) || 
+                description.includes(searchLower) || 
+                tags.includes(searchLower)) {
+              documents.push(document);
+            }
+          } else {
+            documents.push(document);
+          }
+        });
+        
+        total += oldSnapshot.size;
+      } catch (oldCollectionError) {
+        console.warn('Error consultando colección antigua, continuando sin ella:', oldCollectionError.message);
+      }
 
       console.log('📈 Resultado final de listado:', {
         employeeId,
