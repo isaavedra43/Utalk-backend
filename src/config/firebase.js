@@ -11,9 +11,66 @@ let isInitializing = false;
 let initializationPromise = null;
 
 /**
- * Nota: Se eliminó la inicialización síncrona inmediata para no bloquear el arranque.
- * La inicialización ahora es 100% asíncrona y en segundo plano.
+ * 🔥 INICIALIZACIÓN SINCRÓNICA EN PRODUCCIÓN PARA EVITAR firestore=null
  */
+(function initializeNowIfPossible() {
+  try {
+    const hasKey = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const isProd = process.env.NODE_ENV === 'production';
+
+    if (!hasKey) {
+      if (isProd) {
+        logger.error('FIREBASE - Falta FIREBASE_SERVICE_ACCOUNT_KEY en producción');
+      } else {
+        logger.warn('🔥 FIREBASE - Modo desarrollo sin credenciales. No se inicializa.');
+      }
+      return;
+    }
+
+    // Evitar repetir
+    if (firestore && storage) return;
+
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    const requiredFields = ['project_id', 'private_key', 'client_email'];
+    const missingFields = requiredFields.filter(f => !serviceAccount[f]);
+    if (missingFields.length) {
+      throw new Error(`Campos faltantes en service account: ${missingFields.join(', ')}`);
+    }
+
+    let app;
+    if (!admin.apps.length) {
+      app = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+        storageBucket: `${serviceAccount.project_id}.appspot.com`
+      });
+    } else {
+      app = admin.app();
+    }
+
+    firestore = admin.firestore();
+    storage = admin.storage();
+
+    firestore.settings({
+      timestampsInSnapshots: true,
+      ignoreUndefinedProperties: true
+    });
+
+    logger.info('🔥 FIREBASE - Inicializado de forma inmediata (sync)', {
+      category: 'FIREBASE_SYNC_INIT',
+      projectId: serviceAccount.project_id,
+      appName: app.name,
+      firestoreAvailable: !!firestore,
+      storageAvailable: !!storage
+    });
+  } catch (error) {
+    logger.error('🔥 FIREBASE - Error en inicialización inmediata', {
+      category: 'FIREBASE_SYNC_INIT_ERROR',
+      error: error.message
+    });
+    // No lanzar aquí: el inicializador asíncrono intentará nuevamente
+  }
+})();
 
 /**
  * 🔥 INICIALIZAR FIREBASE DE FORMA ASÍNCRONA
@@ -150,6 +207,7 @@ async function initializeFirebaseAsync() {
       impact: 'Aplicación no puede continuar sin Firebase'
     });
 
+    // Firebase es crítico, no podemos crear mocks útiles
     throw error;
   }
 }
