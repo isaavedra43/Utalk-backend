@@ -17,7 +17,8 @@ class InventoryProviderController {
    */
   static async list(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { active, search, limit, offset, includeStats } = req.query;
 
       const options = {
@@ -49,7 +50,8 @@ class InventoryProviderController {
    */
   static async getById(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
 
       const service = new ProviderService();
@@ -73,7 +75,8 @@ class InventoryProviderController {
    */
   static async create(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const providerData = req.body;
 
       const service = new ProviderService();
@@ -97,7 +100,8 @@ class InventoryProviderController {
    */
   static async update(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
       const updates = req.body;
 
@@ -122,7 +126,8 @@ class InventoryProviderController {
    */
   static async delete(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
 
       const service = new ProviderService();
@@ -146,7 +151,8 @@ class InventoryProviderController {
    */
   static async getPlatforms(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
       const { status, startDate, endDate, limit, offset } = req.query;
 
@@ -179,7 +185,8 @@ class InventoryProviderController {
    */
   static async getMaterials(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
 
       const service = new ProviderService();
@@ -203,7 +210,8 @@ class InventoryProviderController {
    */
   static async getStats(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
 
       const service = new ProviderService();

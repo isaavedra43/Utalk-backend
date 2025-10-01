@@ -17,7 +17,8 @@ class InventoryMaterialController {
    */
   static async list(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { active, category, providerId, search, limit, offset } = req.query;
 
       const options = {
@@ -50,7 +51,8 @@ class InventoryMaterialController {
    */
   static async getActive(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
 
       const service = new MaterialService();
       const materials = await service.getActiveMaterials(userId);
@@ -73,7 +75,8 @@ class InventoryMaterialController {
    */
   static async getByCategory(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { category } = req.params;
 
       const service = new MaterialService();
@@ -97,7 +100,8 @@ class InventoryMaterialController {
    */
   static async create(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const materialData = req.body;
 
       // Validaciones básicas
@@ -130,7 +134,8 @@ class InventoryMaterialController {
    */
   static async update(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { materialId } = req.params;
       const updates = req.body;
 
@@ -155,7 +160,8 @@ class InventoryMaterialController {
    */
   static async delete(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { materialId } = req.params;
 
       const service = new MaterialService();

@@ -17,7 +17,8 @@ class InventoryPlatformController {
    */
   static async list(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const {
         status,
         providerId,
@@ -67,7 +68,8 @@ class InventoryPlatformController {
    */
   static async getById(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { platformId } = req.params;
       const { providerId } = req.query;
 
@@ -96,8 +98,9 @@ class InventoryPlatformController {
    */
   static async create(req, res, next) {
     try {
-      const userId = req.user.userId;
-      const createdBy = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
+      const createdBy = req.user.email || req.user.id;
       const platformData = req.body;
 
       // Validaciones básicas
@@ -130,7 +133,8 @@ class InventoryPlatformController {
    */
   static async update(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { platformId } = req.params;
       const { providerId } = req.query;
       const updates = req.body;
@@ -160,7 +164,8 @@ class InventoryPlatformController {
    */
   static async delete(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { platformId } = req.params;
       const { providerId } = req.query;
 
@@ -189,7 +194,8 @@ class InventoryPlatformController {
    */
   static async getStats(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const { period, providerId, materialType } = req.query;
 
       const options = {

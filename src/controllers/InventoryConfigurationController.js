@@ -17,7 +17,8 @@ class InventoryConfigurationController {
    */
   static async get(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
 
       const service = new InventoryConfigurationService();
       const config = await service.getConfiguration(userId);
@@ -40,7 +41,8 @@ class InventoryConfigurationController {
    */
   static async update(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const configData = req.body;
 
       const service = new InventoryConfigurationService();
@@ -64,7 +66,8 @@ class InventoryConfigurationController {
    */
   static async sync(req, res, next) {
     try {
-      const userId = req.user.userId;
+      // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
+      const userId = req.user.email || req.user.id;
       const clientData = req.body;
 
       const service = new InventoryConfigurationService();
