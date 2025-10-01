@@ -95,10 +95,31 @@ class PlatformService {
     try {
       logger.info('Creando plataforma', { userId, platformNumber: platformData.platformNumber });
 
-      // Verificar que el proveedor existe
-      const provider = await Provider.findById(userId, platformData.providerId);
+      // Verificar que el proveedor existe, si no existe, crearlo automáticamente
+      let provider = await Provider.findById(userId, platformData.providerId);
+      
       if (!provider) {
-        throw ApiError.notFoundError('Proveedor no encontrado');
+        logger.warn('Proveedor no encontrado, creando automáticamente', { 
+          userId, 
+          providerId: platformData.providerId,
+          providerName: platformData.provider 
+        });
+        
+        // Crear proveedor automáticamente con los datos disponibles
+        provider = new Provider({
+          id: platformData.providerId,
+          userId,
+          name: platformData.provider || 'Proveedor sin nombre',
+          contact: '',
+          phone: '',
+          email: '',
+          address: '',
+          materialIds: [],
+          isActive: true
+        });
+        
+        await provider.save();
+        logger.info('Proveedor creado automáticamente', { userId, providerId: provider.id });
       }
 
       const platform = new Platform({
