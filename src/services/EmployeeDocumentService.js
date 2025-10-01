@@ -364,10 +364,7 @@ class EmployeeDocumentService {
         throw ApiError.notFoundError('Documento no encontrado');
       }
 
-      // Verificar que pertenece al empleado
-      if (document.employeeId !== employeeId) {
-        throw ApiError.authorizationError('El documento no pertenece a este empleado');
-      }
+      // Ya no es necesario verificar employeeId porque buscamos directamente en la subcolección del empleado
 
       // Verificar permisos de confidencialidad
       if (document.isConfidential && !this.canViewConfidentialDocuments(user)) {
@@ -419,10 +416,7 @@ class EmployeeDocumentService {
         throw ApiError.notFoundError('Documento no encontrado');
       }
 
-      // Verificar que pertenece al empleado
-      if (document.employeeId !== employeeId) {
-        throw ApiError.authorizationError('El documento no pertenece a este empleado');
-      }
+      // Ya no es necesario verificar employeeId porque buscamos directamente en la subcolección del empleado
 
       // Verificar permisos
       if (!this.canDeleteDocuments(user)) {
@@ -479,10 +473,7 @@ class EmployeeDocumentService {
         throw ApiError.notFoundError('Documento no encontrado');
       }
 
-      // Verificar que pertenece al empleado
-      if (document.employeeId !== employeeId) {
-        throw ApiError.authorizationError('El documento no pertenece a este empleado');
-      }
+      // Ya no es necesario verificar employeeId porque buscamos directamente en la subcolección del empleado
 
       // Verificar permisos
       if (!this.canUpdateDocuments(user)) {
