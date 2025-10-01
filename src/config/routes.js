@@ -23,6 +23,7 @@ const modulePermissionsRoutes = require('../routes/modulePermissions');
 const copilotRoutes = require('../routes/copilot');
 const employeeRoutes = require('../routes/employees');
 const employeeDocumentRoutes = require('../routes/employee-documents');
+const inventoryRoutes = require('../routes/inventory');
 
 function registerRoutes(app, { PORT, socketManager, healthService }) {
   logger.info('🛣️ Configurando rutas de la aplicación...', {
@@ -115,6 +116,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     // 🔧 ORDEN CRÍTICO: Rutas específicas de documentos PRIMERO
     app.use('/api/employees', employeeDocumentRoutes);
     app.use('/api/employees', employeeRoutes);
+    app.use('/api/inventory', inventoryRoutes);
     app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll/general', require('../routes/generalPayroll'));

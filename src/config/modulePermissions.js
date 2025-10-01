@@ -144,22 +144,6 @@ const AVAILABLE_MODULES = {
     path: '/copilot',
     level: 'intermediate'
   },
-  providers: {
-    id: 'providers',
-    name: 'Proveedores',
-    description: 'Gestión de proveedores y servicios',
-    icon: 'providers',
-    path: '/providers',
-    level: 'intermediate'
-  },
-  warehouse: {
-    id: 'warehouse',
-    name: 'Almacén',
-    description: 'Gestión de inventario y almacén',
-    icon: 'warehouse',
-    path: '/warehouse',
-    level: 'intermediate'
-  },
   shipping: {
     id: 'shipping',
     name: 'Envíos',
@@ -174,6 +158,14 @@ const AVAILABLE_MODULES = {
     description: 'Gestión de servicios empresariales',
     icon: 'services',
     path: '/services',
+    level: 'intermediate'
+  },
+  inventory: {
+    id: 'inventory',
+    name: 'Inventario de Materiales',
+    description: 'Gestión de inventario de materiales, proveedores y plataformas',
+    icon: 'inventory',
+    path: '/inventory',
     level: 'intermediate'
   }
 };
@@ -219,10 +211,9 @@ const DEFAULT_ROLE_PERMISSIONS = {
       'internal-chat': { read: true, write: true, configure: false },
       phone: { read: true, write: true, configure: false },
       supervision: { read: false, write: false, configure: false },
-      providers: { read: false, write: false, configure: false },
-      warehouse: { read: false, write: false, configure: false },
       shipping: { read: false, write: false, configure: false },
-      services: { read: false, write: false, configure: false }
+      services: { read: false, write: false, configure: false },
+      inventory: { read: false, write: false, configure: false }
     },
     description: 'Acceso limitado: chat, clientes y herramientas básicas'
   },
@@ -248,10 +239,9 @@ const DEFAULT_ROLE_PERMISSIONS = {
       phone: { read: false, write: false, configure: false },
       supervision: { read: false, write: false, configure: false },
       copilot: { read: false, write: false, configure: false },
-      providers: { read: false, write: false, configure: false },
-      warehouse: { read: false, write: false, configure: false },
       shipping: { read: false, write: false, configure: false },
-      services: { read: false, write: false, configure: false }
+      services: { read: false, write: false, configure: false },
+      inventory: { read: false, write: false, configure: false }
     },
     description: 'Solo visualización de módulos básicos'
   },
@@ -278,10 +268,9 @@ const DEFAULT_ROLE_PERMISSIONS = {
       // Módulos con acceso limitado
       hr: { read: true, write: true, configure: false },
       ai: { read: true, write: false, configure: false },
-      providers: { read: true, write: true, configure: false },
-      warehouse: { read: true, write: true, configure: false },
       shipping: { read: true, write: true, configure: false },
       services: { read: true, write: true, configure: false },
+      inventory: { read: true, write: true, configure: false },
       
       // Solo admin puede configurar sistema
       settings: { read: false, write: false, configure: false }
@@ -389,7 +378,7 @@ function getModulesByCategory() {
     marketing: ['campaigns'],
     management: ['team', 'hr', 'supervision'],
     intelligence: ['ai', 'copilot', 'knowledge-base'],
-    business: ['providers', 'warehouse', 'shipping', 'services'],
+    business: ['inventory', 'shipping', 'services'],
     system: ['analytics', 'settings']
   };
 }
