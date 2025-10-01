@@ -31,27 +31,28 @@ router.use(authMiddleware);
 
 /**
  * 📋 RUTAS DE DOCUMENTOS POR EMPLEADO
+ * Prefijo: /api/employee-documents
  */
 
 /**
- * GET /api/employees/:employeeId/documents
+ * GET /api/employee-documents/:employeeId
  * Lista documentos de un empleado con filtros y paginación
  * 
  * Permisos: HR read + acceso al empleado
  */
-router.get('/:employeeId/documents',
+router.get('/:employeeId',
   validateEmployeeId,
   checkHRPermission('documents', 'read'),
   EmployeeDocumentController.listDocuments
 );
 
 /**
- * POST /api/employees/:employeeId/documents
+ * POST /api/employee-documents/:employeeId
  * Sube un documento para un empleado
  * 
  * Permisos: HR write + acceso al empleado
  */
-router.post('/:employeeId/documents',
+router.post('/:employeeId',
   validateEmployeeId,
   checkHRPermission('documents', 'create'),
   EmployeeDocumentController.uploadMiddleware,
@@ -59,24 +60,24 @@ router.post('/:employeeId/documents',
 );
 
 /**
- * GET /api/employees/:employeeId/documents/summary
+ * GET /api/employee-documents/:employeeId/summary
  * Obtiene resumen de documentos de un empleado
  * 
  * Permisos: HR read + acceso al empleado
  */
-router.get('/:employeeId/documents/summary',
+router.get('/:employeeId/summary',
   validateEmployeeId,
   checkHRPermission('documents', 'read'),
   EmployeeDocumentController.getDocumentsSummary
 );
 
 /**
- * GET /api/employees/:employeeId/documents/:documentId/download
+ * GET /api/employee-documents/:employeeId/:documentId/download
  * Descarga un documento
  * 
  * Permisos: HR read + acceso al empleado + permisos de confidencialidad
  */
-router.get('/:employeeId/documents/:documentId/download',
+router.get('/:employeeId/:documentId/download',
   validateEmployeeId,
   validateDocumentId,
   checkHRPermission('documents', 'read'),
@@ -84,12 +85,12 @@ router.get('/:employeeId/documents/:documentId/download',
 );
 
 /**
- * PUT /api/employees/:employeeId/documents/:documentId
+ * PUT /api/employee-documents/:employeeId/:documentId
  * Actualiza metadatos de un documento
  * 
  * Permisos: HR write + acceso al empleado
  */
-router.put('/:employeeId/documents/:documentId',
+router.put('/:employeeId/:documentId',
   validateEmployeeId,
   validateDocumentId,
   checkHRPermission('documents', 'update'),
@@ -97,12 +98,12 @@ router.put('/:employeeId/documents/:documentId',
 );
 
 /**
- * DELETE /api/employees/:employeeId/documents/:documentId
+ * DELETE /api/employee-documents/:employeeId/:documentId
  * Elimina un documento
  * 
  * Permisos: HR write + acceso al empleado
  */
-router.delete('/:employeeId/documents/:documentId',
+router.delete('/:employeeId/:documentId',
   validateEmployeeId,
   validateDocumentId,
   checkHRPermission('documents', 'delete'),
