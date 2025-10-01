@@ -310,16 +310,6 @@ class EmployeeDocument {
    */
   static async findById(documentId, employeeId = null) {
     try {
-      // 🔍 LOG DE DEPURACIÓN CRÍTICO
-      console.log('🔍 findById recibió:', {
-        documentId,
-        employeeId,
-        employeeIdType: typeof employeeId,
-        employeeIdIsNull: employeeId === null,
-        employeeIdIsUndefined: employeeId === undefined,
-        employeeIdIsFalsy: !employeeId
-      });
-
       if (!employeeId) {
         console.warn('findById sin employeeId - búsqueda lenta');
         // Buscar en la colección antigua primero para compatibilidad

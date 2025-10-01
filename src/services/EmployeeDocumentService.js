@@ -352,16 +352,6 @@ class EmployeeDocumentService {
    */
   async downloadDocument(employeeId, documentId, user) {
     try {
-      // 🔍 LOG DE DEPURACIÓN CRÍTICO
-      console.log('🔍 downloadDocument recibió:', {
-        employeeId,
-        employeeIdType: typeof employeeId,
-        employeeIdIsNull: employeeId === null,
-        employeeIdIsUndefined: employeeId === undefined,
-        documentId,
-        userEmail: user.email
-      });
-
       logger.info('Iniciando descarga de documento', {
         employeeId,
         documentId,
