@@ -112,8 +112,10 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/knowledge', knowledgeRoutes);
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
-    app.use('/api/employees', employeeRoutes);
-    app.use('/api/employees', employeeDocumentRoutes);
+    // 🔧 CORRECCIÓN CRÍTICA: Rutas de documentos ANTES que rutas de empleados
+    // Las rutas más específicas deben registrarse primero en Express
+    app.use('/api/employees', employeeDocumentRoutes);  // Primero: /:employeeId/documents/...
+    app.use('/api/employees', employeeRoutes);          // Después: /:id, etc.
     app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll/general', require('../routes/generalPayroll'));
