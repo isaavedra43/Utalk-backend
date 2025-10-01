@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../config/firebase');
 const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 /**
  * 📄 MODELO DE DOCUMENTO DE EMPLEADO
@@ -121,8 +122,9 @@ class EmployeeDocument {
    */
   static async getNextVersion(employeeId, originalName) {
     try {
-      const snapshot = await db.collection('employee_documents')
-        .where('employeeId', '==', employeeId)
+      // 🔧 CORRECCIÓN: Buscar versiones en subcolección
+      const snapshot = await db.collection('employees').doc(employeeId)
+        .collection('documents')
         .where('originalName', '==', originalName)
         .where('audit.deletedAt', '==', null)
         .orderBy('version', 'desc')
@@ -201,13 +203,14 @@ class EmployeeDocument {
         this.version = await EmployeeDocument.getNextVersion(this.employeeId, this.originalName);
       }
 
-      const docRef = db.collection('employee_documents').doc(this.id);
+      // 🔧 CORRECCIÓN: Guardar en subcolección del empleado
+      const docRef = db.collection('employees').doc(this.employeeId)
+        .collection('documents').doc(this.id);
+      
       const firestoreData = this.toFirestore();
       
-      console.log('📝 Guardando documento en Firestore:', {
-        collection: 'employee_documents',
-        documentId: this.id,
-        employeeId: this.employeeId,
+      console.log('📝 Guardando documento en subcolección del empleado:', {
+        path: `employees/${this.employeeId}/documents/${this.id}`,
         fileName: this.originalName,
         category: this.category,
         auditDeletedAt: firestoreData.audit.deletedAt
@@ -221,11 +224,9 @@ class EmployeeDocument {
         throw new Error('El documento no se guardó correctamente en Firestore');
       }
 
-      console.log('✅ Documento guardado y verificado exitosamente en Firebase:', {
-        id: this.id,
-        employeeId: this.employeeId,
+      console.log('✅ Documento guardado y verificado en subcolección:', {
+        path: `employees/${this.employeeId}/documents/${this.id}`,
         fileName: this.originalName,
-        category: this.category,
         exists: savedDoc.exists
       });
 
@@ -269,7 +270,9 @@ class EmployeeDocument {
         throw new Error(`Errores de validación: ${errors.join(', ')}`);
       }
 
-      const docRef = db.collection('employee_documents').doc(this.id);
+      // 🔧 CORRECCIÓN: Actualizar en subcolección del empleado
+      const docRef = db.collection('employees').doc(this.employeeId)
+        .collection('documents').doc(this.id);
       await docRef.update(this.toFirestore());
 
       return this;
@@ -287,7 +290,9 @@ class EmployeeDocument {
       this.audit.deletedAt = new Date().toISOString();
       this.audit.deletedBy = deletedBy;
 
-      const docRef = db.collection('employee_documents').doc(this.id);
+      // 🔧 CORRECCIÓN: Eliminar en subcolección del empleado
+      const docRef = db.collection('employees').doc(this.employeeId)
+        .collection('documents').doc(this.id);
       await docRef.update({
         'audit.deletedAt': this.audit.deletedAt,
         'audit.deletedBy': this.audit.deletedBy
@@ -301,11 +306,25 @@ class EmployeeDocument {
   }
 
   /**
-   * Busca un documento por ID
+   * Busca un documento por ID (necesita employeeId)
    */
-  static async findById(id) {
+  static async findById(documentId, employeeId = null) {
     try {
-      const doc = await db.collection('employee_documents').doc(id).get();
+      // Si no se proporciona employeeId, buscar en todos los empleados (lento)
+      if (!employeeId) {
+        console.warn('findById sin employeeId - búsqueda lenta en todas las subcolecciones');
+        // Buscar en la colección antigua primero para compatibilidad
+        const oldDoc = await db.collection('employee_documents').doc(documentId).get();
+        if (oldDoc.exists) {
+          return EmployeeDocument.fromFirestore(oldDoc);
+        }
+        return null;
+      }
+
+      // 🔧 CORRECCIÓN: Buscar en subcolección del empleado
+      const doc = await db.collection('employees').doc(employeeId)
+        .collection('documents').doc(documentId).get();
+      
       if (!doc.exists) {
         return null;
       }
@@ -351,13 +370,13 @@ class EmployeeDocument {
         };
       }
 
-      let query = db.collection('employee_documents')
-        .where('employeeId', '==', employeeId)
+      // 🔧 CORRECCIÓN: Consultar subcolección del empleado
+      let query = db.collection('employees').doc(employeeId)
+        .collection('documents')
         .where('audit.deletedAt', '==', null);
 
-      console.log('🔍 Consulta base creada:', {
-        collection: 'employee_documents',
-        whereEmployeeId: employeeId,
+      console.log('🔍 Consulta en subcolección del empleado:', {
+        path: `employees/${employeeId}/documents`,
         whereDeletedAt: null
       });
 
@@ -424,9 +443,9 @@ class EmployeeDocument {
         }
       });
 
-      // Obtener total para paginación
-      let totalQuery = db.collection('employee_documents')
-        .where('employeeId', '==', employeeId)
+      // 🔧 CORRECCIÓN: Obtener total de subcolección
+      let totalQuery = db.collection('employees').doc(employeeId)
+        .collection('documents')
         .where('audit.deletedAt', '==', null);
       
       if (category) {
@@ -503,8 +522,9 @@ class EmployeeDocument {
         };
       }
 
-      const snapshot = await db.collection('employee_documents')
-        .where('employeeId', '==', employeeId)
+      // 🔧 CORRECCIÓN: Obtener resumen de subcolección
+      const snapshot = await db.collection('employees').doc(employeeId)
+        .collection('documents')
         .where('audit.deletedAt', '==', null)
         .get();
 
@@ -568,15 +588,28 @@ class EmployeeDocument {
 
   /**
    * Busca documentos por checksum (para detectar duplicados)
+   * NOTA: Con subcolecciones, esta búsqueda es más compleja
    */
-  static async findByChecksum(checksum) {
+  static async findByChecksum(checksum, employeeId = null) {
     try {
-      const snapshot = await db.collection('employee_documents')
-        .where('checksum', '==', checksum)
-        .where('audit.deletedAt', '==', null)
-        .get();
+      if (employeeId) {
+        // Buscar solo en el empleado específico
+        const snapshot = await db.collection('employees').doc(employeeId)
+          .collection('documents')
+          .where('checksum', '==', checksum)
+          .where('audit.deletedAt', '==', null)
+          .get();
 
-      return snapshot.docs.map(doc => EmployeeDocument.fromFirestore(doc));
+        return snapshot.docs.map(doc => EmployeeDocument.fromFirestore(doc));
+      } else {
+        // Buscar en colección antigua para compatibilidad
+        const snapshot = await db.collection('employee_documents')
+          .where('checksum', '==', checksum)
+          .where('audit.deletedAt', '==', null)
+          .get();
+
+        return snapshot.docs.map(doc => EmployeeDocument.fromFirestore(doc));
+      }
     } catch (error) {
       console.error('Error finding documents by checksum:', error);
       throw error;

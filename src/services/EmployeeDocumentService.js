@@ -160,8 +160,8 @@ class EmployeeDocumentService {
       // Calcular checksum
       const checksum = EmployeeDocument.calculateChecksum(file.buffer);
 
-      // Verificar duplicados (opcional)
-      const existingDocs = await EmployeeDocument.findByChecksum(checksum);
+      // Verificar duplicados (opcional) - ahora solo en el mismo empleado
+      const existingDocs = await EmployeeDocument.findByChecksum(checksum, employeeId);
       if (existingDocs.length > 0) {
         logger.warn('Archivo duplicado detectado', {
           employeeId,
@@ -358,8 +358,8 @@ class EmployeeDocumentService {
         user: user.email
       });
 
-      // Obtener documento
-      const document = await EmployeeDocument.findById(documentId);
+      // Obtener documento (desde subcolección)
+      const document = await EmployeeDocument.findById(documentId, employeeId);
       if (!document) {
         throw ApiError.notFoundError('Documento no encontrado');
       }
@@ -413,8 +413,8 @@ class EmployeeDocumentService {
         user: user.email
       });
 
-      // Obtener documento
-      const document = await EmployeeDocument.findById(documentId);
+      // Obtener documento (desde subcolección)
+      const document = await EmployeeDocument.findById(documentId, employeeId);
       if (!document) {
         throw ApiError.notFoundError('Documento no encontrado');
       }
@@ -473,8 +473,8 @@ class EmployeeDocumentService {
         user: user.email
       });
 
-      // Obtener documento
-      const document = await EmployeeDocument.findById(documentId);
+      // Obtener documento (desde subcolección)
+      const document = await EmployeeDocument.findById(documentId, employeeId);
       if (!document) {
         throw ApiError.notFoundError('Documento no encontrado');
       }
