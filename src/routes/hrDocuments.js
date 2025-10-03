@@ -83,6 +83,9 @@ router.get('/activity', HRDocumentController.getActivity);
 // 19. GET /api/hr/documents/export - Exportar documentos (ANTES de :documentId)
 router.get('/export', HRDocumentController.exportDocuments);
 
+// 20. POST /api/hr/documents/initialize - Inicializar módulo (ANTES de :documentId)
+router.post('/initialize', HRDocumentController.initializeModule);
+
 // 2. GET /api/hr/documents/:documentId - Obtener documento específico (DESPUÉS de rutas específicas)
 router.get('/:documentId', HRDocumentController.getDocumentById);
 

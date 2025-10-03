@@ -91,6 +91,35 @@ class HRDocumentController {
       });
     } catch (error) {
       console.error('Error getting HR documents:', error);
+      
+      // Si es un error de colección no encontrada, devolver respuesta vacía
+      if (error.message && error.message.includes('collection')) {
+        res.json({
+          success: true,
+          data: {
+            documents: [],
+            pagination: {
+              page: 1,
+              limit: 20,
+              total: 0,
+              totalPages: 0
+            },
+            summary: {
+              totalDocuments: 0,
+              totalSize: 0,
+              byCategory: {},
+              byType: {},
+              recentUploads: [],
+              mostDownloaded: [],
+              mostViewed: [],
+              pinnedDocuments: [],
+              updatedAt: new Date().toISOString()
+            }
+          }
+        });
+        return;
+      }
+      
       res.status(500).json({
         success: false,
         error: 'Error al obtener documentos',
@@ -930,6 +959,26 @@ class HRDocumentController {
       });
     } catch (error) {
       console.error('Error getting HR document summary:', error);
+      
+      // Si es un error de colección no encontrada, devolver resumen vacío
+      if (error.message && error.message.includes('collection')) {
+        res.json({
+          success: true,
+          data: {
+            totalDocuments: 0,
+            totalSize: 0,
+            byCategory: {},
+            byType: {},
+            recentUploads: [],
+            mostDownloaded: [],
+            mostViewed: [],
+            pinnedDocuments: [],
+            updatedAt: new Date().toISOString()
+          }
+        });
+        return;
+      }
+      
       res.status(500).json({
         success: false,
         error: 'Error al obtener resumen',
@@ -1007,6 +1056,16 @@ class HRDocumentController {
       });
     } catch (error) {
       console.error('Error getting HR document folders:', error);
+      
+      // Si es un error de colección no encontrada, devolver carpetas vacías
+      if (error.message && error.message.includes('collection')) {
+        res.json({
+          success: true,
+          data: []
+        });
+        return;
+      }
+      
       res.status(500).json({
         success: false,
         error: 'Error al obtener carpetas',
@@ -1181,6 +1240,74 @@ class HRDocumentController {
       res.status(500).json({
         success: false,
         error: 'Error al exportar documentos',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 20. POST /api/hr/documents/initialize
+   * Inicializar estructura de datos del módulo
+   */
+  static async initializeModule(req, res) {
+    try {
+      const userId = req.user?.id || null;
+      const userName = req.user?.name || 'Sistema';
+
+      // Verificar permisos (solo admin)
+      const userRole = req.user?.role || 'employee';
+      if (userRole !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          error: 'Solo los administradores pueden inicializar el módulo'
+        });
+      }
+
+      // Crear resumen inicial
+      const summary = await HRDocumentSummary.getOrCreate();
+      
+      // Crear carpetas por defecto
+      const defaultFolders = [
+        { name: 'Plantillas', description: 'Plantillas de documentos corporativos' },
+        { name: 'Políticas', description: 'Políticas de la empresa' },
+        { name: 'Procedimientos', description: 'Procedimientos operativos' },
+        { name: 'Manuales', description: 'Manuales de usuario y operación' },
+        { name: 'Formatos', description: 'Formatos y formularios' },
+        { name: 'Capacitación', description: 'Material de capacitación' },
+        { name: 'Legal', description: 'Documentos legales y contractuales' },
+        { name: 'Multimedia', description: 'Videos, audios y presentaciones' }
+      ];
+
+      const createdFolders = [];
+      for (const folderData of defaultFolders) {
+        try {
+          const folder = new HRDocumentFolder({
+            name: folderData.name,
+            description: folderData.description,
+            createdBy: userId,
+            createdByName: userName
+          });
+          await folder.save();
+          createdFolders.push(folder.toFirestore());
+        } catch (error) {
+          console.warn(`Error creating folder ${folderData.name}:`, error.message);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Módulo de documentos de RH inicializado exitosamente',
+        data: {
+          summary: summary.toFirestore(),
+          folders: createdFolders,
+          initializedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error initializing HR documents module:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al inicializar módulo',
         details: error.message
       });
     }
