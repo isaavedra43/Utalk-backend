@@ -63,7 +63,7 @@ router.get('/test', (req, res) => {
 });
 
 // Aplicar middleware de autenticación a todas las rutas
-// router.use(authMiddleware); // Temporalmente deshabilitado para debug
+router.use(authMiddleware);
 
 // Aplicar rate limiting inteligente
 router.use(intelligentRateLimit);
