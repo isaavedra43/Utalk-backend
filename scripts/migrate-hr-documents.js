@@ -11,11 +11,17 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const HRDocumentInitializationService = require('../src/services/HRDocumentInitializationService');
+const { initializeFirebase } = require('../src/config/firebase');
 
 async function main() {
   try {
     console.log('🚀 Iniciando migración del sistema de documentos de RH...');
     console.log('================================================');
+    
+    // 0. Inicializar Firebase primero
+    console.log('\n🔥 Paso 0: Inicializando Firebase...');
+    await initializeFirebase();
+    console.log('✅ Firebase inicializado correctamente');
     
     // 1. Inicializar sistema
     console.log('\n📚 Paso 1: Inicializando sistema...');

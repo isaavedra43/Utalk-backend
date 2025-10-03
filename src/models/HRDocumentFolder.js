@@ -12,15 +12,13 @@ class HRDocumentFolder {
     this.name = data.name || '';
     this.description = data.description || '';
     this.createdBy = data.createdBy || '';
+    this.createdByName = data.createdByName || '';
     this.createdAt = data.createdAt || new Date().toISOString();
-    this.documentCount = data.documentCount || 0;
-    this.totalSize = data.totalSize || 0;
+    this.updatedAt = data.updatedAt || new Date().toISOString();
     this.isPublic = data.isPublic !== undefined ? data.isPublic : true;
-    this.permissions = {
-      canView: data.permissions?.canView !== undefined ? data.permissions.canView : true,
-      canEdit: data.permissions?.canEdit || false,
-      canDelete: data.permissions?.canDelete || false
-    };
+    this.documentCount = data.documentCount || 0;
+    this.color = data.color || 'blue';
+    this.icon = data.icon || 'folder';
   }
 
   /**
@@ -30,15 +28,15 @@ class HRDocumentFolder {
     const errors = [];
 
     if (!this.name || this.name.length < 2) {
-      errors.push('El nombre de la carpeta debe tener al menos 2 caracteres');
-    }
-
-    if (this.name.length > 50) {
-      errors.push('El nombre de la carpeta no puede exceder 50 caracteres');
+      errors.push('El nombre debe tener al menos 2 caracteres');
     }
 
     if (!this.createdBy) {
       errors.push('El ID del usuario que creó la carpeta es requerido');
+    }
+
+    if (!this.createdByName) {
+      errors.push('El nombre del usuario que creó la carpeta es requerido');
     }
 
     return errors;
@@ -53,11 +51,13 @@ class HRDocumentFolder {
       name: this.name,
       description: this.description,
       createdBy: this.createdBy,
+      createdByName: this.createdByName,
       createdAt: this.createdAt,
-      documentCount: this.documentCount,
-      totalSize: this.totalSize,
+      updatedAt: this.updatedAt,
       isPublic: this.isPublic,
-      permissions: this.permissions
+      documentCount: this.documentCount,
+      color: this.color,
+      icon: this.icon
     };
   }
 
@@ -78,6 +78,8 @@ class HRDocumentFolder {
         throw new Error(`Errores de validación: ${errors.join(', ')}`);
       }
 
+      this.updatedAt = new Date().toISOString();
+
       const docRef = db.collection('hr_documents').doc('folders')
         .collection('list').doc(this.id);
       
@@ -96,6 +98,7 @@ class HRDocumentFolder {
   async update(data) {
     try {
       Object.assign(this, data);
+      this.updatedAt = new Date().toISOString();
 
       const errors = this.validate();
       if (errors.length > 0) {
@@ -110,6 +113,28 @@ class HRDocumentFolder {
       return this;
     } catch (error) {
       console.error('Error updating HR document folder:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca una carpeta por nombre
+   */
+  static async findByName(name) {
+    try {
+      const query = db.collection('hr_documents').doc('folders')
+        .collection('list').where('name', '==', name);
+      
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) {
+        return null;
+      }
+      
+      const doc = snapshot.docs[0];
+      return HRDocumentFolder.fromFirestore(doc);
+    } catch (error) {
+      console.error('Error finding HR document folder by name:', error);
       throw error;
     }
   }
@@ -134,33 +159,20 @@ class HRDocumentFolder {
   }
 
   /**
-   * Busca una carpeta por nombre
-   */
-  static async findByName(name) {
-    try {
-      const snapshot = await db.collection('hr_documents').doc('folders')
-        .collection('list').where('name', '==', name).get();
-      
-      if (snapshot.empty) {
-        return null;
-      }
-      
-      return HRDocumentFolder.fromFirestore(snapshot.docs[0]);
-    } catch (error) {
-      console.error('Error finding HR document folder by name:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lista todas las carpetas
+   * Lista carpetas con filtros
    */
   static async list(options = {}) {
     try {
-      const { isPublic = null, createdBy = null } = options;
+      const {
+        isPublic = null,
+        createdBy = null,
+        search = null,
+        limit = 100
+      } = options;
 
       let query = db.collection('hr_documents').doc('folders').collection('list');
 
+      // Aplicar filtros
       if (isPublic !== null) {
         query = query.where('isPublic', '==', isPublic);
       }
@@ -169,7 +181,11 @@ class HRDocumentFolder {
         query = query.where('createdBy', '==', createdBy);
       }
 
+      // Ordenar por nombre
       query = query.orderBy('name', 'asc');
+
+      // Límite
+      query = query.limit(limit);
 
       const snapshot = await query.get();
       const folders = [];
@@ -178,7 +194,17 @@ class HRDocumentFolder {
         folders.push(HRDocumentFolder.fromFirestore(doc));
       });
 
-      return folders;
+      // Si hay búsqueda por texto, filtrar en memoria
+      let filteredFolders = folders;
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredFolders = folders.filter(folder => 
+          folder.name.toLowerCase().includes(searchLower) ||
+          folder.description.toLowerCase().includes(searchLower)
+        );
+      }
+
+      return filteredFolders;
     } catch (error) {
       console.error('Error listing HR document folders:', error);
       throw error;
@@ -186,41 +212,47 @@ class HRDocumentFolder {
   }
 
   /**
-   * Actualiza el conteo de documentos en la carpeta
+   * Incrementa el contador de documentos
    */
-  async updateDocumentCount() {
+  async incrementDocumentCount() {
     try {
-      const HRDocument = require('./HRDocument');
-      const documents = await HRDocument.list({ folder: this.name, limit: 1000 });
-
-      this.documentCount = documents.length;
-      this.totalSize = documents.reduce((total, doc) => total + doc.fileSize, 0);
-
+      this.documentCount += 1;
+      this.updatedAt = new Date().toISOString();
+      
       const docRef = db.collection('hr_documents').doc('folders')
         .collection('list').doc(this.id);
       
       await docRef.update({
         documentCount: this.documentCount,
-        totalSize: this.totalSize
+        updatedAt: this.updatedAt
       });
 
       return this;
     } catch (error) {
-      console.error('Error updating document count:', error);
+      console.error('Error incrementing document count:', error);
       throw error;
     }
   }
 
   /**
-   * Verifica si la carpeta está vacía
+   * Decrementa el contador de documentos
    */
-  async isEmpty() {
+  async decrementDocumentCount() {
     try {
-      const HRDocument = require('./HRDocument');
-      const documents = await HRDocument.list({ folder: this.name, limit: 1 });
-      return documents.length === 0;
+      this.documentCount = Math.max(0, this.documentCount - 1);
+      this.updatedAt = new Date().toISOString();
+      
+      const docRef = db.collection('hr_documents').doc('folders')
+        .collection('list').doc(this.id);
+      
+      await docRef.update({
+        documentCount: this.documentCount,
+        updatedAt: this.updatedAt
+      });
+
+      return this;
     } catch (error) {
-      console.error('Error checking if folder is empty:', error);
+      console.error('Error decrementing document count:', error);
       throw error;
     }
   }
@@ -230,14 +262,11 @@ class HRDocumentFolder {
    */
   static async delete(id) {
     try {
-      const folder = await HRDocumentFolder.findById(id);
-      if (!folder) {
-        throw new Error('Carpeta no encontrada');
-      }
-
-      // Verificar si está vacía
-      const isEmpty = await folder.isEmpty();
-      if (!isEmpty) {
+      // Verificar si hay documentos en la carpeta
+      const HRDocument = require('./HRDocument');
+      const documentsInFolder = await HRDocument.list({ folder: id, limit: 1 });
+      
+      if (documentsInFolder.length > 0) {
         throw new Error('No se puede eliminar una carpeta que contiene documentos');
       }
 
@@ -254,39 +283,91 @@ class HRDocumentFolder {
   }
 
   /**
-   * Crea carpetas por defecto
+   * Crea carpetas por defecto del sistema
    */
-  static async createDefaultFolders(createdBy) {
+  static async createDefaultFolders(createdBy = 'system') {
     try {
-      const defaultFolders = [
-        { name: 'Manuales', description: 'Manuales corporativos y de procedimientos' },
-        { name: 'Políticas', description: 'Políticas de la empresa' },
-        { name: 'Plantillas', description: 'Plantillas de documentos' },
-        { name: 'Formatos', description: 'Formatos oficiales' },
-        { name: 'Capacitación', description: 'Material de capacitación' },
-        { name: 'Legal', description: 'Documentos legales' },
-        { name: 'Multimedia', description: 'Videos, imágenes y archivos multimedia' }
-      ];
-
+      const { getConfig } = require('../config/hrDocumentConfig');
+      const defaultFoldersConfig = getConfig('DEFAULT_FOLDERS');
       const createdFolders = [];
 
-      for (const folderData of defaultFolders) {
+      for (const folderConfig of defaultFoldersConfig) {
         // Verificar si ya existe
-        const existing = await HRDocumentFolder.findByName(folderData.name);
-        if (!existing) {
-          const folder = new HRDocumentFolder({
-            ...folderData,
-            createdBy
-          });
-          
-          await folder.save();
-          createdFolders.push(folder);
+        const existing = await HRDocumentFolder.findByName(folderConfig.name);
+        if (existing) {
+          console.log(`Carpeta "${folderConfig.name}" ya existe, omitiendo...`);
+          continue;
         }
+
+        // Crear carpeta
+        const folder = new HRDocumentFolder({
+          name: folderConfig.name,
+          description: folderConfig.description,
+          createdBy,
+          createdByName: 'Sistema',
+          isPublic: true,
+          color: 'blue',
+          icon: 'folder'
+        });
+
+        await folder.save();
+        createdFolders.push(folder);
+        console.log(`✅ Carpeta creada: ${folder.name}`);
       }
 
       return createdFolders;
     } catch (error) {
       console.error('Error creating default folders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene estadísticas de carpetas
+   */
+  static async getStats() {
+    try {
+      const snapshot = await db.collection('hr_documents').doc('folders')
+        .collection('list').get();
+      
+      const stats = {
+        totalFolders: 0,
+        totalDocuments: 0,
+        publicFolders: 0,
+        privateFolders: 0,
+        mostUsedFolders: []
+      };
+
+      const folders = [];
+      snapshot.forEach(doc => {
+        folders.push(HRDocumentFolder.fromFirestore(doc));
+      });
+
+      // Procesar estadísticas
+      folders.forEach(folder => {
+        stats.totalFolders++;
+        stats.totalDocuments += folder.documentCount;
+
+        if (folder.isPublic) {
+          stats.publicFolders++;
+        } else {
+          stats.privateFolders++;
+        }
+      });
+
+      // Carpetas más usadas
+      stats.mostUsedFolders = folders
+        .sort((a, b) => b.documentCount - a.documentCount)
+        .slice(0, 10)
+        .map(folder => ({
+          id: folder.id,
+          name: folder.name,
+          documentCount: folder.documentCount
+        }));
+
+      return stats;
+    } catch (error) {
+      console.error('Error getting HR document folder stats:', error);
       throw error;
     }
   }

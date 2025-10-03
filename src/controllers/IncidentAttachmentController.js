@@ -40,7 +40,7 @@ class IncidentAttachmentController {
     try {
       const upload = IncidentAttachmentController.getUploadConfig();
       
-      upload.array('attachments', 10)(req, res, async (err) => {
+      upload.array('files', 10)(req, res, async (err) => {
         if (err) {
           return res.status(400).json({
             success: false,

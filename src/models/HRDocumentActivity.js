@@ -3,18 +3,21 @@ const { db } = require('../config/firebase');
 
 /**
  * Modelo de Actividad de Documentos de RH
- * Registra todas las acciones realizadas en documentos
+ * Gestiona el historial de actividades de documentos
  * Alineado 100% con especificaciones del Frontend
  */
 class HRDocumentActivity {
   constructor(data = {}) {
     this.id = data.id || uuidv4();
     this.documentId = data.documentId || '';
+    this.documentName = data.documentName || '';
     this.userId = data.userId || '';
     this.userName = data.userName || '';
     this.action = data.action || '';
+    this.details = data.details || {};
     this.timestamp = data.timestamp || new Date().toISOString();
-    this.metadata = data.metadata || {};
+    this.ipAddress = data.ipAddress || '';
+    this.userAgent = data.userAgent || '';
   }
 
   /**
@@ -39,7 +42,12 @@ class HRDocumentActivity {
       errors.push('La acción es requerida');
     }
 
-    const validActions = ['upload', 'download', 'view', 'edit', 'delete', 'favorite', 'unfavorite', 'pin', 'unpin', 'share', 'duplicate', 'move'];
+    const validActions = [
+      'upload', 'download', 'view', 'edit', 'delete', 
+      'favorite', 'unfavorite', 'pin', 'unpin', 
+      'share', 'duplicate', 'move'
+    ];
+
     if (!validActions.includes(this.action)) {
       errors.push('La acción no es válida');
     }
@@ -54,11 +62,14 @@ class HRDocumentActivity {
     return {
       id: this.id,
       documentId: this.documentId,
+      documentName: this.documentName,
       userId: this.userId,
       userName: this.userName,
       action: this.action,
+      details: this.details,
       timestamp: this.timestamp,
-      metadata: this.metadata
+      ipAddress: this.ipAddress,
+      userAgent: this.userAgent
     };
   }
 
@@ -94,22 +105,39 @@ class HRDocumentActivity {
   /**
    * Registra una nueva actividad
    */
-  static async logActivity(documentId, userId, userName, action, metadata = {}) {
+  static async logActivity(documentId, userId, userName, action, details = {}) {
     try {
+      // Obtener nombre del documento si no se proporciona
+      let documentName = details.documentName || '';
+      if (!documentName) {
+        try {
+          const HRDocument = require('./HRDocument');
+          const document = await HRDocument.findById(documentId);
+          if (document) {
+            documentName = document.name;
+          }
+        } catch (e) {
+          console.warn('No se pudo obtener el nombre del documento:', e.message);
+        }
+      }
+
       const activity = new HRDocumentActivity({
         documentId,
+        documentName,
         userId,
         userName,
         action,
-        metadata: {
-          ...metadata,
-          ipAddress: metadata.ipAddress || 'unknown',
-          userAgent: metadata.userAgent || 'unknown',
-          timestamp: new Date().toISOString()
-        }
+        details,
+        timestamp: new Date().toISOString(),
+        ipAddress: details.ipAddress || '',
+        userAgent: details.userAgent || ''
       });
 
       await activity.save();
+
+      // Limpiar actividades antiguas (mantener solo las últimas 1000)
+      await HRDocumentActivity.cleanupOldActivities();
+
       return activity;
     } catch (error) {
       console.error('Error logging HR document activity:', error);
@@ -126,9 +154,8 @@ class HRDocumentActivity {
         documentId = null,
         userId = null,
         action = null,
-        dateFrom = null,
-        dateTo = null,
-        limit = 50
+        limit = 50,
+        offset = 0
       } = options;
 
       let query = db.collection('hr_documents').doc('activity_log').collection('list');
@@ -146,16 +173,11 @@ class HRDocumentActivity {
         query = query.where('action', '==', action);
       }
 
-      if (dateFrom) {
-        query = query.where('timestamp', '>=', dateFrom);
-      }
-
-      if (dateTo) {
-        query = query.where('timestamp', '<=', dateTo);
-      }
-
       // Ordenar por timestamp (más recientes primero)
-      query = query.orderBy('timestamp', 'desc').limit(limit);
+      query = query.orderBy('timestamp', 'desc');
+
+      // Paginación
+      query = query.offset(offset).limit(limit);
 
       const snapshot = await query.get();
       const activities = [];
@@ -174,78 +196,59 @@ class HRDocumentActivity {
   /**
    * Obtiene estadísticas de actividad
    */
-  static async getActivityStats(options = {}) {
+  static async getStats(options = {}) {
     try {
       const {
-        documentId = null,
+        days = 30,
         userId = null,
-        dateFrom = null,
-        dateTo = null
+        documentId = null
       } = options;
 
-      let query = db.collection('hr_documents').doc('activity_log').collection('list');
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
 
-      if (documentId) {
-        query = query.where('documentId', '==', documentId);
-      }
+      let query = db.collection('hr_documents').doc('activity_log')
+        .collection('list')
+        .where('timestamp', '>=', startDate.toISOString());
 
       if (userId) {
         query = query.where('userId', '==', userId);
       }
 
-      if (dateFrom) {
-        query = query.where('timestamp', '>=', dateFrom);
-      }
-
-      if (dateTo) {
-        query = query.where('timestamp', '<=', dateTo);
+      if (documentId) {
+        query = query.where('documentId', '==', documentId);
       }
 
       const snapshot = await query.get();
-      const stats = {
-        totalActivities: 0,
-        byAction: {},
-        byUser: {},
-        byDocument: {},
-        recentActivities: []
-      };
-
       const activities = [];
+
       snapshot.forEach(doc => {
         activities.push(HRDocumentActivity.fromFirestore(doc));
       });
 
+      const stats = {
+        totalActivities: activities.length,
+        byAction: {},
+        byUser: {},
+        byDocument: {},
+        recentActivities: [],
+        dailyActivity: {}
+      };
+
       // Procesar estadísticas
       activities.forEach(activity => {
-        stats.totalActivities++;
-
         // Por acción
         stats.byAction[activity.action] = (stats.byAction[activity.action] || 0) + 1;
 
         // Por usuario
-        if (!stats.byUser[activity.userId]) {
-          stats.byUser[activity.userId] = {
-            userId: activity.userId,
-            userName: activity.userName,
-            count: 0,
-            actions: {}
-          };
-        }
-        stats.byUser[activity.userId].count++;
-        stats.byUser[activity.userId].actions[activity.action] = 
-          (stats.byUser[activity.userId].actions[activity.action] || 0) + 1;
+        stats.byUser[activity.userName] = (stats.byUser[activity.userName] || 0) + 1;
 
         // Por documento
-        if (!stats.byDocument[activity.documentId]) {
-          stats.byDocument[activity.documentId] = {
-            documentId: activity.documentId,
-            count: 0,
-            actions: {}
-          };
-        }
-        stats.byDocument[activity.documentId].count++;
-        stats.byDocument[activity.documentId].actions[activity.action] = 
-          (stats.byDocument[activity.documentId].actions[activity.action] || 0) + 1;
+        stats.byDocument[activity.documentName] = (stats.byDocument[activity.documentName] || 0) + 1;
+
+        // Actividad diaria
+        const date = activity.timestamp.split('T')[0];
+        stats.dailyActivity[date] = (stats.dailyActivity[date] || 0) + 1;
       });
 
       // Actividades recientes
@@ -254,12 +257,10 @@ class HRDocumentActivity {
         .slice(0, 20)
         .map(activity => ({
           id: activity.id,
-          documentId: activity.documentId,
-          userId: activity.userId,
+          documentName: activity.documentName,
           userName: activity.userName,
           action: activity.action,
-          timestamp: activity.timestamp,
-          metadata: activity.metadata
+          timestamp: activity.timestamp
         }));
 
       return stats;
@@ -270,77 +271,110 @@ class HRDocumentActivity {
   }
 
   /**
-   * Obtiene el historial de un documento específico
-   */
-  static async getDocumentHistory(documentId, limit = 50) {
-    try {
-      return await HRDocumentActivity.list({
-        documentId,
-        limit
-      });
-    } catch (error) {
-      console.error('Error getting document history:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene el historial de un usuario específico
-   */
-  static async getUserHistory(userId, limit = 50) {
-    try {
-      return await HRDocumentActivity.list({
-        userId,
-        limit
-      });
-    } catch (error) {
-      console.error('Error getting user history:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtiene las actividades más recientes
-   */
-  static async getRecentActivities(limit = 20) {
-    try {
-      return await HRDocumentActivity.list({
-        limit
-      });
-    } catch (error) {
-      console.error('Error getting recent activities:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Limpia actividades antiguas (más de 1 año)
+   * Limpia actividades antiguas
    */
   static async cleanupOldActivities() {
     try {
-      const oneYearAgo = new Date();
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const maxActivities = 1000;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 365); // 1 año
 
-      const query = db.collection('hr_documents').doc('activity_log')
+      // Obtener todas las actividades ordenadas por timestamp
+      let query = db.collection('hr_documents').doc('activity_log')
         .collection('list')
-        .where('timestamp', '<', oneYearAgo.toISOString())
-        .limit(500); // Procesar en lotes
+        .orderBy('timestamp', 'desc');
 
       const snapshot = await query.get();
-      const batch = db.batch();
+      
+      if (snapshot.size <= maxActivities) {
+        return; // No hay que limpiar
+      }
 
-      snapshot.docs.forEach(doc => {
+      const activitiesToDelete = [];
+      let count = 0;
+
+      snapshot.forEach(doc => {
+        count++;
+        if (count > maxActivities) {
+          activitiesToDelete.push(doc.ref);
+        }
+      });
+
+      // Eliminar actividades excedentes
+      const batch = db.batch();
+      activitiesToDelete.forEach(ref => {
+        batch.delete(ref);
+      });
+
+      await batch.commit();
+
+      console.log(`Cleaned up ${activitiesToDelete.length} old HR document activities`);
+    } catch (error) {
+      console.error('Error cleaning up old HR document activities:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca una actividad por ID
+   */
+  static async findById(id) {
+    try {
+      const doc = await db.collection('hr_documents').doc('activity_log')
+        .collection('list').doc(id).get();
+      
+      if (!doc.exists) {
+        return null;
+      }
+      
+      return HRDocumentActivity.fromFirestore(doc);
+    } catch (error) {
+      console.error('Error finding HR document activity by ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina una actividad
+   */
+  static async delete(id) {
+    try {
+      const docRef = db.collection('hr_documents').doc('activity_log')
+        .collection('list').doc(id);
+      
+      await docRef.delete();
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting HR document activity:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina todas las actividades de un documento
+   */
+  static async deleteByDocument(documentId) {
+    try {
+      const query = db.collection('hr_documents').doc('activity_log')
+        .collection('list').where('documentId', '==', documentId);
+
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) {
+        return 0;
+      }
+
+      const batch = db.batch();
+      snapshot.forEach(doc => {
         batch.delete(doc.ref);
       });
 
       await batch.commit();
 
-      return {
-        deleted: snapshot.docs.length,
-        cutoffDate: oneYearAgo.toISOString()
-      };
+      return snapshot.size;
     } catch (error) {
-      console.error('Error cleaning up old activities:', error);
+      console.error('Error deleting HR document activities by document:', error);
       throw error;
     }
   }

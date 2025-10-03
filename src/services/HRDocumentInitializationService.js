@@ -111,13 +111,13 @@ class HRDocumentInitializationService {
       const HRDocumentActivity = require('../models/HRDocumentActivity');
       
       // Limpiar actividades antiguas
-      const cleanupResult = await HRDocumentActivity.cleanupOldActivities();
+      await HRDocumentActivity.cleanupOldActivities();
       
-      console.log(`✅ ${cleanupResult.deleted} actividades antiguas eliminadas`);
+      console.log(`✅ Actividades antiguas limpiadas`);
       
       return {
-        deletedActivities: cleanupResult.deleted,
-        cutoffDate: cleanupResult.cutoffDate,
+        deletedActivities: 'unknown',
+        cutoffDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
         success: true
       };
     } catch (error) {
@@ -144,7 +144,7 @@ class HRDocumentInitializationService {
       const folders = await HRDocumentFolder.list();
       
       // Obtener estadísticas de actividad
-      const activityStats = await HRDocumentActivity.getActivityStats();
+      const activityStats = await HRDocumentActivity.getStats();
       
       // Obtener documentos más populares
       const documents = await HRDocument.list({ limit: 1000 });

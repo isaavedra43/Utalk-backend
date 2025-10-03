@@ -49,7 +49,7 @@ class VacationAttachmentController {
     try {
       const upload = VacationAttachmentController.getUploadConfig();
       
-      upload.array('attachments', 5)(req, res, async (err) => {
+      upload.array('files', 5)(req, res, async (err) => {
         if (err) {
           return res.status(400).json({
             success: false,
