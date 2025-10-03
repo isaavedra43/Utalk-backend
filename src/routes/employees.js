@@ -608,22 +608,9 @@ router.get('/:id/vacations/calendar', VacationController.getCalendar);
 
 /**
  * RUTAS DE ARCHIVOS ADJUNTOS PARA VACACIONES
+ * NOTA: Las rutas de adjuntos están en /api/vacations/attachments (archivo separado)
+ * No es necesario duplicarlas aquí
  */
-
-// 15. Subir archivos adjuntos
-router.post('/vacations/attachments', 
-  require('../controllers/VacationAttachmentController').uploadAttachments
-);
-
-// Obtener información de archivo adjunto
-router.get('/vacations/attachments/:attachmentId', 
-  require('../controllers/VacationAttachmentController').getAttachment
-);
-
-// Eliminar archivo adjunto
-router.delete('/vacations/attachments/:attachmentId', 
-  require('../controllers/VacationAttachmentController').deleteAttachment
-);
 
 /**
  * RUTAS DE INCIDENTES - Alineadas 100% con Frontend
@@ -678,32 +665,9 @@ router.get('/:id/incidents/:incidentId/report/:type', IncidentController.generat
 
 /**
  * RUTAS DE ARCHIVOS ADJUNTOS PARA INCIDENTES
+ * NOTA: Las rutas de adjuntos están en /api/incidents/attachments (archivo separado)
+ * No es necesario duplicarlas aquí
  */
-
-// 11. Subir archivos adjuntos
-router.post('/incidents/attachments', 
-  require('../controllers/IncidentAttachmentController').uploadAttachments
-);
-
-// Obtener información de archivo adjunto
-router.get('/incidents/attachments/:attachmentId', 
-  require('../controllers/IncidentAttachmentController').getAttachment
-);
-
-// Eliminar archivo adjunto
-router.delete('/incidents/attachments/:attachmentId', 
-  require('../controllers/IncidentAttachmentController').deleteAttachment
-);
-
-// Descargar archivo adjunto
-router.get('/incidents/attachments/:attachmentId/download', 
-  require('../controllers/IncidentAttachmentController').downloadAttachment
-);
-
-// Vista previa de archivo adjunto
-router.get('/incidents/attachments/:attachmentId/preview', 
-  require('../controllers/IncidentAttachmentController').previewAttachment
-);
 
 /**
  * RUTAS DE DOCUMENTOS

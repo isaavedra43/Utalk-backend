@@ -119,6 +119,9 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/employees', employeeRoutes);
     app.use('/api/inventory', inventoryRoutes);
     app.use('/api/hr', hrDocumentRoutes);
+    // Rutas directas para adjuntos de vacaciones e incidentes
+    app.use('/api/vacations/attachments', require('../routes/vacationAttachments'));
+    app.use('/api/incidents/attachments', require('../routes/incidentAttachments'));
     app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll/general', require('../routes/generalPayroll'));
