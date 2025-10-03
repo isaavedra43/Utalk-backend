@@ -633,7 +633,13 @@ router.delete('/vacations/attachments/:attachmentId',
 // 1. Obtener todos los incidentes del empleado
 router.get('/:id/incidents', IncidentController.getByEmployee);
 
-// 2. Obtener incidente específico
+// 10. Obtener resumen estadístico (ANTES de :incidentId)
+router.get('/:id/incidents/summary', IncidentController.getSummary);
+
+// 12. Exportar incidentes (ANTES de :incidentId)
+router.get('/:id/incidents/export', IncidentController.export);
+
+// 2. Obtener incidente específico (DESPUÉS de rutas específicas)
 router.get('/:id/incidents/:incidentId', IncidentController.getById);
 
 // 3. Crear nuevo incidente
@@ -666,11 +672,6 @@ router.put('/:id/incidents/:incidentId/close',
 // 9. Marcar costo como pagado
 router.put('/:id/incidents/:incidentId/mark-paid', IncidentController.markPaid);
 
-// 10. Obtener resumen estadístico
-router.get('/:id/incidents/summary', IncidentController.getSummary);
-
-// 12. Exportar incidentes
-router.get('/:id/incidents/export', IncidentController.export);
 
 // 13. Generar reporte específico
 router.get('/:id/incidents/:incidentId/report/:type', IncidentController.generateReport);

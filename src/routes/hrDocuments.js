@@ -68,7 +68,22 @@ router.use(intelligentRateLimit);
 // 1. GET /api/hr/documents - Obtener todos los documentos con filtros
 router.get('/', HRDocumentController.getDocuments);
 
-// 2. GET /api/hr/documents/:documentId - Obtener documento específico
+// 13. GET /api/hr/documents/summary - Obtener resumen estadístico (ANTES de :documentId)
+router.get('/summary', HRDocumentController.getSummary);
+
+// 14. GET /api/hr/documents/search - Búsqueda avanzada (ANTES de :documentId)
+router.get('/search', HRDocumentController.searchDocuments);
+
+// 15. GET /api/hr/documents/folders - Obtener todas las carpetas (ANTES de :documentId)
+router.get('/folders', HRDocumentController.getFolders);
+
+// 18. GET /api/hr/documents/activity - Obtener historial de actividad (ANTES de :documentId)
+router.get('/activity', HRDocumentController.getActivity);
+
+// 19. GET /api/hr/documents/export - Exportar documentos (ANTES de :documentId)
+router.get('/export', HRDocumentController.exportDocuments);
+
+// 2. GET /api/hr/documents/:documentId - Obtener documento específico (DESPUÉS de rutas específicas)
 router.get('/:documentId', HRDocumentController.getDocumentById);
 
 // 3. POST /api/hr/documents - Subir nuevo documento
@@ -114,15 +129,6 @@ router.put('/:documentId/move',
   HRDocumentController.moveDocument
 );
 
-// 13. GET /api/hr/documents/summary - Obtener resumen estadístico
-router.get('/summary', HRDocumentController.getSummary);
-
-// 14. GET /api/hr/documents/search - Búsqueda avanzada
-router.get('/search', HRDocumentController.searchDocuments);
-
-// 15. GET /api/hr/documents/folders - Obtener todas las carpetas
-router.get('/folders', HRDocumentController.getFolders);
-
 // 16. POST /api/hr/documents/folders - Crear nueva carpeta
 router.post('/folders', 
   validateRequest(['name']),
@@ -131,11 +137,5 @@ router.post('/folders',
 
 // 17. DELETE /api/hr/documents/folders/:folderName - Eliminar carpeta
 router.delete('/folders/:folderName', HRDocumentController.deleteFolder);
-
-// 18. GET /api/hr/documents/activity - Obtener historial de actividad
-router.get('/activity', HRDocumentController.getActivity);
-
-// 19. GET /api/hr/documents/export - Exportar documentos a Excel/PDF
-router.get('/export', HRDocumentController.exportDocuments);
 
 module.exports = router;
