@@ -26,42 +26,29 @@ class HRDocumentController {
    * Obtener todos los documentos con filtros
    */
   static async getDocuments(req, res) {
-    try {
-      console.log('HRDocumentController.getDocuments called');
-      
-      // Por ahora, devolver respuesta vacía hasta que se inicialice la colección
-      res.json({
-        success: true,
-        data: {
-          documents: [],
-          pagination: {
-            page: 1,
-            limit: 20,
-            total: 0,
-            totalPages: 0
-          },
-          summary: {
-            totalDocuments: 0,
-            totalSize: 0,
-            byCategory: {},
-            byType: {},
-            recentUploads: [],
-            mostDownloaded: [],
-            mostViewed: [],
-            pinnedDocuments: [],
-            updatedAt: new Date().toISOString()
-          }
+    res.json({
+      success: true,
+      data: {
+        documents: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0
+        },
+        summary: {
+          totalDocuments: 0,
+          totalSize: 0,
+          byCategory: {},
+          byType: {},
+          recentUploads: [],
+          mostDownloaded: [],
+          mostViewed: [],
+          pinnedDocuments: [],
+          updatedAt: new Date().toISOString()
         }
-      });
-    } catch (error) {
-      console.error('Error getting HR documents:', error);
-      
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener documentos',
-        details: error.message
-      });
-    }
+      }
+    });
   }
 
   /**
@@ -886,32 +873,20 @@ class HRDocumentController {
    * Obtener resumen estadístico
    */
   static async getSummary(req, res) {
-    try {
-      console.log('HRDocumentController.getSummary called');
-      
-      res.json({
-        success: true,
-        data: {
-          totalDocuments: 0,
-          totalSize: 0,
-          byCategory: {},
-          byType: {},
-          recentUploads: [],
-          mostDownloaded: [],
-          mostViewed: [],
-          pinnedDocuments: [],
-          updatedAt: new Date().toISOString()
-        }
-      });
-    } catch (error) {
-      console.error('Error getting HR document summary:', error);
-      
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener resumen',
-        details: error.message
-      });
-    }
+    res.json({
+      success: true,
+      data: {
+        totalDocuments: 0,
+        totalSize: 0,
+        byCategory: {},
+        byType: {},
+        recentUploads: [],
+        mostDownloaded: [],
+        mostViewed: [],
+        pinnedDocuments: [],
+        updatedAt: new Date().toISOString()
+      }
+    });
   }
 
   /**
@@ -969,22 +944,10 @@ class HRDocumentController {
    * Obtener todas las carpetas
    */
   static async getFolders(req, res) {
-    try {
-      console.log('HRDocumentController.getFolders called');
-      
-      res.json({
-        success: true,
-        data: []
-      });
-    } catch (error) {
-      console.error('Error getting HR document folders:', error);
-      
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener carpetas',
-        details: error.message
-      });
-    }
+    res.json({
+      success: true,
+      data: []
+    });
   }
 
   /**

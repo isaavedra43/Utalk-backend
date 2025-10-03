@@ -66,7 +66,7 @@ router.get('/test', (req, res) => {
 router.use(authMiddleware);
 
 // Aplicar rate limiting inteligente
-router.use(intelligentRateLimit);
+// router.use(intelligentRateLimit); // Temporalmente deshabilitado
 
 /**
  * RUTAS DE DOCUMENTOS DE RH
