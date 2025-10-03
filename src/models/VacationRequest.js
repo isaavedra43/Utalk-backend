@@ -4,6 +4,7 @@ const { db } = require('../config/firebase');
 /**
  * Modelo de Solicitud de Vacaciones
  * Gestiona las solicitudes de tiempo libre de los empleados
+ * Alineado 100% con especificaciones del Frontend
  */
 class VacationRequest {
   constructor(data = {}) {
@@ -11,14 +12,17 @@ class VacationRequest {
     this.employeeId = data.employeeId || '';
     this.startDate = data.startDate || '';
     this.endDate = data.endDate || '';
-    this.totalDays = data.totalDays || 0;
-    this.type = data.type || 'vacation'; // 'vacation' | 'sick_leave' | 'personal' | 'maternity' | 'paternity' | 'other'
-    this.reason = data.reason || null;
+    this.days = data.days || data.totalDays || 0; // Frontend usa "days"
+    this.type = data.type || 'vacation'; // 'vacation' | 'personal' | 'sick_leave' | 'maternity' | 'paternity' | 'compensatory' | 'unpaid'
+    this.reason = data.reason || '';
     this.status = data.status || 'pending'; // 'pending' | 'approved' | 'rejected' | 'cancelled'
-    this.requestedAt = data.requestedAt || new Date().toISOString();
+    this.requestedDate = data.requestedDate || new Date().toISOString();
     this.approvedBy = data.approvedBy || null;
-    this.approvedAt = data.approvedAt || null;
-    this.rejectionReason = data.rejectionReason || null;
+    this.approvedByName = data.approvedByName || null;
+    this.approvedDate = data.approvedDate || null;
+    this.rejectedReason = data.rejectedReason || null;
+    this.attachments = data.attachments || [];
+    this.comments = data.comments || '';
     
     // Metadatos
     this.createdAt = data.createdAt || new Date().toISOString();
@@ -30,7 +34,7 @@ class VacationRequest {
    */
   calculateTotalDays() {
     if (!this.startDate || !this.endDate) {
-      this.totalDays = 0;
+      this.days = 0;
       return;
     }
 
@@ -48,7 +52,7 @@ class VacationRequest {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    this.totalDays = totalDays;
+    this.days = totalDays;
   }
 
   /**
@@ -86,7 +90,7 @@ class VacationRequest {
       }
     }
 
-    const validTypes = ['vacation', 'sick_leave', 'personal', 'maternity', 'paternity', 'other'];
+    const validTypes = ['vacation', 'personal', 'sick_leave', 'maternity', 'paternity', 'compensatory', 'unpaid'];
     if (!validTypes.includes(this.type)) {
       errors.push('El tipo de solicitud no es válido');
     }
@@ -96,7 +100,7 @@ class VacationRequest {
       errors.push('El estado de la solicitud no es válido');
     }
 
-    if (this.totalDays <= 0) {
+    if (this.days <= 0) {
       errors.push('La solicitud debe incluir al menos un día laboral');
     }
 
@@ -112,14 +116,17 @@ class VacationRequest {
       employeeId: this.employeeId,
       startDate: this.startDate,
       endDate: this.endDate,
-      totalDays: this.totalDays,
+      days: this.days,
       type: this.type,
       reason: this.reason,
       status: this.status,
-      requestedAt: this.requestedAt,
+      requestedDate: this.requestedDate,
       approvedBy: this.approvedBy,
-      approvedAt: this.approvedAt,
-      rejectionReason: this.rejectionReason,
+      approvedByName: this.approvedByName,
+      approvedDate: this.approvedDate,
+      rejectedReason: this.rejectedReason,
+      attachments: this.attachments,
+      comments: this.comments,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };
@@ -134,6 +141,7 @@ class VacationRequest {
 
   /**
    * Guarda la solicitud en Firebase
+   * Estructura: employees/{employeeId}/vacations/requests/{requestId}
    */
   async save() {
     try {
@@ -147,7 +155,8 @@ class VacationRequest {
       this.updatedAt = new Date().toISOString();
 
       const docRef = db.collection('employees').doc(this.employeeId)
-        .collection('vacations').doc(this.id);
+        .collection('vacations').doc('requests')
+        .collection('list').doc(this.id);
       
       await docRef.set(this.toFirestore());
 
@@ -178,7 +187,7 @@ class VacationRequest {
       }
 
       const docRef = db.collection('employees').doc(this.employeeId)
-        .collection('vacations').doc(this.id);
+        .collection('vacations').doc('requests').collection('list').doc(this.id);
       
       await docRef.update(this.toFirestore());
 
@@ -252,7 +261,7 @@ class VacationRequest {
   static async findById(employeeId, id) {
     try {
       const doc = await db.collection('employees').doc(employeeId)
-        .collection('vacations').doc(id).get();
+        .collection('vacations').doc('requests').collection('list').doc(id).get();
       
       if (!doc.exists) {
         return null;
@@ -278,7 +287,7 @@ class VacationRequest {
       } = options;
 
       let query = db.collection('employees').doc(employeeId)
-        .collection('vacations');
+        .collection('vacations').doc('requests').collection('list');
 
       // Filtro por año
       const startOfYear = `${year}-01-01`;
@@ -317,7 +326,7 @@ class VacationRequest {
   static async checkDateConflicts(employeeId, startDate, endDate, excludeId = null) {
     try {
       let query = db.collection('employees').doc(employeeId)
-        .collection('vacations')
+        .collection('vacations').doc('requests').collection('list')
         .where('status', '==', 'approved');
 
       const snapshot = await query.get();
@@ -377,9 +386,9 @@ class VacationRequest {
       // Buscar solicitudes pendientes para cada empleado
       for (const employeeId of employeeIds) {
         const snapshot = await db.collection('employees').doc(employeeId)
-          .collection('vacations')
+          .collection('vacations').doc('requests').collection('list')
           .where('status', '==', 'pending')
-          .orderBy('requestedAt', 'asc')
+          .orderBy('requestedDate', 'asc')
           .get();
 
         snapshot.forEach(doc => {
@@ -390,7 +399,7 @@ class VacationRequest {
         });
       }
 
-      return pendingRequests.sort((a, b) => new Date(a.requestedAt) - new Date(b.requestedAt));
+      return pendingRequests.sort((a, b) => new Date(a.requestedDate) - new Date(b.requestedDate));
     } catch (error) {
       console.error('Error getting pending requests:', error);
       throw error;
@@ -406,7 +415,7 @@ class VacationRequest {
       const endOfYear = `${year}-12-31`;
 
       const snapshot = await db.collection('employees').doc(employeeId)
-        .collection('vacations')
+        .collection('vacations').doc('requests').collection('list')
         .where('startDate', '>=', startOfYear)
         .where('startDate', '<=', endOfYear)
         .where('status', '==', 'approved')
@@ -418,14 +427,15 @@ class VacationRequest {
         personal: 0,
         maternity: 0,
         paternity: 0,
-        other: 0,
+        compensatory: 0,
+        unpaid: 0,
         total: 0
       };
 
       snapshot.forEach(doc => {
         const request = doc.data();
-        stats[request.type] += request.totalDays;
-        stats.total += request.totalDays;
+        stats[request.type] += request.days || 0;
+        stats.total += request.days || 0;
       });
 
       return stats;
@@ -446,7 +456,7 @@ class VacationRequest {
       const futureDateStr = futureDate.toISOString().split('T')[0];
 
       const snapshot = await db.collection('employees').doc(employeeId)
-        .collection('vacations')
+        .collection('vacations').doc('requests').collection('list')
         .where('startDate', '>=', today)
         .where('startDate', '<=', futureDateStr)
         .where('status', '==', 'approved')

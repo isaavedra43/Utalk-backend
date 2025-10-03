@@ -8,6 +8,7 @@ const EmployeeController = require('../controllers/EmployeeController');
 const PayrollController = require('../controllers/PayrollController');
 const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
+const IncidentController = require('../controllers/IncidentController');
 const ExtrasController = require('../controllers/ExtrasController');
 const AttachmentsController = require('../controllers/AttachmentsController');
 const ReportsController = require('../controllers/ReportsController');
@@ -540,38 +541,168 @@ router.get('/reports/payroll-consolidated', ReportsController.generatePayrollCon
  * RUTAS DE VACACIONES
  */
 
-// Obtener solicitudes pendientes
-router.get('/vacations/pending', VacationController.getPendingRequests);
+/**
+ * RUTAS DE VACACIONES - Alineadas 100% con Frontend
+ * Endpoints exactos según especificaciones del modal
+ */
 
-// Obtener calendario de vacaciones
-router.get('/vacations/calendar', VacationController.getCalendar);
-
-// Obtener estadísticas de vacaciones
-router.get('/vacations/stats', VacationController.getStats);
-
-// Obtener próximas vacaciones
-router.get('/vacations/upcoming', VacationController.getUpcoming);
-
-// Exportar reporte de vacaciones
-router.get('/vacations/export', VacationController.exportReport);
-
-// Aprobar múltiples solicitudes
-router.post('/vacations/bulk-approve', VacationController.bulkApprove);
-
-// Obtener vacaciones de un empleado
+// 1. Obtener todos los datos de vacaciones del empleado
 router.get('/:id/vacations', VacationController.getByEmployee);
 
-// Crear solicitud de vacaciones
-router.post('/:id/vacations', 
-  validateRequest(['startDate', 'endDate', 'type']),
-  VacationController.create
-);
-
-// Obtener balance de vacaciones
+// 2. Obtener solo el balance
 router.get('/:id/vacations/balance', VacationController.getBalance);
 
-// Actualizar solicitud de vacaciones
-router.put('/:id/vacations/:requestId', VacationController.update);
+// 3. Obtener todas las solicitudes
+router.get('/:id/vacations/requests', VacationController.getRequests);
+
+// 4. Crear nueva solicitud
+router.post('/:id/vacations/requests', 
+  validateRequest(['startDate', 'endDate', 'type', 'reason']),
+  VacationController.createRequest
+);
+
+// 5. Actualizar solicitud (solo pending)
+router.put('/:id/vacations/requests/:requestId', VacationController.updateRequest);
+
+// 6. Eliminar solicitud (solo pending)
+router.delete('/:id/vacations/requests/:requestId', VacationController.deleteRequest);
+
+// 7. Aprobar solicitud
+router.put('/:id/vacations/requests/:requestId/approve', VacationController.approveRequest);
+
+// 8. Rechazar solicitud
+router.put('/:id/vacations/requests/:requestId/reject', 
+  validateRequest(['reason']),
+  VacationController.rejectRequest
+);
+
+// 9. Cancelar solicitud
+router.put('/:id/vacations/requests/:requestId/cancel', VacationController.cancelRequest);
+
+// 10. Obtener política
+router.get('/:id/vacations/policy', VacationController.getPolicy);
+
+// 11. Obtener historial
+router.get('/:id/vacations/history', VacationController.getHistory);
+
+// 12. Obtener resumen estadístico
+router.get('/:id/vacations/summary', VacationController.getSummary);
+
+// 13. Calcular días entre fechas
+router.post('/:id/vacations/calculate-days', 
+  validateRequest(['startDate', 'endDate']),
+  VacationController.calculateDays
+);
+
+// 14. Verificar disponibilidad de fechas
+router.post('/:id/vacations/check-availability',
+  validateRequest(['startDate', 'endDate']),
+  VacationController.checkAvailability
+);
+
+// 16. Exportar reporte
+router.get('/:id/vacations/export', VacationController.exportReport);
+
+// 17. Obtener calendario
+router.get('/:id/vacations/calendar', VacationController.getCalendar);
+
+/**
+ * RUTAS DE ARCHIVOS ADJUNTOS PARA VACACIONES
+ */
+
+// 15. Subir archivos adjuntos
+router.post('/vacations/attachments', 
+  require('../controllers/VacationAttachmentController').uploadAttachments
+);
+
+// Obtener información de archivo adjunto
+router.get('/vacations/attachments/:attachmentId', 
+  require('../controllers/VacationAttachmentController').getAttachment
+);
+
+// Eliminar archivo adjunto
+router.delete('/vacations/attachments/:attachmentId', 
+  require('../controllers/VacationAttachmentController').deleteAttachment
+);
+
+/**
+ * RUTAS DE INCIDENTES - Alineadas 100% con Frontend
+ * Endpoints exactos según especificaciones del modal
+ */
+
+// 1. Obtener todos los incidentes del empleado
+router.get('/:id/incidents', IncidentController.getByEmployee);
+
+// 2. Obtener incidente específico
+router.get('/:id/incidents/:incidentId', IncidentController.getById);
+
+// 3. Crear nuevo incidente
+router.post('/:id/incidents', 
+  validateRequest(['title', 'description', 'type', 'severity', 'date', 'involvedPersons']),
+  IncidentController.create
+);
+
+// 4. Actualizar incidente
+router.put('/:id/incidents/:incidentId', IncidentController.update);
+
+// 5. Eliminar incidente
+router.delete('/:id/incidents/:incidentId', IncidentController.delete);
+
+// 6. Aprobar incidente
+router.put('/:id/incidents/:incidentId/approve', IncidentController.approve);
+
+// 7. Rechazar incidente
+router.put('/:id/incidents/:incidentId/reject', 
+  validateRequest(['comments']),
+  IncidentController.reject
+);
+
+// 8. Cerrar incidente
+router.put('/:id/incidents/:incidentId/close', 
+  validateRequest(['resolution']),
+  IncidentController.close
+);
+
+// 9. Marcar costo como pagado
+router.put('/:id/incidents/:incidentId/mark-paid', IncidentController.markPaid);
+
+// 10. Obtener resumen estadístico
+router.get('/:id/incidents/summary', IncidentController.getSummary);
+
+// 12. Exportar incidentes
+router.get('/:id/incidents/export', IncidentController.export);
+
+// 13. Generar reporte específico
+router.get('/:id/incidents/:incidentId/report/:type', IncidentController.generateReport);
+
+/**
+ * RUTAS DE ARCHIVOS ADJUNTOS PARA INCIDENTES
+ */
+
+// 11. Subir archivos adjuntos
+router.post('/incidents/attachments', 
+  require('../controllers/IncidentAttachmentController').uploadAttachments
+);
+
+// Obtener información de archivo adjunto
+router.get('/incidents/attachments/:attachmentId', 
+  require('../controllers/IncidentAttachmentController').getAttachment
+);
+
+// Eliminar archivo adjunto
+router.delete('/incidents/attachments/:attachmentId', 
+  require('../controllers/IncidentAttachmentController').deleteAttachment
+);
+
+// Descargar archivo adjunto
+router.get('/incidents/attachments/:attachmentId/download', 
+  require('../controllers/IncidentAttachmentController').downloadAttachment
+);
+
+// Vista previa de archivo adjunto
+router.get('/incidents/attachments/:attachmentId/preview', 
+  require('../controllers/IncidentAttachmentController').previewAttachment
+);
 
 /**
  * RUTAS DE DOCUMENTOS

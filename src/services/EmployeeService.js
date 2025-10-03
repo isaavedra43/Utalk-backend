@@ -22,15 +22,23 @@ class EmployeeService {
       
       await employee.save();
 
-      // 2. Crear balance inicial de vacaciones
+      // 2. Inicializar datos de vacaciones (nuevo sistema)
       if (employee.position?.startDate) {
-        await VacationBalance.getOrCreateCurrent(
-          employee.id, 
-          employee.position.startDate
-        );
+        const VacationInitializationService = require('./VacationInitializationService');
+        await VacationInitializationService.initializeForNewEmployee(employee.id, {
+          personalInfo: employee.personalInfo,
+          position: employee.position
+        });
       }
 
-      // 3. Registrar en historial
+      // 3. Inicializar datos de incidentes (nuevo sistema)
+      const IncidentInitializationService = require('./IncidentInitializationService');
+      await IncidentInitializationService.initializeForNewEmployee(employee.id, {
+        personalInfo: employee.personalInfo,
+        position: employee.position
+      });
+
+      // 4. Registrar en historial
       await EmployeeHistory.createHistoryRecord(
         employee.id,
         'personal_info_update',

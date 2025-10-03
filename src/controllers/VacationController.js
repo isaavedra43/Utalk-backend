@@ -1,24 +1,23 @@
 const VacationRequest = require('../models/VacationRequest');
-const VacationBalance = require('../models/VacationBalance');
+const VacationData = require('../models/VacationData');
 const Employee = require('../models/Employee');
 const EmployeeHistory = require('../models/EmployeeHistory');
+const { db } = require('../config/firebase');
 
 /**
  * Controlador de Vacaciones
- * Gestiona solicitudes de vacaciones, balances y aprobaciones
+ * Alineado 100% con especificaciones del Frontend
+ * Endpoints según requerimientos exactos del modal
  */
 class VacationController {
+  
   /**
-   * Obtiene vacaciones de un empleado
-   * GET /api/employees/:id/vacations
+   * 1. GET /api/employees/:employeeId/vacations
+   * Obtener todos los datos de vacaciones del empleado
    */
   static async getByEmployee(req, res) {
     try {
       const { id: employeeId } = req.params;
-      const {
-        year = new Date().getFullYear(),
-        status = null
-      } = req.query;
 
       // Verificar que el empleado existe
       const employee = await Employee.findById(employeeId);
@@ -29,33 +28,21 @@ class VacationController {
         });
       }
 
-      // Obtener balance actual
-      const balance = await VacationBalance.getOrCreateCurrent(
-        employeeId,
-        employee.position.startDate
-      );
-
-      // Obtener solicitudes
-      const requests = await VacationRequest.listByEmployee(employeeId, {
-        year: parseInt(year),
-        status
+      // Obtener datos de vacaciones
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
       });
 
-      // Calcular resumen
-      const summary = {
-        totalDays: balance.totalDays,
-        usedDays: balance.usedDays,
-        availableDays: balance.availableDays,
-        pendingDays: balance.pendingDays
-      };
+      // Actualizar estadísticas
+      await vacationData.updateStatistics();
 
       res.json({
         success: true,
-        data: {
-          balance,
-          requests,
-          summary
-        }
+        data: vacationData.toFirestore()
       });
     } catch (error) {
       console.error('Error getting vacations by employee:', error);
@@ -68,16 +55,13 @@ class VacationController {
   }
 
   /**
-   * Crea una nueva solicitud de vacaciones
-   * POST /api/employees/:id/vacations
+   * 2. GET /api/employees/:employeeId/vacations/balance
+   * Obtener solo el balance de vacaciones
    */
-  static async create(req, res) {
+  static async getBalance(req, res) {
     try {
       const { id: employeeId } = req.params;
-      const vacationData = req.body;
-      const createdBy = req.user?.id || null;
 
-      // Verificar que el empleado existe
       const employee = await Employee.findById(employeeId);
       if (!employee) {
         return res.status(404).json({
@@ -86,67 +70,201 @@ class VacationController {
         });
       }
 
-      // Verificar conflictos de fechas
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
+      });
+
+      await vacationData.updateStatistics();
+
+      res.json({
+        success: true,
+        data: vacationData.balance
+      });
+    } catch (error) {
+      console.error('Error getting vacation balance:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener balance de vacaciones',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 3. GET /api/employees/:employeeId/vacations/requests
+   * Obtener todas las solicitudes
+   */
+  static async getRequests(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { status, type, year } = req.query;
+
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      let query = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list');
+
+      // Filtros
+      if (status) {
+        query = query.where('status', '==', status);
+      }
+      if (type) {
+        query = query.where('type', '==', type);
+      }
+      if (year) {
+        const startOfYear = `${year}-01-01`;
+        const endOfYear = `${year}-12-31`;
+        query = query.where('startDate', '>=', startOfYear)
+                     .where('startDate', '<=', endOfYear);
+      }
+
+      query = query.orderBy('requestedDate', 'desc');
+
+      const snapshot = await query.get();
+      const requests = [];
+
+      snapshot.forEach(doc => {
+        requests.push({ id: doc.id, ...doc.data() });
+      });
+
+      res.json({
+        success: true,
+        data: requests,
+        count: requests.length
+      });
+    } catch (error) {
+      console.error('Error getting vacation requests:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener solicitudes de vacaciones',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 4. POST /api/employees/:employeeId/vacations/requests
+   * Crear nueva solicitud
+   */
+  static async createRequest(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { startDate, endDate, type, reason, comments, attachments } = req.body;
+      const userId = req.user?.id || null;
+
+      // Verificar empleado
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      // Obtener datos de vacaciones
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
+      });
+
+      // Crear solicitud
+      const request = new VacationRequest({
+        employeeId,
+        startDate,
+        endDate,
+        type,
+        reason,
+        comments: comments || '',
+        attachments: attachments || []
+      });
+
+      // Calcular días
+      request.calculateTotalDays();
+
+      // Validar días disponibles
+      await vacationData.updateStatistics();
+      if (vacationData.balance.available < request.days) {
+        return res.status(400).json({
+          success: false,
+          error: 'No hay suficientes días de vacaciones disponibles',
+          available: vacationData.balance.available,
+          requested: request.days
+        });
+      }
+
+      // Verificar períodos restringidos
+      const inBlackoutPeriod = vacationData.policy.blackoutPeriods.some(period => {
+        const periodStart = new Date(period.startDate);
+        const periodEnd = new Date(period.endDate);
+        const reqStart = new Date(request.startDate);
+        const reqEnd = new Date(request.endDate);
+        
+        return (reqStart <= periodEnd && reqEnd >= periodStart);
+      });
+
+      if (inBlackoutPeriod) {
+        return res.status(400).json({
+          success: false,
+          error: 'Las fechas solicitadas están en un período restringido'
+        });
+      }
+
+      // Verificar conflictos
       const conflicts = await VacationRequest.checkDateConflicts(
         employeeId,
-        vacationData.startDate,
-        vacationData.endDate
+        startDate,
+        endDate
       );
 
       if (conflicts.length > 0) {
         return res.status(400).json({
           success: false,
-          error: 'Existen conflictos con solicitudes de vacaciones ya aprobadas',
+          error: 'Existen conflictos con solicitudes ya aprobadas',
           conflicts
         });
       }
 
-      // Crear solicitud
-      const request = new VacationRequest({
-        ...vacationData,
-        employeeId
-      });
-
-      // Verificar que hay suficientes días disponibles
-      const balance = await VacationBalance.getOrCreateCurrent(
-        employeeId,
-        employee.position.startDate
-      );
-
-      if (!await balance.hasSufficientDays(request.totalDays)) {
-        return res.status(400).json({
-          success: false,
-          error: 'No hay suficientes días de vacaciones disponibles',
-          available: balance.availableDays,
-          requested: request.totalDays
-        });
-      }
-
+      // Guardar solicitud
       await request.save();
 
-      // Reservar días en el balance
-      await balance.reserveDays(request.totalDays);
+      // Reservar días
+      await vacationData.reserveDays(request.days);
+
+      // Actualizar estadísticas
+      await vacationData.updateStatistics();
 
       // Registrar en historial
       await EmployeeHistory.createHistoryRecord(
         employeeId,
-        'vacation_approved',
+        'vacation_request',
         `Solicitud de vacaciones creada: ${request.startDate} - ${request.endDate}`,
         {
           requestId: request.id,
           startDate: request.startDate,
           endDate: request.endDate,
-          totalDays: request.totalDays,
-          type: request.type,
-          status: request.status
+          days: request.days,
+          type: request.type
         },
-        createdBy,
+        userId,
         req
       );
 
       res.status(201).json({
         success: true,
-        data: { request },
+        data: request.toFirestore(),
         message: 'Solicitud de vacaciones creada exitosamente'
       });
     } catch (error) {
@@ -160,103 +278,391 @@ class VacationController {
   }
 
   /**
-   * Actualiza una solicitud de vacaciones
-   * PUT /api/employees/:id/vacations/:requestId
+   * 5. PUT /api/employees/:employeeId/vacations/requests/:requestId
+   * Actualizar solicitud (solo si status = pending)
    */
-  static async update(req, res) {
+  static async updateRequest(req, res) {
     try {
       const { id: employeeId, requestId } = req.params;
       const updateData = req.body;
-      const updatedBy = req.user?.id || null;
+      const userId = req.user?.id || null;
 
-      const request = await VacationRequest.findById(employeeId, requestId);
-      if (!request) {
+      // Buscar solicitud
+      const docRef = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list').doc(requestId);
+      
+      const doc = await docRef.get();
+      if (!doc.exists) {
         return res.status(404).json({
           success: false,
-          error: 'Solicitud de vacaciones no encontrada'
+          error: 'Solicitud no encontrada'
         });
       }
 
-      const oldValues = {
-        status: request.status,
-        startDate: request.startDate,
-        endDate: request.endDate,
-        totalDays: request.totalDays
-      };
+      const request = new VacationRequest({ id: doc.id, ...doc.data() });
 
-      // Si se está aprobando o rechazando
-      if (updateData.status && updateData.status !== request.status) {
-        const balance = await VacationBalance.findByEmployeeAndYear(
-          employeeId,
-          new Date(request.startDate).getFullYear()
-        );
-
-        if (updateData.status === 'approved') {
-          await request.approve(updatedBy);
-          if (balance) {
-            await balance.confirmDaysUsage(request.totalDays);
-          }
-        } else if (updateData.status === 'rejected') {
-          await request.reject(updatedBy, updateData.rejectionReason);
-          if (balance) {
-            await balance.releaseDays(request.totalDays);
-          }
-        } else if (updateData.status === 'cancelled') {
-          await request.cancel();
-          if (balance) {
-            await balance.releaseDays(request.totalDays);
-          }
-        }
-      } else {
-        // Actualización normal
-        await request.update(updateData);
+      // Solo permitir editar si está pendiente
+      if (request.status !== 'pending') {
+        return res.status(400).json({
+          success: false,
+          error: 'Solo se pueden editar solicitudes pendientes'
+        });
       }
 
-      // Registrar cambios en historial
+      const oldDays = request.days;
+
+      // Actualizar campos
+      Object.assign(request, updateData);
+      request.calculateTotalDays();
+
+      // Validar
+      const errors = request.validate();
+      if (errors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Errores de validación',
+          details: errors
+        });
+      }
+
+      request.updatedAt = new Date().toISOString();
+      await docRef.update(request.toFirestore());
+
+      // Actualizar balance si cambió la cantidad de días
+      if (oldDays !== request.days) {
+        const vacationData = await VacationData.findByEmployee(employeeId);
+        if (vacationData) {
+          vacationData.balance.pending -= oldDays;
+          vacationData.balance.pending += request.days;
+          vacationData.calculateAvailableBalance();
+          await vacationData.save();
+        }
+      }
+
+      // Registrar en historial
       await EmployeeHistory.createHistoryRecord(
         employeeId,
-        'vacation_approved',
-        `Solicitud de vacaciones actualizada: ${request.status}`,
-        {
-          requestId: request.id,
-          changes: {
-            oldValues,
-            newValues: {
-              status: request.status,
-              startDate: request.startDate,
-              endDate: request.endDate,
-              totalDays: request.totalDays
-            }
-          },
-          rejectionReason: request.rejectionReason
-        },
-        updatedBy,
+        'vacation_updated',
+        `Solicitud de vacaciones actualizada: ${request.id}`,
+        { requestId: request.id, changes: updateData },
+        userId,
         req
       );
 
       res.json({
         success: true,
-        data: { request },
-        message: 'Solicitud de vacaciones actualizada exitosamente'
+        data: request.toFirestore(),
+        message: 'Solicitud actualizada exitosamente'
       });
     } catch (error) {
       console.error('Error updating vacation request:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al actualizar solicitud de vacaciones',
+        error: 'Error al actualizar solicitud',
         details: error.message
       });
     }
   }
 
   /**
-   * Obtiene balance de vacaciones de un empleado
-   * GET /api/employees/:id/vacations/balance
+   * 6. DELETE /api/employees/:employeeId/vacations/requests/:requestId
+   * Eliminar solicitud (solo si status = pending)
    */
-  static async getBalance(req, res) {
+  static async deleteRequest(req, res) {
+    try {
+      const { id: employeeId, requestId } = req.params;
+      const userId = req.user?.id || null;
+
+      const docRef = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list').doc(requestId);
+      
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Solicitud no encontrada'
+        });
+      }
+
+      const request = doc.data();
+
+      if (request.status !== 'pending') {
+        return res.status(400).json({
+          success: false,
+          error: 'Solo se pueden eliminar solicitudes pendientes'
+        });
+      }
+
+      // Liberar días
+      const vacationData = await VacationData.findByEmployee(employeeId);
+      if (vacationData) {
+        await vacationData.releaseDays(request.days);
+        await vacationData.updateStatistics();
+      }
+
+      // Eliminar
+      await docRef.delete();
+
+      // Registrar en historial
+      await EmployeeHistory.createHistoryRecord(
+        employeeId,
+        'vacation_deleted',
+        `Solicitud de vacaciones eliminada: ${request.id}`,
+        { requestId: request.id },
+        userId,
+        req
+      );
+
+      res.json({
+        success: true,
+        message: 'Solicitud eliminada exitosamente'
+      });
+    } catch (error) {
+      console.error('Error deleting vacation request:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al eliminar solicitud',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 7. PUT /api/employees/:employeeId/vacations/requests/:requestId/approve
+   * Aprobar solicitud
+   */
+  static async approveRequest(req, res) {
+    try {
+      const { id: employeeId, requestId } = req.params;
+      const { comments } = req.body;
+      const userId = req.user?.id || null;
+      const userName = req.user?.name || 'Sistema';
+
+      const docRef = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list').doc(requestId);
+      
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Solicitud no encontrada'
+        });
+      }
+
+      const request = new VacationRequest({ id: doc.id, ...doc.data() });
+
+      if (request.status !== 'pending') {
+        return res.status(400).json({
+          success: false,
+          error: 'La solicitud ya fue procesada'
+        });
+      }
+
+      // Actualizar solicitud
+      request.status = 'approved';
+      request.approvedBy = userId;
+      request.approvedByName = userName;
+      request.approvedDate = new Date().toISOString();
+      if (comments) request.comments = comments;
+      request.updatedAt = new Date().toISOString();
+
+      await docRef.update(request.toFirestore());
+
+      // Confirmar días en balance
+      const vacationData = await VacationData.findByEmployee(employeeId);
+      if (vacationData) {
+        await vacationData.confirmDays(request.days);
+        await vacationData.updateStatistics();
+      }
+
+      // Registrar en historial
+      await EmployeeHistory.createHistoryRecord(
+        employeeId,
+        'vacation_approved',
+        `Solicitud de vacaciones aprobada: ${request.startDate} - ${request.endDate}`,
+        {
+          requestId: request.id,
+          approvedBy: userName,
+          days: request.days
+        },
+        userId,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: request.toFirestore(),
+        message: 'Solicitud aprobada exitosamente'
+      });
+    } catch (error) {
+      console.error('Error approving vacation request:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al aprobar solicitud',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 8. PUT /api/employees/:employeeId/vacations/requests/:requestId/reject
+   * Rechazar solicitud
+   */
+  static async rejectRequest(req, res) {
+    try {
+      const { id: employeeId, requestId } = req.params;
+      const { reason } = req.body;
+      const userId = req.user?.id || null;
+      const userName = req.user?.name || 'Sistema';
+
+      if (!reason) {
+        return res.status(400).json({
+          success: false,
+          error: 'El motivo del rechazo es requerido'
+        });
+      }
+
+      const docRef = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list').doc(requestId);
+      
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Solicitud no encontrada'
+        });
+      }
+
+      const request = new VacationRequest({ id: doc.id, ...doc.data() });
+
+      if (request.status !== 'pending') {
+        return res.status(400).json({
+          success: false,
+          error: 'La solicitud ya fue procesada'
+        });
+      }
+
+      // Actualizar solicitud
+      request.status = 'rejected';
+      request.approvedBy = userId;
+      request.approvedByName = userName;
+      request.approvedDate = new Date().toISOString();
+      request.rejectedReason = reason;
+      request.updatedAt = new Date().toISOString();
+
+      await docRef.update(request.toFirestore());
+
+      // Liberar días
+      const vacationData = await VacationData.findByEmployee(employeeId);
+      if (vacationData) {
+        await vacationData.releaseDays(request.days);
+        await vacationData.updateStatistics();
+      }
+
+      // Registrar en historial
+      await EmployeeHistory.createHistoryRecord(
+        employeeId,
+        'vacation_rejected',
+        `Solicitud de vacaciones rechazada: ${reason}`,
+        {
+          requestId: request.id,
+          rejectedBy: userName,
+          reason
+        },
+        userId,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: request.toFirestore(),
+        message: 'Solicitud rechazada'
+      });
+    } catch (error) {
+      console.error('Error rejecting vacation request:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al rechazar solicitud',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 9. PUT /api/employees/:employeeId/vacations/requests/:requestId/cancel
+   * Cancelar solicitud
+   */
+  static async cancelRequest(req, res) {
+    try {
+      const { id: employeeId, requestId } = req.params;
+      const { reason } = req.body;
+      const userId = req.user?.id || null;
+
+      const docRef = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list').doc(requestId);
+      
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Solicitud no encontrada'
+        });
+      }
+
+      const request = new VacationRequest({ id: doc.id, ...doc.data() });
+
+      // Actualizar solicitud
+      request.status = 'cancelled';
+      if (reason) request.comments = reason;
+      request.updatedAt = new Date().toISOString();
+
+      await docRef.update(request.toFirestore());
+
+      // Liberar días si estaba pendiente o devolver si estaba aprobada
+      const vacationData = await VacationData.findByEmployee(employeeId);
+      if (vacationData) {
+        if (request.status === 'pending') {
+          await vacationData.releaseDays(request.days);
+        } else if (request.status === 'approved') {
+          vacationData.balance.used -= request.days;
+          vacationData.calculateAvailableBalance();
+          await vacationData.save();
+        }
+        await vacationData.updateStatistics();
+      }
+
+      // Registrar en historial
+      await EmployeeHistory.createHistoryRecord(
+        employeeId,
+        'vacation_cancelled',
+        `Solicitud de vacaciones cancelada${reason ? ': ' + reason : ''}`,
+        { requestId: request.id },
+        userId,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: request.toFirestore(),
+        message: 'Solicitud cancelada exitosamente'
+      });
+    } catch (error) {
+      console.error('Error cancelling vacation request:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al cancelar solicitud',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 10. GET /api/employees/:employeeId/vacations/policy
+   * Obtener política de vacaciones
+   */
+  static async getPolicy(req, res) {
     try {
       const { id: employeeId } = req.params;
-      const { year = new Date().getFullYear() } = req.query;
 
       const employee = await Employee.findById(employeeId);
       if (!employee) {
@@ -266,403 +672,355 @@ class VacationController {
         });
       }
 
-      let balance;
-      
-      if (parseInt(year) === new Date().getFullYear()) {
-        // Para el año actual, obtener o crear balance
-        balance = await VacationBalance.getOrCreateCurrent(
-          employeeId,
-          employee.position.startDate
-        );
-      } else {
-        // Para años anteriores, buscar balance existente
-        balance = await VacationBalance.findByEmployeeAndYear(employeeId, parseInt(year));
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
+      });
+
+      res.json({
+        success: true,
+        data: vacationData.policy
+      });
+    } catch (error) {
+      console.error('Error getting vacation policy:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener política de vacaciones',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 11. GET /api/employees/:employeeId/vacations/history
+   * Obtener historial de vacaciones
+   */
+  static async getHistory(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { year } = req.query;
+
+      let query = db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list')
+        .where('status', 'in', ['approved', 'rejected']);
+
+      if (year) {
+        const startOfYear = `${year}-01-01`;
+        const endOfYear = `${year}-12-31`;
+        query = query.where('startDate', '>=', startOfYear)
+                     .where('startDate', '<=', endOfYear);
       }
 
-      if (!balance) {
+      query = query.orderBy('startDate', 'desc');
+
+      const snapshot = await query.get();
+      const history = [];
+
+      snapshot.forEach(doc => {
+        history.push({ id: doc.id, ...doc.data() });
+      });
+
+      res.json({
+        success: true,
+        data: history,
+        count: history.length
+      });
+    } catch (error) {
+      console.error('Error getting vacation history:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener historial',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 12. GET /api/employees/:employeeId/vacations/summary
+   * Obtener resumen estadístico
+   */
+  static async getSummary(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
         return res.status(404).json({
           success: false,
-          error: 'Balance de vacaciones no encontrado para el año especificado'
+          error: 'Empleado no encontrado'
         });
       }
 
-      // Obtener historial de balances
-      const balanceHistory = await VacationBalance.listByEmployee(employeeId);
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
+      });
+
+      await vacationData.updateStatistics();
 
       res.json({
         success: true,
-        data: {
-          balance,
-          history: balanceHistory
-        }
+        data: vacationData.summary
       });
     } catch (error) {
-      console.error('Error getting vacation balance:', error);
+      console.error('Error getting vacation summary:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al obtener balance de vacaciones',
+        error: 'Error al obtener resumen',
         details: error.message
       });
     }
   }
 
   /**
-   * Obtiene solicitudes pendientes de aprobación
-   * GET /api/vacations/pending
+   * 13. POST /api/employees/:employeeId/vacations/calculate-days
+   * Calcular días entre fechas
    */
-  static async getPendingRequests(req, res) {
+  static async calculateDays(req, res) {
     try {
-      const { department = null } = req.query;
-      const userId = req.user?.id;
+      const { startDate, endDate } = req.body;
 
-      const pendingRequests = await VacationRequest.getPendingRequests(department);
-
-      // Enriquecer con información del empleado
-      const enrichedRequests = [];
-      
-      for (const request of pendingRequests) {
-        const employee = await Employee.findById(request.employeeId);
-        if (employee) {
-          enrichedRequests.push({
-            ...request,
-            employee: {
-              id: employee.id,
-              name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-              employeeNumber: employee.employeeNumber,
-              position: employee.position.title,
-              department: employee.position.department,
-              avatar: employee.personalInfo.avatar
-            }
-          });
-        }
-      }
-
-      res.json({
-        success: true,
-        data: {
-          requests: enrichedRequests,
-          count: enrichedRequests.length
-        }
-      });
-    } catch (error) {
-      console.error('Error getting pending vacation requests:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener solicitudes pendientes',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Aprueba múltiples solicitudes de vacaciones
-   * POST /api/vacations/bulk-approve
-   */
-  static async bulkApprove(req, res) {
-    try {
-      const { requestIds } = req.body;
-      const approvedBy = req.user?.id || null;
-
-      if (!requestIds || !Array.isArray(requestIds)) {
+      if (!startDate || !endDate) {
         return res.status(400).json({
           success: false,
-          error: 'Se requiere un array de IDs de solicitudes'
+          error: 'startDate y endDate son requeridos'
         });
       }
 
-      const results = {
-        approved: 0,
-        errors: []
-      };
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      let businessDays = 0;
+      let weekends = 0;
+      let totalDays = 0;
+      let currentDate = new Date(start);
 
-      for (const requestId of requestIds) {
-        try {
-          // Buscar la solicitud en todos los empleados (esto es ineficiente, mejorar)
-          // TODO: Implementar búsqueda global de solicitudes
-          
-          results.approved++;
-        } catch (error) {
-          results.errors.push({
-            requestId,
-            error: error.message
-          });
+      while (currentDate <= end) {
+        totalDays++;
+        const dayOfWeek = currentDate.getDay();
+        
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          weekends++;
+        } else {
+          businessDays++;
         }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
       }
 
       res.json({
         success: true,
-        data: results,
-        message: `${results.approved} solicitudes aprobadas`
+        data: {
+          days: totalDays,
+          businessDays,
+          weekends
+        }
       });
     } catch (error) {
-      console.error('Error bulk approving vacation requests:', error);
+      console.error('Error calculating days:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al aprobar solicitudes masivamente',
+        error: 'Error al calcular días',
         details: error.message
       });
     }
   }
 
   /**
-   * Obtiene calendario de vacaciones
-   * GET /api/vacations/calendar
+   * 14. POST /api/employees/:employeeId/vacations/check-availability
+   * Verificar disponibilidad de fechas
+   */
+  static async checkAvailability(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { startDate, endDate } = req.body;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'startDate y endDate son requeridos'
+        });
+      }
+
+      // Verificar conflictos
+      const conflicts = await VacationRequest.checkDateConflicts(
+        employeeId,
+        startDate,
+        endDate
+      );
+
+      // Verificar períodos restringidos
+      const vacationData = await VacationData.findByEmployee(employeeId);
+      const blackoutConflicts = [];
+
+      if (vacationData) {
+        vacationData.policy.blackoutPeriods.forEach(period => {
+          const periodStart = new Date(period.startDate);
+          const periodEnd = new Date(period.endDate);
+          const reqStart = new Date(startDate);
+          const reqEnd = new Date(endDate);
+          
+          if (reqStart <= periodEnd && reqEnd >= periodStart) {
+            blackoutConflicts.push(period);
+          }
+        });
+      }
+
+      const available = conflicts.length === 0 && blackoutConflicts.length === 0;
+
+      res.json({
+        success: true,
+        data: {
+          available,
+          conflicts: conflicts.map(c => ({
+            startDate: c.startDate,
+            endDate: c.endDate,
+            type: c.type
+          })),
+          blackoutPeriods: blackoutConflicts,
+          suggestions: available ? [] : ['Intenta seleccionar otras fechas']
+        }
+      });
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al verificar disponibilidad',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * 17. GET /api/employees/:employeeId/vacations/calendar
+   * Obtener calendario de vacaciones
    */
   static async getCalendar(req, res) {
     try {
-      const {
-        startDate,
-        endDate,
-        department = null
-      } = req.query;
+      const { id: employeeId } = req.params;
+      const { year, month } = req.query;
 
-      // Fechas por defecto (próximos 3 meses)
-      const defaultStartDate = new Date().toISOString().split('T')[0];
-      const defaultEndDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const currentYear = year || new Date().getFullYear();
+      const currentMonth = month || (new Date().getMonth() + 1);
 
-      let employees = [];
-      
-      if (department) {
-        employees = await Employee.getByDepartment(department);
-      } else {
-        const result = await Employee.list({ status: 'active', limit: 1000 });
-        employees = result.employees;
-      }
+      let startDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      let endDate = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
 
-      const calendarEvents = [];
+      const snapshot = await db.collection('employees').doc(employeeId)
+        .collection('vacations').doc('requests').collection('list')
+        .where('status', '==', 'approved')
+        .where('startDate', '>=', startDate)
+        .where('startDate', '<=', endDate)
+        .orderBy('startDate', 'asc')
+        .get();
 
-      for (const employee of employees) {
-        const requests = await VacationRequest.listByEmployee(employee.id, {
-          status: 'approved'
+      const calendar = [];
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        calendar.push({
+          id: doc.id,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          days: data.days,
+          type: data.type
         });
-
-        // Filtrar por rango de fechas
-        const filteredRequests = requests.filter(request => {
-          const requestStart = new Date(request.startDate);
-          const requestEnd = new Date(request.endDate);
-          const rangeStart = new Date(startDate || defaultStartDate);
-          const rangeEnd = new Date(endDate || defaultEndDate);
-
-          return requestStart <= rangeEnd && requestEnd >= rangeStart;
-        });
-
-        for (const request of filteredRequests) {
-          calendarEvents.push({
-            id: request.id,
-            title: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            start: request.startDate,
-            end: request.endDate,
-            type: request.type,
-            employee: {
-              id: employee.id,
-              name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-              department: employee.position.department,
-              position: employee.position.title
-            },
-            totalDays: request.totalDays
-          });
-        }
-      }
+      });
 
       res.json({
         success: true,
-        data: {
-          events: calendarEvents,
-          period: {
-            startDate: startDate || defaultStartDate,
-            endDate: endDate || defaultEndDate
-          }
-        }
+        data: calendar,
+        period: { year: currentYear, month: currentMonth }
       });
     } catch (error) {
-      console.error('Error getting vacation calendar:', error);
+      console.error('Error getting calendar:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al obtener calendario de vacaciones',
+        error: 'Error al obtener calendario',
         details: error.message
       });
     }
   }
 
   /**
-   * Obtiene estadísticas de vacaciones
-   * GET /api/vacations/stats
-   */
-  static async getStats(req, res) {
-    try {
-      const {
-        year = new Date().getFullYear(),
-        department = null
-      } = req.query;
-
-      let employees = [];
-      
-      if (department) {
-        employees = await Employee.getByDepartment(department);
-      } else {
-        const result = await Employee.list({ status: 'active', limit: 1000 });
-        employees = result.employees;
-      }
-
-      const stats = {
-        year: parseInt(year),
-        department,
-        summary: {
-          totalEmployees: employees.length,
-          totalDaysGranted: 0,
-          totalDaysUsed: 0,
-          totalDaysAvailable: 0,
-          utilizationRate: 0
-        },
-        byType: {},
-        byMonth: {},
-        topUsers: []
-      };
-
-      const employeeStats = [];
-
-      for (const employee of employees) {
-        const balance = await VacationBalance.findByEmployeeAndYear(employee.id, parseInt(year));
-        const vacationStats = await VacationRequest.getStatsByType(employee.id, parseInt(year));
-
-        if (balance) {
-          stats.summary.totalDaysGranted += balance.totalDays;
-          stats.summary.totalDaysUsed += balance.usedDays;
-          stats.summary.totalDaysAvailable += balance.availableDays;
-        }
-
-        // Estadísticas por tipo
-        Object.keys(vacationStats).forEach(type => {
-          if (type !== 'total') {
-            stats.byType[type] = (stats.byType[type] || 0) + vacationStats[type];
-          }
-        });
-
-        employeeStats.push({
-          employee: {
-            id: employee.id,
-            name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            department: employee.position.department
-          },
-          daysUsed: vacationStats.total
-        });
-      }
-
-      // Calcular tasa de utilización
-      if (stats.summary.totalDaysGranted > 0) {
-        stats.summary.utilizationRate = Math.round(
-          (stats.summary.totalDaysUsed / stats.summary.totalDaysGranted) * 100
-        );
-      }
-
-      // Top usuarios (más días usados)
-      stats.topUsers = employeeStats
-        .sort((a, b) => b.daysUsed - a.daysUsed)
-        .slice(0, 10);
-
-      res.json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      console.error('Error getting vacation stats:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener estadísticas de vacaciones',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Obtiene próximas vacaciones
-   * GET /api/vacations/upcoming
-   */
-  static async getUpcoming(req, res) {
-    try {
-      const {
-        days = 30,
-        department = null
-      } = req.query;
-
-      let employees = [];
-      
-      if (department) {
-        employees = await Employee.getByDepartment(department);
-      } else {
-        const result = await Employee.list({ status: 'active', limit: 1000 });
-        employees = result.employees;
-      }
-
-      const upcomingVacations = [];
-
-      for (const employee of employees) {
-        const upcoming = await VacationRequest.getUpcomingVacations(employee.id, parseInt(days));
-        
-        for (const vacation of upcoming) {
-          upcomingVacations.push({
-            ...vacation,
-            employee: {
-              id: employee.id,
-              name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-              department: employee.position.department,
-              position: employee.position.title,
-              avatar: employee.personalInfo.avatar
-            }
-          });
-        }
-      }
-
-      // Ordenar por fecha de inicio
-      upcomingVacations.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-
-      res.json({
-        success: true,
-        data: {
-          vacations: upcomingVacations,
-          count: upcomingVacations.length
-        }
-      });
-    } catch (error) {
-      console.error('Error getting upcoming vacations:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener próximas vacaciones',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Exporta reporte de vacaciones
-   * GET /api/vacations/export
+   * 16. GET /api/employees/:employeeId/vacations/export
+   * Exportar reporte de vacaciones
    */
   static async exportReport(req, res) {
     try {
-      const {
-        format = 'excel',
-        year = new Date().getFullYear(),
-        department = null,
-        type = 'summary'
-      } = req.query;
+      const { id: employeeId } = req.params;
+      const { format = 'excel', year = new Date().getFullYear() } = req.query;
 
-      // TODO: Implementar lógica de exportación
-      
-      res.json({
-        success: true,
-        message: 'Funcionalidad de exportación en desarrollo',
-        parameters: {
-          format,
-          year,
-          department,
-          type
-        }
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      // Obtener datos completos
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
       });
+
+      await vacationData.updateStatistics();
+
+      // Obtener historial
+      const history = await VacationController.getHistory(req, res);
+      
+      // Preparar datos para exportación
+      const exportData = {
+        employee: {
+          name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
+          employeeNumber: employee.employeeNumber,
+          position: employee.position.title,
+          department: employee.position.department,
+          hireDate: employee.position.startDate
+        },
+        balance: vacationData.balance,
+        summary: vacationData.summary,
+        policy: vacationData.policy,
+        year: parseInt(year),
+        generatedAt: new Date().toISOString(),
+        generatedBy: req.user?.name || 'Sistema'
+      };
+
+      if (format === 'excel') {
+        // TODO: Implementar generación de Excel
+        res.json({
+          success: true,
+          message: 'Exportación a Excel en desarrollo',
+          data: exportData
+        });
+      } else if (format === 'pdf') {
+        // TODO: Implementar generación de PDF
+        res.json({
+          success: true,
+          message: 'Exportación a PDF en desarrollo',
+          data: exportData
+        });
+      } else {
+        res.json({
+          success: true,
+          data: exportData
+        });
+      }
     } catch (error) {
       console.error('Error exporting vacation report:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al exportar reporte de vacaciones',
+        error: 'Error al exportar reporte',
         details: error.message
       });
     }
