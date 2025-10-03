@@ -2,6 +2,7 @@ const HRDocument = require('../models/HRDocument');
 const HRDocumentSummary = require('../models/HRDocumentSummary');
 const HRDocumentFolder = require('../models/HRDocumentFolder');
 const HRDocumentActivity = require('../models/HRDocumentActivity');
+const StorageConfig = require('../config/storage');
 const { 
   getErrorMessage, 
   getSuccessMessage, 
@@ -237,10 +238,33 @@ class HRDocumentController {
         parsedTags = [];
       }
 
-      // TODO: Implementar subida a Firebase Storage
-      // Por ahora, simular URL del archivo
-      const fileUrl = `https://storage.googleapis.com/hr-documents/${file.originalname}`;
-      const thumbnailUrl = null; // TODO: Generar thumbnail
+      // Subir archivo a Firebase Storage
+      const fileUrl = await StorageConfig.uploadFile(
+        file.buffer,
+        `hr-documents/${file.originalname}`,
+        {
+          contentType: file.mimetype,
+          metadata: {
+            originalName: file.originalname,
+            uploadedBy: userId,
+            uploadedByName: userName,
+            uploadedAt: new Date().toISOString(),
+            fileSize: file.size,
+            category,
+            hrDocument: true
+          }
+        }
+      );
+
+      // Generar thumbnail si es una imagen
+      let thumbnailUrl = null;
+      if (file.mimetype.startsWith('image/')) {
+        try {
+          thumbnailUrl = await StorageConfig.generateThumbnail(file.buffer, file.mimetype);
+        } catch (error) {
+          console.warn('Error generating thumbnail:', error);
+        }
+      }
 
       // Crear documento
       const document = new HRDocument({
@@ -483,11 +507,13 @@ class HRDocumentController {
       const summary = await HRDocumentSummary.getOrCreate();
       await summary.updateDownloadStats(document);
 
-      // TODO: Implementar descarga real del archivo
+      // Obtener URL de descarga firmada
+      const downloadUrl = await StorageConfig.getSignedDownloadUrl(document.fileUrl);
+
       res.json({
         success: true,
         data: {
-          downloadUrl: document.fileUrl,
+          downloadUrl,
           fileName: document.name,
           fileSize: document.fileSize,
           mimeType: document.mimeType
@@ -547,11 +573,19 @@ class HRDocumentController {
         }
       );
 
+      // Obtener URL de vista previa firmada
+      const previewUrl = await StorageConfig.getSignedDownloadUrl(document.fileUrl);
+      
+      let thumbnailUrl = document.thumbnailUrl;
+      if (thumbnailUrl) {
+        thumbnailUrl = await StorageConfig.getSignedDownloadUrl(thumbnailUrl);
+      }
+
       res.json({
         success: true,
         data: {
-          previewUrl: document.fileUrl,
-          thumbnailUrl: document.thumbnailUrl,
+          previewUrl,
+          thumbnailUrl,
           fileName: document.name,
           fileType: document.type
         }

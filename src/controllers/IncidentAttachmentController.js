@@ -1,7 +1,7 @@
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../config/firebase');
-const { getStorage } = require('firebase-admin/storage');
+const StorageConfig = require('../config/storage');
 const { isValidAttachmentType, getErrorMessage, getSuccessMessage } = require('../config/incidentConfig');
 
 /**
@@ -55,7 +55,6 @@ class IncidentAttachmentController {
           });
         }
 
-        const bucket = getStorage().bucket();
         const attachmentIds = [];
 
         try {
@@ -63,28 +62,22 @@ class IncidentAttachmentController {
             const fileId = uuidv4();
             const fileName = `incidents/attachments/${fileId}_${file.originalname}`;
             
-            const fileUpload = bucket.file(fileName);
-            
-            await fileUpload.save(file.buffer, {
-              metadata: {
-                contentType: file.mimetype,
-                metadata: {
-                  originalName: file.originalname,
-                  uploadedBy: req.user?.id || 'system',
-                  uploadedAt: new Date().toISOString(),
-                  fileSize: file.size,
-                  incidentRelated: true
-                }
-              }
+            // Usar StorageConfig que maneja el bucket correctamente
+            const fileUpload = await StorageConfig.uploadFile(file.buffer, fileName, {
+              contentType: file.mimetype,
+              originalName: file.originalname,
+              uploadedBy: req.user?.id || 'system',
+              fileSize: file.size,
+              incidentRelated: true
             });
 
-            // Hacer el archivo público (opcional, según necesidades)
-            await fileUpload.makePublic();
+            // Generar URL firmada
+            const signedUrl = await StorageConfig.generateSignedUrl(fileName);
 
             attachmentIds.push({
               id: fileId,
               fileName: file.originalname,
-              url: `https://storage.googleapis.com/${bucket.name}/${fileName}`,
+              url: signedUrl.url,
               size: file.size,
               type: file.mimetype,
               uploadedAt: new Date().toISOString()

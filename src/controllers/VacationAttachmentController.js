@@ -1,7 +1,7 @@
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../config/firebase');
-const { getStorage } = require('firebase-admin/storage');
+const StorageConfig = require('../config/storage');
 
 /**
  * Controlador de Archivos Adjuntos para Vacaciones
@@ -64,7 +64,6 @@ class VacationAttachmentController {
           });
         }
 
-        const bucket = getStorage().bucket();
         const attachmentIds = [];
 
         try {
@@ -72,27 +71,21 @@ class VacationAttachmentController {
             const fileId = uuidv4();
             const fileName = `vacations/attachments/${fileId}_${file.originalname}`;
             
-            const fileUpload = bucket.file(fileName);
-            
-            await fileUpload.save(file.buffer, {
-              metadata: {
-                contentType: file.mimetype,
-                metadata: {
-                  originalName: file.originalname,
-                  uploadedBy: req.user?.id || 'system',
-                  uploadedAt: new Date().toISOString(),
-                  fileSize: file.size
-                }
-              }
+            // Usar StorageConfig que maneja el bucket correctamente
+            const fileUpload = await StorageConfig.uploadFile(file.buffer, fileName, {
+              contentType: file.mimetype,
+              originalName: file.originalname,
+              uploadedBy: req.user?.id || 'system',
+              fileSize: file.size
             });
 
-            // Hacer el archivo público (opcional, según necesidades)
-            await fileUpload.makePublic();
+            // Generar URL firmada
+            const signedUrl = await StorageConfig.generateSignedUrl(fileName);
 
             attachmentIds.push({
               id: fileId,
               fileName: file.originalname,
-              url: `https://storage.googleapis.com/${bucket.name}/${fileName}`,
+              url: signedUrl.url,
               size: file.size,
               type: file.mimetype,
               uploadedAt: new Date().toISOString()
@@ -135,7 +128,7 @@ class VacationAttachmentController {
     try {
       const { attachmentId } = req.params;
       
-      const bucket = getStorage().bucket();
+      const bucket = StorageConfig.getBucket();
       const [files] = await bucket.getFiles({
         prefix: `vacations/attachments/${attachmentId}_`
       });
@@ -149,13 +142,14 @@ class VacationAttachmentController {
 
       const file = files[0];
       const [metadata] = await file.getMetadata();
+      const signedUrl = await StorageConfig.generateSignedUrl(file.name);
 
       res.json({
         success: true,
         data: {
           id: attachmentId,
           fileName: metadata.metadata.originalName,
-          url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
+          url: signedUrl.url,
           size: parseInt(metadata.size),
           type: metadata.contentType,
           uploadedAt: metadata.metadata.uploadedAt,
@@ -180,7 +174,7 @@ class VacationAttachmentController {
     try {
       const { attachmentId } = req.params;
       
-      const bucket = getStorage().bucket();
+      const bucket = StorageConfig.getBucket();
       const [files] = await bucket.getFiles({
         prefix: `vacations/attachments/${attachmentId}_`
       });
@@ -193,7 +187,7 @@ class VacationAttachmentController {
       }
 
       const file = files[0];
-      await file.delete();
+      await StorageConfig.deleteFile(file.name);
 
       res.json({
         success: true,
