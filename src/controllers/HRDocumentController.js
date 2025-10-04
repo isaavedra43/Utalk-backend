@@ -26,29 +26,67 @@ class HRDocumentController {
    * Obtener todos los documentos con filtros
    */
   static async getDocuments(req, res) {
-    res.json({
-      success: true,
-      data: {
-        documents: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0
-        },
-        summary: {
-          totalDocuments: 0,
-          totalSize: 0,
-          byCategory: {},
-          byType: {},
-          recentUploads: [],
-          mostDownloaded: [],
-          mostViewed: [],
-          pinnedDocuments: [],
-          updatedAt: new Date().toISOString()
-        }
+    try {
+      const userId = req.user?.id || null;
+      const userRole = req.user?.role || 'employee';
+      
+      // Obtener parámetros de consulta
+      const {
+        page = 1,
+        limit = 20,
+        category,
+        type,
+        search,
+        sortBy = 'uploadedAt',
+        sortOrder = 'desc',
+        isPublic,
+        isPinned,
+        isFavorite
+      } = req.query;
+
+      // Verificar permisos
+      const permissions = getPermissionsByRole(userRole);
+      if (!permissions.canView) {
+        return res.status(403).json({
+          success: false,
+          error: getErrorMessage('INVALID_PERMISSIONS')
+        });
       }
-    });
+
+      // Buscar documentos
+      const documents = await HRDocument.findAll({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        category,
+        type,
+        search,
+        sortBy,
+        sortOrder,
+        isPublic: isPublic !== undefined ? isPublic === 'true' : undefined,
+        isPinned: isPinned !== undefined ? isPinned === 'true' : undefined,
+        isFavorite: isFavorite !== undefined ? isFavorite === 'true' : undefined,
+        userRole
+      });
+
+      // Obtener resumen
+      const summary = await HRDocumentSummary.getOrCreate();
+
+      res.json({
+        success: true,
+        data: {
+          documents: documents.documents,
+          pagination: documents.pagination,
+          summary: summary.toFirestore()
+        }
+      });
+    } catch (error) {
+      console.error('Error getting HR documents:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener documentos',
+        details: error.message
+      });
+    }
   }
 
   /**
@@ -873,20 +911,33 @@ class HRDocumentController {
    * Obtener resumen estadístico
    */
   static async getSummary(req, res) {
-    res.json({
-      success: true,
-      data: {
-        totalDocuments: 0,
-        totalSize: 0,
-        byCategory: {},
-        byType: {},
-        recentUploads: [],
-        mostDownloaded: [],
-        mostViewed: [],
-        pinnedDocuments: [],
-        updatedAt: new Date().toISOString()
+    try {
+      const userRole = req.user?.role || 'employee';
+      
+      // Verificar permisos
+      const permissions = getPermissionsByRole(userRole);
+      if (!permissions.canView) {
+        return res.status(403).json({
+          success: false,
+          error: getErrorMessage('INVALID_PERMISSIONS')
+        });
       }
-    });
+
+      // Obtener resumen
+      const summary = await HRDocumentSummary.getOrCreate();
+      
+      res.json({
+        success: true,
+        data: summary.toFirestore()
+      });
+    } catch (error) {
+      console.error('Error getting HR documents summary:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener resumen de documentos',
+        details: error.message
+      });
+    }
   }
 
   /**
@@ -944,10 +995,33 @@ class HRDocumentController {
    * Obtener todas las carpetas
    */
   static async getFolders(req, res) {
-    res.json({
-      success: true,
-      data: []
-    });
+    try {
+      const userRole = req.user?.role || 'employee';
+      
+      // Verificar permisos
+      const permissions = getPermissionsByRole(userRole);
+      if (!permissions.canView) {
+        return res.status(403).json({
+          success: false,
+          error: getErrorMessage('INVALID_PERMISSIONS')
+        });
+      }
+
+      // Obtener todas las carpetas
+      const folders = await HRDocumentFolder.findAll();
+      
+      res.json({
+        success: true,
+        data: folders
+      });
+    } catch (error) {
+      console.error('Error getting HR document folders:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener carpetas',
+        details: error.message
+      });
+    }
   }
 
   /**
