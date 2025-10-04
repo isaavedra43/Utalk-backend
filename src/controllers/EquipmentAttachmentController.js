@@ -1,7 +1,7 @@
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const { storage } = require('../config/firebase');
-const { ref, uploadBytes, getDownloadURL, deleteObject } = require('firebase/storage');
+const { db } = require('../config/firebase');
+const StorageConfig = require('../config/storage');
 const { 
   EQUIPMENT_CONFIG, 
   getErrorMessage, 
@@ -112,22 +112,17 @@ class EquipmentAttachmentController {
               break;
           }
 
-          // Crear referencia en Firebase Storage
-          const storageRef = ref(storage, storagePath);
-
-          // Subir archivo
-          const snapshot = await uploadBytes(storageRef, file.buffer, {
+          // Subir archivo usando StorageConfig
+          const fileObj = await StorageConfig.uploadFile(file.buffer, storagePath, {
             contentType: file.mimetype,
-            customMetadata: {
-              originalName: file.originalname,
-              uploadedBy: req.user?.id || 'system',
-              uploadedAt: new Date().toISOString(),
-              type: type
-            }
+            originalName: file.originalname,
+            uploadedBy: req.user?.id || 'system',
+            uploadedAt: new Date().toISOString(),
+            type: type
           });
 
           // Obtener URL de descarga
-          const downloadURL = await getDownloadURL(snapshot.ref);
+          const { url: downloadURL } = await StorageConfig.generateSignedUrl(storagePath);
 
           uploadedFiles.push({
             id: fileId,
@@ -234,11 +229,8 @@ class EquipmentAttachmentController {
         });
       }
 
-      // Crear referencia al archivo en Firebase Storage
-      const storageRef = ref(storage, storagePath);
-
-      // Eliminar archivo
-      await deleteObject(storageRef);
+      // Eliminar archivo usando StorageConfig
+      await StorageConfig.deleteFile(storagePath);
 
       logger.info('Archivo de equipo eliminado', {
         attachmentId,
