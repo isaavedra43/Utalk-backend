@@ -9,6 +9,8 @@ const PayrollController = require('../controllers/PayrollController');
 const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
 const IncidentController = require('../controllers/IncidentController');
+const EquipmentController = require('../controllers/EquipmentController');
+const EquipmentReviewController = require('../controllers/EquipmentReviewController');
 const ExtrasController = require('../controllers/ExtrasController');
 const AttachmentsController = require('../controllers/AttachmentsController');
 const ReportsController = require('../controllers/ReportsController');
@@ -666,6 +668,88 @@ router.get('/:id/incidents/:incidentId/report/:type', IncidentController.generat
 /**
  * RUTAS DE ARCHIVOS ADJUNTOS PARA INCIDENTES
  * NOTA: Las rutas de adjuntos están en /api/incidents/attachments (archivo separado)
+ * No es necesario duplicarlas aquí
+ */
+
+/**
+ * RUTAS DE EQUIPOS Y HERRAMIENTAS - Alineadas 100% con Frontend
+ * Endpoints exactos según especificaciones del modal
+ */
+
+// 1. Obtener todos los equipos del empleado
+router.get('/:id/equipment', EquipmentController.getByEmployee);
+
+// 2. Obtener equipo específico
+router.get('/:id/equipment/:equipmentId', EquipmentController.getById);
+
+// 3. Crear nuevo equipo
+router.post('/:id/equipment', 
+  validateRequiredFields(['name', 'description', 'category', 'purchaseDate', 'purchasePrice', 'assignedDate', 'invoice']),
+  EquipmentController.create
+);
+
+// 4. Actualizar equipo
+router.put('/:id/equipment/:equipmentId', EquipmentController.update);
+
+// 5. Eliminar equipo
+router.delete('/:id/equipment/:equipmentId', EquipmentController.delete);
+
+// 6. Devolver equipo
+router.put('/:id/equipment/:equipmentId/return', 
+  validateRequiredFields(['condition']),
+  EquipmentController.return
+);
+
+// 7. Reportar equipo perdido
+router.put('/:id/equipment/:equipmentId/report-lost', 
+  validateRequiredFields(['lostDate', 'description']),
+  EquipmentController.reportLost
+);
+
+// 8. Reportar daño en equipo
+router.put('/:id/equipment/:equipmentId/report-damage', 
+  validateRequiredFields(['description', 'severity']),
+  EquipmentController.reportDamage
+);
+
+// 9. Crear nueva revisión
+router.post('/:id/equipment/:equipmentId/reviews', 
+  validateRequiredFields(['reviewType', 'condition', 'cleanliness', 'functionality']),
+  EquipmentReviewController.create
+);
+
+// 10. Obtener revisiones de un equipo
+router.get('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.getByEquipment);
+
+// 11. Obtener revisión específica
+router.get('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.getById);
+
+// 12. Obtener estadísticas de revisiones
+router.get('/:id/equipment/:equipmentId/reviews/stats', EquipmentReviewController.getStats);
+
+// 13. Obtener última revisión
+router.get('/:id/equipment/:equipmentId/reviews/last', EquipmentReviewController.getLastReview);
+
+// 14. Programar próxima revisión
+router.post('/:id/equipment/:equipmentId/schedule-review', 
+  EquipmentReviewController.scheduleReview
+);
+
+// 15. Eliminar revisión
+router.delete('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.delete);
+
+// 16. Obtener resumen estadístico
+router.get('/:id/equipment/summary', EquipmentController.getSummary);
+
+// 17. Exportar equipos
+router.get('/:id/equipment/export', EquipmentController.export);
+
+// 18. Generar reporte específico
+router.get('/:id/equipment/report/:reportType', EquipmentController.generateReport);
+
+/**
+ * RUTAS DE ARCHIVOS ADJUNTOS PARA EQUIPOS
+ * NOTA: Las rutas de adjuntos están en /api/equipment/attachments (archivo separado)
  * No es necesario duplicarlas aquí
  */
 
