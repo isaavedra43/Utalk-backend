@@ -22,6 +22,12 @@ class Incident {
     this.supervisor = data.supervisor || null;
     this.supervisorName = data.supervisorName || null;
     
+    // Campos del frontend
+    this.reportedBy = data.reportedBy || '';
+    this.reportedByName = data.reportedByName || null;
+    this.reportedDate = data.reportedDate || new Date().toISOString();
+    this.isConfidential = data.isConfidential || false;
+    
     this.involvedPersons = data.involvedPersons || [];
     this.witnesses = data.witnesses || [];
     this.actionsTaken = data.actionsTaken || [];
@@ -38,20 +44,25 @@ class Incident {
       receipts: data.cost?.receipts || []
     };
     
+    // Campos de reportes (alineados con frontend)
+    this.insuranceClaim = data.insuranceClaim || false;
+    this.policeReport = data.policeReport || false;
+    this.medicalReport = data.medicalReport || false;
+    
     this.claims = {
       insurance: {
-        filed: data.claims?.insurance?.filed || false,
+        filed: data.claims?.insurance?.filed || data.insuranceClaim || false,
         claimNumber: data.claims?.insurance?.claimNumber || null,
         status: data.claims?.insurance?.status || null,
         amount: data.claims?.insurance?.amount || 0
       },
       police: {
-        filed: data.claims?.police?.filed || false,
+        filed: data.claims?.police?.filed || data.policeReport || false,
         reportNumber: data.claims?.police?.reportNumber || null,
         status: data.claims?.police?.status || null
       },
       medical: {
-        filed: data.claims?.medical?.filed || false,
+        filed: data.claims?.medical?.filed || data.medicalReport || false,
         reportNumber: data.claims?.medical?.reportNumber || null,
         status: data.claims?.medical?.status || null
       }
@@ -120,18 +131,15 @@ class Incident {
       errors.push('La fecha del incidente es requerida');
     }
 
-    // Validar que la fecha no sea en el futuro
+    // Validar formato de fecha (acepta fechas futuras y pasadas)
     if (this.date) {
       const incidentDate = new Date(this.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (incidentDate > today) {
-        errors.push('La fecha del incidente no puede ser en el futuro');
+      if (isNaN(incidentDate.getTime())) {
+        errors.push('La fecha del incidente no tiene un formato válido');
       }
     }
 
-    if (this.involvedPersons.length === 0) {
+    if (!this.involvedPersons || this.involvedPersons.length === 0) {
       errors.push('Debe haber al menos una persona involucrada');
     }
 
@@ -160,12 +168,19 @@ class Incident {
       location: this.location,
       supervisor: this.supervisor,
       supervisorName: this.supervisorName,
+      reportedBy: this.reportedBy,
+      reportedByName: this.reportedByName,
+      reportedDate: this.reportedDate,
+      isConfidential: this.isConfidential,
       involvedPersons: this.involvedPersons,
       witnesses: this.witnesses,
       actionsTaken: this.actionsTaken,
       consequences: this.consequences,
       preventiveMeasures: this.preventiveMeasures,
       cost: this.cost,
+      insuranceClaim: this.insuranceClaim,
+      policeReport: this.policeReport,
+      medicalReport: this.medicalReport,
       claims: this.claims,
       tags: this.tags,
       attachments: this.attachments,

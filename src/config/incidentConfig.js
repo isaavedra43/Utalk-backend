@@ -245,7 +245,7 @@ const INCIDENT_CONFIG = {
     INVALID_TYPE: 'Tipo de incidente inválido',
     INVALID_SEVERITY: 'Nivel de severidad inválido',
     INVALID_STATUS: 'Estado de incidente inválido',
-    FUTURE_DATE: 'La fecha no puede ser en el futuro',
+    INVALID_DATE_FORMAT: 'La fecha no tiene un formato válido',
     NO_INVOLVED_PERSONS: 'Debe haber al menos una persona involucrada',
     INVALID_COST: 'El costo debe ser mayor o igual a 0',
     CANNOT_EDIT_CLOSED: 'No se puede editar un incidente cerrado',

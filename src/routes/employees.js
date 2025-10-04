@@ -15,7 +15,7 @@ const ReportsController = require('../controllers/ReportsController');
 
 // Middleware
 const { authMiddleware } = require('../middleware/auth');
-const { validateRequest } = require('../middleware/validation');
+const { validateRequest, validateRequiredFields } = require('../middleware/validation');
 const { intelligentRateLimit } = require('../middleware/intelligentRateLimit');
 const Joi = require('joi');
 
@@ -444,7 +444,7 @@ router.get('/:id/extras', ExtrasController.getExtrasByEmployee);
 
 // Registrar nuevo movimiento de extras
 router.post('/:id/extras', 
-  validateRequest(['type', 'date', 'description']),
+  validateRequiredFields(['type', 'date', 'description']),
   ExtrasController.registerExtra
 );
 
@@ -471,7 +471,7 @@ router.get('/:id/overtime', ExtrasController.getMovementsByType);
 
 // Registrar horas extra
 router.post('/:id/overtime', 
-  validateRequest(['date', 'hours', 'reason', 'description']),
+  validateRequiredFields(['date', 'hours', 'reason', 'description']),
   ExtrasController.registerExtra
 );
 
@@ -480,7 +480,7 @@ router.get('/:id/absences', ExtrasController.getMovementsByType);
 
 // Registrar ausencia
 router.post('/:id/absences', 
-  validateRequest(['date', 'reason', 'description', 'duration']),
+  validateRequiredFields(['date', 'reason', 'description', 'duration']),
   ExtrasController.registerExtra
 );
 
@@ -489,7 +489,7 @@ router.get('/:id/loans', ExtrasController.getMovementsByType);
 
 // Registrar préstamo
 router.post('/:id/loans', 
-  validateRequest(['date', 'totalAmount', 'totalInstallments', 'reason', 'description', 'justification']),
+  validateRequiredFields(['date', 'totalAmount', 'totalInstallments', 'reason', 'description', 'justification']),
   ExtrasController.registerExtra
 );
 
@@ -557,7 +557,7 @@ router.get('/:id/vacations/requests', VacationController.getRequests);
 
 // 4. Crear nueva solicitud
 router.post('/:id/vacations/requests', 
-  validateRequest(['startDate', 'endDate', 'type', 'reason']),
+  validateRequiredFields(['startDate', 'endDate', 'type', 'reason']),
   VacationController.createRequest
 );
 
@@ -572,7 +572,7 @@ router.put('/:id/vacations/requests/:requestId/approve', VacationController.appr
 
 // 8. Rechazar solicitud
 router.put('/:id/vacations/requests/:requestId/reject', 
-  validateRequest(['reason']),
+  validateRequiredFields(['reason']),
   VacationController.rejectRequest
 );
 
@@ -590,13 +590,13 @@ router.get('/:id/vacations/summary', VacationController.getSummary);
 
 // 13. Calcular días entre fechas
 router.post('/:id/vacations/calculate-days', 
-  validateRequest(['startDate', 'endDate']),
+  validateRequiredFields(['startDate', 'endDate']),
   VacationController.calculateDays
 );
 
 // 14. Verificar disponibilidad de fechas
 router.post('/:id/vacations/check-availability',
-  validateRequest(['startDate', 'endDate']),
+  validateRequiredFields(['startDate', 'endDate']),
   VacationController.checkAvailability
 );
 
@@ -631,7 +631,7 @@ router.get('/:id/incidents/:incidentId', IncidentController.getById);
 
 // 3. Crear nuevo incidente
 router.post('/:id/incidents', 
-  validateRequest(['title', 'description', 'type', 'severity', 'date', 'involvedPersons']),
+  validateRequiredFields(['title', 'description', 'type', 'severity', 'date', 'involvedPersons']),
   IncidentController.create
 );
 
@@ -646,13 +646,13 @@ router.put('/:id/incidents/:incidentId/approve', IncidentController.approve);
 
 // 7. Rechazar incidente
 router.put('/:id/incidents/:incidentId/reject', 
-  validateRequest(['comments']),
+  validateRequiredFields(['comments']),
   IncidentController.reject
 );
 
 // 8. Cerrar incidente
 router.put('/:id/incidents/:incidentId/close', 
-  validateRequest(['resolution']),
+  validateRequiredFields(['resolution']),
   IncidentController.close
 );
 

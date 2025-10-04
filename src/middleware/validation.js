@@ -15,6 +15,55 @@ const EmployeeDocument = require('../models/EmployeeDocument');
 const logger = require('../utils/logger');
 
 /**
+ * Middleware simple para validar campos requeridos en el body
+ * @param {Array} requiredFields - Array de nombres de campos requeridos
+ * @returns {Function} Middleware de validación
+ */
+const validateRequiredFields = (requiredFields = []) => {
+  return (req, res, next) => {
+    try {
+      const errors = [];
+      
+      // Validar que todos los campos requeridos estén presentes
+      for (const field of requiredFields) {
+        if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
+          errors.push(`El campo '${field}' es requerido`);
+        }
+      }
+      
+      // Si hay errores, devolver respuesta de error
+      if (errors.length > 0) {
+        logger.warn('Validación de campos requeridos falló', {
+          requestId: req.id || 'unknown',
+          errors: errors,
+          requiredFields: requiredFields,
+          receivedFields: Object.keys(req.body)
+        });
+
+        return res.status(400).json({
+          success: false,
+          error: 'Errores de validación',
+          details: errors
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error en middleware de validación de campos requeridos', {
+        requestId: req.id || 'unknown',
+        error: error.message,
+        stack: error.stack
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor'
+      });
+    }
+  };
+};
+
+/**
  * Middleware genérico para validar requests con esquemas Joi
  * @param {Object} schemas - Objeto con esquemas para body, params, query
  * @returns {Function} Middleware de validación
@@ -463,6 +512,7 @@ const validateDocumentUpdate = (req, res, next) => {
 
 module.exports = {
   validateRequest,
+  validateRequiredFields,
   validateId,
   validateConversationId,
   validateEmployeeId,
