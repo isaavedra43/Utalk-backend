@@ -54,7 +54,7 @@ class HRDocumentController {
       }
 
       // Buscar documentos
-      const documents = await HRDocument.findAll({
+      const documents = await HRDocument.list({
         page: parseInt(page),
         limit: parseInt(limit),
         category,
@@ -1008,7 +1008,7 @@ class HRDocumentController {
       }
 
       // Obtener todas las carpetas
-      const folders = await HRDocumentFolder.findAll();
+      const folders = await HRDocumentFolder.list();
       
       res.json({
         success: true,
