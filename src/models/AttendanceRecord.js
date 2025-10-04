@@ -21,6 +21,11 @@ class AttendanceRecord {
     this.overtimeHours = data.overtimeHours || 0;
     this.breakHours = data.breakHours || 0;
     
+    // Información de salario
+    this.dailySalary = data.dailySalary || 0;
+    this.salaryCalculated = data.salaryCalculated || false;
+    this.salaryCalculationDate = data.salaryCalculationDate || null;
+    
     // Estado
     this.status = data.status || 'present'; // 'present' | 'absent' | 'late' | 'early_leave' | 'half_day'
     this.isHoliday = data.isHoliday || false;
@@ -35,6 +40,58 @@ class AttendanceRecord {
     this.createdAt = data.createdAt || new Date().toISOString();
     this.updatedAt = data.updatedAt || new Date().toISOString();
     this.createdBy = data.createdBy || null;
+  }
+
+  /**
+   * Calcula el salario diario basado en el salario base del empleado
+   */
+  async calculateDailySalary() {
+    try {
+      const Employee = require('./Employee');
+      const employee = await Employee.findById(this.employeeId);
+      
+      if (!employee) {
+        throw new Error('Empleado no encontrado');
+      }
+
+      const baseSalary = employee.salary?.baseSalary || employee.contract?.salary || 0;
+      const frequency = employee.salary?.frequency || 'monthly';
+      
+      let dailySalary = 0;
+      
+      switch (frequency) {
+        case 'monthly':
+          // Salario mensual / 30 días
+          dailySalary = baseSalary / 30;
+          break;
+        case 'weekly':
+          // Salario semanal / 7 días
+          dailySalary = baseSalary / 7;
+          break;
+        case 'daily':
+          // Salario diario directo
+          dailySalary = baseSalary;
+          break;
+        case 'hourly':
+          // Salario por hora * 8 horas estándar
+          dailySalary = baseSalary * 8;
+          break;
+        default:
+          // Por defecto asumir mensual
+          dailySalary = baseSalary / 30;
+      }
+      
+      this.dailySalary = Math.round(dailySalary * 100) / 100; // Redondear a 2 decimales
+      this.salaryCalculated = true;
+      this.salaryCalculationDate = new Date().toISOString();
+      
+      return this.dailySalary;
+    } catch (error) {
+      console.error('Error calculating daily salary:', error);
+      this.dailySalary = 0;
+      this.salaryCalculated = false;
+      throw error;
+    }
   }
 
   /**
@@ -182,6 +239,9 @@ class AttendanceRecord {
       regularHours: this.regularHours,
       overtimeHours: this.overtimeHours,
       breakHours: this.breakHours,
+      dailySalary: this.dailySalary,
+      salaryCalculated: this.salaryCalculated,
+      salaryCalculationDate: this.salaryCalculationDate,
       status: this.status,
       isHoliday: this.isHoliday,
       isWeekend: this.isWeekend,
@@ -214,6 +274,12 @@ class AttendanceRecord {
       // Calcular horas automáticamente
       this.checkWeekend();
       this.calculateHours();
+      
+      // Calcular salario diario si no está calculado
+      if (!this.salaryCalculated) {
+        await this.calculateDailySalary();
+      }
+      
       this.updatedAt = new Date().toISOString();
 
       const docRef = db.collection('employees').doc(this.employeeId)
@@ -498,6 +564,138 @@ class AttendanceRecord {
       return summary;
     } catch (error) {
       console.error('Error getting attendance summary:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Recalcula el salario diario para todos los registros de un empleado
+   * Se usa cuando se actualiza el salario base del empleado
+   */
+  static async recalculateDailySalaries(employeeId, startDate = null, endDate = null) {
+    try {
+      console.log(`🔄 Recalculando salarios diarios para empleado: ${employeeId}`);
+      
+      let query = db.collection('employees').doc(employeeId)
+        .collection('attendance')
+        .orderBy('date', 'desc');
+      
+      if (startDate && endDate) {
+        query = query.where('date', '>=', startDate).where('date', '<=', endDate);
+      }
+      
+      const snapshot = await query.get();
+      const results = {
+        processed: 0,
+        updated: 0,
+        errors: 0,
+        details: []
+      };
+      
+      for (const doc of snapshot.docs) {
+        try {
+          const record = AttendanceRecord.fromFirestore(doc);
+          
+          // Recalcular salario diario
+          await record.calculateDailySalary();
+          
+          // Actualizar en Firebase
+          await doc.ref.update({
+            dailySalary: record.dailySalary,
+            salaryCalculated: record.salaryCalculated,
+            salaryCalculationDate: record.salaryCalculationDate,
+            updatedAt: new Date().toISOString()
+          });
+          
+          results.processed++;
+          results.updated++;
+          results.details.push({
+            recordId: record.id,
+            date: record.date,
+            newDailySalary: record.dailySalary,
+            status: 'updated'
+          });
+          
+        } catch (error) {
+          console.error(`❌ Error actualizando registro ${doc.id}:`, error);
+          results.errors++;
+          results.details.push({
+            recordId: doc.id,
+            status: 'error',
+            error: error.message
+          });
+        }
+      }
+      
+      console.log(`✅ Recalculación completada:`, results);
+      return results;
+      
+    } catch (error) {
+      console.error('❌ Error recalculando salarios diarios:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene el resumen de salarios de un empleado en un período
+   */
+  static async getSalarySummary(employeeId, startDate, endDate) {
+    try {
+      const records = await AttendanceRecord.listByDateRange(employeeId, startDate, endDate, {
+        includeWeekends: false,
+        includeHolidays: false
+      });
+
+      const summary = {
+        employeeId,
+        periodStart: startDate,
+        periodEnd: endDate,
+        totalDays: 0,
+        presentDays: 0,
+        totalDailySalary: 0,
+        averageDailySalary: 0,
+        salaryBreakdown: {
+          present: 0,
+          absent: 0,
+          late: 0,
+          halfDay: 0
+        }
+      };
+
+      // Calcular días laborales en el período
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      let currentDate = new Date(start);
+      
+      while (currentDate <= end) {
+        const dayOfWeek = currentDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Excluir fines de semana
+          summary.totalDays++;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Procesar registros
+      records.forEach(record => {
+        if (record.status === 'present' || record.status === 'late' || record.status === 'early_leave') {
+          summary.presentDays++;
+          summary.totalDailySalary += record.dailySalary || 0;
+          summary.salaryBreakdown[record.status] += record.dailySalary || 0;
+        } else if (record.status === 'half_day') {
+          summary.salaryBreakdown.halfDay += (record.dailySalary || 0) / 2;
+        } else if (record.status === 'absent') {
+          summary.salaryBreakdown.absent += 0; // No se paga por ausencias
+        }
+      });
+
+      // Calcular promedio
+      if (summary.presentDays > 0) {
+        summary.averageDailySalary = summary.totalDailySalary / summary.presentDays;
+      }
+
+      return summary;
+    } catch (error) {
+      console.error('Error getting salary summary:', error);
       throw error;
     }
   }

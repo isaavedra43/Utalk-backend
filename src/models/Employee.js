@@ -310,7 +310,14 @@ class Employee {
         this.status = data.status;
       }
       if (data.salary) {
+        const oldSalary = this.salary?.baseSalary || 0;
         this.salary = { ...this.salary, ...data.salary };
+        
+        // Si cambió el salario base, marcar para recalcular salarios diarios
+        if (data.salary.baseSalary && data.salary.baseSalary !== oldSalary) {
+          this._salaryChanged = true;
+          this._oldSalary = oldSalary;
+        }
       }
       if (data.sbc !== undefined) {
         this.sbc = data.sbc;
@@ -335,6 +342,27 @@ class Employee {
 
       const docRef = db.collection('employees').doc(this.id);
       await docRef.update(this.toFirestore());
+
+      // Si cambió el salario, recalcular salarios diarios automáticamente
+      if (this._salaryChanged) {
+        try {
+          const AttendanceRecord = require('./AttendanceRecord');
+          console.log(`🔄 Recalculando salarios diarios para empleado ${this.id} (salario cambió de ${this._oldSalary} a ${this.salary.baseSalary})`);
+          
+          // Recalcular salarios para los últimos 90 días
+          const endDate = new Date().toISOString().split('T')[0];
+          const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          
+          await AttendanceRecord.recalculateDailySalaries(this.id, startDate, endDate);
+          
+          // Limpiar flags temporales
+          delete this._salaryChanged;
+          delete this._oldSalary;
+        } catch (error) {
+          console.error('❌ Error recalculando salarios diarios:', error);
+          // No lanzar error para no interrumpir la actualización del empleado
+        }
+      }
 
       return this;
     } catch (error) {

@@ -17,7 +17,32 @@ router.use(authMiddleware);
  */
 
 // Configurar multer para subida de archivos
-const upload = EquipmentAttachmentController.getUploadConfig();
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+    files: 10
+  },
+  fileFilter: (req, file, cb) => {
+    // Permitir solo ciertos tipos de archivo
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/csv'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido'), false);
+    }
+  }
+});
 
 // 1. Subir archivos adjuntos
 router.post('/upload', upload.array('files'), EquipmentAttachmentController.uploadAttachments);

@@ -425,6 +425,12 @@ router.post('/:id/attendance/clock-out', AttendanceController.clockOut);
 // Actualizar registro de asistencia
 router.put('/:id/attendance/:recordId', AttendanceController.update);
 
+// Recalcular salarios diarios
+router.put('/:id/attendance/recalculate-salaries', AttendanceController.recalculateSalaries);
+
+// Obtener resumen de salarios
+router.get('/:id/attendance/salary-summary', AttendanceController.getSalarySummary);
+
 /**
  * RUTAS DE EXTRAS Y MOVIMIENTOS
  */

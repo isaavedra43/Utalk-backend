@@ -170,8 +170,15 @@ class AttendanceController {
         clockIn: record.clockIn,
         clockOut: record.clockOut,
         totalHours: record.totalHours,
-        status: record.status
+        status: record.status,
+        dailySalary: record.dailySalary
       };
+
+      // Si se actualiza el salario diario manualmente, marcar como no calculado automáticamente
+      if (updateData.dailySalary !== undefined) {
+        updateData.salaryCalculated = false;
+        updateData.salaryCalculationDate = null;
+      }
 
       await record.update({
         ...updateData,
@@ -192,7 +199,8 @@ class AttendanceController {
               clockIn: record.clockIn,
               clockOut: record.clockOut,
               totalHours: record.totalHours,
-              status: record.status
+              status: record.status,
+              dailySalary: record.dailySalary
             }
           }
         },
@@ -641,6 +649,113 @@ class AttendanceController {
       res.status(500).json({
         success: false,
         error: 'Error al exportar reporte de asistencia',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * Recalcula el salario diario para todos los registros de un empleado
+   * PUT /api/employees/:id/attendance/recalculate-salaries
+   */
+  static async recalculateSalaries(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { startDate, endDate } = req.body;
+      const updatedBy = req.user?.id || null;
+
+      // Verificar que el empleado existe
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      // Recalcular salarios
+      const results = await AttendanceRecord.recalculateDailySalaries(
+        employeeId, 
+        startDate, 
+        endDate
+      );
+
+      // Registrar en historial
+      await EmployeeHistory.createHistoryRecord(
+        employeeId,
+        'salary_recalculation',
+        `Salarios diarios recalculados para ${results.processed} registros`,
+        {
+          results,
+          period: { startDate, endDate }
+        },
+        updatedBy,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: results,
+        message: `Salarios recalculados exitosamente. ${results.updated} registros actualizados.`
+      });
+    } catch (error) {
+      console.error('Error recalculating salaries:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al recalcular salarios diarios',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * Obtiene el resumen de salarios de un empleado
+   * GET /api/employees/:id/attendance/salary-summary
+   */
+  static async getSalarySummary(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'Las fechas de inicio y fin son requeridas'
+        });
+      }
+
+      // Verificar que el empleado existe
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Empleado no encontrado'
+        });
+      }
+
+      const summary = await AttendanceRecord.getSalarySummary(
+        employeeId, 
+        startDate, 
+        endDate
+      );
+
+      res.json({
+        success: true,
+        data: {
+          summary,
+          employee: {
+            id: employee.id,
+            name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
+            baseSalary: employee.salary?.baseSalary || employee.contract?.salary || 0,
+            currency: employee.salary?.currency || 'MXN'
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error getting salary summary:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener resumen de salarios',
         details: error.message
       });
     }
