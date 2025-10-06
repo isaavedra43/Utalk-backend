@@ -579,6 +579,8 @@ router.get('/:id/equipment', EquipmentController.list);
 router.get('/:id/equipment/summary', EquipmentController.summary);
 // Asignación
 router.post('/:id/equipment/assign', EquipmentController.assign);
+// Alias de compatibilidad: algunos clientes envían POST /:id/equipment
+router.post('/:id/equipment', EquipmentController.assign);
 // Movimientos
 router.post('/:id/equipment/movements', EquipmentController.addMovement);
 // Actualizar item
