@@ -23,6 +23,10 @@ class VacationRequest {
     this.rejectedReason = data.rejectedReason || null;
     this.attachments = data.attachments || [];
     this.comments = data.comments || '';
+    // Pago de vacaciones (extensión)
+    this.payment = data.payment || null; // { dailySalary, days, baseAmount, vacationPremiumRate, vacationPremiumAmount, totalAmount, currency, plan, paidAmount, calculatedAt, calculatedBy }
+    this.paymentMovements = Array.isArray(data.paymentMovements) ? data.paymentMovements : []; // [{ id, amount, method, reference, notes, createdAt, createdBy, idempotencyKey }]
+    this.paymentTotals = data.paymentTotals || null; // { totalCalculated, totalPaid, remaining, lastPaymentAt }
     
     // Metadatos
     this.createdAt = data.createdAt || new Date().toISOString();
@@ -127,6 +131,9 @@ class VacationRequest {
       rejectedReason: this.rejectedReason,
       attachments: this.attachments,
       comments: this.comments,
+      payment: this.payment,
+      paymentMovements: this.paymentMovements,
+      paymentTotals: this.paymentTotals,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };
@@ -194,6 +201,49 @@ class VacationRequest {
       return this;
     } catch (error) {
       console.error('Error updating vacation request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Agrega un movimiento de pago de manera inmutable con idempotencia
+   */
+  async addPaymentMovement(movement) {
+    try {
+      if (!this.paymentMovements) this.paymentMovements = [];
+      // Idempotencia por idempotencyKey si viene
+      if (movement.idempotencyKey) {
+        const exists = this.paymentMovements.some(m => m.idempotencyKey && m.idempotencyKey === movement.idempotencyKey);
+        if (exists) {
+          return this; // no duplica
+        }
+      }
+
+      this.paymentMovements.push(movement);
+
+      // Actualizar totales
+      if (!this.paymentTotals) {
+        this.paymentTotals = {
+          totalCalculated: this.payment?.totalAmount || 0,
+          totalPaid: 0,
+          remaining: this.payment?.totalAmount || 0,
+          lastPaymentAt: null
+        };
+      }
+
+      this.paymentTotals.totalPaid = (this.paymentTotals.totalPaid || 0) + (movement.amount || 0);
+      this.paymentTotals.remaining = Math.max(0, (this.paymentTotals.totalCalculated || 0) - (this.paymentTotals.totalPaid || 0));
+      this.paymentTotals.lastPaymentAt = movement.createdAt || new Date().toISOString();
+
+      this.updatedAt = new Date().toISOString();
+
+      const docRef = db.collection('employees').doc(this.employeeId)
+        .collection('vacations').doc('requests').collection('list').doc(this.id);
+
+      await docRef.update(this.toFirestore());
+      return this;
+    } catch (error) {
+      console.error('Error adding payment movement:', error);
       throw error;
     }
   }

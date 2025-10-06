@@ -12,6 +12,77 @@ const { db } = require('../config/firebase');
 class VacationController {
   
   /**
+   * POST /api/employees/:employeeId/vacations/calculate-payment
+   * Calcula el pago de vacaciones sin persistir
+   */
+  static async calculatePayment(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { startDate, endDate } = req.body;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({ success: false, error: 'startDate y endDate son requeridos' });
+      }
+
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({ success: false, error: 'Empleado no encontrado' });
+      }
+
+      // Calcular días hábiles igual a calculateDays
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      let days = 0;
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dow = d.getDay();
+        if (dow !== 0 && dow !== 6) days++;
+      }
+      if (days <= 0) {
+        return res.status(400).json({ success: false, error: 'El rango no contiene días laborales' });
+      }
+
+      // Salario diario consistente con nómina: baseSalary / 30 o SBC si existe
+      const salaryInfo = employee.salary || {};
+      const currency = salaryInfo.currency || 'MXN';
+      const sdiOrSbc = employee.sbc || salaryInfo.baseSalary; // mantener consistencia con sistema actual
+      const dailySalary = Number(sdiOrSbc) / 30;
+      if (!dailySalary || dailySalary <= 0) {
+        return res.status(400).json({ success: false, error: 'Salario diario inválido' });
+      }
+
+      const baseAmount = parseFloat((dailySalary * days).toFixed(2));
+      // Política: usar rate >= 0.25
+      const vacationData = await VacationData.getOrCreate(employeeId, {
+        firstName: employee.personalInfo.firstName,
+        lastName: employee.personalInfo.lastName,
+        position: employee.position.title,
+        department: employee.position.department,
+        hireDate: employee.position.startDate
+      });
+      const policyRate = vacationData?.policy?.vacationPremiumRate || 0.25;
+      const vacationPremiumRate = Math.max(0.25, policyRate);
+      const vacationPremiumAmount = parseFloat((baseAmount * vacationPremiumRate).toFixed(2));
+      const totalAmount = parseFloat((baseAmount + vacationPremiumAmount).toFixed(2));
+
+      return res.json({
+        success: true,
+        data: {
+          dailySalary: parseFloat(dailySalary.toFixed(2)),
+          days,
+          baseAmount,
+          vacationPremiumRate,
+          vacationPremiumAmount,
+          totalAmount,
+          currency: currency || 'MXN'
+        }
+      });
+    } catch (error) {
+      console.error('Error calculating vacation payment:', error);
+      res.status(500).json({ success: false, error: 'Error al calcular pago', details: error.message });
+    }
+  }
+  
+  /**
    * 1. GET /api/employees/:employeeId/vacations
    * Obtener todos los datos de vacaciones del empleado
    */
@@ -159,7 +230,7 @@ class VacationController {
   static async createRequest(req, res) {
     try {
       const { id: employeeId } = req.params;
-      const { startDate, endDate, type, reason, comments, attachments } = req.body;
+      const { startDate, endDate, type, reason, comments, attachments, payment } = req.body;
       const userId = req.user?.id || null;
 
       // Verificar empleado
@@ -237,6 +308,31 @@ class VacationController {
         });
       }
 
+      // Calcular pago (server authority)
+      const paymentCalcRes = await VacationController.calculatePayment({ params: { id: employeeId }, body: { startDate, endDate } }, { json: (r)=>r, status: ()=>({ json: (r)=>r }) });
+      const paymentData = paymentCalcRes?.data || null;
+      if (paymentData) {
+        request.payment = {
+          dailySalary: paymentData.dailySalary,
+          days: paymentData.days,
+          baseAmount: paymentData.baseAmount,
+          vacationPremiumRate: paymentData.vacationPremiumRate,
+          vacationPremiumAmount: paymentData.vacationPremiumAmount,
+          totalAmount: paymentData.totalAmount,
+          currency: paymentData.currency,
+          plan: payment?.plan || null,
+          paidAmount: payment?.paidAmount || 0,
+          calculatedAt: new Date().toISOString(),
+          calculatedBy: req.user?.id || 'system'
+        };
+        request.paymentTotals = {
+          totalCalculated: paymentData.totalAmount,
+          totalPaid: 0,
+          remaining: paymentData.totalAmount,
+          lastPaymentAt: null
+        };
+      }
+
       // Guardar solicitud
       await request.save();
 
@@ -261,6 +357,26 @@ class VacationController {
         userId,
         req
       );
+
+      // Si viene paidAmount > 0, registrar movimiento inicial
+      if (payment?.paidAmount && payment.paidAmount > 0) {
+        // Validar contra remaining
+        const remaining = request.paymentTotals?.remaining ?? request.payment?.totalAmount ?? 0;
+        if (payment.paidAmount > remaining) {
+          return res.status(400).json({ success: false, error: 'El abono excede el monto restante' });
+        }
+        const movement = {
+          id: require('uuid').v4(),
+          amount: payment.paidAmount,
+          method: payment.method || 'bank_transfer',
+          reference: payment.reference || null,
+          notes: payment.notes || null,
+          createdAt: new Date().toISOString(),
+          createdBy: req.user?.id || 'system',
+          idempotencyKey: payment.idempotencyKey || req.headers['idempotency-key'] || null
+        };
+        await request.addPaymentMovement(movement);
+      }
 
       res.status(201).json({
         success: true,
@@ -326,6 +442,35 @@ class VacationController {
       }
 
       request.updatedAt = new Date().toISOString();
+      // Si se envía payment, recalcular server-side y persistir
+      if (updateData.payment !== undefined) {
+        const calcRes = await VacationController.calculatePayment({ params: { id: employeeId }, body: { startDate: request.startDate, endDate: request.endDate } }, { json: (r)=>r, status: ()=>({ json: (r)=>r }) });
+        const pay = calcRes?.data;
+        if (pay) {
+          request.payment = {
+            dailySalary: pay.dailySalary,
+            days: pay.days,
+            baseAmount: pay.baseAmount,
+            vacationPremiumRate: pay.vacationPremiumRate,
+            vacationPremiumAmount: pay.vacationPremiumAmount,
+            totalAmount: pay.totalAmount,
+            currency: pay.currency,
+            plan: updateData.payment?.plan || request.payment?.plan || null,
+            paidAmount: request.payment?.paidAmount || 0,
+            calculatedAt: new Date().toISOString(),
+            calculatedBy: req.user?.id || 'system'
+          };
+          // Actualizar totales consistente
+          const totalPaid = request.paymentTotals?.totalPaid || 0;
+          request.paymentTotals = {
+            totalCalculated: pay.totalAmount,
+            totalPaid,
+            remaining: Math.max(0, pay.totalAmount - totalPaid),
+            lastPaymentAt: request.paymentTotals?.lastPaymentAt || null
+          };
+        }
+      }
+
       await docRef.update(request.toFirestore());
 
       // Actualizar balance si cambió la cantidad de días
@@ -348,6 +493,29 @@ class VacationController {
         userId,
         req
       );
+
+      // Si se envió un nuevo paidAmount, registrar movimiento
+      if (updateData.payment?.paidAmount && updateData.payment.paidAmount > 0) {
+        if (request.status === 'cancelled') {
+          return res.status(422).json({ success: false, error: 'No se pueden registrar pagos en solicitudes canceladas' });
+        }
+        // Validar restante antes de agregar
+        const remaining = request.paymentTotals?.remaining ?? request.payment?.totalAmount ?? 0;
+        if (updateData.payment.paidAmount > remaining) {
+          return res.status(400).json({ success: false, error: 'El abono excede el monto restante' });
+        }
+        const movement = {
+          id: require('uuid').v4(),
+          amount: updateData.payment.paidAmount,
+          method: updateData.payment.method || 'bank_transfer',
+          reference: updateData.payment.reference || null,
+          notes: updateData.payment.notes || null,
+          createdAt: new Date().toISOString(),
+          createdBy: req.user?.id || 'system',
+          idempotencyKey: updateData.payment.idempotencyKey || req.headers['idempotency-key'] || null
+        };
+        await request.addPaymentMovement(movement);
+      }
 
       res.json({
         success: true,

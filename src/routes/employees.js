@@ -563,6 +563,9 @@ router.get('/:id/vacations/balance', VacationController.getBalance);
 // 3. Obtener todas las solicitudes
 router.get('/:id/vacations/requests', VacationController.getRequests);
 
+// 3.1 Calcular pago de vacaciones (sin persistir)
+router.post('/:id/vacations/calculate-payment', VacationController.calculatePayment);
+
 // 4. Crear nueva solicitud
 router.post('/:id/vacations/requests', 
   validateRequiredFields(['startDate', 'endDate', 'type', 'reason']),
