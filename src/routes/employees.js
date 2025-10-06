@@ -566,6 +566,26 @@ router.get('/:id/vacations/requests', VacationController.getRequests);
 // 3.1 Calcular pago de vacaciones (sin persistir)
 router.post('/:id/vacations/calculate-payment', VacationController.calculatePayment);
 
+/**
+ * RUTAS DE EQUIPO/HERRAMIENTAS POR EMPLEADO
+ */
+const EquipmentController = require('../controllers/EquipmentController');
+
+// Lista paginada
+router.get('/:id/equipment', EquipmentController.list);
+// Resumen (200 con ceros si vacío)
+router.get('/:id/equipment/summary', EquipmentController.summary);
+// Asignación
+router.post('/:id/equipment/assign', EquipmentController.assign);
+// Movimientos
+router.post('/:id/equipment/movements', EquipmentController.addMovement);
+// Actualizar item
+router.put('/:id/equipment/:itemId', EquipmentController.update);
+// Devolver item
+router.put('/:id/equipment/:itemId/return', EquipmentController.returnItem);
+// Eliminar item
+router.delete('/:id/equipment/:itemId', EquipmentController.remove);
+
 // 4. Crear nueva solicitud
 router.post('/:id/vacations/requests', 
   validateRequiredFields(['startDate', 'endDate', 'type', 'reason']),
