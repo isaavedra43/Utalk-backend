@@ -10,6 +10,7 @@ const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
 const IncidentController = require('../controllers/IncidentController');
 const EquipmentController = require('../controllers/EquipmentController');
+const SkillsController = require('../controllers/SkillsController');
 const EquipmentReviewController = require('../controllers/EquipmentReviewController');
 const ExtrasController = require('../controllers/ExtrasController');
 const AttachmentsController = require('../controllers/AttachmentsController');
@@ -565,11 +566,12 @@ router.get('/:id/vacations/requests', VacationController.getRequests);
 
 // 3.1 Calcular pago de vacaciones (sin persistir)
 router.post('/:id/vacations/calculate-payment', VacationController.calculatePayment);
+// Fallback cuando el frontend envía la ruta sin id (doble slash)
+router.post('/vacations/calculate-payment', VacationController.calculatePayment);
 
 /**
  * RUTAS DE EQUIPO/HERRAMIENTAS POR EMPLEADO
  */
-const EquipmentController = require('../controllers/EquipmentController');
 
 // Lista paginada
 router.get('/:id/equipment', EquipmentController.list);
@@ -585,6 +587,32 @@ router.put('/:id/equipment/:itemId', EquipmentController.update);
 router.put('/:id/equipment/:itemId/return', EquipmentController.returnItem);
 // Eliminar item
 router.delete('/:id/equipment/:itemId', EquipmentController.remove);
+
+/**
+ * RUTAS DE HABILIDADES (skills) POR EMPLEADO
+ */
+// Skills
+router.get('/:id/skills', SkillsController.listSkills);
+router.post('/:id/skills', SkillsController.createSkill);
+router.put('/:id/skills/:skillId', SkillsController.updateSkill);
+router.delete('/:id/skills/:skillId', SkillsController.deleteSkill);
+// Certifications
+router.get('/:id/certifications', SkillsController.listCertifications);
+router.post('/:id/certifications', SkillsController.createCertification);
+router.put('/:id/certifications/:certId', SkillsController.updateCertification);
+router.delete('/:id/certifications/:certId', SkillsController.deleteCertification);
+// Development plans
+router.get('/:id/development-plans', SkillsController.listPlans);
+router.post('/:id/development-plans', SkillsController.createPlan);
+router.put('/:id/development-plans/:planId', SkillsController.updatePlan);
+router.delete('/:id/development-plans/:planId', SkillsController.deletePlan);
+// Evaluations
+router.get('/:id/skill-evaluations', SkillsController.listEvaluations);
+router.post('/:id/skill-evaluations', SkillsController.createEvaluation);
+router.put('/:id/skill-evaluations/:evaluationId', SkillsController.updateEvaluation);
+router.delete('/:id/skill-evaluations/:evaluationId', SkillsController.deleteEvaluation);
+// Summary
+router.get('/:id/skills/summary', SkillsController.summary);
 
 // 4. Crear nueva solicitud
 router.post('/:id/vacations/requests', 
@@ -701,82 +729,6 @@ router.get('/:id/incidents/:incidentId/report/:type', IncidentController.generat
  */
 
 /**
- * RUTAS DE EQUIPOS Y HERRAMIENTAS - Alineadas 100% con Frontend
- * Endpoints exactos según especificaciones del modal
- */
-
-// 1. Obtener todos los equipos del empleado
-router.get('/:id/equipment', EquipmentController.getByEmployee);
-
-// 2. Obtener equipo específico
-router.get('/:id/equipment/:equipmentId', EquipmentController.getById);
-
-// 3. Crear nuevo equipo
-router.post('/:id/equipment', 
-  validateRequiredFields(['name', 'description', 'category', 'purchaseDate', 'purchasePrice', 'assignedDate', 'invoice']),
-  EquipmentController.create
-);
-
-// 4. Actualizar equipo
-router.put('/:id/equipment/:equipmentId', EquipmentController.update);
-
-// 5. Eliminar equipo
-router.delete('/:id/equipment/:equipmentId', EquipmentController.delete);
-
-// 6. Devolver equipo
-router.put('/:id/equipment/:equipmentId/return', 
-  validateRequiredFields(['condition']),
-  EquipmentController.return
-);
-
-// 7. Reportar equipo perdido
-router.put('/:id/equipment/:equipmentId/report-lost', 
-  validateRequiredFields(['lostDate', 'description']),
-  EquipmentController.reportLost
-);
-
-// 8. Reportar daño en equipo
-router.put('/:id/equipment/:equipmentId/report-damage', 
-  validateRequiredFields(['description', 'severity']),
-  EquipmentController.reportDamage
-);
-
-// 9. Crear nueva revisión
-router.post('/:id/equipment/:equipmentId/reviews', 
-  validateRequiredFields(['reviewType', 'condition', 'cleanliness', 'functionality']),
-  EquipmentReviewController.create
-);
-
-// 10. Obtener revisiones de un equipo
-router.get('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.getByEquipment);
-
-// 11. Obtener revisión específica
-router.get('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.getById);
-
-// 12. Obtener estadísticas de revisiones
-router.get('/:id/equipment/:equipmentId/reviews/stats', EquipmentReviewController.getStats);
-
-// 13. Obtener última revisión
-router.get('/:id/equipment/:equipmentId/reviews/last', EquipmentReviewController.getLastReview);
-
-// 14. Programar próxima revisión
-router.post('/:id/equipment/:equipmentId/schedule-review', 
-  EquipmentReviewController.scheduleReview
-);
-
-// 15. Eliminar revisión
-router.delete('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.delete);
-
-// 16. Obtener resumen estadístico
-router.get('/:id/equipment/summary', EquipmentController.getSummary);
-
-// 17. Exportar equipos
-router.get('/:id/equipment/export', EquipmentController.export);
-
-// 18. Generar reporte específico
-router.get('/:id/equipment/report/:reportType', EquipmentController.generateReport);
-
-/**
  * RUTAS DE ARCHIVOS ADJUNTOS PARA EQUIPOS
  * NOTA: Las rutas de adjuntos están en /api/equipment/attachments (archivo separado)
  * No es necesario duplicarlas aquí
@@ -834,24 +786,8 @@ router.post('/:id/evaluations', (req, res) => {
 
 /**
  * RUTAS DE HABILIDADES
- * Estas rutas se implementarán en el siguiente controlador
+ * (implementadas arriba con SkillsController)
  */
-
-// TODO: Implementar rutas de habilidades
-router.get('/:id/skills', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Funcionalidad de habilidades en desarrollo',
-    data: { skills: [] }
-  });
-});
-
-router.post('/:id/skills', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Funcionalidad de creación de habilidades en desarrollo'
-  });
-});
 
 /**
  * RUTAS DE HISTORIAL

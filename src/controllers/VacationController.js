@@ -17,16 +17,20 @@ class VacationController {
    */
   static async calculatePayment(req, res) {
     try {
-      const { id: employeeId } = req.params;
-      const { startDate, endDate } = req.body;
+      const employeeId = req.params?.id || req.body?.employeeId || req.body?.id || null;
+      const { startDate, endDate, dailySalary: clientDailySalary, sbc: clientSbc, baseSalary: clientBaseSalary } = req.body || {};
 
       if (!startDate || !endDate) {
         return res.status(400).json({ success: false, error: 'startDate y endDate son requeridos' });
       }
 
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({ success: false, error: 'Empleado no encontrado' });
+      // Intentar obtener empleado si hay id; si no, continuar con datos suministrados por el cliente
+      let employee = null;
+      if (employeeId) {
+        employee = await Employee.findById(employeeId);
+        if (!employee) {
+          return res.status(404).json({ success: false, error: 'Empleado no encontrado' });
+        }
       }
 
       // Calcular días hábiles igual a calculateDays
@@ -42,23 +46,27 @@ class VacationController {
       }
 
       // Salario diario consistente con nómina: baseSalary / 30 o SBC si existe
-      const salaryInfo = employee.salary || {};
-      const currency = salaryInfo.currency || 'MXN';
-      const sdiOrSbc = employee.sbc || salaryInfo.baseSalary; // mantener consistencia con sistema actual
-      const dailySalary = Number(sdiOrSbc) / 30;
+      const salaryInfo = employee?.salary || {};
+      const currency = (salaryInfo.currency || 'MXN');
+      const sdiOrSbc = (employee?.sbc ?? clientSbc ?? clientBaseSalary ?? salaryInfo.baseSalary);
+      const inferredDaily = sdiOrSbc ? Number(sdiOrSbc) / 30 : null;
+      const dailySalary = clientDailySalary ? Number(clientDailySalary) : inferredDaily;
       if (!dailySalary || dailySalary <= 0) {
         return res.status(400).json({ success: false, error: 'Salario diario inválido' });
       }
 
       const baseAmount = parseFloat((dailySalary * days).toFixed(2));
       // Política: usar rate >= 0.25
-      const vacationData = await VacationData.getOrCreate(employeeId, {
-        firstName: employee.personalInfo.firstName,
-        lastName: employee.personalInfo.lastName,
-        position: employee.position.title,
-        department: employee.position.department,
-        hireDate: employee.position.startDate
-      });
+      let vacationData = null;
+      if (employeeId) {
+        vacationData = await VacationData.getOrCreate(employeeId, {
+          firstName: employee?.personalInfo?.firstName || '',
+          lastName: employee?.personalInfo?.lastName || '',
+          position: employee?.position?.title || '',
+          department: employee?.position?.department || '',
+          hireDate: employee?.position?.startDate || new Date().toISOString()
+        });
+      }
       const policyRate = vacationData?.policy?.vacationPremiumRate || 0.25;
       const vacationPremiumRate = Math.max(0.25, policyRate);
       const vacationPremiumAmount = parseFloat((baseAmount * vacationPremiumRate).toFixed(2));
