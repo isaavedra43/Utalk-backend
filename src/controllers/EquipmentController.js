@@ -58,7 +58,11 @@ class EquipmentController {
   static async assign(req, res) {
     try {
       const { id: employeeId } = req.params;
-      const { item, movement = {}, idempotencyKey } = req.body;
+      // Aceptar tanto { item, movement } como payload plano enviado por el frontend
+      const hasWrappedItem = typeof req.body?.item === 'object' && req.body.item !== null;
+      const item = hasWrappedItem ? req.body.item : req.body?.equipmentData || req.body;
+      const movement = hasWrappedItem ? (req.body.movement || {}) : {};
+      const idempotencyKey = req.body?.idempotencyKey || req.headers['idempotency-key'];
 
       // validar duplicado activo por serial
       if (item?.serial) {
@@ -73,7 +77,7 @@ class EquipmentController {
       await equipment.save();
 
       // movimiento assign con idempotencia
-      await equipment.addMovement({ type: 'assign', notes: movement.notes, attachments: movement.attachments || [], idempotencyKey: idempotencyKey || req.headers['idempotency-key'], createdBy: req.user?.id || 'system' });
+      await equipment.addMovement({ type: 'assign', notes: movement.notes, attachments: movement.attachments || [], idempotencyKey, createdBy: req.user?.id || 'system' });
 
       return res.status(201).json({ success: true, data: equipment.toFirestore() });
     } catch (error) {
