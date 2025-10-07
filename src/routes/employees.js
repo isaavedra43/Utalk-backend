@@ -591,6 +591,32 @@ router.put('/:id/equipment/:itemId/return', EquipmentController.returnItem);
 router.delete('/:id/equipment/:itemId', EquipmentController.remove);
 
 /**
+ * RUTAS DE REVISIONES DE EQUIPOS
+ * Alineadas 100% con Frontend
+ */
+
+// Crear nueva revisión de equipo
+router.post('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.create);
+
+// Obtener revisiones de un equipo
+router.get('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.getByEquipment);
+
+// Obtener última revisión (ANTES de :reviewId para evitar conflicto)
+router.get('/:id/equipment/:equipmentId/reviews/last', EquipmentReviewController.getLastReview);
+
+// Obtener estadísticas de revisiones (ANTES de :reviewId para evitar conflicto)
+router.get('/:id/equipment/:equipmentId/reviews/stats', EquipmentReviewController.getStats);
+
+// Programar próxima revisión (ANTES de :reviewId para evitar conflicto)
+router.post('/:id/equipment/:equipmentId/reviews/schedule', EquipmentReviewController.scheduleReview);
+
+// Obtener revisión específica (DESPUÉS de rutas específicas)
+router.get('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.getById);
+
+// Eliminar revisión
+router.delete('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.delete);
+
+/**
  * RUTAS DE HABILIDADES (skills) POR EMPLEADO
  */
 // Skills
