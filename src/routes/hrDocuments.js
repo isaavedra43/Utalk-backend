@@ -1,19 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { authMiddleware } = require('../middleware/auth');
-const HRDocumentsController = require('../controllers/HRDocumentsController');
-
-router.use(authMiddleware);
-
-// Básicos que el frontend ya consume
-router.get('/documents', HRDocumentsController.list);
-router.get('/documents/summary', HRDocumentsController.summary);
-router.get('/documents/folders', HRDocumentsController.folders);
-
-module.exports = router;
-
-const express = require('express');
-const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 
