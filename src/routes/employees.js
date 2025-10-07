@@ -595,10 +595,13 @@ router.delete('/:id/equipment/:itemId', EquipmentController.remove);
  * Alineadas 100% con Frontend
  */
 
+// Obtener todas las revisiones de un empleado (de todos sus equipos)
+router.get('/:id/equipment/reviews', EquipmentReviewController.getEmployeeReviews);
+
 // Crear nueva revisión de equipo
 router.post('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.create);
 
-// Obtener revisiones de un equipo
+// Obtener revisiones de un equipo específico
 router.get('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.getByEquipment);
 
 // Obtener última revisión (ANTES de :reviewId para evitar conflicto)

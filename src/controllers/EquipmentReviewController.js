@@ -499,6 +499,73 @@ class EquipmentReviewController {
   }
 
   /**
+   * Obtener todas las revisiones de un empleado
+   */
+  static async getEmployeeReviews(req, res) {
+    try {
+      const { id: employeeId } = req.params;
+      const { 
+        equipmentId,
+        reviewType, 
+        condition,
+        dateFrom,
+        dateTo,
+        page = 1, 
+        limit = 20,
+        orderBy = 'createdAt',
+        orderDirection = 'desc'
+      } = req.query;
+
+      // Verificar empleado
+      const employee = await Employee.findById(employeeId);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: getErrorMessage('EMPLOYEE_NOT_FOUND')
+        });
+      }
+
+      // Construir opciones de búsqueda
+      const options = {
+        equipmentId,
+        reviewType,
+        condition,
+        dateFrom,
+        dateTo,
+        orderBy,
+        orderDirection,
+        limit: parseInt(limit),
+        offset: (parseInt(page) - 1) * parseInt(limit)
+      };
+
+      // Obtener revisiones del empleado
+      const result = await EquipmentReview.listByEmployee(employeeId, options);
+
+      res.json({
+        success: true,
+        data: result.reviews,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: result.total,
+          totalPages: Math.ceil(result.total / parseInt(limit))
+        }
+      });
+    } catch (error) {
+      logger.error('Error al obtener revisiones del empleado', {
+        employeeId: req.params.id,
+        error: error.message,
+        stack: error.stack
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor'
+      });
+    }
+  }
+
+  /**
    * Obtener última revisión de un equipo
    */
   static async getLastReview(req, res) {

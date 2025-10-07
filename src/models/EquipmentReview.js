@@ -290,6 +290,109 @@ class EquipmentReview {
   }
 
   /**
+   * Lista todas las revisiones de un empleado (de todos sus equipos)
+   */
+  static async listByEmployee(employeeId, options = {}) {
+    try {
+      // Obtener todos los equipos del empleado
+      const equipmentSnapshot = await db.collection('employees')
+        .doc(employeeId)
+        .collection('equipment')
+        .get();
+
+      if (equipmentSnapshot.empty) {
+        return { reviews: [], total: 0 };
+      }
+
+      const allReviews = [];
+      const equipmentIds = [];
+
+      // Recopilar todos los IDs de equipos
+      equipmentSnapshot.forEach(doc => {
+        equipmentIds.push(doc.id);
+      });
+
+      // Obtener revisiones de cada equipo
+      for (const equipmentId of equipmentIds) {
+        let query = db.collection('employees')
+          .doc(employeeId)
+          .collection('equipment')
+          .doc(equipmentId)
+          .collection('reviews');
+
+        // Aplicar filtros
+        if (options.equipmentId && options.equipmentId !== equipmentId) {
+          continue; // Saltar este equipo si no coincide con el filtro
+        }
+
+        if (options.reviewType) {
+          query = query.where('reviewType', '==', options.reviewType);
+        }
+
+        if (options.condition) {
+          query = query.where('condition', '==', options.condition);
+        }
+
+        if (options.dateFrom) {
+          query = query.where('reviewDate', '>=', options.dateFrom);
+        }
+
+        if (options.dateTo) {
+          query = query.where('reviewDate', '<=', options.dateTo);
+        }
+
+        const reviewsSnapshot = await query.get();
+        
+        reviewsSnapshot.forEach(doc => {
+          const review = EquipmentReview.fromFirestore(doc);
+          // Agregar información del equipo
+          const equipmentDoc = equipmentSnapshot.docs.find(eq => eq.id === equipmentId);
+          if (equipmentDoc) {
+            const equipmentData = equipmentDoc.data();
+            review.equipment = {
+              id: equipmentId,
+              name: equipmentData.name || '',
+              brand: equipmentData.brand || '',
+              model: equipmentData.model || '',
+              type: equipmentData.type || '',
+              serial: equipmentData.serial || ''
+            };
+          }
+          allReviews.push(review);
+        });
+      }
+
+      // Ordenar todas las revisiones
+      const orderBy = options.orderBy || 'createdAt';
+      const orderDirection = options.orderDirection || 'desc';
+      
+      allReviews.sort((a, b) => {
+        const aValue = a[orderBy];
+        const bValue = b[orderBy];
+        
+        if (orderDirection === 'desc') {
+          return bValue > aValue ? 1 : -1;
+        } else {
+          return aValue > bValue ? 1 : -1;
+        }
+      });
+
+      // Aplicar paginación
+      const total = allReviews.length;
+      const offset = options.offset || 0;
+      const limit = options.limit || 20;
+      const paginatedReviews = allReviews.slice(offset, offset + limit);
+
+      return {
+        reviews: paginatedReviews,
+        total: total
+      };
+    } catch (error) {
+      throw new Error(`Error al listar revisiones del empleado: ${error.message}`);
+    }
+  }
+
+  /**
    * Obtiene la última revisión de un equipo
    */
   static async getLastReview(employeeId, equipmentId) {
