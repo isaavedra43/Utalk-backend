@@ -90,32 +90,73 @@ class PlatformService {
   }
 
   /**
-   * Crea una nueva plataforma
+   * Crea una nueva plataforma (proveedor o cliente)
    */
   async createPlatform(userId, platformData, createdBy) {
     try {
-      logger.info('Creando plataforma', { userId, platformNumber: platformData.platformNumber });
-
-      // ✅ SOLO DATOS REALES - Verificar que el proveedor existe
-      const provider = await Provider.findById(userId, platformData.providerId);
-      
-      if (!provider) {
-        throw ApiError.notFoundError('Proveedor no encontrado. Debe crear el proveedor antes de crear la plataforma.');
-      }
-
-      const platform = new Platform({
-        ...platformData,
-        userId,
-        createdBy
+      logger.info('Creando plataforma', { 
+        userId, 
+        platformNumber: platformData.platformNumber,
+        platformType: platformData.platformType 
       });
 
-      await platform.save();
+      // ✅ VALIDACIÓN CONDICIONAL POR TIPO
+      if (platformData.platformType === 'provider') {
+        // Para cargas de proveedor: verificar que el proveedor existe
+        const provider = await Provider.findById(userId, platformData.providerId);
+        
+        if (!provider) {
+          throw ApiError.notFoundError('Proveedor no encontrado. Debe crear el proveedor antes de crear la plataforma.');
+        }
 
-      logger.info('Plataforma creada exitosamente', { userId, platformId: platform.id });
+        const platform = new Platform({
+          ...platformData,
+          userId,
+          createdBy,
+          provider: provider.name
+        });
 
-      return platform;
+        await platform.save();
+
+        logger.info('Plataforma de proveedor creada exitosamente', {
+          userId,
+          platformId: platform.id,
+          platformNumber: platform.platformNumber,
+          providerId: platform.providerId
+        });
+
+        return platform;
+
+      } else if (platformData.platformType === 'client') {
+        // Para cargas de cliente: no necesita proveedor
+        const platform = new Platform({
+          ...platformData,
+          userId,
+          createdBy,
+          platformType: 'client'
+        });
+
+        await platform.save();
+
+        logger.info('Plataforma de cliente creada exitosamente', {
+          userId,
+          platformId: platform.id,
+          platformNumber: platform.platformNumber,
+          ticketNumber: platform.ticketNumber
+        });
+
+        return platform;
+
+      } else {
+        throw ApiError.validationError('platformType debe ser "provider" o "client"');
+      }
+
     } catch (error) {
-      logger.error('Error creando plataforma', { userId, error: error.message });
+      logger.error('Error creando plataforma', { 
+        userId, 
+        platformType: platformData.platformType,
+        error: error.message 
+      });
       throw error;
     }
   }

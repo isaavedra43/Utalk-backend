@@ -13,11 +13,19 @@ class Platform {
   constructor(data = {}) {
     this.id = data.id || uuidv4();
     this.userId = data.userId;
-    this.providerId = data.providerId;
-    this.provider = data.provider || '';
+    
+    // ✅ NUEVOS CAMPOS PARA SOPORTE DE CARGAS DE CLIENTE
+    this.platformType = data.platformType || 'provider'; // 'provider' | 'client'
+    this.ticketNumber = data.ticketNumber || null; // Solo para cargas de cliente
+    
+    // ✅ CAMPOS EXISTENTES (OPCIONALES para backward compatibility)
+    this.providerId = data.providerId || null; // Opcional para cargas de cliente
+    this.provider = data.provider || ''; // Opcional para cargas de cliente
+    
+    // ✅ CAMPOS COMUNES (REQUERIDOS siempre)
     this.platformNumber = data.platformNumber || '';
     this.receptionDate = data.receptionDate || new Date();
-    this.materialTypes = data.materialTypes || [];
+    this.materialTypes = data.materialTypes || []; // Opcional para cargas de cliente
     this.driver = data.driver || '';
     this.standardWidth = data.standardWidth !== undefined ? data.standardWidth : 0.3;
     this.pieces = data.pieces || [];
@@ -32,18 +40,69 @@ class Platform {
   }
 
   /**
+   * Valida los datos de la plataforma según el tipo
+   */
+  validate() {
+    const errors = [];
+
+    // Campos siempre requeridos
+    if (!this.platformNumber?.trim()) {
+      errors.push('platformNumber es requerido');
+    }
+    if (!this.driver?.trim()) {
+      errors.push('driver es requerido');
+    }
+    if (!this.platformType) {
+      errors.push('platformType es requerido');
+    }
+
+    // Validar platformType
+    if (this.platformType && !['provider', 'client'].includes(this.platformType)) {
+      errors.push('platformType debe ser "provider" o "client"');
+    }
+
+    // Validación condicional por tipo
+    if (this.platformType === 'provider') {
+      if (!this.providerId?.trim()) {
+        errors.push('providerId es requerido para cargas de proveedor');
+      }
+      if (!this.provider?.trim()) {
+        errors.push('provider es requerido para cargas de proveedor');
+      }
+      if (!this.materialTypes || this.materialTypes.length === 0) {
+        errors.push('materialTypes es requerido para cargas de proveedor');
+      }
+    }
+
+    if (this.platformType === 'client') {
+      if (!this.ticketNumber?.trim()) {
+        errors.push('ticketNumber es requerido para cargas de cliente');
+      }
+      // materialTypes es OPCIONAL para cargas de cliente
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    };
+  }
+
+  /**
    * Calcula totales automáticamente
    */
   calculateTotals() {
     this.totalLength = this.pieces.reduce((sum, piece) => sum + (piece.length || 0), 0);
     this.totalLinearMeters = this.pieces.reduce((sum, piece) => sum + (piece.linearMeters || 0), 0);
     
-    // Extraer tipos de materiales únicos
-    const materialsSet = new Set();
-    this.pieces.forEach(piece => {
-      if (piece.material) materialsSet.add(piece.material);
-    });
-    this.materialTypes = Array.from(materialsSet);
+    // Extraer tipos de materiales únicos (solo si hay pieces)
+    if (this.pieces && this.pieces.length > 0) {
+      const materialsSet = new Set();
+      this.pieces.forEach(piece => {
+        if (piece.material) materialsSet.add(piece.material);
+      });
+      this.materialTypes = Array.from(materialsSet);
+    }
+    // Para cargas de cliente, materialTypes puede estar vacío
   }
 
   /**
@@ -52,6 +111,8 @@ class Platform {
   toFirestore() {
     return {
       userId: this.userId,
+      platformType: this.platformType,
+      ticketNumber: this.ticketNumber,
       providerId: this.providerId,
       provider: this.provider,
       platformNumber: this.platformNumber,
@@ -95,8 +156,19 @@ class Platform {
       this.calculateTotals();
       this.updatedAt = new Date();
       
-      const docRef = db.collection('providers').doc(this.providerId)
-        .collection('platforms').doc(this.id);
+      let docRef;
+      
+      if (this.platformType === 'provider') {
+        // Para cargas de proveedor: providers/{providerId}/platforms/{platformId}
+        if (!this.providerId) {
+          throw new Error('providerId es requerido para cargas de proveedor');
+        }
+        docRef = db.collection('providers').doc(this.providerId)
+          .collection('platforms').doc(this.id);
+      } else {
+        // Para cargas de cliente: client_platforms/{platformId}
+        docRef = db.collection('client_platforms').doc(this.id);
+      }
       
       await docRef.set(this.toFirestore());
       return this;
@@ -115,8 +187,19 @@ class Platform {
       this.calculateTotals();
       this.updatedAt = new Date();
       
-      const docRef = db.collection('providers').doc(this.providerId)
-        .collection('platforms').doc(this.id);
+      let docRef;
+      
+      if (this.platformType === 'provider') {
+        // Para cargas de proveedor: providers/{providerId}/platforms/{platformId}
+        if (!this.providerId) {
+          throw new Error('providerId es requerido para cargas de proveedor');
+        }
+        docRef = db.collection('providers').doc(this.providerId)
+          .collection('platforms').doc(this.id);
+      } else {
+        // Para cargas de cliente: client_platforms/{platformId}
+        docRef = db.collection('client_platforms').doc(this.id);
+      }
       
       await docRef.update(this.toFirestore());
       return this;
@@ -131,8 +214,19 @@ class Platform {
    */
   async delete() {
     try {
-      const docRef = db.collection('providers').doc(this.providerId)
-        .collection('platforms').doc(this.id);
+      let docRef;
+      
+      if (this.platformType === 'provider') {
+        // Para cargas de proveedor: providers/{providerId}/platforms/{platformId}
+        if (!this.providerId) {
+          throw new Error('providerId es requerido para cargas de proveedor');
+        }
+        docRef = db.collection('providers').doc(this.providerId)
+          .collection('platforms').doc(this.id);
+      } else {
+        // Para cargas de cliente: client_platforms/{platformId}
+        docRef = db.collection('client_platforms').doc(this.id);
+      }
       
       await docRef.delete();
       return true;
@@ -147,13 +241,31 @@ class Platform {
    */
   static async findById(userId, providerId, platformId) {
     try {
-      const doc = await db.collection('providers').doc(providerId)
-        .collection('platforms').doc(platformId).get();
+      let doc;
       
-      const platform = Platform.fromFirestore(doc);
+      // Primero intentar buscar en cargas de proveedor
+      if (providerId) {
+        doc = await db.collection('providers').doc(providerId)
+          .collection('platforms').doc(platformId).get();
+        
+        if (doc.exists) {
+          const platform = Platform.fromFirestore(doc);
+          return platform;
+        }
+      }
       
-      // Antes se validaba por userId; ahora es global
-      return platform;
+      // Si no se encuentra en proveedores, buscar en cargas de cliente
+      doc = await db.collection('client_platforms').doc(platformId).get();
+      
+      if (doc.exists) {
+        const platform = Platform.fromFirestore(doc);
+        // Verificar que pertenece al usuario
+        if (platform.userId === userId) {
+          return platform;
+        }
+      }
+      
+      return null;
     } catch (error) {
       console.error('Error buscando plataforma:', error);
       throw error;
@@ -229,7 +341,7 @@ class Platform {
   }
 
   /**
-   * Lista todas las plataformas del usuario (across all providers)
+   * Lista todas las plataformas del usuario (across all providers + client platforms)
    */
   static async listByUser(userId, options = {}) {
     try {
@@ -238,6 +350,8 @@ class Platform {
         providerId = '',
         provider = '',
         materialType = '',
+        platformType = '', // ⭐ NUEVO: filtrar por tipo de plataforma
+        ticketNumber = '', // ⭐ NUEVO: filtrar por número de ticket
         startDate = null,
         endDate = null,
         search = '',
@@ -247,14 +361,16 @@ class Platform {
         offset = 0
       } = options;
 
-      // Obtener todos los proveedores (global)
-      const providersSnapshot = await db.collection('providers').get();
-
       let allPlatforms = [];
 
-      // Obtener plataformas de cada proveedor
-      for (const providerDoc of providersSnapshot.docs) {
-        const providerData = providerDoc.data();
+      // ✅ OBTENER CARGAS DE PROVEEDOR
+      if (!platformType || platformType === 'provider') {
+        // Obtener todos los proveedores (global)
+        const providersSnapshot = await db.collection('providers').get();
+
+        // Obtener plataformas de cada proveedor
+        for (const providerDoc of providersSnapshot.docs) {
+          const providerData = providerDoc.data();
         const currentProviderId = providerDoc.id;
 
         // Filtrar por providerId si se especifica
@@ -278,6 +394,32 @@ class Platform {
         });
 
         allPlatforms = allPlatforms.concat(platforms);
+        }
+      }
+
+      // ✅ OBTENER CARGAS DE CLIENTE
+      if (!platformType || platformType === 'client') {
+        let clientQuery = db.collection('client_platforms')
+          .where('userId', '==', userId);
+
+        // Filtrar por estado
+        if (status) {
+          clientQuery = clientQuery.where('status', '==', status);
+        }
+
+        // Filtrar por ticketNumber
+        if (ticketNumber) {
+          clientQuery = clientQuery.where('ticketNumber', '==', ticketNumber);
+        }
+
+        const clientPlatformsSnapshot = await clientQuery.get();
+        const clientPlatforms = clientPlatformsSnapshot.docs.map(doc => {
+          const platform = Platform.fromFirestore(doc);
+          platform.platformType = 'client'; // Asegurar que tenga el tipo correcto
+          return platform;
+        });
+
+        allPlatforms = allPlatforms.concat(clientPlatforms);
       }
 
       // Aplicar filtros locales
@@ -290,7 +432,9 @@ class Platform {
         allPlatforms = allPlatforms.filter(p =>
           p.platformNumber.toLowerCase().includes(searchLower) ||
           p.driver.toLowerCase().includes(searchLower) ||
-          p.notes.toLowerCase().includes(searchLower)
+          p.notes.toLowerCase().includes(searchLower) ||
+          (p.ticketNumber && p.ticketNumber.toLowerCase().includes(searchLower)) ||
+          (p.provider && p.provider.toLowerCase().includes(searchLower))
         );
       }
 

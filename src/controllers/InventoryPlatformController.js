@@ -24,6 +24,8 @@ class InventoryPlatformController {
         providerId,
         provider,
         materialType,
+        platformType, // ⭐ NUEVO: filtrar por tipo de plataforma
+        ticketNumber,  // ⭐ NUEVO: filtrar por número de ticket
         startDate,
         endDate,
         search,
@@ -38,6 +40,8 @@ class InventoryPlatformController {
         providerId: providerId || '',
         provider: provider || '',
         materialType: materialType || '',
+        platformType: platformType || '', // ⭐ NUEVO
+        ticketNumber: ticketNumber || '',  // ⭐ NUEVO
         startDate: startDate || null,
         endDate: endDate || null,
         search: search || '',
@@ -94,7 +98,7 @@ class InventoryPlatformController {
 
   /**
    * POST /api/inventory/platforms
-   * Crea una nueva plataforma
+   * Crea una nueva plataforma (proveedor o cliente)
    */
   static async create(req, res, next) {
     try {
@@ -103,13 +107,17 @@ class InventoryPlatformController {
       const createdBy = req.user.email || req.user.id;
       const platformData = req.body;
 
-      // Validaciones básicas
-      if (!platformData.providerId) {
-        return ResponseHandler.validationError(res, 'providerId es requerido');
-      }
+      // ✅ VALIDACIÓN CONDICIONAL POR TIPO
+      const Platform = require('../models/Platform');
+      const tempPlatform = new Platform({
+        ...platformData,
+        userId,
+        createdBy
+      });
 
-      if (!platformData.platformNumber) {
-        return ResponseHandler.validationError(res, 'platformNumber es requerido');
+      const validation = tempPlatform.validate();
+      if (!validation.isValid) {
+        return ResponseHandler.validationError(res, validation.errors.join(', '));
       }
 
       const service = new PlatformService();
