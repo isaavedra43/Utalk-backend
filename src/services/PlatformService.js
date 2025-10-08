@@ -14,13 +14,13 @@ const { ApiError } = require('../utils/responseHandler');
 
 class PlatformService {
   /**
-   * Lista todas las plataformas del usuario
+   * Lista todas las plataformas del workspace
    */
-  async listPlatforms(userId, options = {}) {
+  async listPlatforms(userId, workspaceId, tenantId, options = {}) {
     try {
-      logger.info('Listando plataformas', { userId, options });
+      logger.info('Listando plataformas', { userId, workspaceId, tenantId, options });
 
-      const result = await Platform.listByUser(userId, options);
+      const result = await Platform.listByWorkspace(userId, workspaceId, tenantId, options);
 
       // Obtener filtros disponibles
       const providersSnapshot = await require('../config/firebase').db
@@ -92,10 +92,12 @@ class PlatformService {
   /**
    * Crea una nueva plataforma (proveedor o cliente)
    */
-  async createPlatform(userId, platformData, createdBy) {
+  async createPlatform(userId, workspaceId, tenantId, platformData, createdBy) {
     try {
       logger.info('Creando plataforma', { 
         userId, 
+        workspaceId,
+        tenantId,
         platformNumber: platformData.platformNumber,
         platformType: platformData.platformType 
       });
@@ -112,6 +114,8 @@ class PlatformService {
         const platform = new Platform({
           ...platformData,
           userId,
+          workspaceId,
+          tenantId,
           createdBy,
           provider: provider.name
         });
@@ -120,6 +124,8 @@ class PlatformService {
 
         logger.info('Plataforma de proveedor creada exitosamente', {
           userId,
+          workspaceId,
+          tenantId,
           platformId: platform.id,
           platformNumber: platform.platformNumber,
           providerId: platform.providerId
@@ -132,6 +138,8 @@ class PlatformService {
         const platform = new Platform({
           ...platformData,
           userId,
+          workspaceId,
+          tenantId,
           createdBy,
           platformType: 'client'
         });
@@ -222,18 +230,20 @@ class PlatformService {
   /**
    * Obtiene estadísticas globales
    */
-  async getGlobalStats(userId, options = {}) {
+  async getGlobalStats(userId, workspaceId, tenantId, options = {}) {
     try {
-      logger.info('Obteniendo estadísticas globales', { userId, options });
+      logger.info('Obteniendo estadísticas globales', { userId, workspaceId, tenantId, options });
 
-      const stats = await Platform.getGlobalStats(userId, options);
+      const stats = await Platform.getGlobalStats(userId, workspaceId, tenantId, options);
 
-      logger.info('Estadísticas globales obtenidas', { userId });
+      logger.info('Estadísticas globales obtenidas', { userId, workspaceId, tenantId });
 
       return stats;
     } catch (error) {
       logger.error('Error obteniendo estadísticas globales', {
         userId,
+        workspaceId,
+        tenantId,
         error: error.message
       });
       throw error;

@@ -18,6 +18,10 @@ class Platform {
     this.platformType = data.platformType || 'provider'; // 'provider' | 'client'
     this.ticketNumber = data.ticketNumber || null; // Solo para cargas de cliente
     
+    // ✅ CAMPOS DE WORKSPACE PARA COLABORACIÓN ENTRE USUARIOS
+    this.workspaceId = data.workspaceId || 'default_workspace';
+    this.tenantId = data.tenantId || 'default_tenant';
+    
     // ✅ CAMPOS EXISTENTES (OPCIONALES para backward compatibility)
     this.providerId = data.providerId || null; // Opcional para cargas de cliente
     this.provider = data.provider || ''; // Opcional para cargas de cliente
@@ -113,6 +117,8 @@ class Platform {
       userId: this.userId,
       platformType: this.platformType,
       ticketNumber: this.ticketNumber,
+      workspaceId: this.workspaceId,
+      tenantId: this.tenantId,
       providerId: this.providerId,
       provider: this.provider,
       platformNumber: this.platformNumber,
@@ -341,9 +347,10 @@ class Platform {
   }
 
   /**
-   * Lista todas las plataformas del usuario (across all providers + client platforms)
+   * Lista todas las plataformas del workspace (across all providers + client platforms)
+   * ✅ SOLUCIÓN: Filtra por workspaceId y tenantId para permitir colaboración entre usuarios
    */
-  static async listByUser(userId, options = {}) {
+  static async listByWorkspace(userId, workspaceId, tenantId, options = {}) {
     try {
       const {
         status = '',
@@ -397,10 +404,14 @@ class Platform {
         }
       }
 
-      // ✅ OBTENER CARGAS DE CLIENTE
+      // ✅ OBTENER CARGAS DE CLIENTE - SOLUCIÓN: Filtrar por workspaceId y tenantId
       if (!platformType || platformType === 'client') {
-        let clientQuery = db.collection('client_platforms')
-          .where('userId', '==', userId);
+        let clientQuery = db.collection('client_platforms');
+
+        // ✅ SOLUCIÓN CRÍTICA: Filtrar por workspaceId y tenantId en lugar de userId individual
+        // Esto permite que todos los usuarios del mismo workspace vean las cargas
+        clientQuery = clientQuery.where('workspaceId', '==', workspaceId)
+                                .where('tenantId', '==', tenantId);
 
         // Filtrar por estado
         if (status) {
@@ -474,6 +485,31 @@ class Platform {
         }
       };
     } catch (error) {
+      console.error('Error listando plataformas del workspace:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lista todas las plataformas del usuario (across all providers + client platforms)
+   * ⚠️ MÉTODO LEGACY: Mantenido para compatibilidad, pero usa listByWorkspace internamente
+   */
+  static async listByUser(userId, options = {}) {
+    try {
+      // ✅ OBTENER INFORMACIÓN DEL USUARIO PARA WORKSPACE
+      const User = require('./User');
+      const user = await User.getByEmail(userId);
+      
+      if (!user) {
+        console.warn(`Usuario ${userId} no encontrado, usando valores por defecto`);
+      }
+
+      const workspaceId = user?.workspaceId || 'default_workspace';
+      const tenantId = user?.tenantId || 'default_tenant';
+
+      // ✅ DELEGAR AL NUEVO MÉTODO
+      return await Platform.listByWorkspace(userId, workspaceId, tenantId, options);
+    } catch (error) {
       console.error('Error listando plataformas del usuario:', error);
       throw error;
     }
@@ -482,7 +518,7 @@ class Platform {
   /**
    * Obtiene estadísticas globales de plataformas
    */
-  static async getGlobalStats(userId, options = {}) {
+  static async getGlobalStats(userId, workspaceId, tenantId, options = {}) {
     try {
       const {
         period = 'month',
@@ -514,8 +550,8 @@ class Platform {
           startDate = new Date(now.setMonth(now.getMonth() - 1));
       }
 
-      // Obtener plataformas con filtros
-      const result = await Platform.listByUser(userId, {
+      // Obtener plataformas con filtros usando el nuevo método
+      const result = await Platform.listByWorkspace(userId, workspaceId, tenantId, {
         providerId,
         materialType,
         startDate: startDate.toISOString(),

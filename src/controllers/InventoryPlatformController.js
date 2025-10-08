@@ -19,6 +19,8 @@ class InventoryPlatformController {
     try {
       // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
       const userId = req.user.email || req.user.id;
+      const workspaceId = req.user.workspaceId;
+      const tenantId = req.user.tenantId;
       const {
         status,
         providerId,
@@ -52,7 +54,7 @@ class InventoryPlatformController {
       };
 
       const service = new PlatformService();
-      const result = await service.listPlatforms(userId, options);
+      const result = await service.listPlatforms(userId, workspaceId, tenantId, options);
 
       return ResponseHandler.success(res, result, 'Plataformas obtenidas exitosamente');
     } catch (error) {
@@ -104,6 +106,8 @@ class InventoryPlatformController {
     try {
       // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
       const userId = req.user.email || req.user.id;
+      const workspaceId = req.user.workspaceId;
+      const tenantId = req.user.tenantId;
       const createdBy = req.user.email || req.user.id;
       const platformData = req.body;
 
@@ -112,6 +116,8 @@ class InventoryPlatformController {
       const tempPlatform = new Platform({
         ...platformData,
         userId,
+        workspaceId,
+        tenantId,
         createdBy
       });
 
@@ -121,7 +127,7 @@ class InventoryPlatformController {
       }
 
       const service = new PlatformService();
-      const platform = await service.createPlatform(userId, platformData, createdBy);
+      const platform = await service.createPlatform(userId, workspaceId, tenantId, platformData, createdBy);
 
       return ResponseHandler.created(res, platform, 'Plataforma creada exitosamente');
     } catch (error) {
@@ -204,6 +210,8 @@ class InventoryPlatformController {
     try {
       // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
       const userId = req.user.email || req.user.id;
+      const workspaceId = req.user.workspaceId;
+      const tenantId = req.user.tenantId;
       const { period, providerId, materialType } = req.query;
 
       const options = {
@@ -213,7 +221,7 @@ class InventoryPlatformController {
       };
 
       const service = new PlatformService();
-      const stats = await service.getGlobalStats(userId, options);
+      const stats = await service.getGlobalStats(userId, workspaceId, tenantId, options);
 
       return ResponseHandler.success(res, stats, 'Estadísticas de plataformas obtenidas exitosamente');
     } catch (error) {
