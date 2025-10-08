@@ -247,42 +247,84 @@ class Platform {
    */
   static async findById(userId, providerId, platformId) {
     try {
-      let doc;
+      console.log('🔍 Platform.findById llamado con:', { userId, providerId, platformId });
       
-      // Primero intentar buscar en cargas de proveedor
+      // ✅ OBTENER WORKSPACE DEL USUARIO UNA SOLA VEZ
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (!userDoc.exists) {
+        console.log('❌ Usuario no encontrado en Firestore:', userId);
+        return null;
+      }
+      
+      const userData = userDoc.data();
+      const userWorkspaceId = userData.workspaceId || 'default_workspace';
+      const userTenantId = userData.tenantId || 'default_tenant';
+      console.log('✅ Usuario encontrado:', { userId, userWorkspaceId, userTenantId });
+      
+      let doc;
+      let platform;
+      
+      // 1️⃣ BUSCAR EN CLIENT_PLATFORMS (más común)
+      console.log('🔍 Buscando en client_platforms:', `client_platforms/${platformId}`);
+      doc = await db.collection('client_platforms').doc(platformId).get();
+      
+      if (doc.exists) {
+        console.log('✅ Plataforma encontrada en client_platforms');
+        platform = Platform.fromFirestore(doc);
+        const platformWorkspaceId = platform.workspaceId || 'default_workspace';
+        const platformTenantId = platform.tenantId || 'default_tenant';
+        
+        console.log('🔍 Comparando workspaces:', { 
+          userWorkspaceId, 
+          platformWorkspaceId,
+          userTenantId,
+          platformTenantId
+        });
+        
+        // Verificar workspace Y tenant
+        if (userWorkspaceId === platformWorkspaceId && userTenantId === platformTenantId) {
+          console.log('✅ Workspace y tenant coinciden - Acceso permitido');
+          return platform;
+        } else {
+          console.log('❌ Workspace o tenant NO coinciden - Acceso denegado');
+          return null;
+        }
+      }
+      
+      // 2️⃣ BUSCAR EN PROVIDERS (menos común)
       if (providerId) {
+        console.log('🔍 Buscando en providers:', `providers/${providerId}/platforms/${platformId}`);
         doc = await db.collection('providers').doc(providerId)
           .collection('platforms').doc(platformId).get();
         
         if (doc.exists) {
-          const platform = Platform.fromFirestore(doc);
-          return platform;
-        }
-      }
-      
-      // Si no se encuentra en proveedores, buscar en cargas de cliente
-      doc = await db.collection('client_platforms').doc(platformId).get();
-      
-      if (doc.exists) {
-        const platform = Platform.fromFirestore(doc);
-        
-        // ✅ CORRECCIÓN: Verificar por workspace en lugar de userId individual
-        // Esto permite que usuarios del mismo workspace accedan a las plataformas
-        const userDoc = await db.collection('users').doc(userId).get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          const userWorkspaceId = userData.workspaceId || 'default_workspace';
+          console.log('✅ Plataforma encontrada en providers collection');
+          platform = Platform.fromFirestore(doc);
           const platformWorkspaceId = platform.workspaceId || 'default_workspace';
+          const platformTenantId = platform.tenantId || 'default_tenant';
           
-          if (userWorkspaceId === platformWorkspaceId) {
+          console.log('🔍 Comparando workspaces:', { 
+            userWorkspaceId, 
+            platformWorkspaceId,
+            userTenantId,
+            platformTenantId
+          });
+          
+          // Verificar workspace Y tenant
+          if (userWorkspaceId === platformWorkspaceId && userTenantId === platformTenantId) {
+            console.log('✅ Workspace y tenant coinciden - Acceso permitido');
             return platform;
+          } else {
+            console.log('❌ Workspace o tenant NO coinciden - Acceso denegado');
+            return null;
           }
         }
       }
       
+      console.log('❌ Plataforma no encontrada en ninguna colección');
       return null;
     } catch (error) {
-      console.error('Error buscando plataforma:', error);
+      console.error('❌ Error buscando plataforma:', error);
       throw error;
     }
   }
