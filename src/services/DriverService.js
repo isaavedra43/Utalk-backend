@@ -18,6 +18,20 @@ class DriverService {
     try {
       logger.info('Listando choferes', { workspaceId, tenantId, options });
 
+      // ✅ VALIDACIÓN ADICIONAL
+      if (!workspaceId || !tenantId) {
+        logger.warn('WorkspaceId o tenantId faltantes, devolviendo array vacío', { workspaceId, tenantId });
+        return {
+          drivers: [],
+          pagination: {
+            total: 0,
+            limit: options.limit || 1000,
+            offset: options.offset || 0,
+            hasMore: false
+          }
+        };
+      }
+
       const result = await Driver.listByWorkspace(workspaceId, tenantId, options);
 
       logger.info('Choferes listados exitosamente', {
@@ -28,7 +42,14 @@ class DriverService {
 
       return result;
     } catch (error) {
-      logger.error('Error listando choferes', { workspaceId, tenantId, error: error.message });
+      logger.error('Error listando choferes', { workspaceId, tenantId, error: error.message, stack: error.stack });
+      
+      // ✅ MANEJO DE ERRORES ESPECÍFICOS
+      if (error.message.includes('undefined')) {
+        logger.error('Error de parámetros undefined detectado');
+        throw new Error('Parámetros de workspace no válidos');
+      }
+      
       throw error;
     }
   }

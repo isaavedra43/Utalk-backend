@@ -29,9 +29,9 @@ class InventoryDriverController {
       } = req.query;
 
       const options = {
-        active: active !== undefined && active !== '' ? active === 'true' : null,
-        vehicleType: vehicleType || '',
-        search: search || '',
+        active: (active !== undefined && active !== '' && active !== null) ? active === 'true' : null,
+        vehicleType: (vehicleType && vehicleType.trim()) || '',
+        search: (search && search.trim()) || '',
         limit: parseInt(limit) || 1000,
         offset: parseInt(offset) || 0
       };
@@ -41,7 +41,11 @@ class InventoryDriverController {
         userId,
         workspaceId,
         tenantId,
-        options
+        options,
+        hasWorkspaceId: !!workspaceId,
+        hasTenantId: !!tenantId,
+        workspaceIdType: typeof workspaceId,
+        tenantIdType: typeof tenantId
       });
 
       const service = new DriverService();

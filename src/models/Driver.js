@@ -55,9 +55,10 @@ class Driver {
 
     // Validar formato de teléfono (opcional pero si se proporciona debe ser válido)
     if (this.phone && this.phone.toString().trim()) {
-      const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-      if (!phoneRegex.test(this.phone.toString().replace(/\s/g, ''))) {
-        errors.push('phone debe tener un formato válido');
+      const phoneRegex = /^[\+]?[1-9][\d]{4,20}$/; // Entre 5 y 21 dígitos (incluyendo +)
+      const cleanPhone = this.phone.toString().replace(/[\s\-\(\)]/g, '');
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.push('phone debe tener entre 5 y 20 dígitos');
       }
     }
 
@@ -183,6 +184,7 @@ class Driver {
     try {
       // ✅ VALIDACIÓN DE PARÁMETROS
       if (!workspaceId || !tenantId) {
+        console.log('⚠️ Parámetros de workspace faltantes:', { workspaceId, tenantId });
         return {
           drivers: [],
           pagination: {
@@ -193,6 +195,8 @@ class Driver {
           }
         };
       }
+
+      console.log('🔍 Iniciando consulta a Firestore con:', { workspaceId, tenantId, options });
 
       const {
         active = null,
