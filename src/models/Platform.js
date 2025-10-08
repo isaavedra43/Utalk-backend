@@ -265,9 +265,18 @@ class Platform {
       
       if (doc.exists) {
         const platform = Platform.fromFirestore(doc);
-        // Verificar que pertenece al usuario
-        if (platform.userId === userId) {
-          return platform;
+        
+        // ✅ CORRECCIÓN: Verificar por workspace en lugar de userId individual
+        // Esto permite que usuarios del mismo workspace accedan a las plataformas
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          const userWorkspaceId = userData.workspaceId || 'default_workspace';
+          const platformWorkspaceId = platform.workspaceId || 'default_workspace';
+          
+          if (userWorkspaceId === platformWorkspaceId) {
+            return platform;
+          }
         }
       }
       
