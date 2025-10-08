@@ -68,11 +68,22 @@ class InventoryEvidence {
     try {
       this.updatedAt = new Date();
       
-      const docRef = db.collection('providers').doc(this.providerId)
-        .collection('platforms').doc(this.platformId)
-        .collection('evidence').doc(this.id);
+      let docRef;
       
-      await docRef.set(this.toFirestore());
+      // Intentar primero en client_platforms
+      try {
+        docRef = db.collection('client_platforms').doc(this.platformId)
+          .collection('evidence').doc(this.id);
+        await docRef.set(this.toFirestore());
+        console.log(`✅ Evidencia guardada en client_platforms/${this.platformId}/evidence/${this.id}`);
+      } catch (clientError) {
+        // Si falla, intentar en providers/{providerId}/platforms/{platformId}/evidence
+        docRef = db.collection('providers').doc(this.providerId)
+          .collection('platforms').doc(this.platformId)
+          .collection('evidence').doc(this.id);
+        await docRef.set(this.toFirestore());
+        console.log(`✅ Evidencia guardada en providers/${this.providerId}/platforms/${this.platformId}/evidence/${this.id}`);
+      }
       
       // Actualizar contador en la plataforma
       await this.updatePlatformEvidenceCount();
@@ -110,15 +121,29 @@ class InventoryEvidence {
    */
   async updatePlatformEvidenceCount() {
     try {
-      const evidencesSnapshot = await db.collection('providers').doc(this.providerId)
-        .collection('platforms').doc(this.platformId)
+      let evidencesSnapshot;
+      let platformRef;
+      
+      // Primero intentar en client_platforms
+      evidencesSnapshot = await db.collection('client_platforms').doc(this.platformId)
         .collection('evidence').get();
       
-      const count = evidencesSnapshot.size;
+      if (evidencesSnapshot.size >= 0) {
+        // La plataforma está en client_platforms
+        platformRef = db.collection('client_platforms').doc(this.platformId);
+        console.log(`✅ Contador de evidencias actualizado en client_platforms: ${evidencesSnapshot.size}`);
+      } else {
+        // Intentar en providers/{providerId}/platforms
+        evidencesSnapshot = await db.collection('providers').doc(this.providerId)
+          .collection('platforms').doc(this.platformId)
+          .collection('evidence').get();
+        platformRef = db.collection('providers').doc(this.providerId)
+          .collection('platforms').doc(this.platformId);
+        console.log(`✅ Contador de evidencias actualizado en providers: ${evidencesSnapshot.size}`);
+      }
       
-      await db.collection('providers').doc(this.providerId)
-        .collection('platforms').doc(this.platformId)
-        .update({ evidenceCount: count });
+      const count = evidencesSnapshot.size;
+      await platformRef.update({ evidenceCount: count });
       
       return count;
     } catch (error) {
