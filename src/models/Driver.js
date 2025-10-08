@@ -206,37 +206,31 @@ class Driver {
         offset = 0
       } = options;
 
-      let query = db.collection('drivers');
+      // ✅ CONSULTA SIMPLIFICADA - SOLO WORKSPACE Y TENANT
+      let query = db.collection('drivers')
+        .where('workspaceId', '==', workspaceId)
+        .where('tenantId', '==', tenantId);
 
-      // ✅ FILTRAR POR WORKSPACE Y TENANT
-      query = query.where('workspaceId', '==', workspaceId)
-                  .where('tenantId', '==', tenantId);
+      console.log('🔍 Ejecutando consulta simplificada...');
+      const snapshot = await query.get();
+      let drivers = snapshot.docs.map(doc => Driver.fromFirestore(doc));
 
+      // ✅ APLICAR FILTROS LOCALMENTE
+      console.log(`🔍 Aplicando filtros locales a ${drivers.length} choferes...`);
+      
       // Filtrar por estado activo
       if (active !== null) {
-        query = query.where('isActive', '==', active);
+        drivers = drivers.filter(driver => driver.isActive === active);
+        console.log(`✅ Filtro activo (${active}): ${drivers.length} choferes`);
       }
 
       // Filtrar por tipo de vehículo
       if (vehicleType) {
-        query = query.where('vehicleType', '==', vehicleType);
+        drivers = drivers.filter(driver => driver.vehicleType === vehicleType);
+        console.log(`✅ Filtro tipo vehículo (${vehicleType}): ${drivers.length} choferes`);
       }
 
-      // Ordenar por nombre
-      query = query.orderBy('name', 'asc');
-
-      // Paginación
-      if (offset > 0) {
-        query = query.offset(offset);
-      }
-      if (limit) {
-        query = query.limit(limit);
-      }
-
-      const snapshot = await query.get();
-      let drivers = snapshot.docs.map(doc => Driver.fromFirestore(doc));
-
-      // Filtros locales (búsqueda)
+      // Filtrar por búsqueda
       if (search) {
         const searchLower = search.toLowerCase();
         drivers = drivers.filter(driver => 
@@ -245,43 +239,28 @@ class Driver {
           (driver.vehicleType && driver.vehicleType.toLowerCase().includes(searchLower)) ||
           (driver.vehicleModel && driver.vehicleModel.toLowerCase().includes(searchLower))
         );
+        console.log(`✅ Filtro búsqueda (${search}): ${drivers.length} choferes`);
       }
 
-      // Contar total (con filtros de workspace)
-      let totalQuery = db.collection('drivers')
-        .where('workspaceId', '==', workspaceId)
-        .where('tenantId', '==', tenantId);
-      
-      if (active !== null) {
-        totalQuery = totalQuery.where('isActive', '==', active);
-      }
-      
-      if (vehicleType) {
-        totalQuery = totalQuery.where('vehicleType', '==', vehicleType);
-      }
-      
-      const totalSnapshot = await totalQuery.get();
-      let total = totalSnapshot.size;
+      // Ordenar por nombre
+      drivers = drivers.sort((a, b) => a.name.localeCompare(b.name));
+      console.log(`✅ Ordenamiento por nombre: ${drivers.length} choferes`);
 
-      // Aplicar filtro de búsqueda al total si es necesario
-      if (search) {
-        const searchLower = search.toLowerCase();
-        total = totalSnapshot.docs.filter(doc => {
-          const data = doc.data();
-          return data.name?.toLowerCase().includes(searchLower) ||
-                 data.vehiclePlate?.toLowerCase().includes(searchLower) ||
-                 data.vehicleType?.toLowerCase().includes(searchLower) ||
-                 data.vehicleModel?.toLowerCase().includes(searchLower);
-        }).length;
-      }
+      // ✅ APLICAR PAGINACIÓN LOCAL
+      const totalDrivers = drivers.length;
+      const startIndex = offset;
+      const endIndex = Math.min(startIndex + limit, totalDrivers);
+      drivers = drivers.slice(startIndex, endIndex);
+
+      console.log(`✅ Paginación aplicada: ${startIndex}-${endIndex} de ${totalDrivers} choferes`);
 
       return {
         drivers,
         pagination: {
-          total,
+          total: totalDrivers,
           limit,
           offset,
-          hasMore: (offset + drivers.length) < total
+          hasMore: endIndex < totalDrivers
         }
       };
     } catch (error) {
