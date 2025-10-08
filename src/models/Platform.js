@@ -249,13 +249,27 @@ class Platform {
     try {
       console.log('🔍 Platform.findById llamado con:', { userId, providerId, platformId });
       
-      // ✅ OBTENER WORKSPACE DEL USUARIO UNA SOLA VEZ
-      const userDoc = await db.collection('users').doc(userId).get();
+      // ✅ OBTENER WORKSPACE DEL USUARIO (tolerante a IDs normalizados)
+      const usersCol = db.collection('users');
+      let userDoc = await usersCol.doc(userId).get();
       if (!userDoc.exists) {
-        console.log('❌ Usuario no encontrado en Firestore:', userId);
+        // Algunos entornos guardan el email con puntos reemplazados por guiones bajos
+        const normalizedId = userId.replace(/\./g, '_');
+        userDoc = await usersCol.doc(normalizedId).get();
+      }
+      if (!userDoc.exists) {
+        // Fallback definitivo: buscar por campo email
+        const snap = await usersCol.where('email', '==', userId).limit(1).get();
+        if (!snap.empty) {
+          userDoc = snap.docs[0];
+        }
+      }
+
+      if (!userDoc.exists) {
+        console.log('❌ Usuario no encontrado en Firestore (probadas variantes):', { raw: userId, normalized: userId.replace(/\./g, '_') });
         return null;
       }
-      
+
       const userData = userDoc.data();
       const userWorkspaceId = userData.workspaceId || 'default_workspace';
       const userTenantId = userData.tenantId || 'default_tenant';
