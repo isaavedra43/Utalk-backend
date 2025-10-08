@@ -19,8 +19,8 @@ class InventoryPlatformController {
     try {
       // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
       const userId = req.user.email || req.user.id;
-      const workspaceId = req.user.workspaceId;
-      const tenantId = req.user.tenantId;
+      const workspaceId = req.user.workspaceId || 'default_workspace';
+      const tenantId = req.user.tenantId || 'default_tenant';
       const {
         status,
         providerId,
@@ -52,6 +52,15 @@ class InventoryPlatformController {
         limit: parseInt(limit) || 50,
         offset: parseInt(offset) || 0
       };
+
+      // ✅ DEBUG: Log de parámetros para debugging
+      logger.info('🔍 Listando plataformas con parámetros', {
+        userId,
+        workspaceId,
+        tenantId,
+        hasWorkspaceId: !!workspaceId,
+        hasTenantId: !!tenantId
+      });
 
       const service = new PlatformService();
       const result = await service.listPlatforms(userId, workspaceId, tenantId, options);
@@ -106,8 +115,8 @@ class InventoryPlatformController {
     try {
       // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
       const userId = req.user.email || req.user.id;
-      const workspaceId = req.user.workspaceId;
-      const tenantId = req.user.tenantId;
+      const workspaceId = req.user.workspaceId || 'default_workspace';
+      const tenantId = req.user.tenantId || 'default_tenant';
       const createdBy = req.user.email || req.user.id;
       const platformData = req.body;
 
@@ -210,8 +219,8 @@ class InventoryPlatformController {
     try {
       // ✅ CORRECCIÓN: Usar email como userId (estructura del sistema)
       const userId = req.user.email || req.user.id;
-      const workspaceId = req.user.workspaceId;
-      const tenantId = req.user.tenantId;
+      const workspaceId = req.user.workspaceId || 'default_workspace';
+      const tenantId = req.user.tenantId || 'default_tenant';
       const { period, providerId, materialType } = req.query;
 
       const options = {

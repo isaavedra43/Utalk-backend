@@ -410,8 +410,19 @@ class Platform {
 
         // ✅ SOLUCIÓN CRÍTICA: Filtrar por workspaceId y tenantId en lugar de userId individual
         // Esto permite que todos los usuarios del mismo workspace vean las cargas
-        clientQuery = clientQuery.where('workspaceId', '==', workspaceId)
-                                .where('tenantId', '==', tenantId);
+        // ✅ VALIDACIÓN: Asegurar que workspaceId y tenantId no sean undefined
+        if (workspaceId && tenantId) {
+          clientQuery = clientQuery.where('workspaceId', '==', workspaceId)
+                                  .where('tenantId', '==', tenantId);
+        } else {
+          // ✅ FALLBACK: Si no hay workspaceId/tenantId, usar filtro por userId (comportamiento legacy)
+          console.warn('⚠️ workspaceId o tenantId undefined, usando filtro por userId como fallback', {
+            workspaceId,
+            tenantId,
+            userId
+          });
+          clientQuery = clientQuery.where('userId', '==', userId);
+        }
 
         // Filtrar por estado
         if (status) {

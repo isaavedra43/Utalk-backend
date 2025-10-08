@@ -28,6 +28,7 @@ const InventoryPlatformController = require('../controllers/InventoryPlatformCon
 const InventoryMaterialController = require('../controllers/InventoryMaterialController');
 const InventoryConfigurationController = require('../controllers/InventoryConfigurationController');
 const InventoryEvidenceController = require('../controllers/InventoryEvidenceController');
+const InventoryDriverController = require('../controllers/InventoryDriverController');
 
 /**
  * 🔐 MIDDLEWARE DE AUTENTICACIÓN
@@ -189,6 +190,50 @@ router.get('/evidence/:platformId',
 // DELETE /api/inventory/evidence/:evidenceId
 router.delete('/evidence/:evidenceId',
   InventoryEvidenceController.delete
+);
+
+/**
+ * 🚛 CHOFERES
+ */
+
+// GET /api/inventory/drivers/active (PRIMERO - ruta específica)
+router.get('/drivers/active',
+  InventoryDriverController.listActive
+);
+
+// GET /api/inventory/drivers/stats (PRIMERO - ruta específica)
+router.get('/drivers/stats',
+  InventoryDriverController.getStats
+);
+
+// GET /api/inventory/drivers/vehicle-type/:type (PRIMERO - ruta específica)
+router.get('/drivers/vehicle-type/:type',
+  InventoryDriverController.listByVehicleType
+);
+
+// GET /api/inventory/drivers
+router.get('/drivers',
+  InventoryDriverController.list
+);
+
+// GET /api/inventory/drivers/:id
+router.get('/drivers/:id',
+  InventoryDriverController.getById
+);
+
+// POST /api/inventory/drivers
+router.post('/drivers',
+  InventoryDriverController.create
+);
+
+// PUT /api/inventory/drivers/:id
+router.put('/drivers/:id',
+  InventoryDriverController.update
+);
+
+// DELETE /api/inventory/drivers/:id
+router.delete('/drivers/:id',
+  InventoryDriverController.delete
 );
 
 module.exports = router;
