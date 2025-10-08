@@ -29,7 +29,7 @@ class InventoryDriverController {
       } = req.query;
 
       const options = {
-        active: active !== undefined ? active === 'true' : null,
+        active: active !== undefined && active !== '' ? active === 'true' : null,
         vehicleType: vehicleType || '',
         search: search || '',
         limit: parseInt(limit) || 1000,

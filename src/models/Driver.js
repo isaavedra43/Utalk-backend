@@ -54,9 +54,9 @@ class Driver {
     }
 
     // Validar formato de teléfono (opcional pero si se proporciona debe ser válido)
-    if (this.phone && this.phone.trim()) {
+    if (this.phone && this.phone.toString().trim()) {
       const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-      if (!phoneRegex.test(this.phone.replace(/\s/g, ''))) {
+      if (!phoneRegex.test(this.phone.toString().replace(/\s/g, ''))) {
         errors.push('phone debe tener un formato válido');
       }
     }
@@ -66,9 +66,9 @@ class Driver {
       errors.push('name debe tener al menos 2 caracteres');
     }
 
-    // Validar que la placa no sea muy corta
-    if (this.vehiclePlate && this.vehiclePlate.trim().length < 3) {
-      errors.push('vehiclePlate debe tener al menos 3 caracteres');
+    // Validar que la placa no sea muy corta (solo si se proporciona)
+    if (this.vehiclePlate && this.vehiclePlate.toString().trim().length < 2) {
+      errors.push('vehiclePlate debe tener al menos 2 caracteres');
     }
 
     return {
@@ -83,11 +83,11 @@ class Driver {
   toFirestore() {
     return {
       name: this.name,
-      phone: this.phone,
-      licenseNumber: this.licenseNumber,
+      phone: this.phone || null,
+      licenseNumber: this.licenseNumber || null,
       vehicleType: this.vehicleType,
       vehiclePlate: this.vehiclePlate,
-      vehicleModel: this.vehicleModel,
+      vehicleModel: this.vehicleModel || null,
       isActive: this.isActive,
       workspaceId: this.workspaceId,
       tenantId: this.tenantId,
@@ -181,6 +181,19 @@ class Driver {
    */
   static async listByWorkspace(workspaceId, tenantId, options = {}) {
     try {
+      // ✅ VALIDACIÓN DE PARÁMETROS
+      if (!workspaceId || !tenantId) {
+        return {
+          drivers: [],
+          pagination: {
+            total: 0,
+            limit: options.limit || 1000,
+            offset: options.offset || 0,
+            hasMore: false
+          }
+        };
+      }
+
       const {
         active = null,
         vehicleType = '',
@@ -192,10 +205,8 @@ class Driver {
       let query = db.collection('drivers');
 
       // ✅ FILTRAR POR WORKSPACE Y TENANT
-      if (workspaceId && tenantId) {
-        query = query.where('workspaceId', '==', workspaceId)
-                    .where('tenantId', '==', tenantId);
-      }
+      query = query.where('workspaceId', '==', workspaceId)
+                  .where('tenantId', '==', tenantId);
 
       // Filtrar por estado activo
       if (active !== null) {
@@ -232,13 +243,33 @@ class Driver {
         );
       }
 
-      // Contar total (global)
-      const totalQuery = active !== null 
-        ? db.collection('drivers').where('isActive', '==', active)
-        : db.collection('drivers');
+      // Contar total (con filtros de workspace)
+      let totalQuery = db.collection('drivers')
+        .where('workspaceId', '==', workspaceId)
+        .where('tenantId', '==', tenantId);
+      
+      if (active !== null) {
+        totalQuery = totalQuery.where('isActive', '==', active);
+      }
+      
+      if (vehicleType) {
+        totalQuery = totalQuery.where('vehicleType', '==', vehicleType);
+      }
       
       const totalSnapshot = await totalQuery.get();
-      const total = totalSnapshot.size;
+      let total = totalSnapshot.size;
+
+      // Aplicar filtro de búsqueda al total si es necesario
+      if (search) {
+        const searchLower = search.toLowerCase();
+        total = totalSnapshot.docs.filter(doc => {
+          const data = doc.data();
+          return data.name?.toLowerCase().includes(searchLower) ||
+                 data.vehiclePlate?.toLowerCase().includes(searchLower) ||
+                 data.vehicleType?.toLowerCase().includes(searchLower) ||
+                 data.vehicleModel?.toLowerCase().includes(searchLower);
+        }).length;
+      }
 
       return {
         drivers,
@@ -294,10 +325,15 @@ class Driver {
    */
   static async plateExistsInWorkspace(workspaceId, tenantId, plate, excludeId = null) {
     try {
+      // Validar parámetros requeridos
+      if (!workspaceId || !tenantId || !plate) {
+        return false;
+      }
+
       let query = db.collection('drivers')
         .where('workspaceId', '==', workspaceId)
         .where('tenantId', '==', tenantId)
-        .where('vehiclePlate', '==', plate);
+        .where('vehiclePlate', '==', plate.toString().trim());
 
       const snapshot = await query.get();
       

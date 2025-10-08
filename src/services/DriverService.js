@@ -119,10 +119,12 @@ class DriverService {
         throw ApiError.validationError(validation.errors.join(', '));
       }
 
-      // Verificar que la placa no exista en el workspace
-      const plateExists = await Driver.plateExistsInWorkspace(workspaceId, tenantId, driver.vehiclePlate);
-      if (plateExists) {
-        throw ApiError.validationError('Ya existe un chofer con esta placa de vehículo');
+      // Verificar que la placa no exista en el workspace (solo si se proporciona)
+      if (driver.vehiclePlate && driver.vehiclePlate.trim()) {
+        const plateExists = await Driver.plateExistsInWorkspace(workspaceId, tenantId, driver.vehiclePlate);
+        if (plateExists) {
+          throw ApiError.validationError('Ya existe un chofer con esta placa de vehículo');
+        }
       }
 
       await driver.save();
