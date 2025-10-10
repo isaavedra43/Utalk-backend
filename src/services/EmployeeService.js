@@ -1,6 +1,5 @@
 const Employee = require('../models/Employee');
 const VacationBalance = require('../models/VacationBalance');
-const AttendanceRecord = require('../models/AttendanceRecord');
 // PayrollPeriod eliminado - solo funcionalidad individual
 const EmployeeHistory = require('../models/EmployeeHistory');
 
@@ -72,13 +71,11 @@ class EmployeeService {
       // Obtener todos los datos relacionados en paralelo
       const [
         vacationSummary,
-        attendanceSummary,
         payrollSummary,
         recentHistory,
         upcomingVacations
       ] = await Promise.all([
         VacationBalance.getSummary(employeeId).catch(() => null),
-        this.getAttendanceSummary(employeeId).catch(() => null),
         Promise.resolve(null), // PayrollPeriod eliminado
         EmployeeHistory.listByEmployee(employeeId, { limit: 10 }).catch(() => []),
         this.getUpcomingEvents(employeeId).catch(() => [])
@@ -88,7 +85,6 @@ class EmployeeService {
         employee,
         summary: {
           vacation: vacationSummary,
-          attendance: attendanceSummary,
           payroll: payrollSummary
         },
         recentActivity: recentHistory,
@@ -102,17 +98,10 @@ class EmployeeService {
 
   /**
    * Obtiene resumen de asistencia de un empleado
+   * NOTA: Sistema de asistencia eliminado - retorna null
    */
   static async getAttendanceSummary(employeeId, days = 30) {
-    try {
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      return await AttendanceRecord.getSummary(employeeId, startDate, endDate);
-    } catch (error) {
-      console.error('Error getting attendance summary:', error);
-      return null;
-    }
+    return null;
   }
 
   /**

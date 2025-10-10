@@ -6,7 +6,6 @@ const path = require('path');
 // Controladores
 const EmployeeController = require('../controllers/EmployeeController');
 const PayrollController = require('../controllers/PayrollController');
-const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
 const IncidentController = require('../controllers/IncidentController');
 const EquipmentController = require('../controllers/EquipmentController');
@@ -393,46 +392,6 @@ router.put('/:id/payroll/cancel/:payrollId', PayrollController.cancelPayroll);
 router.delete('/:id/payroll/period/:payrollId', PayrollController.deletePayroll);
 
 /**
- * RUTAS DE ASISTENCIA
- */
-
-// Obtener reporte diario de asistencia
-router.get('/attendance/daily', AttendanceController.getDailyReport);
-
-// Obtener estadísticas de asistencia
-router.get('/attendance/stats', AttendanceController.getStats);
-
-// Exportar reporte de asistencia
-router.get('/attendance/export', AttendanceController.exportReport);
-
-// Obtener asistencia por departamento
-router.get('/attendance/department/:department', AttendanceController.getByDepartment);
-
-// Obtener asistencia de un empleado
-router.get('/:id/attendance', AttendanceController.getByEmployee);
-
-// Crear registro de asistencia
-router.post('/:id/attendance', AttendanceController.create);
-
-// Obtener estado actual de asistencia
-router.get('/:id/attendance/current', AttendanceController.getCurrentStatus);
-
-// Registrar entrada
-router.post('/:id/attendance/clock-in', AttendanceController.clockIn);
-
-// Registrar salida
-router.post('/:id/attendance/clock-out', AttendanceController.clockOut);
-
-// Actualizar registro de asistencia
-router.put('/:id/attendance/:recordId', AttendanceController.update);
-
-// Recalcular salarios diarios
-router.put('/:id/attendance/recalculate-salaries', AttendanceController.recalculateSalaries);
-
-// Obtener resumen de salarios
-router.get('/:id/attendance/salary-summary', AttendanceController.getSalarySummary);
-
-/**
  * RUTAS DE EXTRAS Y MOVIMIENTOS
  */
 
@@ -460,8 +419,8 @@ router.post('/:id/extras',
 // Obtener resumen de movimientos
 router.get('/:id/movements-summary', ExtrasController.getMovementsSummary);
 
-// Obtener métricas de asistencia y extras
-router.get('/:id/attendance-metrics', ExtrasController.getAttendanceMetrics);
+// Obtener métricas de extras (nombre actualizado para reflejar función real)
+router.get('/:id/extras-metrics', ExtrasController.getAttendanceMetrics);
 
 // Obtener datos para gráficas
 router.get('/:id/chart-data', ExtrasController.getChartData);
@@ -539,9 +498,6 @@ router.delete('/attachments/:fileId', AttachmentsController.deleteFile);
 
 // Reporte de extras por empleado
 router.get('/reports/employee/:id/extras', ReportsController.generateEmployeeExtrasReport);
-
-// Reporte de asistencia por empleado
-router.get('/reports/employee/:id/attendance', ReportsController.generateEmployeeAttendanceReport);
 
 // Reporte consolidado de nómina
 router.get('/reports/payroll-consolidated', ReportsController.generatePayrollConsolidatedReport);

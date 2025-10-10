@@ -439,44 +439,13 @@ class HRValidationService {
 
   /**
    * Valida registro de asistencia
+   * NOTA: Sistema de asistencia eliminado - método deprecado
    */
   static validateAttendanceRecord(attendanceData) {
-    const errors = [];
-    const warnings = [];
-    const rules = this.BUSINESS_RULES.attendance;
-
-    if (!attendanceData.date) {
-      errors.push('La fecha es requerida');
-    }
-
-    if (attendanceData.clockIn && attendanceData.clockOut) {
-      const clockIn = new Date(`${attendanceData.date}T${attendanceData.clockIn}`);
-      const clockOut = new Date(`${attendanceData.date}T${attendanceData.clockOut}`);
-
-      if (clockIn >= clockOut) {
-        errors.push('La hora de salida debe ser posterior a la hora de entrada');
-      }
-
-      // Calcular horas trabajadas
-      const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
-      
-      if (hoursWorked > rules.maxWorkHours) {
-        warnings.push(`Se registran ${hoursWorked.toFixed(1)} horas trabajadas, el máximo recomendado es ${rules.maxWorkHours} horas`);
-      }
-
-      // Validar horario de entrada (ejemplo: 9:00 AM)
-      const standardStart = new Date(`${attendanceData.date}T09:00:00`);
-      const lateThreshold = new Date(standardStart.getTime() + rules.graceMinutes * 60000);
-      
-      if (clockIn > lateThreshold) {
-        warnings.push(`Entrada tardía registrada (${attendanceData.clockIn})`);
-      }
-    }
-
     return {
-      isValid: errors.length === 0,
-      errors,
-      warnings
+      isValid: true,
+      errors: [],
+      warnings: ['Sistema de asistencia eliminado - esta validación está deprecada']
     };
   }
 
