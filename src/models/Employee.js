@@ -345,11 +345,7 @@ class Employee {
       if (this._salaryChanged) {
         // Limpiar flags temporales
         delete this._salaryChanged;
-          delete this._oldSalary;
-        } catch (error) {
-          console.error('❌ Error recalculando salarios diarios:', error);
-          // No lanzar error para no interrumpir la actualización del empleado
-        }
+        delete this._oldSalary;
       }
 
       return this;
