@@ -1,6 +1,7 @@
 const ExtrasService = require('../services/ExtrasService');
 const PayrollMovement = require('../models/PayrollMovement');
 const Employee = require('../models/Employee');
+const AttendanceRecord = require('../models/AttendanceRecord');
 const ExcelJS = require('exceljs');
 
 /**
@@ -112,8 +113,12 @@ class ReportsController {
         });
       }
 
-      // NOTA: Sistema de asistencia eliminado - retornar array vacío
-      const attendanceRecords = [];
+      // Obtener registros de asistencia
+      const attendanceRecords = await AttendanceRecord.findByEmployeeAndDateRange(
+        employeeId,
+        startDate,
+        endDate
+      );
 
       // Obtener datos para gráficas
       const chartData = await ExtrasService.generateChartData(employeeId, 30);

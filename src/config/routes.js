@@ -125,6 +125,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/equipment/attachments', require('../routes/equipmentAttachments'));
     // Alias de compatibilidad: algunos clientes llaman /api/equipment/upload
     app.use('/api/equipment', require('../routes/equipment'));
+    app.use('/api/auto-attendance', require('../routes/auto-attendance'));
     app.use('/api/attachments', require('../routes/attachments'));
     app.use('/api/payroll/general', require('../routes/generalPayroll'));
     app.use('/api/payroll', require('../routes/payroll'));

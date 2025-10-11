@@ -1,5 +1,6 @@
 const Employee = require('../models/Employee');
 // PayrollPeriod eliminado - solo funcionalidad individual
+const AttendanceRecord = require('../models/AttendanceRecord');
 const VacationRequest = require('../models/VacationRequest');
 const VacationBalance = require('../models/VacationBalance');
 const EmployeeDocument = require('../models/EmployeeDocument');
@@ -98,8 +99,10 @@ class EmployeeController {
         recentHistory
       ] = await Promise.all([
         Promise.resolve({}), // PayrollPeriod eliminado
-        Promise.resolve({}), // Sistema de asistencia eliminado
-
+        AttendanceRecord.getSummary(id, 
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          new Date().toISOString().split('T')[0]
+        ).catch(() => ({})),
         VacationBalance.getSummary(id).catch(() => ({})),
         EmployeeDocument.listByEmployee(id, { limit: 10 }).then(result => result.documents || []).catch(() => []),
         Incident.listByEmployee(id, { limit: 5 }).catch(() => []),

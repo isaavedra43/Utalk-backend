@@ -1,5 +1,6 @@
 const PayrollMovement = require('../models/PayrollMovement');
 const Employee = require('../models/Employee');
+const AttendanceRecord = require('../models/AttendanceRecord');
 const VacationBalance = require('../models/VacationBalance');
 
 /**
@@ -82,8 +83,15 @@ class ExtrasService {
       movement.overtimeType = 'weekend';
     }
 
-    // NOTA: Validación de asistencia eliminada - sistema de asistencia removido
-    // Se pueden registrar horas extra sin verificar jornada regular
+    // Verificar si ya existe asistencia para ese día
+    const existingAttendance = await AttendanceRecord.findByEmployeeAndDate(
+      employee.id, 
+      movement.date
+    );
+
+    if (existingAttendance && existingAttendance.totalHours < 8) {
+      throw new Error('No se pueden registrar horas extra sin completar jornada regular');
+    }
 
     return true;
   }
@@ -252,8 +260,12 @@ class ExtrasService {
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
 
-      // NOTA: Sistema de asistencia eliminado - retornar array vacío
-      const attendanceRecords = [];
+      // Obtener registros de asistencia
+      const attendanceRecords = await AttendanceRecord.findByEmployeeAndDateRange(
+        employeeId,
+        startDateStr,
+        endDateStr
+      );
 
       // Obtener movimientos de extras
       const movements = await PayrollMovement.findByEmployee(employeeId, {
@@ -320,8 +332,8 @@ class ExtrasService {
         currentDate.setDate(startDate.getDate() + i);
         const dateStr = currentDate.toISOString().split('T')[0];
 
-        // NOTA: Sistema de asistencia eliminado
-        const attendance = null;
+        // Obtener asistencia del día
+        const attendance = await AttendanceRecord.findByEmployeeAndDate(employeeId, dateStr);
         
         // Obtener movimientos del día
         const movements = await PayrollMovement.findByEmployee(employeeId, {
