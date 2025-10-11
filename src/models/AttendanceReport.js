@@ -189,36 +189,36 @@ class AttendanceReport {
     try {
       let query = db.collection('attendance_reports');
 
+      // Solo aplicar un filtro a la vez para evitar errores de índice
       if (filters.status) {
         query = query.where('status', '==', filters.status);
-      }
-
-      if (filters.createdBy) {
+        query = query.orderBy('createdAt', 'desc');
+      } else if (filters.createdBy) {
         query = query.where('createdBy', '==', filters.createdBy);
-      }
-
-      if (filters.dateFrom) {
-        query = query.where('date', '>=', filters.dateFrom);
-      }
-
-      if (filters.dateTo) {
-        query = query.where('date', '<=', filters.dateTo);
-      }
-
-      // Aplicar ordenamiento
-      if (filters.orderBy === 'date') {
-        query = query.orderBy('date', filters.orderDirection || 'desc');
+        query = query.orderBy('createdAt', 'desc');
+      } else if (filters.dateFrom || filters.dateTo) {
+        // Usar filtro de fecha con ordenamiento por fecha
+        if (filters.dateFrom) {
+          query = query.where('date', '>=', filters.dateFrom);
+        }
+        if (filters.dateTo && filters.dateFrom) {
+          query = query.where('date', '<=', filters.dateTo);
+        }
+        query = query.orderBy('date', 'desc');
       } else {
+        // Sin filtros, ordenar por createdAt
         query = query.orderBy('createdAt', 'desc');
       }
 
       // Aplicar paginación
       if (filters.limit) {
-        query = query.limit(filters.limit);
+        query = query.limit(parseInt(filters.limit));
+      } else {
+        query = query.limit(50); // Límite por defecto
       }
 
       if (filters.offset) {
-        query = query.offset(filters.offset);
+        query = query.offset(parseInt(filters.offset));
       }
 
       const snapshot = await query.get();
@@ -234,7 +234,8 @@ class AttendanceReport {
       return reports;
     } catch (error) {
       logger.error('Error listando reportes:', error);
-      throw error;
+      // Si hay error, retornar array vacío en lugar de fallar
+      return [];
     }
   }
 

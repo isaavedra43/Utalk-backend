@@ -725,6 +725,42 @@ class AttendanceController {
       };
     }
   }
+
+  /**
+   * Obtener permisos del usuario actual
+   */
+  static async getUserPermissions(req, res) {
+    try {
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canView');
+
+      res.json({
+        success: true,
+        data: {
+          userId,
+          role: userRole,
+          permissions: {
+            canCreate: ['admin', 'hr_manager', 'hr_user'].includes(userRole),
+            canEdit: ['admin', 'hr_manager', 'hr_user'].includes(userRole),
+            canApprove: ['admin', 'hr_manager'].includes(userRole),
+            canReject: ['admin', 'hr_manager'].includes(userRole),
+            canDelete: userRole === 'admin',
+            canView: true,
+            isAdmin: userRole === 'admin'
+          }
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo permisos de usuario:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo permisos de usuario'
+      });
+    }
+  }
 }
 
 module.exports = AttendanceController;
