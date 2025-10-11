@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const AttendanceController = require('../controllers/AttendanceController');
-const { authenticate } = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 
 /**
  * RUTAS DE ASISTENCIA
@@ -9,7 +9,7 @@ const { authenticate } = require('../middleware/auth');
  */
 
 // Todas las rutas requieren autenticación
-router.use(authenticate);
+router.use(authMiddleware);
 
 /**
  * GESTIÓN DE REPORTES DE ASISTENCIA

@@ -1,4 +1,5 @@
 const AttendanceService = require('../services/AttendanceService');
+const AttendanceReport = require('../models/AttendanceReport');
 const logger = require('../utils/logger');
 
 /**
