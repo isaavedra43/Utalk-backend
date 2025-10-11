@@ -162,7 +162,7 @@ class ExtrasMovement {
       }
       
       if (filters.startDate) {
-        query = query.where('date', '>=", filters.startDate);
+        query = query.where('date', '>=', filters.startDate);
       }
       
       if (filters.endDate) {
