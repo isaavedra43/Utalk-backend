@@ -120,7 +120,6 @@ class Employee {
       totalEarnings: 0,
       totalDeductions: 0,
       netPay: 0,
-      // attendanceRate removido - sistema de asistencia eliminado
       lateArrivals: 0,
       absences: 0,
       vacationDaysUsed: 0,
@@ -343,7 +342,6 @@ class Employee {
       const docRef = db.collection('employees').doc(this.id);
       await docRef.update(this.toFirestore());
 
-      // Recalculación de salarios diarios removida - sistema de asistencia eliminado
       if (this._salaryChanged) {
         // Limpiar flags temporales
         delete this._salaryChanged;

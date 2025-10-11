@@ -1,6 +1,5 @@
 const Employee = require('../models/Employee');
 const VacationBalance = require('../models/VacationBalance');
-// PayrollPeriod eliminado - solo funcionalidad individual
 const EmployeeHistory = require('../models/EmployeeHistory');
 
 /**
@@ -71,12 +70,10 @@ class EmployeeService {
       // Obtener todos los datos relacionados en paralelo
       const [
         vacationSummary,
-        payrollSummary,
         recentHistory,
         upcomingVacations
       ] = await Promise.all([
         VacationBalance.getSummary(employeeId).catch(() => null),
-        Promise.resolve(null), // PayrollPeriod eliminado
         EmployeeHistory.listByEmployee(employeeId, { limit: 10 }).catch(() => []),
         this.getUpcomingEvents(employeeId).catch(() => [])
       ]);
@@ -84,8 +81,7 @@ class EmployeeService {
       return {
         employee,
         summary: {
-          vacation: vacationSummary,
-          payroll: payrollSummary
+          vacation: vacationSummary
         },
         recentActivity: recentHistory,
         upcomingEvents: upcomingVacations
@@ -309,8 +305,7 @@ class EmployeeService {
         totalEmployees: employees.length,
         byLevel: {},
         byStatus: {},
-        averagePerformance: 0,
-        totalPayroll: 0
+        averagePerformance: 0
       };
 
       for (const employee of employees) {
@@ -322,8 +317,6 @@ class EmployeeService {
         const status = employee.status;
         stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
         
-        // Sumar nómina
-        stats.totalPayroll += employee.contract.salary || 0;
       }
 
       // TODO: Calcular performance promedio

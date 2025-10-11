@@ -656,7 +656,6 @@ class ConsolidatedServer {
           railwayReady: true
         });
 
-        // 🕐 Tarea programada de asistencia automática removida - sistema de asistencia eliminado
 
 
         resolve();

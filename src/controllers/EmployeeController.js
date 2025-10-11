@@ -1,5 +1,4 @@
 const Employee = require('../models/Employee');
-// PayrollPeriod eliminado - solo funcionalidad individual
 const VacationRequest = require('../models/VacationRequest');
 const VacationBalance = require('../models/VacationBalance');
 const EmployeeDocument = require('../models/EmployeeDocument');
@@ -87,7 +86,6 @@ class EmployeeController {
 
       // Obtener datos relacionados en paralelo para mejor rendimiento
       const [
-        payrollSummary,
         vacationsSummary,
         documents,
         incidents,
@@ -96,7 +94,6 @@ class EmployeeController {
         certifications,
         recentHistory
       ] = await Promise.all([
-        Promise.resolve({}), // PayrollPeriod eliminado
         VacationBalance.getSummary(id).catch(() => ({})),
         EmployeeDocument.listByEmployee(id, { limit: 10 }).then(result => result.documents || []).catch(() => []),
         Incident.listByEmployee(id, { limit: 5 }).catch(() => []),
@@ -111,7 +108,6 @@ class EmployeeController {
         data: {
           employee,
           relatedData: {
-            payroll: payrollSummary,
             vacations: vacationsSummary,
             documents: documents.slice(0, 10),
             incidents: incidents.slice(0, 5),

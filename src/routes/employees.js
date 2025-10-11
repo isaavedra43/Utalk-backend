@@ -5,7 +5,6 @@ const path = require('path');
 
 // Controladores
 const EmployeeController = require('../controllers/EmployeeController');
-const PayrollController = require('../controllers/PayrollController');
 const VacationController = require('../controllers/VacationController');
 const IncidentController = require('../controllers/IncidentController');
 const EquipmentController = require('../controllers/EquipmentController');
@@ -350,46 +349,6 @@ router.put('/:id', EmployeeController.update);
 // Eliminar empleado
 router.delete('/:id', EmployeeController.delete);
 
-/**
- * RUTAS DE NÓMINA
- */
-
-// Obtener períodos pendientes de pago
-router.get('/payroll/pending', PayrollController.getPendingPayments);
-
-
-// Obtener estadísticas de nómina
-router.get('/payroll/stats', PayrollController.getPayrollStats);
-
-// Configurar nómina para un empleado
-router.post('/:id/payroll/config', PayrollController.configurePayroll);
-
-// Obtener configuración de nómina de un empleado
-router.get('/:id/payroll/config', PayrollController.getPayrollConfig);
-
-// Actualizar configuración de nómina
-router.put('/:id/payroll/config', PayrollController.updatePayrollConfig);
-
-// Generar nómina para un empleado
-router.post('/:id/payroll/generate', PayrollController.generatePayroll);
-
-// Obtener períodos de nómina de un empleado
-router.get('/:id/payroll/periods', PayrollController.getPayrollPeriods);
-
-// Obtener detalles de un período específico
-router.get('/:id/payroll/period/:payrollId/details', PayrollController.getPayrollDetails);
-
-// Aprobar período de nómina
-router.put('/:id/payroll/approve/:payrollId', PayrollController.approvePayroll);
-
-// Marcar período como pagado
-router.put('/:id/payroll/pay/:payrollId', PayrollController.markAsPaid);
-
-// Cancelar período de nómina
-router.put('/:id/payroll/cancel/:payrollId', PayrollController.cancelPayroll);
-
-// Eliminar período de nómina
-router.delete('/:id/payroll/period/:payrollId', PayrollController.deletePayroll);
 
 
 /**
@@ -500,11 +459,7 @@ router.delete('/attachments/:fileId', AttachmentsController.deleteFile);
 // Reporte de extras por empleado
 router.get('/reports/employee/:id/extras', ReportsController.generateEmployeeExtrasReport);
 
-// Reporte de asistencia por empleado
-router.get('/reports/employee/:id/attendance', ReportsController.generateEmployeeAttendanceReport);
 
-// Reporte consolidado de nómina
-router.get('/reports/payroll-consolidated', ReportsController.generatePayrollConsolidatedReport);
 
 /**
  * RUTAS DE VACACIONES

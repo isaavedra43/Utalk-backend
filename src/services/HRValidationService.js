@@ -1,6 +1,5 @@
 const Employee = require('../models/Employee');
 const VacationRequest = require('../models/VacationRequest');
-// PayrollPeriod eliminado - solo funcionalidad individual
 
 /**
  * Servicio de Validaciones de Recursos Humanos
@@ -28,19 +27,6 @@ class HRValidationService {
       maxDays: 30,
       minAdvanceNotice: 7, // días
       maxAdvanceRequest: 365 // días
-    },
-    payroll: {
-      maxOvertimeHours: 60, // por mes
-      maxBonusPercentage: 100, // % del salario base
-      taxRates: {
-        ISR: 0.16,
-        IMSS: 0.0725,
-        INFONAVIT: 0.05,
-        AFORE: 0.0625
-      }
-    },
-    // attendance removido - sistema de asistencia eliminado
-      maxAbsenceDays: 5 // consecutivos sin justificación
     }
   };
 
@@ -375,64 +361,6 @@ class HRValidationService {
     }
   }
 
-  /**
-   * Valida período de nómina
-   */
-  static validatePayrollPeriod(payrollData, employeeId) {
-    const errors = [];
-    const warnings = [];
-    const rules = this.BUSINESS_RULES.payroll;
-
-    // Validaciones básicas
-    if (!payrollData.periodStart) {
-      errors.push('La fecha de inicio del período es requerida');
-    }
-
-    if (!payrollData.periodEnd) {
-      errors.push('La fecha de fin del período es requerida');
-    }
-
-    if (payrollData.periodStart && payrollData.periodEnd) {
-      const startDate = new Date(payrollData.periodStart);
-      const endDate = new Date(payrollData.periodEnd);
-
-      if (startDate >= endDate) {
-        errors.push('La fecha de fin debe ser posterior a la fecha de inicio');
-      }
-    }
-
-    // Validar salarios
-    if (payrollData.grossSalary !== undefined && payrollData.grossSalary < 0) {
-      errors.push('El salario bruto no puede ser negativo');
-    }
-
-    if (payrollData.netSalary !== undefined && payrollData.netSalary < 0) {
-      errors.push('El salario neto no puede ser negativo');
-    }
-
-    // Validar horas extra
-    if (payrollData.overtime !== undefined) {
-      if (payrollData.overtime < 0) {
-        errors.push('Las horas extra no pueden ser negativas');
-      } else if (payrollData.overtime > rules.maxOvertimeHours) {
-        warnings.push(`Se registran ${payrollData.overtime} horas extra, el máximo recomendado es ${rules.maxOvertimeHours}`);
-      }
-    }
-
-    // Validar bonos
-    if (payrollData.bonuses !== undefined && payrollData.grossSalary !== undefined) {
-      const bonusPercentage = (payrollData.bonuses / payrollData.grossSalary) * 100;
-      if (bonusPercentage > rules.maxBonusPercentage) {
-        warnings.push(`Los bonos representan ${bonusPercentage.toFixed(1)}% del salario base, se recomienda no exceder ${rules.maxBonusPercentage}%`);
-      }
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings
-    };
-  }
 
   /**
    * Utilidades

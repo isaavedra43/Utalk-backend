@@ -73,7 +73,7 @@ const AVAILABLE_MODULES = {
   hr: {
     id: 'hr',
     name: 'Recursos Humanos',
-    description: 'Módulo de empleados, nóminas y asistencias',
+    description: 'Módulo de empleados, vacaciones y gestión de personal',
     icon: 'hr',
     path: '/hr',
     level: 'advanced'

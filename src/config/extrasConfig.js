@@ -1,5 +1,5 @@
 /**
- * Configuración del Módulo de Extras y Asistencia
+ * Configuración del Módulo de Extras
  * Contiene todas las configuraciones, tipos, multiplicadores y validaciones
  */
 
@@ -61,7 +61,6 @@ const EXTRAS_CONFIG = {
   // Tipos de bonos
   BONUS_TYPES: {
     PERFORMANCE: 'performance',
-    ATTENDANCE: 'attendance',
     SPECIAL: 'special',
     HOLIDAY: 'holiday'
   },
@@ -89,12 +88,6 @@ const EXTRAS_CONFIG = {
     FIELD: 'field'
   },
 
-  // Estados de asistencia
-  ATTENDANCE_STATUSES: {
-    PRESENT: 'present',
-    LATE: 'late',
-    ABSENT: 'absent',
-    HALF_DAY: 'half_day',
     VACATION: 'vacation',
     SICK_LEAVE: 'sick_leave'
   },
@@ -187,7 +180,7 @@ const EXTRAS_CONFIG = {
     MOVEMENT_DELETED: 'Movimiento eliminado exitosamente',
     FILE_UPLOADED: 'Archivo subido exitosamente',
     REPORT_GENERATED: 'Reporte generado exitosamente',
-    PAYROLL_PROCESSED: 'Nómina procesada exitosamente'
+    EXTRAS_PROCESSED: 'Extras procesados exitosamente'
   },
 
   // Configuración de validaciones específicas

@@ -1,5 +1,5 @@
 const ExtrasService = require('../services/ExtrasService');
-const PayrollMovement = require('../models/PayrollMovement');
+const ExtrasMovement = require('../models/ExtrasMovement');
 const Employee = require('../models/Employee');
 const ExcelJS = require('exceljs');
 
@@ -35,7 +35,7 @@ class ReportsController {
       }
 
       // Obtener movimientos del período
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
+      const movements = await ExtrasMovement.findByEmployee(employeeId, {
         startDate,
         endDate
       });

@@ -1,4 +1,4 @@
-const PayrollMovement = require('../models/PayrollMovement');
+const ExtrasMovement = require('../models/ExtrasMovement');
 const Employee = require('../models/Employee');
 const VacationBalance = require('../models/VacationBalance');
 
@@ -19,7 +19,7 @@ class ExtrasService {
       }
 
       // Crear el movimiento
-      const movement = new PayrollMovement({
+      const movement = new ExtrasMovement({
         ...movementData,
         employeeId,
         registeredBy
@@ -117,7 +117,7 @@ class ExtrasService {
    */
   static async validateLoanMovement(movement, employee) {
     // Verificar préstamos activos
-    const activeLoans = await PayrollMovement.findByEmployee(employee.id, {
+    const activeLoans = await ExtrasMovement.findByEmployee(employee.id, {
       type: 'loan',
       status: 'active'
     });
@@ -182,7 +182,7 @@ class ExtrasService {
     try {
       let movements = [];
       try {
-        movements = await PayrollMovement.findByEmployee(employeeId, {
+        movements = await ExtrasMovement.findByEmployee(employeeId, {
           startDate,
           endDate,
           status: 'approved'
@@ -252,7 +252,7 @@ class ExtrasService {
       const endDateStr = endDate.toISOString().split('T')[0];
 
       // Obtener movimientos de extras
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
+      const movements = await ExtrasMovement.findByEmployee(employeeId, {
         startDate: startDateStr,
         endDate: endDateStr
       });
@@ -301,7 +301,7 @@ class ExtrasService {
         const dateStr = currentDate.toISOString().split('T')[0];
 
         // Obtener movimientos del día
-        const movements = await PayrollMovement.findByEmployee(employeeId, {
+        const movements = await ExtrasMovement.findByEmployee(employeeId, {
           startDate: dateStr,
           endDate: dateStr
         });
@@ -332,7 +332,7 @@ class ExtrasService {
    */
   static async approveMovement(movementId, employeeId, approvedBy, comments = '') {
     try {
-      const movement = await PayrollMovement.findById(employeeId, movementId);
+      const movement = await ExtrasMovement.findById(employeeId, movementId);
       if (!movement) {
         throw new Error('Movimiento no encontrado');
       }
@@ -361,7 +361,7 @@ class ExtrasService {
    */
   static async rejectMovement(movementId, employeeId, rejectedBy, reason) {
     try {
-      const movement = await PayrollMovement.findById(employeeId, movementId);
+      const movement = await ExtrasMovement.findById(employeeId, movementId);
       if (!movement) {
         throw new Error('Movimiento no encontrado');
       }
@@ -402,7 +402,7 @@ class ExtrasService {
       }
 
       for (const employeeId of employeeIds) {
-        const movements = await PayrollMovement.findByEmployee(employeeId, {
+        const movements = await ExtrasMovement.findByEmployee(employeeId, {
           status: 'pending'
         });
         pendingMovements.push(...movements);
@@ -423,7 +423,7 @@ class ExtrasService {
    */
   static async calculatePayrollImpact(employeeId, periodStart, periodEnd) {
     try {
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
+      const movements = await ExtrasMovement.findByEmployee(employeeId, {
         startDate: periodStart,
         endDate: periodEnd,
         status: 'approved'

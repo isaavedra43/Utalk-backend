@@ -1,5 +1,5 @@
 const ExtrasService = require('../services/ExtrasService');
-const PayrollMovement = require('../models/PayrollMovement');
+const ExtrasMovement = require('../models/ExtrasMovement');
 const Employee = require('../models/Employee');
 const EmployeeHistory = require('../models/EmployeeHistory');
 
@@ -89,7 +89,7 @@ class ExtrasController {
       }
 
       // Obtener movimientos
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
+      const movements = await ExtrasMovement.findByEmployee(employeeId, {
         type,
         status,
         startDate,
@@ -164,7 +164,7 @@ class ExtrasController {
       // Obtener movimientos del tipo específico
       let movements = [];
       try {
-        movements = await PayrollMovement.findByEmployee(employeeId, {
+        movements = await ExtrasMovement.findByEmployee(employeeId, {
           type,
           status,
           startDate,
@@ -507,7 +507,7 @@ class ExtrasController {
       const updatedBy = req.user?.id || null;
 
       // Obtener el movimiento
-      const movement = await PayrollMovement.findById(employeeId, movementId);
+      const movement = await ExtrasMovement.findById(employeeId, movementId);
       if (!movement) {
         return res.status(404).json({
           success: false,
@@ -574,7 +574,7 @@ class ExtrasController {
       const deletedBy = req.user?.id || null;
 
       // Obtener el movimiento
-      const movement = await PayrollMovement.findById(employeeId, movementId);
+      const movement = await ExtrasMovement.findById(employeeId, movementId);
       if (!movement) {
         return res.status(404).json({
           success: false,
