@@ -120,7 +120,7 @@ class Employee {
       totalEarnings: 0,
       totalDeductions: 0,
       netPay: 0,
-      attendanceRate: 100,
+      // attendanceRate removido - sistema de asistencia eliminado
       lateArrivals: 0,
       absences: 0,
       vacationDaysUsed: 0,
@@ -343,20 +343,10 @@ class Employee {
       const docRef = db.collection('employees').doc(this.id);
       await docRef.update(this.toFirestore());
 
-      // Si cambió el salario, recalcular salarios diarios automáticamente
+      // Recalculación de salarios diarios removida - sistema de asistencia eliminado
       if (this._salaryChanged) {
-        try {
-          const AttendanceRecord = require('./AttendanceRecord');
-          console.log(`🔄 Recalculando salarios diarios para empleado ${this.id} (salario cambió de ${this._oldSalary} a ${this.salary.baseSalary})`);
-          
-          // Recalcular salarios para los últimos 90 días
-          const endDate = new Date().toISOString().split('T')[0];
-          const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          
-          await AttendanceRecord.recalculateDailySalaries(this.id, startDate, endDate);
-          
-          // Limpiar flags temporales
-          delete this._salaryChanged;
+        // Limpiar flags temporales
+        delete this._salaryChanged;
           delete this._oldSalary;
         } catch (error) {
           console.error('❌ Error recalculando salarios diarios:', error);

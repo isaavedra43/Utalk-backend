@@ -6,7 +6,6 @@ const path = require('path');
 // Controladores
 const EmployeeController = require('../controllers/EmployeeController');
 const PayrollController = require('../controllers/PayrollController');
-const AttendanceController = require('../controllers/AttendanceController');
 const VacationController = require('../controllers/VacationController');
 const IncidentController = require('../controllers/IncidentController');
 const EquipmentController = require('../controllers/EquipmentController');
@@ -392,45 +391,6 @@ router.put('/:id/payroll/cancel/:payrollId', PayrollController.cancelPayroll);
 // Eliminar período de nómina
 router.delete('/:id/payroll/period/:payrollId', PayrollController.deletePayroll);
 
-/**
- * RUTAS DE ASISTENCIA
- */
-
-// Obtener reporte diario de asistencia
-router.get('/attendance/daily', AttendanceController.getDailyReport);
-
-// Obtener estadísticas de asistencia
-router.get('/attendance/stats', AttendanceController.getStats);
-
-// Exportar reporte de asistencia
-router.get('/attendance/export', AttendanceController.exportReport);
-
-// Obtener asistencia por departamento
-router.get('/attendance/department/:department', AttendanceController.getByDepartment);
-
-// Obtener asistencia de un empleado
-router.get('/:id/attendance', AttendanceController.getByEmployee);
-
-// Crear registro de asistencia
-router.post('/:id/attendance', AttendanceController.create);
-
-// Obtener estado actual de asistencia
-router.get('/:id/attendance/current', AttendanceController.getCurrentStatus);
-
-// Registrar entrada
-router.post('/:id/attendance/clock-in', AttendanceController.clockIn);
-
-// Registrar salida
-router.post('/:id/attendance/clock-out', AttendanceController.clockOut);
-
-// Actualizar registro de asistencia
-router.put('/:id/attendance/:recordId', AttendanceController.update);
-
-// Recalcular salarios diarios
-router.put('/:id/attendance/recalculate-salaries', AttendanceController.recalculateSalaries);
-
-// Obtener resumen de salarios
-router.get('/:id/attendance/salary-summary', AttendanceController.getSalarySummary);
 
 /**
  * RUTAS DE EXTRAS Y MOVIMIENTOS

@@ -39,10 +39,7 @@ class HRValidationService {
         AFORE: 0.0625
       }
     },
-    attendance: {
-      standardWorkHours: 8,
-      maxWorkHours: 12,
-      graceMinutes: 15,
+    // attendance removido - sistema de asistencia eliminado
       maxAbsenceDays: 5 // consecutivos sin justificación
     }
   };
@@ -438,49 +435,6 @@ class HRValidationService {
   }
 
   /**
-   * Valida registro de asistencia
-   */
-  static validateAttendanceRecord(attendanceData) {
-    const errors = [];
-    const warnings = [];
-    const rules = this.BUSINESS_RULES.attendance;
-
-    if (!attendanceData.date) {
-      errors.push('La fecha es requerida');
-    }
-
-    if (attendanceData.clockIn && attendanceData.clockOut) {
-      const clockIn = new Date(`${attendanceData.date}T${attendanceData.clockIn}`);
-      const clockOut = new Date(`${attendanceData.date}T${attendanceData.clockOut}`);
-
-      if (clockIn >= clockOut) {
-        errors.push('La hora de salida debe ser posterior a la hora de entrada');
-      }
-
-      // Calcular horas trabajadas
-      const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
-      
-      if (hoursWorked > rules.maxWorkHours) {
-        warnings.push(`Se registran ${hoursWorked.toFixed(1)} horas trabajadas, el máximo recomendado es ${rules.maxWorkHours} horas`);
-      }
-
-      // Validar horario de entrada (ejemplo: 9:00 AM)
-      const standardStart = new Date(`${attendanceData.date}T09:00:00`);
-      const lateThreshold = new Date(standardStart.getTime() + rules.graceMinutes * 60000);
-      
-      if (clockIn > lateThreshold) {
-        warnings.push(`Entrada tardía registrada (${attendanceData.clockIn})`);
-      }
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings
-    };
-  }
-
-  /**
    * Utilidades
    */
 
@@ -565,7 +519,7 @@ class HRValidationService {
         }
 
         const hoursWorked = (end - start) / (1000 * 60 * 60);
-        if (hoursWorked > this.BUSINESS_RULES.attendance.maxWorkHours) {
+        if (hoursWorked > 12) { // Máximo 12 horas por día
           errors.push(`Demasiadas horas programadas para ${day}: ${hoursWorked.toFixed(1)} horas`);
         }
       }

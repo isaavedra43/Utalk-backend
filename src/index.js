@@ -656,20 +656,7 @@ class ConsolidatedServer {
           railwayReady: true
         });
 
-        // 🕐 Inicializar tarea programada de asistencia automática
-        try {
-          const autoAttendanceJob = require('./jobs/autoAttendanceJob');
-          autoAttendanceJob.start();
-          logger.info('✅ Tarea programada de asistencia automática iniciada', {
-            category: 'AUTO_ATTENDANCE_JOB',
-            status: 'started'
-          });
-        } catch (error) {
-          logger.error('❌ Error iniciando tarea programada de asistencia', {
-            category: 'AUTO_ATTENDANCE_JOB_ERROR',
-            error: error.message
-          });
-        }
+        // 🕐 Tarea programada de asistencia automática removida - sistema de asistencia eliminado
 
 
         resolve();
