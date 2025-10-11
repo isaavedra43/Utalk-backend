@@ -126,6 +126,7 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     // Alias de compatibilidad: algunos clientes llaman /api/equipment/upload
     app.use('/api/equipment', require('../routes/equipment'));
     app.use('/api/attachments', require('../routes/attachments'));
+    app.use('/api/attendance', require('../routes/attendance'));
 
     // AI y derivados (los módulos exportan .router)
     if (aiRoutes?.router) app.use('/api/ai', aiRoutes.router);
