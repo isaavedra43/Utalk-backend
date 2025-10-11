@@ -67,6 +67,9 @@ router.get('/dashboard', AttendanceController.getDashboard);
 // Obtener permisos del usuario actual para asistencia
 router.get('/permissions', AttendanceController.getUserPermissions);
 
+// Obtener empleados activos para asistencia
+router.get('/employees', AttendanceController.getActiveEmployees);
+
 /**
  * CONSULTAS POR EMPLEADO
  */

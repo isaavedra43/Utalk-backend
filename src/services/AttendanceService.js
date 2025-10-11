@@ -117,6 +117,9 @@ class AttendanceService {
       // Obtener registros de asistencia
       const records = await AttendanceRecord.findByReport(reportId);
 
+      // Enriquecer registros con información completa de empleados
+      const enrichedRecords = await this.enrichRecordsWithEmployeeData(records);
+
       // Obtener movimientos
       const movements = await AttendanceMovement.findByReport(reportId);
 
@@ -128,7 +131,7 @@ class AttendanceService {
 
       return {
         report,
-        records,
+        records: enrichedRecords,
         movements,
         exceptions,
         stats
@@ -790,6 +793,87 @@ class AttendanceService {
       filename: `reporte-asistencia-${reportData.report.date}.csv`,
       data: reportData
     };
+  }
+
+  /**
+   * Enriquecer registros con información completa de empleados
+   */
+  static async enrichRecordsWithEmployeeData(records) {
+    try {
+      if (!records || records.length === 0) {
+        return records;
+      }
+
+      // Obtener todos los IDs únicos de empleados
+      const employeeIds = [...new Set(records.map(record => record.employeeId))];
+
+      // Obtener información completa de todos los empleados
+      const Employee = require('../models/Employee');
+      const employees = [];
+
+      for (const employeeId of employeeIds) {
+        try {
+          const employee = await Employee.findById(employeeId);
+          if (employee) {
+            employees.push(employee);
+          }
+        } catch (error) {
+          logger.warn(`No se pudo obtener empleado ${employeeId}:`, error.message);
+        }
+      }
+
+      // Crear un mapa para búsqueda rápida
+      const employeeMap = {};
+      employees.forEach(emp => {
+        employeeMap[emp.id] = emp;
+      });
+
+      // Enriquecer cada registro con datos del empleado
+      const enrichedRecords = records.map(record => {
+        const employee = employeeMap[record.employeeId];
+        
+        if (employee) {
+          const firstName = employee.personalInfo?.firstName || '';
+          const lastName = employee.personalInfo?.lastName || '';
+          const fullName = `${firstName} ${lastName}`.trim() || 'Sin nombre';
+          
+          return {
+            ...record,
+            employeeName: fullName,
+            employeeNumber: employee.employeeNumber || '',
+            department: employee.position?.department || 'Sin departamento',
+            position: employee.position?.title || 'Sin posición',
+            email: employee.personalInfo?.email || '',
+            phone: employee.personalInfo?.phone || '',
+            avatar: employee.personalInfo?.avatar || null
+          };
+        } else {
+          // Fallback si no se encuentra el empleado
+          return {
+            ...record,
+            employeeName: `Empleado ${record.employeeId.slice(0, 8)}`,
+            employeeNumber: '',
+            department: 'Sin departamento',
+            position: 'Sin posición',
+            email: '',
+            phone: '',
+            avatar: null
+          };
+        }
+      });
+
+      logger.info('Registros enriquecidos con datos de empleados', {
+        totalRecords: records.length,
+        employeesFound: employees.length,
+        employeesNotFound: records.length - employees.length
+      });
+
+      return enrichedRecords;
+    } catch (error) {
+      logger.error('Error enriqueciendo registros con datos de empleados:', error);
+      // En caso de error, retornar registros originales
+      return records;
+    }
   }
 }
 

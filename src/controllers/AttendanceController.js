@@ -761,6 +761,47 @@ class AttendanceController {
       });
     }
   }
+
+  /**
+   * Obtener empleados activos para asistencia
+   */
+  static async getActiveEmployees(req, res) {
+    try {
+      const Employee = require('../models/Employee');
+      const employees = await Employee.findActive();
+
+      // Formatear datos para el frontend
+      const formattedEmployees = employees.map(emp => ({
+        id: emp.id,
+        employeeNumber: emp.employeeNumber || '',
+        name: `${emp.personalInfo?.firstName || ''} ${emp.personalInfo?.lastName || ''}`.trim() || 'Sin nombre',
+        firstName: emp.personalInfo?.firstName || '',
+        lastName: emp.personalInfo?.lastName || '',
+        email: emp.personalInfo?.email || '',
+        phone: emp.personalInfo?.phone || '',
+        department: emp.position?.department || 'Sin departamento',
+        position: emp.position?.title || 'Sin posición',
+        avatar: emp.personalInfo?.avatar || null,
+        isActive: emp.status === 'active',
+        hireDate: emp.position?.startDate || null
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          employees: formattedEmployees,
+          total: formattedEmployees.length
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo empleados activos:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo empleados activos'
+      });
+    }
+  }
 }
 
 module.exports = AttendanceController;
