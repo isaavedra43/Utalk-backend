@@ -1240,7 +1240,7 @@ class PayrollController {
         contract: {
           type: employee.contract?.type || 'permanent',
           baseMonthly: employee.contract?.salary || 0,
-          sbc: employee.sbc || 0
+          sbc: components.sbc || employee.sbc || 0  // Usar SBC calculado
         },
         components,
         breakdown,
@@ -1260,30 +1260,29 @@ class PayrollController {
    */
   static calculateEmployeeComponents(employee, config, extras, period, options) {
     const roundingMode = options.roundingMode || 'HALF_UP';
+    const TaxCalculationService = require('../services/TaxCalculationService');
     
-    logger.info('🧮 Iniciando cálculo de componentes', {
+    logger.info('🧮 Iniciando cálculo de componentes (CORREGIDO 2025)', {
       employeeId: employee.id,
       employeeName: `${employee.personalInfo?.firstName} ${employee.personalInfo?.lastName}`,
+      periodType: period.type,
       extrasCount: extras.length,
       extrasTypes: extras.map(e => e.type),
       extrasAmounts: extras.map(e => ({ type: e.type, amount: e.calculatedAmount || e.amount }))
     });
     
-    // 1. Salario base prorrateado
-    const baseSalary = employee.contract?.salary || 0;
-    const workingDaysInPeriod = PayrollController.calculateWorkingDaysInPeriod(period, employee);
-    const workingDaysInMonth = 22; // Promedio días laborales por mes
-    const baseAmount = PayrollController.round(
-      (baseSalary / workingDaysInMonth) * workingDaysInPeriod, 
-      roundingMode
-    );
+    // 1. Salario base prorrateado - CORREGIDO CON FACTORES CORRECTOS
+    const baseSalary = employee.contract?.salary || employee.salary?.baseSalary || 0;
+    
+    // USAR TaxCalculationService para conversión correcta (4.33 y 2.165)
+    const baseAmount = TaxCalculationService.convertSalaryToPeriod(baseSalary, period.type);
 
-    logger.info('💰 Salario base calculado', {
+    logger.info('💰 Salario base calculado (CORREGIDO)', {
       employeeId: employee.id,
       baseSalary,
-      workingDaysInPeriod,
-      workingDaysInMonth,
-      baseAmount
+      periodType: period.type,
+      baseAmount,
+      conversionFactor: period.type === 'weekly' ? 4.33 : (period.type === 'biweekly' ? 2.165 : 1)
     });
 
     // 2. Horas extra - USAR calculatedAmount que incluye multiplicadores
@@ -1329,24 +1328,39 @@ class PayrollController {
       roundingMode
     );
 
-    // 5. Deducciones fiscales - RESPETAR configuración de impuestos
+    // 5. Deducciones fiscales - IMPLEMENTACIÓN COMPLETA CON TABLAS 2025
     let taxDeductions = 0;
-    if (options.includeTaxes) {
-      taxDeductions = PayrollController.calculateTaxDeductions(
-        grossAmount, employee, config, options
-      );
-      logger.info('💸 Impuestos calculados', {
-        employeeId: employee.id,
-        grossAmount,
-        taxDeductions,
-        includeTaxes: options.includeTaxes
-      });
-    } else {
-      logger.info('🚫 Impuestos deshabilitados', {
-        employeeId: employee.id,
-        includeTaxes: options.includeTaxes
-      });
-    }
+    let isrAmount = 0;
+    let imssAmount = 0;
+    
+    // CALCULAR SBC (Salario Base de Cotización)
+    const sbc = TaxCalculationService.calculateSBC(baseSalary, employee);
+    
+    // SIEMPRE calcular impuestos (corrección crítica)
+    // Las opciones solo controlan si se muestran, pero siempre se calculan
+    const taxes = TaxCalculationService.calculateAllTaxes(
+      grossAmount, 
+      sbc, 
+      {
+        isrExempt: config?.isrExempt || false,
+        imssExempt: config?.imssExempt || false
+      }
+    );
+    
+    isrAmount = taxes.isr;
+    imssAmount = taxes.imss;
+    taxDeductions = taxes.total;
+    
+    logger.info('💸 Impuestos calculados (CORREGIDO 2025)', {
+      employeeId: employee.id,
+      grossAmount,
+      sbc,
+      isrAmount,
+      imssAmount,
+      taxDeductions,
+      includeTaxes: options.includeTaxes,
+      taxBreakdown: taxes.breakdown
+    });
 
     // 6. Deducciones internas - USAR calculatedAmount
     const internalDeductions = PayrollController.round(
@@ -1375,10 +1389,13 @@ class PayrollController {
       gross: grossAmount,
       deductions: {
         taxes: taxDeductions,
+        isr: isrAmount,
+        imss: imssAmount,
         internal: internalDeductions,
         total: totalDeductions
       },
-      net: netAmount
+      net: netAmount,
+      sbc: sbc // Incluir SBC en la respuesta
     };
   }
 
@@ -1452,9 +1469,10 @@ class PayrollController {
         amount: PayrollController.round(extra.amount || 0, options.roundingMode)
       }));
 
+    // CORREGIDO: Usar valores reales de ISR e IMSS calculados
     const taxesBreakdown = [
-      { name: 'ISR', amount: PayrollController.round(components.deductions.taxes * 0.8, options.roundingMode) },
-      { name: 'IMSS', amount: PayrollController.round(components.deductions.taxes * 0.2, options.roundingMode) }
+      { name: 'ISR', amount: PayrollController.round(components.deductions.isr || 0, options.roundingMode) },
+      { name: 'IMSS', amount: PayrollController.round(components.deductions.imss || 0, options.roundingMode) }
     ];
 
     const bonusesBreakdown = extras
@@ -1485,9 +1503,8 @@ class PayrollController {
   static generateEmployeeWarnings(employee, config, components) {
     const warnings = [];
 
-    if (!config) {
-      warnings.push('Empleado sin configuración de nómina; usando valores por defecto');
-    }
+    // NOTA: Ya NO advertir sobre configuración de nómina si tiene datos válidos
+    // Solo advertir si realmente falta información crítica
 
     if (!employee.personalInfo?.rfc) {
       warnings.push('Empleado sin RFC; puede afectar cálculos fiscales');
@@ -1497,8 +1514,10 @@ class PayrollController {
       warnings.push('Empleado sin CURP; puede afectar cálculos fiscales');
     }
 
-    if (!employee.sbc || employee.sbc === 0) {
-      warnings.push('Empleado sin SBC definido; usando salario base como SBC');
+    // Ya NO advertir sobre SBC - se calcula automáticamente
+    // Solo advertir si el SBC calculado es 0
+    if (components.sbc === 0) {
+      warnings.push('Salario base es 0; revisar configuración del empleado');
     }
 
     if (components.net < 0) {
