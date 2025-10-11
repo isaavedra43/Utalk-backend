@@ -1,5 +1,5 @@
-const { Firestore } = require('@google-cloud/firestore');
-const db = new Firestore();
+const { v4: uuidv4 } = require('uuid');
+const { db } = require('../config/firebase');
 const logger = require('../utils/logger');
 
 /**
