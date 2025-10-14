@@ -24,11 +24,15 @@ class AttendanceRecord {
   }
 
   /**
-   * Guardar registro en Firestore
+   * Guardar registro en Firestore como subcolección del empleado
    */
   async save() {
     try {
-      const docRef = db.collection('attendance_records').doc();
+      if (!this.employeeId) {
+        throw new Error('employeeId es requerido para guardar el registro');
+      }
+
+      const docRef = db.collection('employees').doc(this.employeeId).collection('attendance_records').doc();
       this.id = docRef.id;
       this.createdAt = new Date().toISOString();
       this.updatedAt = new Date().toISOString();
@@ -39,11 +43,12 @@ class AttendanceRecord {
         updatedAt: this.updatedAt
       });
 
-      logger.info('AttendanceRecord guardado', {
+      logger.info('AttendanceRecord guardado en subcolección del empleado', {
         id: this.id,
         reportId: this.reportId,
         employeeId: this.employeeId,
-        status: this.status
+        status: this.status,
+        path: `employees/${this.employeeId}/attendance_records/${this.id}`
       });
 
       return this;
@@ -58,9 +63,13 @@ class AttendanceRecord {
    */
   async update(updateData) {
     try {
+      if (!this.employeeId) {
+        throw new Error('employeeId es requerido para actualizar el registro');
+      }
+
       this.updatedAt = new Date().toISOString();
 
-      await db.collection('attendance_records').doc(this.id).update({
+      await db.collection('employees').doc(this.employeeId).collection('attendance_records').doc(this.id).update({
         ...updateData,
         updatedAt: this.updatedAt
       });
@@ -68,10 +77,11 @@ class AttendanceRecord {
       // Actualizar propiedades locales
       Object.assign(this, updateData);
 
-      logger.info('AttendanceRecord actualizado', {
+      logger.info('AttendanceRecord actualizado en subcolección del empleado', {
         id: this.id,
         employeeId: this.employeeId,
-        status: this.status
+        status: this.status,
+        path: `employees/${this.employeeId}/attendance_records/${this.id}`
       });
 
       return this;
@@ -86,11 +96,16 @@ class AttendanceRecord {
    */
   async delete() {
     try {
-      await db.collection('attendance_records').doc(this.id).delete();
+      if (!this.employeeId) {
+        throw new Error('employeeId es requerido para eliminar el registro');
+      }
 
-      logger.info('AttendanceRecord eliminado', {
+      await db.collection('employees').doc(this.employeeId).collection('attendance_records').doc(this.id).delete();
+
+      logger.info('AttendanceRecord eliminado de subcolección del empleado', {
         id: this.id,
-        employeeId: this.employeeId
+        employeeId: this.employeeId,
+        path: `employees/${this.employeeId}/attendance_records/${this.id}`
       });
 
       return true;
@@ -101,11 +116,15 @@ class AttendanceRecord {
   }
 
   /**
-   * Buscar registro por ID
+   * Buscar registro por ID y employeeId
    */
-  static async findById(recordId) {
+  static async findById(recordId, employeeId) {
     try {
-      const doc = await db.collection('attendance_records').doc(recordId).get();
+      if (!employeeId) {
+        throw new Error('employeeId es requerido para buscar el registro');
+      }
+
+      const doc = await db.collection('employees').doc(employeeId).collection('attendance_records').doc(recordId).get();
 
       if (!doc.exists) {
         return null;
@@ -122,11 +141,12 @@ class AttendanceRecord {
   }
 
   /**
-   * Buscar registros por reporte
+   * Buscar registros por reporte usando collection group query
    */
   static async findByReport(reportId) {
     try {
-      const snapshot = await db.collection('attendance_records')
+      // Usar collection group query para buscar en todas las subcolecciones attendance_records
+      const snapshot = await db.collectionGroup('attendance_records')
         .where('reportId', '==', reportId)
         .orderBy('createdAt', 'asc')
         .get();
@@ -139,6 +159,11 @@ class AttendanceRecord {
         }));
       });
 
+      logger.info('Registros encontrados por reporte usando collection group query', {
+        reportId,
+        count: records.length
+      });
+
       return records;
     } catch (error) {
       logger.error('Error buscando registros por reporte:', error);
@@ -147,12 +172,15 @@ class AttendanceRecord {
   }
 
   /**
-   * Buscar registros por empleado
+   * Buscar registros por empleado en su subcolección
    */
   static async findByEmployee(employeeId, filters = {}) {
     try {
-      let query = db.collection('attendance_records')
-        .where('employeeId', '==', employeeId);
+      if (!employeeId) {
+        throw new Error('employeeId es requerido para buscar registros del empleado');
+      }
+
+      let query = db.collection('employees').doc(employeeId).collection('attendance_records');
 
       if (filters.dateFrom) {
         query = query.where('createdAt', '>=', filters.dateFrom);
@@ -176,6 +204,12 @@ class AttendanceRecord {
         }));
       });
 
+      logger.info('Registros encontrados por empleado en subcolección', {
+        employeeId,
+        count: records.length,
+        filters
+      });
+
       return records;
     } catch (error) {
       logger.error('Error buscando registros por empleado:', error);
@@ -184,12 +218,15 @@ class AttendanceRecord {
   }
 
   /**
-   * Buscar registros por empleado y reporte
+   * Buscar registros por empleado y reporte en subcolección
    */
   static async findByEmployeeAndReport(employeeId, reportId) {
     try {
-      const snapshot = await db.collection('attendance_records')
-        .where('employeeId', '==', employeeId)
+      if (!employeeId) {
+        throw new Error('employeeId es requerido para buscar el registro');
+      }
+
+      const snapshot = await db.collection('employees').doc(employeeId).collection('attendance_records')
         .where('reportId', '==', reportId)
         .limit(1)
         .get();
@@ -210,30 +247,47 @@ class AttendanceRecord {
   }
 
   /**
-   * Crear múltiples registros en lote
+   * Crear múltiples registros en lote para múltiples empleados
    */
   static async createBatch(records) {
     try {
       const batch = db.batch();
       const createdRecords = [];
 
-      for (const recordData of records) {
-        const docRef = db.collection('attendance_records').doc();
-        const record = new AttendanceRecord({
-          id: docRef.id,
-          ...recordData,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
+      // Agrupar registros por employeeId para optimizar las operaciones batch
+      const recordsByEmployee = {};
+      records.forEach(recordData => {
+        if (!recordData.employeeId) {
+          throw new Error('employeeId es requerido para cada registro en el lote');
+        }
+        
+        if (!recordsByEmployee[recordData.employeeId]) {
+          recordsByEmployee[recordData.employeeId] = [];
+        }
+        recordsByEmployee[recordData.employeeId].push(recordData);
+      });
 
-        batch.set(docRef, record.toFirestore());
-        createdRecords.push(record);
+      // Crear registros agrupados por empleado
+      for (const [employeeId, employeeRecords] of Object.entries(recordsByEmployee)) {
+        for (const recordData of employeeRecords) {
+          const docRef = db.collection('employees').doc(employeeId).collection('attendance_records').doc();
+          const record = new AttendanceRecord({
+            id: docRef.id,
+            ...recordData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          batch.set(docRef, record.toFirestore());
+          createdRecords.push(record);
+        }
       }
 
       await batch.commit();
 
-      logger.info('AttendanceRecords creados en lote', {
-        count: createdRecords.length
+      logger.info('AttendanceRecords creados en lote en subcolecciones de empleados', {
+        count: createdRecords.length,
+        employees: Object.keys(recordsByEmployee).length
       });
 
       return createdRecords;
@@ -244,14 +298,18 @@ class AttendanceRecord {
   }
 
   /**
-   * Actualizar múltiples registros en lote
+   * Actualizar múltiples registros en lote en subcolecciones
    */
   static async updateBatch(records) {
     try {
       const batch = db.batch();
 
       for (const record of records) {
-        batch.update(db.collection('attendance_records').doc(record.id), {
+        if (!record.employeeId) {
+          throw new Error('employeeId es requerido para actualizar el registro');
+        }
+
+        batch.update(db.collection('employees').doc(record.employeeId).collection('attendance_records').doc(record.id), {
           ...record,
           updatedAt: new Date().toISOString()
         });
@@ -259,7 +317,7 @@ class AttendanceRecord {
 
       await batch.commit();
 
-      logger.info('AttendanceRecords actualizados en lote', {
+      logger.info('AttendanceRecords actualizados en lote en subcolecciones', {
         count: records.length
       });
 
@@ -271,20 +329,24 @@ class AttendanceRecord {
   }
 
   /**
-   * Eliminar múltiples registros en lote
+   * Eliminar múltiples registros en lote de subcolecciones
    */
-  static async deleteBatch(recordIds) {
+  static async deleteBatch(recordIdsWithEmployeeIds) {
     try {
       const batch = db.batch();
 
-      for (const recordId of recordIds) {
-        batch.delete(db.collection('attendance_records').doc(recordId));
+      for (const { recordId, employeeId } of recordIdsWithEmployeeIds) {
+        if (!employeeId) {
+          throw new Error('employeeId es requerido para eliminar el registro');
+        }
+
+        batch.delete(db.collection('employees').doc(employeeId).collection('attendance_records').doc(recordId));
       }
 
       await batch.commit();
 
-      logger.info('AttendanceRecords eliminados en lote', {
-        count: recordIds.length
+      logger.info('AttendanceRecords eliminados en lote de subcolecciones', {
+        count: recordIdsWithEmployeeIds.length
       });
 
       return true;

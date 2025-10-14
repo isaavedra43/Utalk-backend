@@ -875,6 +875,76 @@ class AttendanceService {
       return records;
     }
   }
+
+  /**
+   * Migrar registros existentes de colección general a subcolecciones de empleados
+   * Este método es para migrar datos existentes de la estructura anterior
+   */
+  static async migrateToSubcollections() {
+    try {
+      logger.info('Iniciando migración de attendance_records a subcolecciones de empleados');
+
+      // Obtener todos los registros de la colección general (estructura anterior)
+      const oldRecordsSnapshot = await db.collection('attendance_records').get();
+      
+      if (oldRecordsSnapshot.empty) {
+        logger.info('No hay registros para migrar');
+        return { migrated: 0, errors: 0 };
+      }
+
+      let migrated = 0;
+      let errors = 0;
+      const batch = db.batch();
+
+      // Procesar en lotes de 500 (límite de Firestore)
+      const batchSize = 500;
+      const totalRecords = oldRecordsSnapshot.docs.length;
+      
+      for (let i = 0; i < totalRecords; i += batchSize) {
+        const batchDocs = oldRecordsSnapshot.docs.slice(i, i + batchSize);
+        
+        for (const doc of batchDocs) {
+          try {
+            const recordData = doc.data();
+            const employeeId = recordData.employeeId;
+            
+            if (!employeeId) {
+              logger.warn(`Registro ${doc.id} no tiene employeeId, saltando`);
+              errors++;
+              continue;
+            }
+
+            // Crear el registro en la subcolección del empleado
+            const newDocRef = db.collection('employees').doc(employeeId).collection('attendance_records').doc(doc.id);
+            batch.set(newDocRef, recordData);
+            
+            // Marcar el registro antiguo para eliminación
+            batch.delete(doc.ref);
+            
+            migrated++;
+          } catch (error) {
+            logger.error(`Error migrando registro ${doc.id}:`, error);
+            errors++;
+          }
+        }
+
+        // Ejecutar el batch
+        await batch.commit();
+        logger.info(`Migrados ${migrated} registros, procesando lote ${Math.floor(i / batchSize) + 1}`);
+      }
+
+      logger.info('Migración completada', {
+        totalRecords,
+        migrated,
+        errors
+      });
+
+      return { migrated, errors, totalRecords };
+    } catch (error) {
+      logger.error('Error durante la migración:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = AttendanceService;

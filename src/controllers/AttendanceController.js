@@ -802,6 +802,37 @@ class AttendanceController {
       });
     }
   }
+
+  /**
+   * Migrar registros existentes a subcolecciones de empleados
+   */
+  static async migrateToSubcollections(req, res) {
+    try {
+      // Solo permitir a administradores
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Solo los administradores pueden ejecutar la migración'
+        });
+      }
+
+      const result = await AttendanceService.migrateToSubcollections();
+
+      res.json({
+        success: true,
+        message: 'Migración completada exitosamente',
+        data: result
+      });
+
+    } catch (error) {
+      logger.error('Error ejecutando migración:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error ejecutando migración',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = AttendanceController;

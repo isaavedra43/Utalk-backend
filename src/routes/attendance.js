@@ -70,6 +70,9 @@ router.get('/permissions', AttendanceController.getUserPermissions);
 // Obtener empleados activos para asistencia
 router.get('/employees', AttendanceController.getActiveEmployees);
 
+// Migrar registros existentes a subcolecciones de empleados (solo admin)
+router.post('/migrate-to-subcollections', AttendanceController.migrateToSubcollections);
+
 /**
  * CONSULTAS POR EMPLEADO
  */
