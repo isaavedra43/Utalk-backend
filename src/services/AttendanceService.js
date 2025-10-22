@@ -733,67 +733,7 @@ class AttendanceService {
     }
   }
 
-  /**
-   * Exportar reporte a formato específico
-   */
-  static async exportReport(reportId, format) {
-    try {
-      const reportData = await this.getReportById(reportId);
 
-      switch (format) {
-        case 'pdf':
-          return await this.generatePDFReport(reportData);
-        case 'excel':
-          return await this.generateExcelReport(reportData);
-        case 'csv':
-          return await this.generateCSVReport(reportData);
-        default:
-          throw new Error('Formato no soportado');
-      }
-    } catch (error) {
-      logger.error('Error exportando reporte:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Generar reporte PDF
-   */
-  static async generatePDFReport(reportData) {
-    // Esta función generaría un PDF usando alguna librería como puppeteer o pdfkit
-    // Por ahora, retornamos datos estructurados
-    return {
-      format: 'pdf',
-      filename: `reporte-asistencia-${reportData.report.date}.pdf`,
-      data: reportData
-    };
-  }
-
-  /**
-   * Generar reporte Excel
-   */
-  static async generateExcelReport(reportData) {
-    // Esta función generaría un Excel usando alguna librería como exceljs
-    // Por ahora, retornamos datos estructurados
-    return {
-      format: 'excel',
-      filename: `reporte-asistencia-${reportData.report.date}.xlsx`,
-      data: reportData
-    };
-  }
-
-  /**
-   * Generar reporte CSV
-   */
-  static async generateCSVReport(reportData) {
-    // Esta función generaría un CSV
-    // Por ahora, retornamos datos estructurados
-    return {
-      format: 'csv',
-      filename: `reporte-asistencia-${reportData.report.date}.csv`,
-      data: reportData
-    };
-  }
 
   /**
    * Enriquecer registros con información completa de empleados

@@ -97,11 +97,5 @@ router.post('/movements', AttendanceController.createMovement);
 // Crear excepción de asistencia (llegadas tarde, salidas tempranas, etc.)
 router.post('/exceptions', AttendanceController.createException);
 
-/**
- * EXPORTACIÓN DE DATOS
- */
-
-// Exportar reporte en formato específico
-router.get('/reports/:reportId/export', AttendanceController.exportReport);
 
 module.exports = router;

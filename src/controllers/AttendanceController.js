@@ -399,35 +399,6 @@ class AttendanceController {
     }
   }
 
-  /**
-   * Exportar reporte
-   */
-  static async exportReport(req, res) {
-    try {
-      const { reportId } = req.params;
-      const { format = 'pdf' } = req.query;
-
-      const exportData = await AttendanceService.exportReport(reportId, format);
-
-      // Configurar headers para descarga
-      res.setHeader('Content-Type', `application/${format}`);
-      res.setHeader('Content-Disposition', `attachment; filename="${exportData.filename}"`);
-
-      // Enviar datos (en producción se generaría el archivo real)
-      res.json({
-        success: true,
-        message: `Reporte exportado como ${format}`,
-        data: exportData
-      });
-
-    } catch (error) {
-      logger.error('Error exportando reporte:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Error exportando reporte'
-      });
-    }
-  }
 
   /**
    * Obtener dashboard de asistencia
