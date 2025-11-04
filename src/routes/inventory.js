@@ -69,9 +69,161 @@ router.get('/providers/:providerId/platforms',
   InventoryProviderController.getPlatforms
 );
 
-// GET /api/inventory/providers/:providerId/materials (PRIMERO - ruta específica)
+// ============================================
+// MATERIALES DEL PROVEEDOR (Primero - rutas específicas)
+// ============================================
+
+// GET /api/inventory/providers/:providerId/materials/:materialId
+router.get('/providers/:providerId/materials/:materialId',
+  InventoryProviderController.getMaterial
+);
+
+// GET /api/inventory/providers/:providerId/materials
 router.get('/providers/:providerId/materials',
-  InventoryProviderController.getMaterials
+  InventoryProviderController.listMaterials
+);
+
+// POST /api/inventory/providers/:providerId/materials
+router.post('/providers/:providerId/materials',
+  InventoryProviderController.createMaterial
+);
+
+// PUT /api/inventory/providers/:providerId/materials/:materialId
+router.put('/providers/:providerId/materials/:materialId',
+  InventoryProviderController.updateMaterial
+);
+
+// DELETE /api/inventory/providers/:providerId/materials/:materialId
+router.delete('/providers/:providerId/materials/:materialId',
+  InventoryProviderController.deleteMaterial
+);
+
+// ============================================
+// ÓRDENES DE COMPRA
+// ============================================
+
+// GET /api/inventory/providers/:providerId/purchase-orders/:orderId
+router.get('/providers/:providerId/purchase-orders/:orderId',
+  InventoryProviderController.getPurchaseOrder
+);
+
+// GET /api/inventory/providers/:providerId/purchase-orders
+router.get('/providers/:providerId/purchase-orders',
+  InventoryProviderController.listPurchaseOrders
+);
+
+// POST /api/inventory/providers/:providerId/purchase-orders
+router.post('/providers/:providerId/purchase-orders',
+  InventoryProviderController.createPurchaseOrder
+);
+
+// PUT /api/inventory/providers/:providerId/purchase-orders/:orderId
+router.put('/providers/:providerId/purchase-orders/:orderId',
+  InventoryProviderController.updatePurchaseOrder
+);
+
+// DELETE /api/inventory/providers/:providerId/purchase-orders/:orderId
+router.delete('/providers/:providerId/purchase-orders/:orderId',
+  InventoryProviderController.deletePurchaseOrder
+);
+
+// ============================================
+// PAGOS
+// ============================================
+
+// GET /api/inventory/providers/:providerId/payments/:paymentId
+router.get('/providers/:providerId/payments/:paymentId',
+  InventoryProviderController.getPayment
+);
+
+// GET /api/inventory/providers/:providerId/payments
+router.get('/providers/:providerId/payments',
+  InventoryProviderController.listPayments
+);
+
+// POST /api/inventory/providers/:providerId/payments
+router.post('/providers/:providerId/payments',
+  InventoryProviderController.createPayment
+);
+
+// PUT /api/inventory/providers/:providerId/payments/:paymentId
+router.put('/providers/:providerId/payments/:paymentId',
+  InventoryProviderController.updatePayment
+);
+
+// DELETE /api/inventory/providers/:providerId/payments/:paymentId
+router.delete('/providers/:providerId/payments/:paymentId',
+  InventoryProviderController.deletePayment
+);
+
+// ============================================
+// DOCUMENTOS
+// ============================================
+
+// GET /api/inventory/providers/:providerId/documents
+router.get('/providers/:providerId/documents',
+  InventoryProviderController.listDocuments
+);
+
+// POST /api/inventory/providers/:providerId/documents
+router.post('/providers/:providerId/documents',
+  InventoryProviderController.createDocument
+);
+
+// DELETE /api/inventory/providers/:providerId/documents/:documentId
+router.delete('/providers/:providerId/documents/:documentId',
+  InventoryProviderController.deleteDocument
+);
+
+// ============================================
+// ACTIVIDADES
+// ============================================
+
+// GET /api/inventory/providers/:providerId/activities
+router.get('/providers/:providerId/activities',
+  InventoryProviderController.listActivities
+);
+
+// POST /api/inventory/providers/:providerId/activities
+router.post('/providers/:providerId/activities',
+  InventoryProviderController.createActivity
+);
+
+// ============================================
+// CALIFICACIONES
+// ============================================
+
+// GET /api/inventory/providers/:providerId/rating
+router.get('/providers/:providerId/rating',
+  InventoryProviderController.getRating
+);
+
+// POST /api/inventory/providers/:providerId/rating
+router.post('/providers/:providerId/rating',
+  InventoryProviderController.updateRating
+);
+
+// ============================================
+// ESTADO DE CUENTA
+// ============================================
+
+// GET /api/inventory/providers/:providerId/account-statement
+router.get('/providers/:providerId/account-statement',
+  InventoryProviderController.getAccountStatement
+);
+
+// ============================================
+// PROVEEDORES (rutas generales al final)
+// ============================================
+
+// GET /api/inventory/providers/:providerId/stats (PRIMERO - ruta específica)
+router.get('/providers/:providerId/stats',
+  InventoryProviderController.getStats
+);
+
+// GET /api/inventory/providers/:providerId/platforms (PRIMERO - ruta específica)
+router.get('/providers/:providerId/platforms',
+  InventoryProviderController.getPlatforms
 );
 
 // GET /api/inventory/providers

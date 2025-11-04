@@ -18,8 +18,15 @@ class Provider {
     this.phone = data.phone || '';
     this.email = data.email || '';
     this.address = data.address || '';
+    this.notes = data.notes || '';
     this.materialIds = data.materialIds || [];
     this.isActive = data.isActive !== undefined ? data.isActive : true;
+    this.taxId = data.taxId || '';
+    this.paymentTerms = data.paymentTerms || '';
+    this.creditLimit = data.creditLimit || 0;
+    this.website = data.website || '';
+    this.bankAccount = data.bankAccount || '';
+    this.currency = data.currency || 'MXN';
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
   }
@@ -35,8 +42,15 @@ class Provider {
       phone: this.phone,
       email: this.email,
       address: this.address,
+      notes: this.notes,
       materialIds: this.materialIds,
       isActive: this.isActive,
+      taxId: this.taxId,
+      paymentTerms: this.paymentTerms,
+      creditLimit: this.creditLimit,
+      website: this.website,
+      bankAccount: this.bankAccount,
+      currency: this.currency,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };
