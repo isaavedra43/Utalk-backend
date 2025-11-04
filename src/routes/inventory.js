@@ -102,6 +102,16 @@ router.delete('/providers/:providerId/materials/:materialId',
 // ÓRDENES DE COMPRA
 // ============================================
 
+// PUT /api/inventory/providers/:providerId/purchase-orders/:orderId/status (PRIMERO - ruta más específica)
+router.put('/providers/:providerId/purchase-orders/:orderId/status',
+  InventoryProviderController.changeOrderStatus
+);
+
+// POST /api/inventory/providers/:providerId/purchase-orders/:orderId/send-email (PRIMERO - ruta más específica)
+router.post('/providers/:providerId/purchase-orders/:orderId/send-email',
+  InventoryProviderController.sendOrderEmail
+);
+
 // GET /api/inventory/providers/:providerId/purchase-orders/:orderId
 router.get('/providers/:providerId/purchase-orders/:orderId',
   InventoryProviderController.getPurchaseOrder
@@ -215,6 +225,16 @@ router.get('/providers/:providerId/account-statement',
 // ============================================
 // PROVEEDORES (rutas generales al final)
 // ============================================
+
+// GET /api/inventory/providers/:providerId/statistics (PRIMERO - ruta específica)
+router.get('/providers/:providerId/statistics',
+  InventoryProviderController.getStatistics
+);
+
+// GET /api/inventory/providers/:providerId/alerts (PRIMERO - ruta específica)
+router.get('/providers/:providerId/alerts',
+  InventoryProviderController.getAlerts
+);
 
 // GET /api/inventory/providers/:providerId/stats (PRIMERO - ruta específica)
 router.get('/providers/:providerId/stats',

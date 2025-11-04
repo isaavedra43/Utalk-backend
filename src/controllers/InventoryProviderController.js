@@ -892,6 +892,131 @@ class InventoryProviderController {
       return ResponseHandler.error(res, CommonErrors.INTERNAL_SERVER_ERROR('Error obteniendo estado de cuenta'));
     }
   }
+
+  // ==========================================
+  // CAMBIO DE ESTADO DE ÓRDENES
+  // ==========================================
+
+  /**
+   * PUT /api/providers/:providerId/purchase-orders/:orderId/status
+   * Cambia el estado de una orden con validaciones estrictas
+   */
+  static async changeOrderStatus(req, res, next) {
+    try {
+      const userId = req.user.email || req.user.id;
+      const { providerId, orderId } = req.params;
+      const statusData = {
+        ...req.body,
+        createdByName: req.user.displayName || req.user.email
+      };
+
+      const service = new ProviderService();
+      const order = await service.changeOrderStatus(userId, providerId, orderId, statusData);
+
+      return ResponseHandler.success(
+        res, 
+        order, 
+        `Orden ${order.orderNumber} actualizada a estado ${statusData.status}`
+      );
+    } catch (error) {
+      logger.error('Error en changeOrderStatus', { error: error.message });
+      
+      if (error instanceof ApiError) {
+        return ResponseHandler.error(res, error, error.statusCode);
+      }
+      
+      return ResponseHandler.error(res, CommonErrors.INTERNAL_SERVER_ERROR('Error cambiando estado de orden'));
+    }
+  }
+
+  // ==========================================
+  // ESTADÍSTICAS
+  // ==========================================
+
+  /**
+   * GET /api/providers/:providerId/statistics
+   * Obtiene estadísticas y KPIs del proveedor
+   */
+  static async getStatistics(req, res, next) {
+    try {
+      const userId = req.user.email || req.user.id;
+      const { providerId } = req.params;
+      const { period } = req.query;
+
+      const service = new ProviderService();
+      const statistics = await service.getProviderStatistics(userId, providerId, period || 'all');
+
+      return ResponseHandler.success(res, statistics, 'Estadísticas obtenidas exitosamente');
+    } catch (error) {
+      logger.error('Error en getStatistics', { error: error.message });
+      
+      if (error instanceof ApiError) {
+        return ResponseHandler.error(res, error, error.statusCode);
+      }
+      
+      return ResponseHandler.error(res, CommonErrors.INTERNAL_SERVER_ERROR('Error obteniendo estadísticas'));
+    }
+  }
+
+  // ==========================================
+  // ALERTAS
+  // ==========================================
+
+  /**
+   * GET /api/providers/:providerId/alerts
+   * Obtiene alertas y recordatorios del proveedor
+   */
+  static async getAlerts(req, res, next) {
+    try {
+      const userId = req.user.email || req.user.id;
+      const { providerId } = req.params;
+
+      const service = new ProviderService();
+      const result = await service.getProviderAlerts(userId, providerId);
+
+      return ResponseHandler.success(res, result, 'Alertas obtenidas exitosamente');
+    } catch (error) {
+      logger.error('Error en getAlerts', { error: error.message });
+      
+      if (error instanceof ApiError) {
+        return ResponseHandler.error(res, error, error.statusCode);
+      }
+      
+      return ResponseHandler.error(res, CommonErrors.INTERNAL_SERVER_ERROR('Error obteniendo alertas'));
+    }
+  }
+
+  // ==========================================
+  // ENVÍO DE EMAILS
+  // ==========================================
+
+  /**
+   * POST /api/providers/:providerId/purchase-orders/:orderId/send-email
+   * Envía orden de compra por email
+   */
+  static async sendOrderEmail(req, res, next) {
+    try {
+      const userId = req.user.email || req.user.id;
+      const { providerId, orderId } = req.params;
+      const emailData = {
+        ...req.body,
+        createdByName: req.user.displayName || req.user.email
+      };
+
+      const service = new ProviderService();
+      const result = await service.sendOrderEmail(userId, providerId, orderId, emailData);
+
+      return ResponseHandler.success(res, result, 'Orden enviada por correo electrónico');
+    } catch (error) {
+      logger.error('Error en sendOrderEmail', { error: error.message });
+      
+      if (error instanceof ApiError) {
+        return ResponseHandler.error(res, error, error.statusCode);
+      }
+      
+      return ResponseHandler.error(res, CommonErrors.INTERNAL_SERVER_ERROR('Error enviando orden por email'));
+    }
+  }
 }
 
 module.exports = InventoryProviderController;

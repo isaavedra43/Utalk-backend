@@ -467,6 +467,272 @@ class PDFService {
     };
     return frequencies[frequency] || frequency;
   }
+
+  /**
+   * Genera PDF de orden de compra
+   */
+  async generatePurchaseOrderPDF(order, provider) {
+    try {
+      logger.info('Generando PDF de orden de compra', {
+        orderId: order.id,
+        orderNumber: order.orderNumber
+      });
+
+      // Estilos para el PDF de orden de compra
+      const styles = StyleSheet.create({
+        page: {
+          flexDirection: 'column',
+          backgroundColor: '#FFFFFF',
+          padding: 30,
+          fontFamily: 'Helvetica'
+        },
+        header: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginBottom: 20,
+          borderBottom: 2,
+          borderBottomColor: '#2563eb',
+          paddingBottom: 10
+        },
+        title: {
+          fontSize: 24,
+          fontWeight: 'bold',
+          color: '#1f2937'
+        },
+        subtitle: {
+          fontSize: 12,
+          color: '#6b7280',
+          marginTop: 5
+        },
+        section: {
+          marginBottom: 15
+        },
+        sectionTitle: {
+          fontSize: 14,
+          fontWeight: 'bold',
+          color: '#1f2937',
+          marginBottom: 8
+        },
+        infoRow: {
+          flexDirection: 'row',
+          fontSize: 10,
+          marginBottom: 4
+        },
+        label: {
+          fontWeight: 'bold',
+          width: 120,
+          color: '#374151'
+        },
+        value: {
+          color: '#111827'
+        },
+        table: {
+          marginTop: 10
+        },
+        tableHeader: {
+          flexDirection: 'row',
+          backgroundColor: '#f3f4f6',
+          padding: 8,
+          fontSize: 10,
+          fontWeight: 'bold'
+        },
+        tableRow: {
+          flexDirection: 'row',
+          borderBottom: 1,
+          borderBottomColor: '#e5e7eb',
+          padding: 8,
+          fontSize: 9
+        },
+        col1: { width: '5%' },
+        col2: { width: '35%' },
+        col3: { width: '15%', textAlign: 'right' },
+        col4: { width: '15%', textAlign: 'right' },
+        col5: { width: '15%', textAlign: 'right' },
+        col6: { width: '15%', textAlign: 'right' },
+        totalsSection: {
+          marginTop: 15,
+          alignItems: 'flex-end'
+        },
+        totalRow: {
+          flexDirection: 'row',
+          marginBottom: 5,
+          fontSize: 11
+        },
+        totalLabel: {
+          width: 150,
+          textAlign: 'right',
+          marginRight: 20
+        },
+        totalValue: {
+          width: 100,
+          textAlign: 'right'
+        },
+        grandTotal: {
+          fontSize: 14,
+          fontWeight: 'bold'
+        },
+        footer: {
+          position: 'absolute',
+          bottom: 30,
+          left: 30,
+          right: 30,
+          fontSize: 8,
+          color: '#6b7280',
+          textAlign: 'center'
+        }
+      });
+
+      // Componente PDF
+      const PurchaseOrderDocument = () => (
+        React.createElement(Document, null,
+          React.createElement(Page, { size: 'LETTER', style: styles.page },
+            // Header
+            React.createElement(View, { style: styles.header },
+              React.createElement(View, null,
+                React.createElement(Text, { style: styles.title }, 'ORDEN DE COMPRA'),
+                React.createElement(Text, { style: styles.subtitle }, order.orderNumber)
+              ),
+              React.createElement(View, { style: { alignItems: 'flex-end' } },
+                React.createElement(Text, { style: { fontSize: 10, marginBottom: 3 } }, 
+                  `Fecha: ${new Date(order.createdAt).toLocaleDateString('es-MX')}`
+                ),
+                React.createElement(Text, { style: { fontSize: 10, color: '#2563eb' } }, 
+                  `Estado: ${order.status.toUpperCase()}`
+                )
+              )
+            ),
+
+            // Información del proveedor
+            React.createElement(View, { style: styles.section },
+              React.createElement(Text, { style: styles.sectionTitle }, 'Proveedor'),
+              React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Nombre:'),
+                React.createElement(Text, { style: styles.value }, provider.name)
+              ),
+              provider.contact && React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Contacto:'),
+                React.createElement(Text, { style: styles.value }, provider.contact)
+              ),
+              provider.phone && React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Teléfono:'),
+                React.createElement(Text, { style: styles.value }, provider.phone)
+              ),
+              provider.email && React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Email:'),
+                React.createElement(Text, { style: styles.value }, provider.email)
+              ),
+              provider.address && React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Dirección:'),
+                React.createElement(Text, { style: styles.value }, provider.address)
+              )
+            ),
+
+            // Información de entrega
+            order.expectedDeliveryDate && React.createElement(View, { style: styles.section },
+              React.createElement(Text, { style: styles.sectionTitle }, 'Entrega'),
+              React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Fecha esperada:'),
+                React.createElement(Text, { style: styles.value }, 
+                  new Date(order.expectedDeliveryDate).toLocaleDateString('es-MX')
+                )
+              ),
+              order.deliveryAddress && React.createElement(View, { style: styles.infoRow },
+                React.createElement(Text, { style: styles.label }, 'Dirección:'),
+                React.createElement(Text, { style: styles.value }, order.deliveryAddress)
+              )
+            ),
+
+            // Tabla de items
+            React.createElement(View, { style: styles.table },
+              React.createElement(Text, { style: styles.sectionTitle }, 'Artículos'),
+              
+              // Header de tabla
+              React.createElement(View, { style: styles.tableHeader },
+                React.createElement(Text, { style: styles.col1 }, '#'),
+                React.createElement(Text, { style: styles.col2 }, 'Descripción'),
+                React.createElement(Text, { style: styles.col3 }, 'Cantidad'),
+                React.createElement(Text, { style: styles.col4 }, 'Unidad'),
+                React.createElement(Text, { style: styles.col5 }, 'P. Unit.'),
+                React.createElement(Text, { style: styles.col6 }, 'Subtotal')
+              ),
+
+              // Rows
+              ...order.items.map((item, index) =>
+                React.createElement(View, { key: item.id, style: styles.tableRow },
+                  React.createElement(Text, { style: styles.col1 }, String(index + 1)),
+                  React.createElement(Text, { style: styles.col2 }, item.materialName),
+                  React.createElement(Text, { style: styles.col3 }, String(item.quantity)),
+                  React.createElement(Text, { style: styles.col4 }, item.unit),
+                  React.createElement(Text, { style: styles.col5 }, this.formatCurrency(item.unitPrice)),
+                  React.createElement(Text, { style: styles.col6 }, this.formatCurrency(item.subtotal))
+                )
+              )
+            ),
+
+            // Totales
+            React.createElement(View, { style: styles.totalsSection },
+              React.createElement(View, { style: styles.totalRow },
+                React.createElement(Text, { style: styles.totalLabel }, 'Subtotal:'),
+                React.createElement(Text, { style: styles.totalValue }, this.formatCurrency(order.subtotal))
+              ),
+              order.discount > 0 && React.createElement(View, { style: styles.totalRow },
+                React.createElement(Text, { style: styles.totalLabel }, 
+                  `Descuento (${order.discountType === 'percentage' ? order.discount + '%' : 'Fijo'}):`
+                ),
+                React.createElement(Text, { style: styles.totalValue }, 
+                  '-' + this.formatCurrency(
+                    order.discountType === 'percentage' 
+                      ? order.subtotal * (order.discount / 100)
+                      : order.discount
+                  )
+                )
+              ),
+              React.createElement(View, { style: styles.totalRow },
+                React.createElement(Text, { style: styles.totalLabel }, 'IVA:'),
+                React.createElement(Text, { style: styles.totalValue }, this.formatCurrency(order.tax))
+              ),
+              React.createElement(View, { style: [styles.totalRow, styles.grandTotal] },
+                React.createElement(Text, { style: styles.totalLabel }, 'TOTAL:'),
+                React.createElement(Text, { style: styles.totalValue }, this.formatCurrency(order.total))
+              )
+            ),
+
+            // Notas
+            order.notes && React.createElement(View, { style: styles.section },
+              React.createElement(Text, { style: styles.sectionTitle }, 'Notas'),
+              React.createElement(Text, { style: { fontSize: 10 } }, order.notes)
+            ),
+
+            // Footer
+            React.createElement(View, { style: styles.footer },
+              React.createElement(Text, null, 
+                `Documento generado el ${new Date().toLocaleDateString('es-MX')} - Orden ${order.orderNumber}`
+              )
+            )
+          )
+        )
+      );
+
+      // Generar PDF
+      const pdfDoc = pdf(React.createElement(PurchaseOrderDocument));
+      const pdfBuffer = await pdfDoc.toBuffer();
+
+      logger.info('PDF de orden de compra generado exitosamente', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        bufferSize: pdfBuffer.length
+      });
+
+      return pdfBuffer;
+    } catch (error) {
+      logger.error('Error generando PDF de orden de compra', {
+        orderId: order?.id,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = new PDFService();

@@ -17,7 +17,9 @@ class Payment {
     this.providerName = data.providerName || '';
     this.purchaseOrderId = data.purchaseOrderId || null;
     this.orderNumber = data.orderNumber || null;
+    this.relatedOrderIds = data.relatedOrderIds || [];
     this.amount = data.amount || 0;
+    this.currency = data.currency || 'MXN';
     this.paymentMethod = data.paymentMethod || 'cash';
     this.reference = data.reference || '';
     this.status = data.status || 'completed';
@@ -41,7 +43,9 @@ class Payment {
       providerName: this.providerName,
       purchaseOrderId: this.purchaseOrderId,
       orderNumber: this.orderNumber,
+      relatedOrderIds: this.relatedOrderIds,
       amount: this.amount,
+      currency: this.currency,
       paymentMethod: this.paymentMethod,
       reference: this.reference,
       status: this.status,
@@ -180,31 +184,51 @@ class Payment {
   }
 
   /**
-   * Genera el siguiente número de pago secuencial
+   * Genera el siguiente número de pago secuencial con formato PAY-YYYYMMDD-XXX
    */
   static async generatePaymentNumber() {
     try {
-      // Buscar el último número de pago
+      // Obtener fecha actual en formato YYYYMMDD
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const datePrefix = `${year}${month}${day}`;
+      
+      // Buscar el último número de pago del día
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      
       const snapshot = await db.collection('providers')
         .collectionGroup('payments')
+        .where('createdAt', '>=', startOfDay)
+        .where('createdAt', '<', endOfDay)
+        .orderBy('createdAt', 'desc')
         .orderBy('paymentNumber', 'desc')
         .limit(1)
         .get();
 
-      if (snapshot.empty) {
-        return 'PAY-000001';
+      let sequence = 1;
+      
+      if (!snapshot.empty) {
+        const lastPayment = snapshot.docs[0].data();
+        const lastPaymentNumber = lastPayment.paymentNumber;
+        
+        // Verificar que sea del mismo día
+        if (lastPaymentNumber.startsWith(`PAY-${datePrefix}`)) {
+          const lastSequence = parseInt(lastPaymentNumber.split('-')[2]);
+          sequence = lastSequence + 1;
+        }
       }
 
-      const lastPayment = snapshot.docs[0].data();
-      const lastNumber = parseInt(lastPayment.paymentNumber.split('-')[1]);
-      const nextNumber = lastNumber + 1;
-
-      return `PAY-${nextNumber.toString().padStart(6, '0')}`;
+      return `PAY-${datePrefix}-${sequence.toString().padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generando número de pago:', error);
       // Fallback: generar basado en timestamp
-      const timestamp = Date.now().toString().slice(-6);
-      return `PAY-${timestamp}`;
+      const now = new Date();
+      const datePrefix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const sequence = String(Date.now()).slice(-3);
+      return `PAY-${datePrefix}-${sequence}`;
     }
   }
 }

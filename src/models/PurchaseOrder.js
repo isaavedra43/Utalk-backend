@@ -18,6 +18,8 @@ class PurchaseOrder {
     this.status = data.status || 'draft';
     this.items = data.items || [];
     this.subtotal = data.subtotal || 0;
+    this.discount = data.discount || 0;
+    this.discountType = data.discountType || 'amount';
     this.tax = data.tax || 0;
     this.total = data.total || 0;
     this.notes = data.notes || '';
@@ -26,12 +28,18 @@ class PurchaseOrder {
     this.sentAt = data.sentAt || null;
     this.expectedDeliveryDate = data.expectedDeliveryDate || null;
     this.acceptedAt = data.acceptedAt || null;
+    this.rejectedAt = data.rejectedAt || null;
     this.deliveredAt = data.deliveredAt || null;
+    this.cancelledAt = data.cancelledAt || null;
     this.createdBy = data.createdBy;
     this.createdByName = data.createdByName || '';
     this.deliveryAddress = data.deliveryAddress || '';
     this.deliveryNotes = data.deliveryNotes || '';
     this.attachments = data.attachments || [];
+    this.acceptedBy = data.acceptedBy || null;
+    this.acceptedDeliveryDate = data.acceptedDeliveryDate || null;
+    this.rejectionReason = data.rejectionReason || null;
+    this.cancellationReason = data.cancellationReason || null;
     this.updatedAt = data.updatedAt || new Date();
   }
 
@@ -46,6 +54,8 @@ class PurchaseOrder {
       status: this.status,
       items: this.items,
       subtotal: this.subtotal,
+      discount: this.discount,
+      discountType: this.discountType,
       tax: this.tax,
       total: this.total,
       notes: this.notes,
@@ -54,12 +64,18 @@ class PurchaseOrder {
       sentAt: this.sentAt,
       expectedDeliveryDate: this.expectedDeliveryDate,
       acceptedAt: this.acceptedAt,
+      rejectedAt: this.rejectedAt,
       deliveredAt: this.deliveredAt,
+      cancelledAt: this.cancelledAt,
       createdBy: this.createdBy,
       createdByName: this.createdByName,
       deliveryAddress: this.deliveryAddress,
       deliveryNotes: this.deliveryNotes,
       attachments: this.attachments,
+      acceptedBy: this.acceptedBy,
+      acceptedDeliveryDate: this.acceptedDeliveryDate,
+      rejectionReason: this.rejectionReason,
+      cancellationReason: this.cancellationReason,
       updatedAt: this.updatedAt
     };
   }
@@ -78,7 +94,10 @@ class PurchaseOrder {
       sentAt: data.sentAt?.toDate?.() || data.sentAt,
       expectedDeliveryDate: data.expectedDeliveryDate?.toDate?.() || data.expectedDeliveryDate,
       acceptedAt: data.acceptedAt?.toDate?.() || data.acceptedAt,
+      rejectedAt: data.rejectedAt?.toDate?.() || data.rejectedAt,
       deliveredAt: data.deliveredAt?.toDate?.() || data.deliveredAt,
+      cancelledAt: data.cancelledAt?.toDate?.() || data.cancelledAt,
+      acceptedDeliveryDate: data.acceptedDeliveryDate?.toDate?.() || data.acceptedDeliveryDate,
       updatedAt: data.updatedAt?.toDate?.() || data.updatedAt
     });
   }
@@ -191,31 +210,51 @@ class PurchaseOrder {
   }
 
   /**
-   * Genera el siguiente número de orden secuencial
+   * Genera el siguiente número de orden secuencial con formato PO-YYYYMMDD-XXX
    */
   static async generateOrderNumber() {
     try {
-      // Buscar el último número de orden
+      // Obtener fecha actual en formato YYYYMMDD
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const datePrefix = `${year}${month}${day}`;
+      
+      // Buscar el último número de orden del día
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      
       const snapshot = await db.collection('providers')
         .collectionGroup('purchaseOrders')
+        .where('createdAt', '>=', startOfDay)
+        .where('createdAt', '<', endOfDay)
+        .orderBy('createdAt', 'desc')
         .orderBy('orderNumber', 'desc')
         .limit(1)
         .get();
 
-      if (snapshot.empty) {
-        return 'OC-000001';
+      let sequence = 1;
+      
+      if (!snapshot.empty) {
+        const lastOrder = snapshot.docs[0].data();
+        const lastOrderNumber = lastOrder.orderNumber;
+        
+        // Verificar que sea del mismo día
+        if (lastOrderNumber.startsWith(`PO-${datePrefix}`)) {
+          const lastSequence = parseInt(lastOrderNumber.split('-')[2]);
+          sequence = lastSequence + 1;
+        }
       }
 
-      const lastOrder = snapshot.docs[0].data();
-      const lastNumber = parseInt(lastOrder.orderNumber.split('-')[1]);
-      const nextNumber = lastNumber + 1;
-
-      return `OC-${nextNumber.toString().padStart(6, '0')}`;
+      return `PO-${datePrefix}-${sequence.toString().padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generando número de orden:', error);
       // Fallback: generar basado en timestamp
-      const timestamp = Date.now().toString().slice(-6);
-      return `OC-${timestamp}`;
+      const now = new Date();
+      const datePrefix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const sequence = String(Date.now()).slice(-3);
+      return `PO-${datePrefix}-${sequence}`;
     }
   }
 }

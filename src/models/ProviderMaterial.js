@@ -19,7 +19,8 @@ class ProviderMaterial {
     this.unitPrice = data.unitPrice || 0;
     this.unit = data.unit || '';
     this.sku = data.sku || '';
-    this.imageUrl = data.imageUrl || '';
+    this.images = data.images || []; // Array de Base64
+    this.currency = data.currency || 'MXN';
     this.stock = data.stock || 0;
     this.minStock = data.minStock || 0;
     this.isActive = data.isActive !== undefined ? data.isActive : true;
@@ -39,7 +40,8 @@ class ProviderMaterial {
       unitPrice: this.unitPrice,
       unit: this.unit,
       sku: this.sku,
-      imageUrl: this.imageUrl,
+      images: this.images,
+      currency: this.currency,
       stock: this.stock,
       minStock: this.minStock,
       isActive: this.isActive,

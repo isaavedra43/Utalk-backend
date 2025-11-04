@@ -6,6 +6,7 @@
  * @version 1.0.0
  */
 
+const { v4: uuidv4 } = require('uuid');
 const Provider = require('../models/Provider');
 const Platform = require('../models/Platform');
 const Material = require('../models/Material');
@@ -539,7 +540,7 @@ class ProviderService {
   }
 
   /**
-   * Elimina un material de un proveedor
+   * Elimina un material de un proveedor (soft delete)
    */
   async deleteProviderMaterial(userId, providerId, materialId) {
     try {
@@ -551,8 +552,25 @@ class ProviderService {
         throw ApiError.notFoundError('Material no encontrado');
       }
 
+      // Validar que no esté siendo usado en órdenes activas
+      const activeOrders = await PurchaseOrder.listByProvider(providerId, { limit: 10000 });
+      const ordersUsingMaterial = activeOrders.filter(order => {
+        const activeStatuses = ['draft', 'sent', 'accepted', 'in_transit'];
+        if (!activeStatuses.includes(order.status)) return false;
+        
+        return order.items.some(item => item.materialId === materialId);
+      });
+
+      if (ordersUsingMaterial.length > 0) {
+        throw ApiError.badRequestError(
+          `No se puede eliminar el material porque está siendo usado en ${ordersUsingMaterial.length} orden(es) activa(s)`
+        );
+      }
+
       const materialName = material.name;
-      await material.delete();
+      
+      // Soft delete: marcar como inactivo en lugar de eliminar
+      await material.update({ isActive: false });
 
       // Registrar actividad
       await ProviderActivity.createActivity(
@@ -646,16 +664,64 @@ class ProviderService {
       // Generar número de orden
       const orderNumber = await PurchaseOrder.generateOrderNumber();
 
-      // Calcular subtotal y total
-      const subtotal = orderData.items.reduce((sum, item) => sum + item.subtotal, 0);
-      const total = subtotal + (orderData.tax || 0);
+      // Validar items
+      if (!orderData.items || orderData.items.length === 0) {
+        throw ApiError.badRequestError('La orden debe contener al menos un item');
+      }
+
+      // Calcular subtotal de cada item
+      const items = orderData.items.map(item => {
+        if (!item.quantity || item.quantity <= 0) {
+          throw ApiError.badRequestError('La cantidad debe ser mayor a 0');
+        }
+        if (!item.unitPrice || item.unitPrice < 0) {
+          throw ApiError.badRequestError('El precio unitario no puede ser negativo');
+        }
+        
+        return {
+          ...item,
+          subtotal: item.quantity * item.unitPrice
+        };
+      });
+
+      // Calcular subtotal total de items
+      const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+
+      // Aplicar descuento
+      const discount = orderData.discount || 0;
+      const discountType = orderData.discountType || 'amount';
+      
+      // Validar descuento
+      if (discountType === 'percentage' && (discount < 0 || discount > 100)) {
+        throw ApiError.badRequestError('El descuento porcentual debe estar entre 0 y 100');
+      }
+      if (discountType === 'amount' && (discount < 0 || discount > itemsSubtotal)) {
+        throw ApiError.badRequestError('El descuento en monto no puede ser negativo ni mayor al subtotal');
+      }
+
+      const discountAmount = discountType === 'percentage' 
+        ? itemsSubtotal * (discount / 100)
+        : discount;
+
+      const subtotalAfterDiscount = Math.max(0, itemsSubtotal - discountAmount);
+
+      // Calcular IVA
+      const taxPercentage = orderData.tax || 0;
+      const taxAmount = subtotalAfterDiscount * (taxPercentage / 100);
+
+      // Total final
+      const total = subtotalAfterDiscount + taxAmount;
 
       const order = new PurchaseOrder({
         ...orderData,
+        items,
         orderNumber,
         providerId,
         providerName: provider.name,
-        subtotal,
+        subtotal: itemsSubtotal,
+        discount,
+        discountType,
+        tax: taxAmount,
         total,
         status: orderData.status || 'draft',
         createdBy: userId,
@@ -704,7 +770,59 @@ class ProviderService {
         throw ApiError.notFoundError('Orden de compra no encontrada');
       }
 
+      // VALIDACIÓN CRÍTICA: Solo se puede editar si está en draft
+      if (order.status !== 'draft' && !updates.status) {
+        throw ApiError.badRequestError('No se puede editar una orden que ya fue enviada. Solo se puede cambiar el estado.');
+      }
+
       const oldStatus = order.status;
+
+      // Si se modifican items, discount o tax, recalcular totales
+      if (updates.items || updates.discount !== undefined || updates.discountType || updates.tax !== undefined) {
+        // Usar items actualizados o existentes
+        const items = updates.items || order.items;
+        
+        // Recalcular subtotal de items
+        const processedItems = items.map(item => ({
+          ...item,
+          subtotal: item.quantity * item.unitPrice
+        }));
+
+        const itemsSubtotal = processedItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+        // Aplicar descuento
+        const discount = updates.discount !== undefined ? updates.discount : order.discount;
+        const discountType = updates.discountType || order.discountType;
+        
+        // Validar descuento
+        if (discountType === 'percentage' && (discount < 0 || discount > 100)) {
+          throw ApiError.badRequestError('El descuento porcentual debe estar entre 0 y 100');
+        }
+        if (discountType === 'amount' && (discount < 0 || discount > itemsSubtotal)) {
+          throw ApiError.badRequestError('El descuento en monto no puede ser negativo ni mayor al subtotal');
+        }
+
+        const discountAmount = discountType === 'percentage' 
+          ? itemsSubtotal * (discount / 100)
+          : discount;
+
+        const subtotalAfterDiscount = Math.max(0, itemsSubtotal - discountAmount);
+
+        // Calcular IVA
+        const taxPercentage = updates.tax !== undefined ? updates.tax : order.tax;
+        const taxAmount = subtotalAfterDiscount * (taxPercentage / 100);
+
+        // Total final
+        const total = subtotalAfterDiscount + taxAmount;
+
+        // Actualizar campos calculados
+        updates.items = processedItems;
+        updates.subtotal = itemsSubtotal;
+        updates.discount = discount;
+        updates.discountType = discountType;
+        updates.tax = taxAmount;
+        updates.total = total;
+      }
 
       // Si se cambia el status, actualizar campos de fecha correspondientes
       if (updates.status && updates.status !== oldStatus) {
@@ -716,9 +834,18 @@ class ProviderService {
             break;
           case 'accepted':
             updates.acceptedAt = now;
+            if (updates.acceptedDeliveryDate) {
+              updates.acceptedDeliveryDate = new Date(updates.acceptedDeliveryDate);
+            }
+            break;
+          case 'rejected':
+            updates.rejectedAt = now;
             break;
           case 'delivered':
             updates.deliveredAt = now;
+            break;
+          case 'cancelled':
+            updates.cancelledAt = now;
             break;
         }
 
@@ -752,6 +879,136 @@ class ProviderService {
       return order;
     } catch (error) {
       logger.error('Error actualizando orden de compra', { userId, providerId, orderId, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Cambia el estado de una orden de compra con validaciones estrictas
+   */
+  async changeOrderStatus(userId, providerId, orderId, statusData) {
+    try {
+      logger.info('Cambiando estado de orden de compra', { userId, providerId, orderId, statusData });
+
+      const order = await PurchaseOrder.findById(providerId, orderId);
+      
+      if (!order) {
+        throw ApiError.notFoundError('Orden de compra no encontrada');
+      }
+
+      const currentStatus = order.status;
+      const newStatus = statusData.status;
+
+      // Definir transiciones válidas
+      const VALID_TRANSITIONS = {
+        'draft': ['sent', 'cancelled'],
+        'sent': ['accepted', 'rejected', 'cancelled', 'in_transit'],
+        'accepted': ['in_transit', 'cancelled'],
+        'in_transit': ['delivered', 'cancelled'],
+        'rejected': ['cancelled'],
+        'delivered': [],
+        'cancelled': []
+      };
+
+      // Validar transición
+      if (!VALID_TRANSITIONS[currentStatus] || !VALID_TRANSITIONS[currentStatus].includes(newStatus)) {
+        throw ApiError.badRequestError(
+          `No se puede cambiar de ${currentStatus} a ${newStatus}`,
+          {
+            currentStatus,
+            newStatus,
+            allowedTransitions: VALID_TRANSITIONS[currentStatus] || []
+          }
+        );
+      }
+
+      const now = new Date();
+      const updates = { status: newStatus };
+
+      // Actualizar timestamps según estado
+      switch (newStatus) {
+        case 'sent':
+          updates.sentAt = now;
+          break;
+        case 'accepted':
+          // acceptedDeliveryDate es REQUERIDO cuando se acepta
+          if (!statusData.acceptedDeliveryDate) {
+            throw ApiError.badRequestError('acceptedDeliveryDate es requerido cuando el estado es accepted');
+          }
+          updates.acceptedAt = now;
+          updates.acceptedDeliveryDate = new Date(statusData.acceptedDeliveryDate);
+          if (statusData.acceptedBy) {
+            updates.acceptedBy = statusData.acceptedBy;
+          }
+          break;
+        case 'rejected':
+          updates.rejectedAt = now;
+          if (statusData.reason) {
+            updates.rejectionReason = statusData.reason;
+          }
+          break;
+        case 'in_transit':
+          // No requiere timestamp específico
+          break;
+        case 'delivered':
+          updates.deliveredAt = now;
+          break;
+        case 'cancelled':
+          updates.cancelledAt = now;
+          if (statusData.reason) {
+            updates.cancellationReason = statusData.reason;
+          }
+          break;
+      }
+
+      await order.update(updates);
+
+      // Crear actividad de cambio de estado
+      const activityDescriptions = {
+        'sent': `Orden ${order.orderNumber} enviada al proveedor`,
+        'accepted': `Orden ${order.orderNumber} aceptada por el proveedor`,
+        'rejected': `Orden ${order.orderNumber} rechazada${statusData.reason ? ': ' + statusData.reason : ''}`,
+        'in_transit': `Orden ${order.orderNumber} en tránsito`,
+        'delivered': `Orden ${order.orderNumber} entregada`,
+        'cancelled': `Orden ${order.orderNumber} cancelada${statusData.reason ? ': ' + statusData.reason : ''}`
+      };
+
+      await ProviderActivity.createActivity(
+        providerId,
+        'order_status_changed',
+        activityDescriptions[newStatus] || `Orden ${order.orderNumber} cambió a ${newStatus}`,
+        {
+          entityType: 'order',
+          entityId: orderId,
+          createdBy: userId,
+          createdByName: statusData.createdByName || userId,
+          details: {
+            orderId,
+            orderNumber: order.orderNumber,
+            oldStatus: currentStatus,
+            newStatus: newStatus,
+            reason: statusData.reason,
+            acceptedDeliveryDate: statusData.acceptedDeliveryDate
+          }
+        }
+      );
+
+      logger.info('Estado de orden cambiado', { 
+        userId, 
+        providerId, 
+        orderId, 
+        from: currentStatus, 
+        to: newStatus 
+      });
+
+      return order;
+    } catch (error) {
+      logger.error('Error cambiando estado de orden', { 
+        userId, 
+        providerId, 
+        orderId, 
+        error: error.message 
+      });
       throw error;
     }
   }
@@ -866,6 +1123,66 @@ class ProviderService {
         throw ApiError.notFoundError('Proveedor no encontrado');
       }
 
+      // Validar amount
+      if (!paymentData.amount || paymentData.amount <= 0) {
+        throw ApiError.badRequestError('El monto del pago debe ser mayor a 0');
+      }
+
+      // Validar que el pago no exceda el saldo pendiente
+      const allOrders = await PurchaseOrder.listByProvider(providerId, { limit: 10000 });
+      const validOrders = allOrders.filter(o => 
+        ['sent', 'accepted', 'in_transit', 'delivered'].includes(o.status)
+      );
+      const totalOrders = validOrders.reduce((sum, o) => sum + o.total, 0);
+      
+      const allPayments = await Payment.listByProvider(providerId, { limit: 10000 });
+      const totalPayments = allPayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      const currentBalance = totalOrders - totalPayments;
+      
+      if (paymentData.amount > currentBalance) {
+        logger.warn('Intento de pago que excede saldo pendiente', {
+          amount: paymentData.amount,
+          currentBalance,
+          providerId
+        });
+        // No bloquear, solo advertir
+      }
+
+      // Validar attachments si se proporcionan
+      if (paymentData.attachments && Array.isArray(paymentData.attachments)) {
+        const maxFileSize = 10 * 1024 * 1024; // 10MB
+        const allowedTypes = [
+          'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+          'application/pdf', 'application/msword', 
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+
+        paymentData.attachments.forEach((attachment, index) => {
+          // Validar tamaño
+          if (attachment.fileSize > maxFileSize) {
+            throw ApiError.badRequestError(
+              `El archivo "${attachment.fileName}" excede el tamaño máximo de 10MB`
+            );
+          }
+
+          // Validar tipo
+          if (!allowedTypes.includes(attachment.fileType)) {
+            throw ApiError.badRequestError(
+              `El tipo de archivo "${attachment.fileType}" no está permitido`
+            );
+          }
+
+          // Agregar ID y timestamp si no existen
+          if (!attachment.id) {
+            attachment.id = uuidv4();
+          }
+          if (!attachment.uploadedAt) {
+            attachment.uploadedAt = new Date().toISOString();
+          }
+        });
+      }
+
       // Generar número de pago
       const paymentNumber = await Payment.generatePaymentNumber();
 
@@ -875,6 +1192,16 @@ class ProviderService {
         const order = await PurchaseOrder.findById(providerId, paymentData.purchaseOrderId);
         if (order) {
           orderNumber = order.orderNumber;
+        }
+      }
+
+      // Validar relatedOrderIds si se proporcionan
+      if (paymentData.relatedOrderIds && Array.isArray(paymentData.relatedOrderIds)) {
+        for (const orderId of paymentData.relatedOrderIds) {
+          const order = await PurchaseOrder.findById(providerId, orderId);
+          if (!order) {
+            throw ApiError.notFoundError(`Orden ${orderId} no encontrada`);
+          }
         }
       }
 
@@ -931,6 +1258,55 @@ class ProviderService {
         throw ApiError.notFoundError('Pago no encontrado');
       }
 
+      // Validar que el pago tenga menos de 24 horas
+      const createdAt = new Date(payment.createdAt);
+      const now = new Date();
+      const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
+      
+      if (hoursSinceCreation > 24) {
+        throw ApiError.badRequestError(
+          'Solo se pueden editar pagos creados en las últimas 24 horas'
+        );
+      }
+
+      // Si se actualiza el amount, validar que no se cambie si hay órdenes relacionadas
+      if (updates.amount !== undefined && updates.amount !== payment.amount) {
+        if (payment.relatedOrderIds && payment.relatedOrderIds.length > 0) {
+          throw ApiError.badRequestError(
+            'No se puede cambiar el monto de un pago que tiene órdenes relacionadas'
+          );
+        }
+      }
+
+      // Validar nuevos attachments si se agregan
+      if (updates.attachments && Array.isArray(updates.attachments)) {
+        const maxFileSize = 10 * 1024 * 1024; // 10MB
+        const allowedTypes = [
+          'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+          'application/pdf', 'application/msword', 
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+
+        updates.attachments.forEach(attachment => {
+          if (attachment.fileSize > maxFileSize) {
+            throw ApiError.badRequestError(
+              `El archivo "${attachment.fileName}" excede el tamaño máximo de 10MB`
+            );
+          }
+          if (!allowedTypes.includes(attachment.fileType)) {
+            throw ApiError.badRequestError(
+              `El tipo de archivo "${attachment.fileType}" no está permitido`
+            );
+          }
+          if (!attachment.id) {
+            attachment.id = uuidv4();
+          }
+          if (!attachment.uploadedAt) {
+            attachment.uploadedAt = new Date().toISOString();
+          }
+        });
+      }
+
       const oldStatus = payment.status;
 
       // Si se cambia el status a completed, registrar actividad
@@ -961,7 +1337,7 @@ class ProviderService {
   }
 
   /**
-   * Elimina un pago (solo si está en pending)
+   * Elimina un pago (solo si está en pending y creado hace menos de 24 horas)
    */
   async deletePayment(userId, providerId, paymentId) {
     try {
@@ -973,9 +1349,28 @@ class ProviderService {
         throw ApiError.notFoundError('Pago no encontrado');
       }
 
+      // Validar que el pago tenga menos de 24 horas
+      const createdAt = new Date(payment.createdAt);
+      const now = new Date();
+      const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
+      
+      if (hoursSinceCreation > 24) {
+        throw ApiError.badRequestError(
+          'Solo se pueden eliminar pagos creados en las últimas 24 horas'
+        );
+      }
+
       // Validar que esté en pending
       if (payment.status !== 'pending') {
         throw ApiError.badRequestError('Solo se pueden eliminar pagos en estado pending');
+      }
+
+      // Advertir si hay órdenes relacionadas
+      if (payment.relatedOrderIds && payment.relatedOrderIds.length > 0) {
+        logger.warn('Eliminando pago con órdenes relacionadas', {
+          paymentId,
+          relatedOrderIds: payment.relatedOrderIds
+        });
       }
 
       const paymentNumber = payment.paymentNumber;
@@ -1301,29 +1696,59 @@ class ProviderService {
       const allOrders = await PurchaseOrder.listByProvider(providerId, { limit: 10000 });
       const allPayments = await Payment.listByProvider(providerId, { limit: 10000 });
 
-      // Filtrar por período y status
+      // Filtrar por período y status (EXCLUIR draft y cancelled)
       const orders = allOrders.filter(order => {
         const orderDate = new Date(order.createdAt);
-        return orderDate >= fromDate && orderDate <= toDate && order.status !== 'cancelled';
+        const validStatuses = ['sent', 'accepted', 'in_transit', 'delivered'];
+        return orderDate >= fromDate && orderDate <= toDate && validStatuses.includes(order.status);
       });
 
       const payments = allPayments.filter(payment => {
         const paymentDate = new Date(payment.paymentDate);
-        return paymentDate >= fromDate && paymentDate <= toDate && payment.status === 'completed';
+        return paymentDate >= fromDate && paymentDate <= toDate;
       });
 
-      // Calcular totales
+      // Calcular saldo inicial (opening balance) - órdenes y pagos antes del período
+      const ordersBefore = allOrders.filter(order => {
+        const orderDate = new Date(order.createdAt);
+        const validStatuses = ['sent', 'accepted', 'in_transit', 'delivered'];
+        return orderDate < fromDate && validStatuses.includes(order.status);
+      });
+
+      const paymentsBefore = allPayments.filter(payment => {
+        const paymentDate = new Date(payment.paymentDate);
+        return paymentDate < fromDate;
+      });
+
+      const totalOrdersBefore = ordersBefore.reduce((sum, order) => sum + order.total, 0);
+      const totalPaymentsBefore = paymentsBefore.reduce((sum, payment) => sum + payment.amount, 0);
+      const openingBalance = totalOrdersBefore - totalPaymentsBefore;
+
+      // Calcular totales del período
       const totalOrders = orders.reduce((sum, order) => sum + order.total, 0);
       const totalPayments = payments.reduce((sum, payment) => sum + payment.amount, 0);
       const currentBalance = totalOrders - totalPayments;
 
-      // Preparar arrays de detalles
+      // Helper para label de método de pago
+      const getPaymentMethodLabel = (method) => {
+        const labels = {
+          'cash': 'Efectivo',
+          'transfer': 'Transferencia',
+          'check': 'Cheque',
+          'card': 'Tarjeta',
+          'other': 'Otro'
+        };
+        return labels[method] || method;
+      };
+
+      // Preparar arrays de detalles con descripción
       const ordersDetails = orders.map(order => ({
         id: order.id,
         orderNumber: order.orderNumber,
         date: order.createdAt,
-        amount: order.total,
-        status: order.status
+        total: order.total,
+        status: order.status,
+        description: `Orden ${order.orderNumber} - ${order.items?.length || 0} artículo(s)`
       }));
 
       const paymentsDetails = payments.map(payment => ({
@@ -1331,8 +1756,13 @@ class ProviderService {
         paymentNumber: payment.paymentNumber,
         date: payment.paymentDate,
         amount: payment.amount,
-        method: payment.paymentMethod
+        method: payment.paymentMethod,
+        description: `Pago ${payment.paymentNumber} - ${getPaymentMethodLabel(payment.paymentMethod)}`
       }));
+
+      // Ordenar cronológicamente (más antiguo primero)
+      ordersDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
+      paymentsDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
 
       // Calcular estadísticas adicionales
       const totalPurchaseOrders = orders.length;
@@ -1351,6 +1781,12 @@ class ProviderService {
         return daysSinceOrder > 30 && totalPaid < order.total;
       }).length;
 
+      // Calcular summary
+      const ordersCount = orders.length;
+      const paymentsCount = payments.length;
+      const averageOrderAmount = ordersCount > 0 ? totalOrders / ordersCount : 0;
+      const averagePaymentAmount = paymentsCount > 0 ? totalPayments / paymentsCount : 0;
+
       const accountStatement = {
         providerId: provider.id,
         providerName: provider.name,
@@ -1358,16 +1794,20 @@ class ProviderService {
           from: fromDate.toISOString(),
           to: toDate.toISOString()
         },
-        openingBalance: 0, // Podría calcularse basado en períodos anteriores
-        totalOrders,
-        totalPayments,
-        currentBalance,
+        openingBalance,
         orders: ordersDetails,
         payments: paymentsDetails,
-        totalPurchaseOrders,
-        completedOrders,
-        pendingOrders,
-        overduePayments
+        totals: {
+          totalOrders,
+          totalPayments,
+          currentBalance
+        },
+        summary: {
+          ordersCount,
+          paymentsCount,
+          averageOrderAmount,
+          averagePaymentAmount
+        }
       };
 
       logger.info('Estado de cuenta obtenido', { userId, providerId });
@@ -1375,6 +1815,443 @@ class ProviderService {
       return accountStatement;
     } catch (error) {
       logger.error('Error obteniendo estado de cuenta', { userId, providerId, error: error.message });
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // ESTADÍSTICAS
+  // ==========================================
+
+  /**
+   * Obtiene estadísticas y KPIs del proveedor
+   */
+  async getProviderStatistics(userId, providerId, period = 'all') {
+    try {
+      logger.info('Obteniendo estadísticas del proveedor', { userId, providerId, period });
+
+      // Verificar que el proveedor exista
+      const provider = await Provider.findById(userId, providerId);
+      if (!provider) {
+        throw ApiError.notFoundError('Proveedor no encontrado');
+      }
+
+      // Calcular fechas según período
+      const now = new Date();
+      let dateFrom = null;
+
+      if (period !== 'all') {
+        switch (period) {
+          case 'week':
+            dateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          case 'month':
+            dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+          case 'quarter':
+            const quarter = Math.floor(now.getMonth() / 3);
+            dateFrom = new Date(now.getFullYear(), quarter * 3, 1);
+            break;
+          case 'year':
+            dateFrom = new Date(now.getFullYear(), 0, 1);
+            break;
+        }
+      }
+
+      // Obtener todas las órdenes y pagos
+      const allOrders = await PurchaseOrder.listByProvider(providerId, { limit: 10000 });
+      const allPayments = await Payment.listByProvider(providerId, { limit: 10000 });
+
+      // Filtrar por período si aplica
+      const orders = dateFrom 
+        ? allOrders.filter(o => new Date(o.createdAt) >= dateFrom)
+        : allOrders;
+      
+      const payments = dateFrom
+        ? allPayments.filter(p => new Date(p.paymentDate) >= dateFrom)
+        : allPayments;
+
+      // Calcular estadísticas de órdenes
+      const ordersByStatus = {
+        draft: orders.filter(o => o.status === 'draft').length,
+        sent: orders.filter(o => o.status === 'sent').length,
+        accepted: orders.filter(o => o.status === 'accepted').length,
+        rejected: orders.filter(o => o.status === 'rejected').length,
+        in_transit: orders.filter(o => o.status === 'in_transit').length,
+        delivered: orders.filter(o => o.status === 'delivered').length,
+        cancelled: orders.filter(o => o.status === 'cancelled').length
+      };
+
+      const validOrders = orders.filter(o => o.status !== 'cancelled' && o.status !== 'draft');
+      const totalOrdersAmount = validOrders.reduce((sum, o) => sum + o.total, 0);
+      const averageOrderAmount = validOrders.length > 0 ? totalOrdersAmount / validOrders.length : 0;
+
+      // Última orden
+      const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const lastOrder = sortedOrders[0];
+
+      // Calcular estadísticas de pagos
+      const paymentsByMethod = {
+        cash: payments.filter(p => p.paymentMethod === 'cash').length,
+        transfer: payments.filter(p => p.paymentMethod === 'transfer').length,
+        check: payments.filter(p => p.paymentMethod === 'check').length,
+        card: payments.filter(p => p.paymentMethod === 'card').length,
+        other: payments.filter(p => p.paymentMethod === 'other').length
+      };
+
+      const totalPaymentsAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+      const averagePaymentAmount = payments.length > 0 ? totalPaymentsAmount / payments.length : 0;
+
+      // Último pago
+      const sortedPayments = [...payments].sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+      const lastPayment = sortedPayments[0];
+
+      // Calcular performance (solo para órdenes delivered)
+      const deliveredOrders = orders.filter(o => o.status === 'delivered');
+      let averageDeliveryTime = null;
+      let onTimeDeliveryRate = null;
+
+      if (deliveredOrders.length > 0) {
+        // Tiempo promedio de entrega (desde acceptedAt hasta deliveredAt)
+        const deliveryTimes = deliveredOrders
+          .filter(o => o.acceptedAt && o.deliveredAt)
+          .map(o => {
+            const accepted = new Date(o.acceptedAt);
+            const delivered = new Date(o.deliveredAt);
+            return (delivered - accepted) / (1000 * 60 * 60 * 24); // Días
+          });
+
+        if (deliveryTimes.length > 0) {
+          averageDeliveryTime = deliveryTimes.reduce((sum, t) => sum + t, 0) / deliveryTimes.length;
+        }
+
+        // Tasa de entregas a tiempo
+        const onTimeDeliveries = deliveredOrders.filter(o => {
+          if (!o.expectedDeliveryDate || !o.deliveredAt) return false;
+          const expected = new Date(o.expectedDeliveryDate);
+          const delivered = new Date(o.deliveredAt);
+          return delivered <= expected;
+        }).length;
+
+        onTimeDeliveryRate = (onTimeDeliveries / deliveredOrders.length) * 100;
+      }
+
+      // Tasa de cancelación
+      const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
+      const cancellationRate = orders.length > 0 ? (cancelledOrders / orders.length) * 100 : 0;
+
+      // Calcular saldo
+      const currentBalance = totalOrdersAmount - totalPaymentsAmount;
+      const pendingOrders = orders
+        .filter(o => ['sent', 'accepted', 'in_transit'].includes(o.status))
+        .reduce((sum, o) => sum + o.total, 0);
+
+      // Obtener materiales
+      const materials = await ProviderMaterial.listByProvider(providerId, { limit: 10000 });
+      const activeMaterials = materials.filter(m => m.isActive);
+      const totalMaterials = materials.length;
+      const averageMaterialPrice = activeMaterials.length > 0
+        ? activeMaterials.reduce((sum, m) => sum + m.unitPrice, 0) / activeMaterials.length
+        : 0;
+
+      const statistics = {
+        providerId: provider.id,
+        providerName: provider.name,
+        period,
+        orders: {
+          total: orders.length,
+          byStatus: ordersByStatus,
+          totalAmount: totalOrdersAmount,
+          averageAmount: averageOrderAmount,
+          lastOrderDate: lastOrder ? lastOrder.createdAt : null,
+          lastOrderNumber: lastOrder ? lastOrder.orderNumber : null
+        },
+        payments: {
+          total: payments.length,
+          totalAmount: totalPaymentsAmount,
+          averageAmount: averagePaymentAmount,
+          byMethod: paymentsByMethod,
+          lastPaymentDate: lastPayment ? lastPayment.paymentDate : null,
+          lastPaymentNumber: lastPayment ? lastPayment.paymentNumber : null
+        },
+        performance: {
+          averageDeliveryTime,
+          onTimeDeliveryRate,
+          cancellationRate,
+          paymentOnTimeRate: null // Opcional, se puede implementar con términos de pago
+        },
+        balance: {
+          current: currentBalance,
+          pendingOrders,
+          overdueAmount: null // Opcional
+        },
+        materials: {
+          total: totalMaterials,
+          active: activeMaterials.length,
+          averagePrice: averageMaterialPrice
+        }
+      };
+
+      logger.info('Estadísticas del proveedor obtenidas', { userId, providerId });
+
+      return statistics;
+    } catch (error) {
+      logger.error('Error obteniendo estadísticas del proveedor', { 
+        userId, 
+        providerId, 
+        error: error.message 
+      });
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // ALERTAS
+  // ==========================================
+
+  /**
+   * Obtiene alertas y recordatorios del proveedor
+   */
+  async getProviderAlerts(userId, providerId) {
+    try {
+      logger.info('Obteniendo alertas del proveedor', { userId, providerId });
+
+      // Verificar que el proveedor exista
+      const provider = await Provider.findById(userId, providerId);
+      if (!provider) {
+        throw ApiError.notFoundError('Proveedor no encontrado');
+      }
+
+      const alerts = [];
+      const now = new Date();
+
+      // 1. Obtener órdenes activas
+      const allOrders = await PurchaseOrder.listByProvider(providerId, { limit: 10000 });
+      const activeOrders = allOrders.filter(o => 
+        ['sent', 'accepted', 'in_transit'].includes(o.status)
+      );
+
+      // Alertas de órdenes vencidas y próximas
+      activeOrders.forEach(order => {
+        if (order.expectedDeliveryDate) {
+          const expectedDate = new Date(order.expectedDeliveryDate);
+          const daysDiff = Math.floor((expectedDate - now) / (1000 * 60 * 60 * 24));
+
+          if (daysDiff < 0) {
+            // Orden vencida
+            const daysOverdue = Math.abs(daysDiff);
+            alerts.push({
+              id: `alert-overdue-${order.id}`,
+              type: 'overdue_order',
+              severity: daysOverdue > 7 ? 'error' : 'warning',
+              title: 'Orden vencida',
+              description: `La orden ${order.orderNumber} tenía fecha de entrega el ${order.expectedDeliveryDate.toISOString().split('T')[0]} y está ${daysOverdue} día(s) vencida`,
+              relatedId: order.id,
+              actionUrl: `/providers/${providerId}/orders/${order.id}`,
+              createdAt: now.toISOString()
+            });
+          } else if (daysDiff <= 3) {
+            // Próxima a vencer (en próximos 3 días)
+            alerts.push({
+              id: `alert-upcoming-${order.id}`,
+              type: 'upcoming_delivery',
+              severity: 'info',
+              title: 'Entrega próxima',
+              description: `La orden ${order.orderNumber} tiene entrega programada para el ${order.expectedDeliveryDate.toISOString().split('T')[0]}`,
+              relatedId: order.id,
+              actionUrl: `/providers/${providerId}/orders/${order.id}`,
+              createdAt: now.toISOString()
+            });
+          }
+        }
+      });
+
+      // 2. Alertas de pagos pendientes
+      const allPayments = await Payment.listByProvider(providerId, { limit: 10000 });
+      const validOrders = allOrders.filter(o => 
+        ['sent', 'accepted', 'in_transit', 'delivered'].includes(o.status)
+      );
+      
+      const totalOrdersAmount = validOrders.reduce((sum, o) => sum + o.total, 0);
+      const totalPaymentsAmount = allPayments.reduce((sum, p) => sum + p.amount, 0);
+      const currentBalance = totalOrdersAmount - totalPaymentsAmount;
+
+      if (currentBalance > 0) {
+        // Verificar si hay pagos recientes (últimos 30 días)
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const recentPayments = allPayments.filter(p => 
+          new Date(p.paymentDate) >= thirtyDaysAgo
+        );
+
+        if (recentPayments.length === 0) {
+          alerts.push({
+            id: 'alert-pending-payment',
+            type: 'pending_payment',
+            severity: 'warning',
+            title: 'Pago pendiente',
+            description: `Saldo pendiente de $${currentBalance.toFixed(2)} sin pagos recientes`,
+            relatedId: providerId,
+            actionUrl: `/providers/${providerId}/payments`,
+            createdAt: now.toISOString()
+          });
+        }
+      }
+
+      // 3. Alertas de calificación baja
+      const rating = await ProviderRating.findByProvider(providerId);
+      if (rating && rating.overall > 0 && rating.overall < 3) {
+        alerts.push({
+          id: 'alert-low-rating',
+          type: 'low_rating',
+          severity: 'warning',
+          title: 'Calificación baja',
+          description: `El proveedor tiene una calificación de ${rating.overall}/5 estrellas`,
+          relatedId: providerId,
+          actionUrl: `/providers/${providerId}/rating`,
+          createdAt: now.toISOString()
+        });
+      }
+
+      // 4. Alertas de proveedor inactivo
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const recentOrders = allOrders.filter(o => new Date(o.createdAt) >= ninetyDaysAgo);
+      
+      if (recentOrders.length === 0) {
+        alerts.push({
+          id: 'alert-inactive',
+          type: 'inactive',
+          severity: 'info',
+          title: 'Proveedor inactivo',
+          description: 'No se han creado órdenes en los últimos 90 días',
+          relatedId: providerId,
+          actionUrl: `/providers/${providerId}`,
+          createdAt: now.toISOString()
+        });
+      }
+
+      // Ordenar por severidad (error > warning > info)
+      alerts.sort((a, b) => {
+        const severityOrder = { error: 3, warning: 2, info: 1 };
+        return severityOrder[b.severity] - severityOrder[a.severity];
+      });
+
+      logger.info('Alertas del proveedor obtenidas', { 
+        userId, 
+        providerId, 
+        alertsCount: alerts.length 
+      });
+
+      return { alerts };
+    } catch (error) {
+      logger.error('Error obteniendo alertas del proveedor', { 
+        userId, 
+        providerId, 
+        error: error.message 
+      });
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // ENVÍO DE EMAILS
+  // ==========================================
+
+  /**
+   * Envía orden de compra por email
+   */
+  async sendOrderEmail(userId, providerId, orderId, emailData) {
+    try {
+      logger.info('Enviando orden por email', { userId, providerId, orderId });
+
+      // Obtener orden
+      const order = await PurchaseOrder.findById(providerId, orderId);
+      if (!order) {
+        throw ApiError.notFoundError('Orden de compra no encontrada');
+      }
+
+      // Obtener proveedor
+      const provider = await Provider.findById(userId, providerId);
+      if (!provider) {
+        throw ApiError.notFoundError('Proveedor no encontrado');
+      }
+
+      // Determinar email destinatario
+      const toEmail = emailData.to || provider.email;
+      if (!toEmail) {
+        throw ApiError.badRequestError(
+          'No se puede enviar email: el proveedor no tiene email configurado y no se proporcionó destinatario'
+        );
+      }
+
+      // Generar subject
+      const subject = emailData.subject || `Orden de Compra ${order.orderNumber}`;
+
+      // Generar PDF
+      logger.info('Generando PDF de orden', { orderId, orderNumber: order.orderNumber });
+      
+      const PDFService = require('./PDFService');
+      const pdfBuffer = await PDFService.generatePurchaseOrderPDF(order, provider);
+
+      // Enviar email
+      logger.info('Enviando email con PDF adjunto', {
+        to: toEmail,
+        subject,
+        orderId,
+        orderNumber: order.orderNumber
+      });
+
+      const EmailService = require('./EmailService');
+      await EmailService.sendPurchaseOrderEmail({
+        to: toEmail,
+        subject,
+        order,
+        provider,
+        message: emailData.message,
+        pdfBuffer
+      });
+
+      // Actualizar estado a 'sent' si está en draft
+      if (order.status === 'draft') {
+        await this.changeOrderStatus(userId, providerId, orderId, {
+          status: 'sent',
+          createdByName: emailData.createdByName || userId
+        });
+      }
+
+      // Crear actividad
+      await ProviderActivity.createActivity(
+        providerId,
+        'order_sent',
+        `Orden ${order.orderNumber} enviada por correo electrónico a ${toEmail}`,
+        {
+          entityType: 'order',
+          entityId: orderId,
+          createdBy: userId,
+          createdByName: emailData.createdByName || userId,
+          details: {
+            orderId,
+            orderNumber: order.orderNumber,
+            email: toEmail
+          }
+        }
+      );
+
+      const result = {
+        sentTo: toEmail,
+        sentAt: new Date().toISOString(),
+        orderNumber: order.orderNumber
+      };
+
+      logger.info('Orden enviada por email', { userId, providerId, orderId, sentTo: toEmail });
+
+      return result;
+    } catch (error) {
+      logger.error('Error enviando orden por email', { 
+        userId, 
+        providerId, 
+        orderId, 
+        error: error.message 
+      });
       throw error;
     }
   }
