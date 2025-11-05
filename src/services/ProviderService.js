@@ -1149,7 +1149,7 @@ class ProviderService {
         // No bloquear, solo advertir
       }
 
-      // Validar attachments si se proporcionan
+      // Validar y normalizar attachments si se proporcionan
       if (paymentData.attachments && Array.isArray(paymentData.attachments)) {
         const maxFileSize = 10 * 1024 * 1024; // 10MB
         const allowedTypes = [
@@ -1158,28 +1158,63 @@ class ProviderService {
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ];
 
-        paymentData.attachments.forEach((attachment, index) => {
-          // Validar tamaño
-          if (attachment.fileSize > maxFileSize) {
+        // Mapeo de tipos del frontend a MIME types
+        const typeMapping = {
+          'image': 'image/png', // Default para imágenes
+          'pdf': 'application/pdf',
+          'document': 'application/pdf'
+        };
+
+        const self = this; // Referencia a la instancia para usar en el map
+        paymentData.attachments = paymentData.attachments.map((attachment, index) => {
+          // Normalizar formato del frontend al formato esperado
+          const normalized = {
+            id: attachment.id || uuidv4(),
+            uploadedAt: attachment.uploadedAt || new Date().toISOString(),
+            // Normalizar nombre del archivo
+            fileName: attachment.fileName || attachment.name || `attachment-${index + 1}`,
+            // Normalizar tipo de archivo - intentar múltiples fuentes
+            fileType: attachment.fileType || 
+                     (attachment.data ? self.getFileTypeFromData(attachment.data) : null) ||
+                     typeMapping[attachment.type] || 
+                     self.getFileTypeFromFileName(attachment.fileName || attachment.name) ||
+                     'image/png',
+            // Calcular tamaño desde base64 si está disponible
+            fileSize: attachment.fileSize || 
+                     (attachment.data ? self.calculateFileSizeFromBase64(attachment.data) : 0),
+            // Preservar datos base64 si existen
+            data: attachment.data || null,
+            // Preservar URL si existe (archivo ya subido)
+            url: attachment.url || null
+          };
+
+          // Validar tamaño (solo si se puede determinar)
+          if (normalized.fileSize > 0 && normalized.fileSize > maxFileSize) {
             throw ApiError.badRequestError(
-              `El archivo "${attachment.fileName}" excede el tamaño máximo de 10MB`
+              `El archivo "${normalized.fileName}" excede el tamaño máximo de 10MB`
             );
+          }
+          
+          // Si no se pudo determinar el tamaño pero hay datos base64, validar que no sea excesivamente grande
+          if (normalized.fileSize === 0 && normalized.data) {
+            const base64Length = normalized.data.length;
+            // Aproximadamente 13.3MB en base64 = 10MB en binario
+            const maxBase64Length = 14 * 1024 * 1024;
+            if (base64Length > maxBase64Length) {
+              throw ApiError.badRequestError(
+                `El archivo "${normalized.fileName}" parece exceder el tamaño máximo de 10MB`
+              );
+            }
           }
 
           // Validar tipo
-          if (!allowedTypes.includes(attachment.fileType)) {
+          if (!allowedTypes.includes(normalized.fileType)) {
             throw ApiError.badRequestError(
-              `El tipo de archivo "${attachment.fileType}" no está permitido`
+              `El tipo de archivo "${normalized.fileType}" no está permitido. Tipos permitidos: ${allowedTypes.join(', ')}`
             );
           }
 
-          // Agregar ID y timestamp si no existen
-          if (!attachment.id) {
-            attachment.id = uuidv4();
-          }
-          if (!attachment.uploadedAt) {
-            attachment.uploadedAt = new Date().toISOString();
-          }
+          return normalized;
         });
       }
 
@@ -2254,6 +2289,78 @@ class ProviderService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Obtiene el tipo MIME de un archivo desde su data URL base64
+   */
+  getFileTypeFromData(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') {
+      return null;
+    }
+
+    // Extraer el tipo MIME del data URL (data:image/png;base64,...)
+    const match = dataUrl.match(/^data:([^;]+);/);
+    if (match && match[1]) {
+      return match[1];
+    }
+
+    return null;
+  }
+
+  /**
+   * Calcula el tamaño de un archivo desde su data URL base64
+   */
+  calculateFileSizeFromBase64(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') {
+      return 0;
+    }
+
+    try {
+      // Remover el prefijo data:type;base64, si existe
+      const base64Data = dataUrl.includes(',') 
+        ? dataUrl.split(',')[1] 
+        : dataUrl;
+      
+      // Calcular tamaño aproximado: base64 usa ~4/3 del tamaño original
+      // Pero aquí calculamos el tamaño del string base64
+      const sizeInBytes = (base64Data.length * 3) / 4;
+      
+      // Ajustar por padding si existe
+      if (base64Data.endsWith('==')) {
+        return sizeInBytes - 2;
+      } else if (base64Data.endsWith('=')) {
+        return sizeInBytes - 1;
+      }
+      
+      return Math.ceil(sizeInBytes);
+    } catch (error) {
+      logger.warn('Error calculando tamaño desde base64', { error: error.message });
+      return 0;
+    }
+  }
+
+  /**
+   * Obtiene el tipo MIME de un archivo desde su nombre
+   */
+  getFileTypeFromFileName(fileName) {
+    if (!fileName || typeof fileName !== 'string') {
+      return null;
+    }
+
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    };
+
+    return mimeTypes[extension] || null;
   }
 }
 
