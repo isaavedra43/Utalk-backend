@@ -1766,14 +1766,63 @@ class ProviderService {
         return paymentDate < fromDate;
       });
 
-      const totalOrdersBefore = ordersBefore.reduce((sum, order) => sum + order.total, 0);
-      const totalPaymentsBefore = paymentsBefore.reduce((sum, payment) => sum + payment.amount, 0);
-      const openingBalance = totalOrdersBefore - totalPaymentsBefore;
+      // Función auxiliar para validar y normalizar números
+      const validateAndNormalizeNumber = (value, defaultValue = 0) => {
+        if (value === null || value === undefined || value === '') {
+          return defaultValue;
+        }
+        
+        const num = typeof value === 'number' ? value : parseFloat(value);
+        
+        if (isNaN(num) || !isFinite(num)) {
+          logger.warn(`⚠️ Valor inválido normalizado a ${defaultValue}:`, value);
+          return defaultValue;
+        }
+        
+        return Number(num.toFixed(2)); // Redondear a 2 decimales
+      };
 
-      // Calcular totales del período
-      const totalOrders = orders.reduce((sum, order) => sum + order.total, 0);
-      const totalPayments = payments.reduce((sum, payment) => sum + payment.amount, 0);
-      const currentBalance = totalOrders - totalPayments;
+      // Calcular saldo inicial (opening balance) con validación
+      const totalOrdersBefore = ordersBefore.reduce((sum, order) => {
+        const amount = validateAndNormalizeNumber(order.total || order.amount, 0);
+        return sum + amount;
+      }, 0);
+      
+      const totalPaymentsBefore = paymentsBefore.reduce((sum, payment) => {
+        const amount = validateAndNormalizeNumber(payment.amount, 0);
+        return sum + amount;
+      }, 0);
+      
+      const openingBalance = validateAndNormalizeNumber(totalOrdersBefore - totalPaymentsBefore, 0);
+
+      // Calcular totales del período con validación
+      const totalOrders = orders.reduce((sum, order) => {
+        const amount = validateAndNormalizeNumber(order.total || order.amount, 0);
+        if (amount === 0 && (order.total || order.amount)) {
+          logger.warn(`⚠️ Orden ${order.id} tiene monto inválido:`, order.total || order.amount);
+        }
+        return sum + amount;
+      }, 0);
+      
+      const totalPayments = payments.reduce((sum, payment) => {
+        const amount = validateAndNormalizeNumber(payment.amount, 0);
+        if (amount === 0 && payment.amount) {
+          logger.warn(`⚠️ Pago ${payment.id} tiene monto inválido:`, payment.amount);
+        }
+        return sum + amount;
+      }, 0);
+      
+      // Calcular saldo actual: openingBalance + totalOrders - totalPayments
+      let currentBalance = validateAndNormalizeNumber(
+        openingBalance + totalOrders - totalPayments, 
+        0
+      );
+      
+      // Validación final de currentBalance
+      if (isNaN(currentBalance) || !isFinite(currentBalance)) {
+        logger.error('❌ ERROR: currentBalance es NaN o infinito, usando 0');
+        currentBalance = 0;
+      }
 
       // Helper para label de método de pago
       const getPaymentMethodLabel = (method) => {
@@ -1787,32 +1836,50 @@ class ProviderService {
         return labels[method] || method;
       };
 
-      // Preparar arrays de detalles con descripción
-      const ordersDetails = orders.map(order => ({
-        id: order.id,
-        orderNumber: order.orderNumber,
-        date: order.createdAt,
-        total: order.total,
-        status: order.status,
-        description: `Orden ${order.orderNumber} - ${order.items?.length || 0} artículo(s)`
-      }));
+      // Preparar arrays de detalles con descripción y amount garantizado
+      const ordersDetails = orders.map(order => {
+        // Normalizar amount: usar total o amount, siempre como número válido
+        const amount = validateAndNormalizeNumber(order.total || order.amount, 0);
+        
+        if (amount === 0 && (order.total || order.amount)) {
+          logger.warn(`⚠️ Orden ${order.id} sin monto válido, usando 0`);
+        }
+        
+        return {
+          id: order.id,
+          orderNumber: order.orderNumber || order.id,
+          date: order.createdAt || order.date,
+          amount: amount, // ✅ OBLIGATORIO: Siempre debe estar presente como número válido
+          status: order.status || 'pending',
+          description: `Orden ${order.orderNumber || order.id} - ${order.items?.length || 0} artículo(s)`
+        };
+      });
 
-      const paymentsDetails = payments.map(payment => ({
-        id: payment.id,
-        paymentNumber: payment.paymentNumber,
-        date: payment.paymentDate,
-        amount: payment.amount,
-        method: payment.paymentMethod,
-        description: `Pago ${payment.paymentNumber} - ${getPaymentMethodLabel(payment.paymentMethod)}`
-      }));
+      const paymentsDetails = payments.map(payment => {
+        // Normalizar amount: siempre como número válido
+        const amount = validateAndNormalizeNumber(payment.amount, 0);
+        
+        if (amount === 0 && payment.amount) {
+          logger.warn(`⚠️ Pago ${payment.id} sin monto válido, usando 0`);
+        }
+        
+        return {
+          id: payment.id,
+          paymentNumber: payment.paymentNumber || payment.id,
+          date: payment.paymentDate || payment.date || payment.createdAt,
+          amount: amount, // ✅ OBLIGATORIO: Siempre debe estar presente como número válido
+          method: payment.paymentMethod || payment.method || 'unknown',
+          description: `Pago ${payment.paymentNumber || payment.id} - ${getPaymentMethodLabel(payment.paymentMethod || payment.method)}`
+        };
+      });
 
       // Ordenar cronológicamente (más antiguo primero)
       ordersDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
       paymentsDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // Calcular estadísticas adicionales
+      // Calcular estadísticas adicionales con validación
       const totalPurchaseOrders = orders.length;
-      const completedOrders = orders.filter(o => o.status === 'delivered').length;
+      const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'completed').length;
       const pendingOrders = orders.filter(o => ['draft', 'sent', 'accepted', 'in_transit'].includes(o.status)).length;
 
       // Calcular pagos vencidos (órdenes con más de 30 días sin pagar completamente)
@@ -1822,39 +1889,89 @@ class ProviderService {
         
         // Buscar pagos asociados a esta orden
         const orderPayments = payments.filter(p => p.purchaseOrderId === order.id);
-        const totalPaid = orderPayments.reduce((sum, p) => sum + p.amount, 0);
+        const totalPaid = orderPayments.reduce((sum, p) => {
+          return sum + validateAndNormalizeNumber(p.amount, 0);
+        }, 0);
         
-        return daysSinceOrder > 30 && totalPaid < order.total;
+        const orderTotal = validateAndNormalizeNumber(order.total || order.amount, 0);
+        
+        return daysSinceOrder > 30 && totalPaid < orderTotal;
       }).length;
 
-      // Calcular summary
+      // Calcular summary con validación
       const ordersCount = orders.length;
       const paymentsCount = payments.length;
-      const averageOrderAmount = ordersCount > 0 ? totalOrders / ordersCount : 0;
-      const averagePaymentAmount = paymentsCount > 0 ? totalPayments / paymentsCount : 0;
+      const averageOrderAmount = ordersCount > 0 
+        ? validateAndNormalizeNumber(totalOrders / ordersCount, 0) 
+        : 0;
+      const averagePaymentAmount = paymentsCount > 0 
+        ? validateAndNormalizeNumber(totalPayments / paymentsCount, 0) 
+        : 0;
 
+      // Formatear fechas del período (YYYY-MM-DD)
+      const formatPeriodDate = (dateInput) => {
+        // Si ya es un string en formato YYYY-MM-DD, retornarlo
+        if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateInput;
+        }
+        // Si es un Date object, convertir a YYYY-MM-DD
+        if (dateInput instanceof Date) {
+          return dateInput.toISOString().split('T')[0];
+        }
+        // Si es un string ISO, extraer solo la fecha
+        if (typeof dateInput === 'string') {
+          return dateInput.split('T')[0];
+        }
+        // Fallback: usar fecha actual
+        return new Date().toISOString().split('T')[0];
+      };
+
+      // Estructura de respuesta corregida: totals al nivel superior
       const accountStatement = {
         providerId: provider.id,
         providerName: provider.name,
         period: {
-          from: fromDate.toISOString(),
-          to: toDate.toISOString()
+          from: formatPeriodDate(from),
+          to: formatPeriodDate(to)
         },
-        openingBalance,
+        // ✅ Saldos al nivel superior - SIEMPRE números válidos, nunca NaN/null/undefined
+        openingBalance: validateAndNormalizeNumber(openingBalance, 0),
+        totalOrders: validateAndNormalizeNumber(totalOrders, 0),
+        totalPayments: validateAndNormalizeNumber(totalPayments, 0),
+        currentBalance: validateAndNormalizeNumber(currentBalance, 0),
+        // ✅ Detalles - Cada orden y pago DEBE incluir amount
         orders: ordersDetails,
         payments: paymentsDetails,
-        totals: {
-          totalOrders,
-          totalPayments,
-          currentBalance
-        },
+        // Estadísticas adicionales
         summary: {
+          totalPurchaseOrders: ordersCount,
+          completedOrders,
+          pendingOrders,
+          overduePayments,
           ordersCount,
           paymentsCount,
-          averageOrderAmount,
-          averagePaymentAmount
+          averageOrderAmount: validateAndNormalizeNumber(averageOrderAmount, 0),
+          averagePaymentAmount: validateAndNormalizeNumber(averagePaymentAmount, 0)
         }
       };
+      
+      // Validación final antes de retornar
+      if (isNaN(accountStatement.currentBalance) || !isFinite(accountStatement.currentBalance)) {
+        logger.error('❌ ERROR CRÍTICO: currentBalance es NaN después de todas las validaciones');
+        accountStatement.currentBalance = 0;
+      }
+      
+      // Validar que todas las órdenes tengan amount
+      const ordersWithoutAmount = accountStatement.orders.filter(o => o.amount === undefined || o.amount === null);
+      if (ordersWithoutAmount.length > 0) {
+        logger.error('❌ ERROR: Algunas órdenes no tienen amount válido:', ordersWithoutAmount.map(o => o.id));
+      }
+      
+      // Validar que todos los pagos tengan amount
+      const paymentsWithoutAmount = accountStatement.payments.filter(p => p.amount === undefined || p.amount === null);
+      if (paymentsWithoutAmount.length > 0) {
+        logger.error('❌ ERROR: Algunos pagos no tienen amount válido:', paymentsWithoutAmount.map(p => p.id));
+      }
 
       logger.info('Estado de cuenta obtenido', { userId, providerId });
 
