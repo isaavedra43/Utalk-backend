@@ -1723,9 +1723,20 @@ class ProviderService {
         throw ApiError.notFoundError('Proveedor no encontrado');
       }
 
-      // Convertir fechas a Date objects
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
+      // Convertir fechas a Date objects y ajustar para incluir todo el día
+      // Si from es solo fecha (YYYY-MM-DD), establecer inicio del día (00:00:00)
+      // Si to es solo fecha (YYYY-MM-DD), establecer fin del día (23:59:59)
+      let fromDate = new Date(from);
+      let toDate = new Date(to);
+      
+      // Si la fecha viene como string YYYY-MM-DD, ajustar para incluir todo el día
+      if (typeof from === 'string' && from.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        fromDate.setHours(0, 0, 0, 0);
+      }
+      
+      if (typeof to === 'string' && to.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        toDate.setHours(23, 59, 59, 999);
+      }
 
       // Obtener todas las órdenes y pagos del período
       const allOrders = await PurchaseOrder.listByProvider(providerId, { limit: 10000 });

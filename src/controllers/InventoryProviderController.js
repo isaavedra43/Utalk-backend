@@ -862,18 +862,59 @@ class InventoryProviderController {
   /**
    * GET /api/providers/:providerId/account-statement
    * Obtiene el estado de cuenta del proveedor
+   * 
+   * Query params opcionales:
+   * - from: Fecha de inicio (ISO string, opcional - por defecto: hace 1 año)
+   * - to: Fecha de fin (ISO string, opcional - por defecto: hoy)
    */
   static async getAccountStatement(req, res, next) {
     try {
       const userId = req.user.email || req.user.id;
       const { providerId } = req.params;
-      const { from, to } = req.query;
+      let { from, to } = req.query;
 
-      // Validar parámetros
-      if (!from || !to) {
+      // Si no se proporcionan fechas, usar valores por defecto
+      const now = new Date();
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(now.getFullYear() - 1);
+
+      // Si falta 'from', usar hace 1 año
+      if (!from) {
+        from = oneYearAgo.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+        logger.info('Usando fecha por defecto para "from"', { from });
+      }
+
+      // Si falta 'to', usar hoy
+      if (!to) {
+        to = now.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+        logger.info('Usando fecha por defecto para "to"', { to });
+      }
+
+      // Validar que las fechas sean válidas
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+
+      if (isNaN(fromDate.getTime())) {
         return ResponseHandler.error(
           res,
-          CommonErrors.VALIDATION_ERROR('Los parámetros from y to son requeridos'),
+          CommonErrors.VALIDATION_ERROR('El parámetro "from" no es una fecha válida'),
+          400
+        );
+      }
+
+      if (isNaN(toDate.getTime())) {
+        return ResponseHandler.error(
+          res,
+          CommonErrors.VALIDATION_ERROR('El parámetro "to" no es una fecha válida'),
+          400
+        );
+      }
+
+      // Validar que 'from' no sea posterior a 'to'
+      if (fromDate > toDate) {
+        return ResponseHandler.error(
+          res,
+          CommonErrors.VALIDATION_ERROR('La fecha de inicio no puede ser posterior a la fecha de fin'),
           400
         );
       }
