@@ -242,12 +242,16 @@ class AuthController {
         category: 'AUTH_TOKEN_SUCCESS'
       });
 
-      // Generar refresh token
+      // Generar refresh token con información de dispositivo mejorada
+      const { extractDeviceInfo, generateDeviceId } = require('../config/mobileConfig');
       const deviceInfo = {
-        deviceId: req.headers['x-device-id'] || uuidv4(),
+        deviceId: req.headers['x-device-id'] || req.headers['X-Device-ID'] || generateDeviceId(),
         ipAddress: req.ip,
         userAgent: req.headers['user-agent']?.substring(0, 200),
-        deviceType: req.headers['x-device-type'] || 'web',
+        deviceType: req.headers['x-device-type'] || req.headers['X-Device-Type'] || 'web',
+        platform: req.headers['x-platform'] || req.headers['X-Platform'] || 'unknown',
+        appVersion: req.headers['x-app-version'] || req.headers['X-App-Version'],
+        clientType: req.headers['x-client-type'] || req.headers['X-Client-Type'] || 'web',
         loginAt: new Date().toISOString()
       };
       logger.debug('Device info creado para refresh token', {
@@ -315,6 +319,9 @@ class AuthController {
         deviceInfo: {
           deviceId: deviceInfo.deviceId,
           deviceType: deviceInfo.deviceType,
+          platform: deviceInfo.platform,
+          appVersion: deviceInfo.appVersion,
+          clientType: deviceInfo.clientType,
           loginAt: deviceInfo.loginAt
         }
       };

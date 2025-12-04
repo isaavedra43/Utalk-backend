@@ -23,7 +23,21 @@ const STATIC_WHITELIST = [
   'http://localhost:5173',
   // 🔧 CORRECCIÓN: Agregar dominio del backend para peticiones internas
   'https://utalk-backend-production.up.railway.app',
-  'http://utalk-backend-production.up.railway.app'
+  'http://utalk-backend-production.up.railway.app',
+  // 📱 CONFIGURACIÓN PARA APLICACIÓN MÓVIL
+  // Agregar aquí los dominios de tu aplicación móvil cuando los tengas
+  process.env.MOBILE_APP_URL,
+  process.env.MOBILE_APP_URL_2,
+  // Para desarrollo móvil local (React Native, Flutter, etc.)
+  'http://localhost:8081',  // React Native Metro
+  'http://localhost:3000',  // Expo
+  'http://localhost:19006', // Expo Web
+  'http://10.0.2.2:3000',   // Android Emulator
+  'http://127.0.0.1:3000',  // iOS Simulator
+  // Para aplicaciones móviles nativas (opcional)
+  'capacitor://localhost',
+  'ionic://localhost',
+  'file://'
 ].filter(Boolean);
 
 // Patrones permitidos (subdominios dinámicos) — minimizar a lo necesario
@@ -88,7 +102,16 @@ const corsOptions = {
   allowedHeaders: [
     'Authorization',
     'Content-Type',
-    'X-Request-Id'
+    'X-Request-Id',
+    // 📱 HEADERS PARA APLICACIÓN MÓVIL
+    'X-Device-ID',
+    'X-Device-Type',
+    'X-Platform',
+    'X-App-Version',
+    'X-Client-Type',
+    'Accept',
+    'Accept-Language',
+    'User-Agent'
   ],
   exposedHeaders: [
     'X-RateLimit-Limit',
@@ -145,7 +168,13 @@ const socketCorsOptions = {
     'Content-Type',
     'X-Request-Id',
     'Origin',
-    'Referer'
+    'Referer',
+    // 📱 HEADERS PARA APLICACIÓN MÓVIL EN WEBSOCKETS
+    'X-Device-ID',
+    'X-Device-Type',
+    'X-Platform',
+    'X-App-Version',
+    'X-Client-Type'
   ],
   transports: ['websocket', 'polling'],
   allowEIO3: true, // 🔧 CORRECCIÓN: Permitir Engine.IO v3

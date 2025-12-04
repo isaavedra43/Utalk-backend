@@ -3,6 +3,7 @@ const router = express.Router();
 const AuthController = require('../controllers/AuthController');
 const { validateRequest } = require('../middleware/validation');
 const { authMiddleware } = require('../middleware/auth');
+const { mobileMiddleware } = require('../middleware/mobileAuth');
 const Joi = require('joi');
 
 // Validadores específicos para autenticación
@@ -39,38 +40,42 @@ const authValidators = {
 
 /**
  * @route POST /api/auth/login
- * @desc Autenticar usuario con refresh tokens
+ * @desc Autenticar usuario con refresh tokens (soporte web y móvil)
  * @access Public
  */
 router.post('/login',
+  ...mobileMiddleware,
   authValidators.validateLogin,
   AuthController.login
 );
 
 /**
  * @route POST /api/auth/refresh
- * @desc Renovar access token usando refresh token
+ * @desc Renovar access token usando refresh token (soporte web y móvil)
  * @access Public
  */
 router.post('/refresh',
+  ...mobileMiddleware,
   AuthController.refreshToken
 );
 
 /**
  * @route POST /api/auth/validate-token
- * @desc Validar token JWT (sin renovación)
+ * @desc Validar token JWT (sin renovación) (soporte web y móvil)
  * @access Public
  */
 router.post('/validate-token', 
+  ...mobileMiddleware,
   AuthController.validateToken
 );
 
 /**
  * @route POST /api/auth/logout
- * @desc Cerrar sesión e invalidar refresh tokens
+ * @desc Cerrar sesión e invalidar refresh tokens (soporte web y móvil)
  * @access Public (idempotente)
  */
 router.post('/logout', 
+  ...mobileMiddleware,
   // authMiddleware,  // Eliminado para permitir logout con token expirado
   AuthController.logout
 );
