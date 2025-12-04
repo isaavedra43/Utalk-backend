@@ -8,10 +8,156 @@
  * @author Backend Team
  */
 
+const Joi = require('joi');
 const { ResponseHandler } = require('../utils/responseHandler');
 const Employee = require('../models/Employee');
 const EmployeeDocument = require('../models/EmployeeDocument');
 const logger = require('../utils/logger');
+
+/**
+ * Middleware simple para validar campos requeridos en el body
+ * @param {Array} requiredFields - Array de nombres de campos requeridos
+ * @returns {Function} Middleware de validación
+ */
+const validateRequiredFields = (requiredFields = []) => {
+  return (req, res, next) => {
+    try {
+      const errors = [];
+      
+      // Validar que todos los campos requeridos estén presentes
+      for (const field of requiredFields) {
+        if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
+          errors.push(`El campo '${field}' es requerido`);
+        }
+      }
+      
+      // Si hay errores, devolver respuesta de error
+      if (errors.length > 0) {
+        logger.warn('Validación de campos requeridos falló', {
+          requestId: req.id || 'unknown',
+          errors: errors,
+          requiredFields: requiredFields,
+          receivedFields: Object.keys(req.body)
+        });
+
+        return res.status(400).json({
+          success: false,
+          error: 'Errores de validación',
+          details: errors
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error en middleware de validación de campos requeridos', {
+        requestId: req.id || 'unknown',
+        error: error.message,
+        stack: error.stack
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor'
+      });
+    }
+  };
+};
+
+/**
+ * Middleware genérico para validar requests con esquemas Joi
+ * @param {Object} schemas - Objeto con esquemas para body, params, query
+ * @returns {Function} Middleware de validación
+ */
+const validateRequest = (schemas = {}) => {
+  return (req, res, next) => {
+    try {
+      const errors = [];
+
+      // Validar body
+      if (schemas.body) {
+        const { error, value } = schemas.body.validate(req.body, {
+          abortEarly: false,
+          stripUnknown: true
+        });
+        
+        if (error) {
+          errors.push(...error.details.map(detail => ({
+            field: `body.${detail.path.join('.')}`,
+            code: detail.type,
+            message: detail.message
+          })));
+        } else {
+          req.body = value;
+        }
+      }
+
+      // Validar params
+      if (schemas.params) {
+        const { error, value } = schemas.params.validate(req.params, {
+          abortEarly: false,
+          stripUnknown: true
+        });
+        
+        if (error) {
+          errors.push(...error.details.map(detail => ({
+            field: `params.${detail.path.join('.')}`,
+            code: detail.type,
+            message: detail.message
+          })));
+        } else {
+          req.params = value;
+        }
+      }
+
+      // Validar query
+      if (schemas.query) {
+        const { error, value } = schemas.query.validate(req.query, {
+          abortEarly: false,
+          stripUnknown: true
+        });
+        
+        if (error) {
+          errors.push(...error.details.map(detail => ({
+            field: `query.${detail.path.join('.')}`,
+            code: detail.type,
+            message: detail.message
+          })));
+        } else {
+          req.query = value;
+        }
+      }
+
+      // Si hay errores, devolver respuesta de error
+      if (errors.length > 0) {
+        logger.warn('Validación de request falló', {
+          requestId: req.id || 'unknown',
+          errors: errors,
+          userAgent: req.headers['user-agent'],
+          ip: req.ip
+        });
+
+        return res.status(400).json({
+          error: 'validation_error',
+          message: 'Datos de entrada inválidos',
+          details: errors
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error en middleware de validación', {
+        requestId: req.id || 'unknown',
+        error: error.message,
+        stack: error.stack
+      });
+
+      return res.status(500).json({
+        error: 'internal_error',
+        message: 'Error interno del servidor'
+      });
+    }
+  };
+};
 
 /**
  * Valida que el employeeId sea válido y que el empleado exista
@@ -201,6 +347,66 @@ const validatePagination = (req, res, next) => {
 };
 
 /**
+ * Middleware genérico para validar IDs en parámetros
+ * @param {string} fieldName - Nombre del campo a validar (ej: 'messageId', 'conversationId')
+ * @returns {Function} Middleware de validación
+ */
+const validateId = (fieldName) => {
+  return (req, res, next) => {
+    try {
+      const value = req.params[fieldName];
+
+      if (!value) {
+        return res.status(400).json({
+          error: 'validation_error',
+          message: `El parámetro ${fieldName} es requerido`,
+          details: [{
+            field: `params.${fieldName}`,
+            code: 'any.required',
+            message: `${fieldName} es requerido`
+          }]
+        });
+      }
+
+      // Validar formato UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        return res.status(400).json({
+          error: 'validation_error',
+          message: `Formato de ${fieldName} inválido`,
+          details: [{
+            field: `params.${fieldName}`,
+            code: 'string.pattern.base',
+            message: `${fieldName} debe ser un UUID válido`
+          }]
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error validando ID', {
+        fieldName,
+        value: req.params[fieldName],
+        error: error.message
+      });
+
+      return res.status(500).json({
+        error: 'internal_error',
+        message: 'Error interno del servidor'
+      });
+    }
+  };
+};
+
+/**
+ * Middleware específico para validar conversationId
+ * @returns {Function} Middleware de validación
+ */
+const validateConversationId = () => {
+  return validateId('conversationId');
+};
+
+/**
  * Valida parámetros de búsqueda
  */
 const validateSearch = (req, res, next) => {
@@ -305,6 +511,10 @@ const validateDocumentUpdate = (req, res, next) => {
 };
 
 module.exports = {
+  validateRequest,
+  validateRequiredFields,
+  validateId,
+  validateConversationId,
   validateEmployeeId,
   validateDocumentId,
   validateEmployeeAccess,

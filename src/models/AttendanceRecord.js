@@ -1,272 +1,233 @@
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../config/firebase');
+const logger = require('../utils/logger');
 
 /**
- * Modelo de Registro de Asistencia
- * Gestiona los registros diarios de entrada/salida de empleados
+ * Modelo para registros individuales de asistencia
+ * Representa la asistencia de un empleado específico en un reporte
  */
 class AttendanceRecord {
   constructor(data = {}) {
-    this.id = data.id || uuidv4();
-    this.employeeId = data.employeeId || '';
-    this.date = data.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    this.clockIn = data.clockIn || null;
-    this.clockOut = data.clockOut || null;
-    this.breakStart = data.breakStart || null;
-    this.breakEnd = data.breakEnd || null;
-    
-    // Cálculos automáticos
+    this.id = data.id;
+    this.reportId = data.reportId;
+    this.employeeId = data.employeeId;
+    this.status = data.status; // present, absent, late, vacation, sick_leave, personal_leave, maternity_leave, paternity_leave
+    this.clockIn = data.clockIn; // HH:mm
+    this.clockOut = data.clockOut; // HH:mm
     this.totalHours = data.totalHours || 0;
-    this.regularHours = data.regularHours || 0;
     this.overtimeHours = data.overtimeHours || 0;
     this.breakHours = data.breakHours || 0;
-    
-    // Estado
-    this.status = data.status || 'present'; // 'present' | 'absent' | 'late' | 'early_leave' | 'half_day'
-    this.isHoliday = data.isHoliday || false;
-    this.isWeekend = data.isWeekend || false;
-    
-    // Justificaciones
-    this.justification = data.justification || null;
-    this.approvedBy = data.approvedBy || null;
-    this.approvedAt = data.approvedAt || null;
-    
-    // Metadatos
+    this.notes = data.notes || '';
     this.createdAt = data.createdAt || new Date().toISOString();
     this.updatedAt = data.updatedAt || new Date().toISOString();
-    this.createdBy = data.createdBy || null;
+    this.metadata = data.metadata || {};
   }
 
   /**
-   * Calcula automáticamente las horas trabajadas
-   */
-  calculateHours() {
-    if (!this.clockIn || !this.clockOut) {
-      this.totalHours = 0;
-      this.regularHours = 0;
-      this.overtimeHours = 0;
-      this.breakHours = 0;
-      return;
-    }
-
-    const clockInTime = new Date(`${this.date}T${this.clockIn}`);
-    const clockOutTime = new Date(`${this.date}T${this.clockOut}`);
-    
-    // Calcular horas totales
-    const totalMinutes = (clockOutTime - clockInTime) / (1000 * 60);
-    this.totalHours = Math.max(0, totalMinutes / 60);
-    
-    // Calcular horas de descanso
-    if (this.breakStart && this.breakEnd) {
-      const breakStartTime = new Date(`${this.date}T${this.breakStart}`);
-      const breakEndTime = new Date(`${this.date}T${this.breakEnd}`);
-      const breakMinutes = (breakEndTime - breakStartTime) / (1000 * 60);
-      this.breakHours = Math.max(0, breakMinutes / 60);
-    } else {
-      this.breakHours = 0;
-    }
-    
-    // Restar horas de descanso del total
-    const workingHours = this.totalHours - this.breakHours;
-    
-    // Calcular horas regulares y extra (8 horas es el estándar)
-    const standardHours = 8;
-    this.regularHours = Math.min(workingHours, standardHours);
-    this.overtimeHours = Math.max(0, workingHours - standardHours);
-    
-    // Actualizar estado basado en las horas
-    this.updateStatus();
-  }
-
-  /**
-   * Actualiza el estado basado en los horarios
-   */
-  updateStatus() {
-    if (!this.clockIn && !this.clockOut) {
-      this.status = 'absent';
-      return;
-    }
-
-    if (this.totalHours < 4) {
-      this.status = 'half_day';
-      return;
-    }
-
-    // Verificar si llegó tarde (después de las 9:15 AM)
-    if (this.clockIn) {
-      const clockInTime = new Date(`${this.date}T${this.clockIn}`);
-      const lateThreshold = new Date(`${this.date}T09:15:00`);
-      
-      if (clockInTime > lateThreshold) {
-        this.status = 'late';
-        return;
-      }
-    }
-
-    // Verificar si se fue temprano (antes de las 5:30 PM)
-    if (this.clockOut) {
-      const clockOutTime = new Date(`${this.date}T${this.clockOut}`);
-      const earlyThreshold = new Date(`${this.date}T17:30:00`);
-      
-      if (clockOutTime < earlyThreshold && this.totalHours < 8) {
-        this.status = 'early_leave';
-        return;
-      }
-    }
-
-    this.status = 'present';
-  }
-
-  /**
-   * Verifica si es fin de semana
-   */
-  checkWeekend() {
-    const date = new Date(this.date);
-    const dayOfWeek = date.getDay();
-    this.isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Domingo = 0, Sábado = 6
-  }
-
-  /**
-   * Valida los datos del registro
-   */
-  validate() {
-    const errors = [];
-
-    if (!this.employeeId) {
-      errors.push('El ID del empleado es requerido');
-    }
-
-    if (!this.date) {
-      errors.push('La fecha es requerida');
-    }
-
-    if (this.clockIn && this.clockOut) {
-      const clockInTime = new Date(`${this.date}T${this.clockIn}`);
-      const clockOutTime = new Date(`${this.date}T${this.clockOut}`);
-      
-      if (clockInTime >= clockOutTime) {
-        errors.push('La hora de entrada debe ser anterior a la hora de salida');
-      }
-    }
-
-    if (this.breakStart && this.breakEnd) {
-      const breakStartTime = new Date(`${this.date}T${this.breakStart}`);
-      const breakEndTime = new Date(`${this.date}T${this.breakEnd}`);
-      
-      if (breakStartTime >= breakEndTime) {
-        errors.push('El inicio del descanso debe ser anterior al fin del descanso');
-      }
-    }
-
-    const validStatuses = ['present', 'absent', 'late', 'early_leave', 'half_day'];
-    if (!validStatuses.includes(this.status)) {
-      errors.push('El estado del registro no es válido');
-    }
-
-    return errors;
-  }
-
-  /**
-   * Convierte el modelo a objeto plano para Firebase
-   */
-  toFirestore() {
-    return {
-      id: this.id,
-      employeeId: this.employeeId,
-      date: this.date,
-      clockIn: this.clockIn,
-      clockOut: this.clockOut,
-      breakStart: this.breakStart,
-      breakEnd: this.breakEnd,
-      totalHours: this.totalHours,
-      regularHours: this.regularHours,
-      overtimeHours: this.overtimeHours,
-      breakHours: this.breakHours,
-      status: this.status,
-      isHoliday: this.isHoliday,
-      isWeekend: this.isWeekend,
-      justification: this.justification,
-      approvedBy: this.approvedBy,
-      approvedAt: this.approvedAt,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-      createdBy: this.createdBy
-    };
-  }
-
-  /**
-   * Crea un registro desde datos de Firestore
-   */
-  static fromFirestore(doc) {
-    return new AttendanceRecord({ id: doc.id, ...doc.data() });
-  }
-
-  /**
-   * Guarda el registro en Firebase
+   * Guardar registro en Firestore como subcolección del empleado
    */
   async save() {
     try {
-      const errors = this.validate();
-      if (errors.length > 0) {
-        throw new Error(`Errores de validación: ${errors.join(', ')}`);
+      if (!this.employeeId) {
+        throw new Error('employeeId es requerido para guardar el registro');
       }
 
-      // Calcular horas automáticamente
-      this.checkWeekend();
-      this.calculateHours();
+      const docRef = db.collection('employees').doc(this.employeeId).collection('attendance_records').doc();
+      this.id = docRef.id;
+      this.createdAt = new Date().toISOString();
       this.updatedAt = new Date().toISOString();
 
-      const docRef = db.collection('employees').doc(this.employeeId)
-        .collection('attendance').doc(this.id);
-      
-      await docRef.set(this.toFirestore());
+      await docRef.set({
+        ...this,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt
+      });
+
+      logger.info('AttendanceRecord guardado en subcolección del empleado', {
+        id: this.id,
+        reportId: this.reportId,
+        employeeId: this.employeeId,
+        status: this.status,
+        path: `employees/${this.employeeId}/attendance_records/${this.id}`
+      });
 
       return this;
     } catch (error) {
-      console.error('Error saving attendance record:', error);
+      logger.error('Error guardando AttendanceRecord:', error);
       throw error;
     }
   }
 
   /**
-   * Actualiza el registro
+   * Actualizar registro
    */
-  async update(data) {
+  async update(updateData) {
     try {
-      Object.assign(this, data);
-      
-      // Recalcular horas si se actualizaron los horarios
-      if (data.clockIn || data.clockOut || data.breakStart || data.breakEnd) {
-        this.calculateHours();
+      if (!this.employeeId) {
+        throw new Error('employeeId es requerido para actualizar el registro');
       }
-      
+
       this.updatedAt = new Date().toISOString();
 
-      const errors = this.validate();
-      if (errors.length > 0) {
-        throw new Error(`Errores de validación: ${errors.join(', ')}`);
-      }
+      await db.collection('employees').doc(this.employeeId).collection('attendance_records').doc(this.id).update({
+        ...updateData,
+        updatedAt: this.updatedAt
+      });
 
-      const docRef = db.collection('employees').doc(this.employeeId)
-        .collection('attendance').doc(this.id);
-      
-      await docRef.update(this.toFirestore());
+      // Actualizar propiedades locales
+      Object.assign(this, updateData);
+
+      logger.info('AttendanceRecord actualizado en subcolección del empleado', {
+        id: this.id,
+        employeeId: this.employeeId,
+        status: this.status,
+        path: `employees/${this.employeeId}/attendance_records/${this.id}`
+      });
 
       return this;
     } catch (error) {
-      console.error('Error updating attendance record:', error);
+      logger.error('Error actualizando AttendanceRecord:', error);
       throw error;
     }
   }
 
   /**
-   * Encuentra registro por empleado y fecha
+   * Eliminar registro
    */
-  static async findByEmployeeAndDate(employeeId, date) {
+  async delete() {
     try {
-      const snapshot = await db.collection('employees').doc(employeeId)
-        .collection('attendance')
-        .where('date', '==', date)
+      if (!this.employeeId) {
+        throw new Error('employeeId es requerido para eliminar el registro');
+      }
+
+      await db.collection('employees').doc(this.employeeId).collection('attendance_records').doc(this.id).delete();
+
+      logger.info('AttendanceRecord eliminado de subcolección del empleado', {
+        id: this.id,
+        employeeId: this.employeeId,
+        path: `employees/${this.employeeId}/attendance_records/${this.id}`
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Error eliminando AttendanceRecord:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar registro por ID y employeeId
+   */
+  static async findById(recordId, employeeId) {
+    try {
+      if (!employeeId) {
+        throw new Error('employeeId es requerido para buscar el registro');
+      }
+
+      const doc = await db.collection('employees').doc(employeeId).collection('attendance_records').doc(recordId).get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      return new AttendanceRecord({
+        id: doc.id,
+        ...doc.data()
+      });
+    } catch (error) {
+      logger.error('Error buscando registro por ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar registros por reporte usando collection group query
+   */
+  static async findByReport(reportId) {
+    try {
+      // Usar collection group query para buscar en todas las subcolecciones attendance_records
+      const snapshot = await db.collectionGroup('attendance_records')
+        .where('reportId', '==', reportId)
+        .orderBy('createdAt', 'asc')
+        .get();
+
+      const records = [];
+      snapshot.forEach(doc => {
+        records.push(new AttendanceRecord({
+          id: doc.id,
+          ...doc.data()
+        }));
+      });
+
+      logger.info('Registros encontrados por reporte usando collection group query', {
+        reportId,
+        count: records.length
+      });
+
+      return records;
+    } catch (error) {
+      logger.error('Error buscando registros por reporte:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar registros por empleado en su subcolección
+   */
+  static async findByEmployee(employeeId, filters = {}) {
+    try {
+      if (!employeeId) {
+        throw new Error('employeeId es requerido para buscar registros del empleado');
+      }
+
+      let query = db.collection('employees').doc(employeeId).collection('attendance_records');
+
+      if (filters.dateFrom) {
+        query = query.where('createdAt', '>=', filters.dateFrom);
+      }
+
+      if (filters.dateTo) {
+        query = query.where('createdAt', '<=', filters.dateTo);
+      }
+
+      if (filters.status) {
+        query = query.where('status', '==', filters.status);
+      }
+
+      const snapshot = await query.orderBy('createdAt', 'desc').get();
+      const records = [];
+
+      snapshot.forEach(doc => {
+        records.push(new AttendanceRecord({
+          id: doc.id,
+          ...doc.data()
+        }));
+      });
+
+      logger.info('Registros encontrados por empleado en subcolección', {
+        employeeId,
+        count: records.length,
+        filters
+      });
+
+      return records;
+    } catch (error) {
+      logger.error('Error buscando registros por empleado:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar registros por empleado y reporte en subcolección
+   */
+  static async findByEmployeeAndReport(employeeId, reportId) {
+    try {
+      if (!employeeId) {
+        throw new Error('employeeId es requerido para buscar el registro');
+      }
+
+      const snapshot = await db.collection('employees').doc(employeeId).collection('attendance_records')
+        .where('reportId', '==', reportId)
         .limit(1)
         .get();
 
@@ -275,230 +236,247 @@ class AttendanceRecord {
       }
 
       const doc = snapshot.docs[0];
-      return AttendanceRecord.fromFirestore(doc);
+      return new AttendanceRecord({
+        id: doc.id,
+        ...doc.data()
+      });
     } catch (error) {
-      console.error('Error finding attendance by employee and date:', error);
+      logger.error('Error buscando registro por empleado y reporte:', error);
       throw error;
     }
   }
 
   /**
-   * Encuentra registros por empleado y rango de fechas
+   * Crear múltiples registros en lote para múltiples empleados
    */
-  static async findByEmployeeAndDateRange(employeeId, startDate, endDate) {
+  static async createBatch(records) {
     try {
-      const snapshot = await db.collection('employees').doc(employeeId)
-        .collection('attendance')
-        .where('date', '>=', startDate)
-        .where('date', '<=', endDate)
-        .orderBy('date', 'desc')
-        .get();
+      const batch = db.batch();
+      const createdRecords = [];
 
-      return snapshot.docs.map(doc => AttendanceRecord.fromFirestore(doc));
-    } catch (error) {
-      console.error('Error finding attendance by date range:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Busca un registro por ID
-   */
-  static async findById(employeeId, id) {
-    try {
-      const doc = await db.collection('employees').doc(employeeId)
-        .collection('attendance').doc(id).get();
-      
-      if (!doc.exists) {
-        return null;
-      }
-      
-      return AttendanceRecord.fromFirestore(doc);
-    } catch (error) {
-      console.error('Error finding attendance record by ID:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Busca un registro por fecha
-   */
-  static async findByDate(employeeId, date) {
-    try {
-      const snapshot = await db.collection('employees').doc(employeeId)
-        .collection('attendance')
-        .where('date', '==', date)
-        .limit(1)
-        .get();
-      
-      if (snapshot.empty) {
-        return null;
-      }
-      
-      return AttendanceRecord.fromFirestore(snapshot.docs[0]);
-    } catch (error) {
-      console.error('Error finding attendance record by date:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lista registros de un empleado en un rango de fechas
-   */
-  static async listByDateRange(employeeId, startDate, endDate, options = {}) {
-    try {
-      const {
-        includeWeekends = false,
-        includeHolidays = false,
-        status = null
-      } = options;
-
-      let query = db.collection('employees').doc(employeeId)
-        .collection('attendance')
-        .where('date', '>=', startDate)
-        .where('date', '<=', endDate)
-        .orderBy('date', 'desc');
-
-      const snapshot = await query.get();
-      const records = [];
-
-      snapshot.forEach(doc => {
-        const record = AttendanceRecord.fromFirestore(doc);
+      // Agrupar registros por employeeId para optimizar las operaciones batch
+      const recordsByEmployee = {};
+      records.forEach(recordData => {
+        if (!recordData.employeeId) {
+          throw new Error('employeeId es requerido para cada registro en el lote');
+        }
         
-        // Aplicar filtros
-        if (!includeWeekends && record.isWeekend) return;
-        if (!includeHolidays && record.isHoliday) return;
-        if (status && record.status !== status) return;
-        
-        records.push(record);
+        if (!recordsByEmployee[recordData.employeeId]) {
+          recordsByEmployee[recordData.employeeId] = [];
+        }
+        recordsByEmployee[recordData.employeeId].push(recordData);
+      });
+
+      // Crear registros agrupados por empleado
+      for (const [employeeId, employeeRecords] of Object.entries(recordsByEmployee)) {
+        for (const recordData of employeeRecords) {
+          const docRef = db.collection('employees').doc(employeeId).collection('attendance_records').doc();
+          const record = new AttendanceRecord({
+            id: docRef.id,
+            ...recordData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          batch.set(docRef, record.toFirestore());
+          createdRecords.push(record);
+        }
+      }
+
+      await batch.commit();
+
+      logger.info('AttendanceRecords creados en lote en subcolecciones de empleados', {
+        count: createdRecords.length,
+        employees: Object.keys(recordsByEmployee).length
+      });
+
+      return createdRecords;
+    } catch (error) {
+      logger.error('Error creando registros en lote:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar múltiples registros en lote en subcolecciones
+   */
+  static async updateBatch(records) {
+    try {
+      const batch = db.batch();
+
+      for (const record of records) {
+        if (!record.employeeId) {
+          throw new Error('employeeId es requerido para actualizar el registro');
+        }
+
+        batch.update(db.collection('employees').doc(record.employeeId).collection('attendance_records').doc(record.id), {
+          ...record,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      await batch.commit();
+
+      logger.info('AttendanceRecords actualizados en lote en subcolecciones', {
+        count: records.length
       });
 
       return records;
     } catch (error) {
-      console.error('Error listing attendance records:', error);
+      logger.error('Error actualizando registros en lote:', error);
       throw error;
     }
   }
 
   /**
-   * Registra entrada (clock in)
+   * Eliminar múltiples registros en lote de subcolecciones
    */
-  static async clockIn(employeeId, time = null, createdBy = null) {
+  static async deleteBatch(recordIdsWithEmployeeIds) {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const clockInTime = time || new Date().toTimeString().split(' ')[0];
-      
-      // Verificar si ya existe un registro para hoy
-      let record = await AttendanceRecord.findByDate(employeeId, today);
-      
-      if (record) {
-        // Actualizar registro existente
-        await record.update({ clockIn: clockInTime });
-      } else {
-        // Crear nuevo registro
-        record = new AttendanceRecord({
-          employeeId,
-          date: today,
-          clockIn: clockInTime,
-          createdBy
-        });
-        await record.save();
+      const batch = db.batch();
+
+      for (const { recordId, employeeId } of recordIdsWithEmployeeIds) {
+        if (!employeeId) {
+          throw new Error('employeeId es requerido para eliminar el registro');
+        }
+
+        batch.delete(db.collection('employees').doc(employeeId).collection('attendance_records').doc(recordId));
       }
-      
-      return record;
-    } catch (error) {
-      console.error('Error clocking in:', error);
-      throw error;
-    }
-  }
 
-  /**
-   * Registra salida (clock out)
-   */
-  static async clockOut(employeeId, time = null) {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const clockOutTime = time || new Date().toTimeString().split(' ')[0];
-      
-      // Buscar registro del día
-      const record = await AttendanceRecord.findByDate(employeeId, today);
-      
-      if (!record) {
-        throw new Error('No se encontró registro de entrada para el día de hoy');
-      }
-      
-      await record.update({ clockOut: clockOutTime });
-      return record;
-    } catch (error) {
-      console.error('Error clocking out:', error);
-      throw error;
-    }
-  }
+      await batch.commit();
 
-  /**
-   * Obtiene resumen de asistencia de un empleado
-   */
-  static async getSummary(employeeId, startDate, endDate) {
-    try {
-      const records = await AttendanceRecord.listByDateRange(employeeId, startDate, endDate, {
-        includeWeekends: false,
-        includeHolidays: false
+      logger.info('AttendanceRecords eliminados en lote de subcolecciones', {
+        count: recordIdsWithEmployeeIds.length
       });
 
-      const summary = {
-        employeeId,
-        periodStart: startDate,
-        periodEnd: endDate,
-        totalDays: 0,
-        presentDays: 0,
-        absentDays: 0,
-        lateDays: 0,
-        totalHours: 0,
-        overtimeHours: 0,
-        punctualityScore: 0
-      };
-
-      // Calcular días laborales en el período
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      let currentDate = new Date(start);
-      
-      while (currentDate <= end) {
-        const dayOfWeek = currentDate.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Excluir fines de semana
-          summary.totalDays++;
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
-      // Procesar registros
-      records.forEach(record => {
-        if (record.status === 'present' || record.status === 'late' || record.status === 'early_leave') {
-          summary.presentDays++;
-          summary.totalHours += record.totalHours;
-          summary.overtimeHours += record.overtimeHours;
-        } else if (record.status === 'absent') {
-          summary.absentDays++;
-        }
-        
-        if (record.status === 'late') {
-          summary.lateDays++;
-        }
-      });
-
-      // Calcular días ausentes (días laborales sin registro)
-      summary.absentDays = summary.totalDays - summary.presentDays;
-
-      // Calcular puntuación de puntualidad (0-100)
-      if (summary.totalDays > 0) {
-        const punctualDays = summary.presentDays - summary.lateDays;
-        summary.punctualityScore = Math.round((punctualDays / summary.totalDays) * 100);
-      }
-
-      return summary;
+      return true;
     } catch (error) {
-      console.error('Error getting attendance summary:', error);
+      logger.error('Error eliminando registros en lote:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Calcular horas totales basado en entrada y salida
+   */
+  calculateTotalHours() {
+    if (!this.clockIn || !this.clockOut) {
+      return 0;
+    }
+
+    try {
+      const [inHour, inMinute] = this.clockIn.split(':').map(Number);
+      const [outHour, outMinute] = this.clockOut.split(':').map(Number);
+
+      const inMinutes = inHour * 60 + inMinute;
+      const outMinutes = outHour * 60 + outMinute;
+
+      let totalMinutes = outMinutes - inMinutes;
+
+      // Si la salida es antes de la entrada (cruce de medianoche)
+      if (totalMinutes < 0) {
+        totalMinutes += 24 * 60; // Agregar 24 horas en minutos
+      }
+
+      // Restar tiempo de descanso
+      totalMinutes -= this.breakHours;
+
+      const hours = totalMinutes / 60;
+      return Math.max(0, Math.round(hours * 100) / 100); // Redondear a 2 decimales
+    } catch (error) {
+      logger.error('Error calculando horas totales:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Determinar si es horario extra basado en horas trabajadas
+   */
+  isOvertime(standardHours = 8) {
+    return this.totalHours > standardHours;
+  }
+
+  /**
+   * Validar datos del registro
+   */
+  validate() {
+    const errors = [];
+
+    if (!this.reportId) {
+      errors.push('El ID del reporte es requerido');
+    }
+
+    if (!this.employeeId) {
+      errors.push('El ID del empleado es requerido');
+    }
+
+    if (!this.status) {
+      errors.push('El estado es requerido');
+    }
+
+    const validStatuses = [
+      'present', 'absent', 'late', 'vacation', 'sick_leave',
+      'personal_leave', 'maternity_leave', 'paternity_leave'
+    ];
+
+    if (!validStatuses.includes(this.status)) {
+      errors.push('Estado inválido');
+    }
+
+    // Validar horarios si el empleado está presente
+    if (this.status === 'present' || this.status === 'late') {
+      if (!this.clockIn) {
+        errors.push('La hora de entrada es requerida para empleados presentes');
+      }
+
+      if (!this.clockOut) {
+        errors.push('La hora de salida es requerida para empleados presentes');
+      }
+
+      if (this.clockIn && this.clockOut && this.clockIn >= this.clockOut) {
+        errors.push('La hora de salida debe ser posterior a la hora de entrada');
+      }
+
+      // Calcular horas totales
+      this.totalHours = this.calculateTotalHours();
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Convertir a formato para Firestore
+   */
+  toFirestore() {
+    return {
+      reportId: this.reportId,
+      employeeId: this.employeeId,
+      status: this.status,
+      clockIn: this.clockIn,
+      clockOut: this.clockOut,
+      totalHours: this.totalHours,
+      overtimeHours: this.overtimeHours,
+      breakHours: this.breakHours,
+      notes: this.notes,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      metadata: this.metadata
+    };
+  }
+
+  /**
+   * Obtener información del empleado asociado
+   */
+  async getEmployee() {
+    try {
+      const Employee = require('./Employee');
+      return await Employee.findById(this.employeeId);
+    } catch (error) {
+      logger.error('Error obteniendo empleado:', error);
+      return null;
     }
   }
 }

@@ -23,6 +23,8 @@ const modulePermissionsRoutes = require('../routes/modulePermissions');
 const copilotRoutes = require('../routes/copilot');
 const employeeRoutes = require('../routes/employees');
 const employeeDocumentRoutes = require('../routes/employee-documents');
+const inventoryRoutes = require('../routes/inventory');
+const hrDocumentRoutes = require('../routes/hrDocuments');
 
 function registerRoutes(app, { PORT, socketManager, healthService }) {
   logger.info('🛣️ Configurando rutas de la aplicación...', {
@@ -112,12 +114,19 @@ function registerRoutes(app, { PORT, socketManager, healthService }) {
     app.use('/api/knowledge', knowledgeRoutes);
     app.use('/api/media', mediaRoutes);
     app.use('/api/clients', clientRoutes);
-    app.use('/api/employees', employeeRoutes);
+    // 🔧 ORDEN CRÍTICO: Rutas específicas de documentos PRIMERO
     app.use('/api/employees', employeeDocumentRoutes);
-    app.use('/api/auto-attendance', require('../routes/auto-attendance'));
+    app.use('/api/employees', employeeRoutes);
+    app.use('/api/inventory', inventoryRoutes);
+    app.use('/api/hr', hrDocumentRoutes);
+    // Rutas directas para adjuntos de vacaciones, incidentes y equipos
+    app.use('/api/vacations/attachments', require('../routes/vacationAttachments'));
+    app.use('/api/incidents/attachments', require('../routes/incidentAttachments'));
+    app.use('/api/equipment/attachments', require('../routes/equipmentAttachments'));
+    // Alias de compatibilidad: algunos clientes llaman /api/equipment/upload
+    app.use('/api/equipment', require('../routes/equipment'));
     app.use('/api/attachments', require('../routes/attachments'));
-    app.use('/api/payroll/general', require('../routes/generalPayroll'));
-    app.use('/api/payroll', require('../routes/payroll'));
+    app.use('/api/attendance', require('../routes/attendance'));
 
     // AI y derivados (los módulos exportan .router)
     if (aiRoutes?.router) app.use('/api/ai', aiRoutes.router);

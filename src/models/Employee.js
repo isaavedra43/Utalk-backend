@@ -120,7 +120,6 @@ class Employee {
       totalEarnings: 0,
       totalDeductions: 0,
       netPay: 0,
-      attendanceRate: 100,
       lateArrivals: 0,
       absences: 0,
       vacationDaysUsed: 0,
@@ -310,7 +309,14 @@ class Employee {
         this.status = data.status;
       }
       if (data.salary) {
+        const oldSalary = this.salary?.baseSalary || 0;
         this.salary = { ...this.salary, ...data.salary };
+        
+        // Si cambió el salario base, marcar para recalcular salarios diarios
+        if (data.salary.baseSalary && data.salary.baseSalary !== oldSalary) {
+          this._salaryChanged = true;
+          this._oldSalary = oldSalary;
+        }
       }
       if (data.sbc !== undefined) {
         this.sbc = data.sbc;
@@ -335,6 +341,12 @@ class Employee {
 
       const docRef = db.collection('employees').doc(this.id);
       await docRef.update(this.toFirestore());
+
+      if (this._salaryChanged) {
+        // Limpiar flags temporales
+        delete this._salaryChanged;
+        delete this._oldSalary;
+      }
 
       return this;
     } catch (error) {

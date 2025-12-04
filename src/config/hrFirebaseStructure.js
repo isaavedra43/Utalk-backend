@@ -16,28 +16,26 @@
  * │   ├── createdAt: timestamp
  * │   ├── updatedAt: timestamp
  * │   └── subcollections/
- * │       ├── payroll/
- * │       │   ├── {payrollId}/
- * │       │   │   ├── periodStart: string
- * │       │   │   ├── periodEnd: string
- * │       │   │   ├── grossSalary: number
- * │       │   │   ├── netSalary: number
- * │       │   │   └── breakdown/
- * │       │   │       └── {breakdownId}/
- * │       │   └── ...
- * │       ├── attendance/
- * │       │   ├── {attendanceId}/
- * │       │   │   ├── date: string
- * │       │   │   ├── clockIn: string
- * │       │   │   ├── clockOut: string
- * │       │   │   └── totalHours: number
+ * │       ├── extras/
+ * │       │   ├── {movementId}/
+ * │       │   │   ├── type: string
+ * │       │   │   ├── amount: number
+ * │       │   │   ├── quantity: number
+ * │       │   │   ├── status: string
+ * │       │   │   └── ...
  * │       │   └── ...
  * │       ├── vacations/
  * │       │   ├── {vacationId}/
- * │       │   │   ├── startDate: string
  * │       │   │   ├── endDate: string
- * │       │   │   ├── totalDays: number
+ * │       │   │   ├── days: number
  * │       │   │   └── status: string
+ * │       │   └── ...
+ * │       ├── documents/
+ * │       │   ├── {documentId}/
+ * │       │   │   ├── fileName: string
+ * │       │   │   ├── fileType: string
+ * │       │   │   ├── fileSize: number
+ * │       │   │   └── uploadedAt: timestamp
  * │       │   └── ...
  * │       ├── vacationBalances/
  * │       │   ├── {year}/
@@ -125,9 +123,7 @@ const HR_COLLECTIONS = {
   EMPLOYEES: 'employees',
   
   // Subcolecciones de empleados
-  PAYROLL: 'payroll',
-  PAYROLL_BREAKDOWN: 'breakdown',
-  ATTENDANCE: 'attendance',
+  EXTRAS: 'extras',
   VACATIONS: 'vacations',
   VACATION_BALANCES: 'vacationBalances',
   DOCUMENTS: 'documents',
@@ -170,35 +166,19 @@ const REQUIRED_INDEXES = [
     ]
   },
   
-  // Índices para nómina
+  // Índices para extras
   {
-    collectionGroup: 'payroll',
+    collectionGroup: 'extras',
     fields: [
-      { fieldPath: 'year', order: 'ASCENDING' },
-      { fieldPath: 'weekNumber', order: 'ASCENDING' },
-      { fieldPath: 'status', order: 'ASCENDING' }
+      { fieldPath: 'employeeId', order: 'ASCENDING' },
+      { fieldPath: 'date', order: 'DESCENDING' }
     ]
   },
   {
-    collectionGroup: 'payroll',
+    collectionGroup: 'extras',
     fields: [
-      { fieldPath: 'status', order: 'ASCENDING' },
-      { fieldPath: 'periodStart', order: 'DESCENDING' }
-    ]
-  },
-  
-  // Índices para asistencia
-  {
-    collectionGroup: 'attendance',
-    fields: [
-      { fieldPath: 'date', order: 'DESCENDING' },
-      { fieldPath: 'status', order: 'ASCENDING' }
-    ]
-  },
-  {
-    collectionGroup: 'attendance',
-    fields: [
-      { fieldPath: 'date', order: 'ASCENDING' },
+      { fieldPath: 'employeeId', order: 'ASCENDING' },
+      { fieldPath: 'type', order: 'ASCENDING' },
       { fieldPath: 'date', order: 'DESCENDING' }
     ]
   },
@@ -347,12 +327,12 @@ service cloud.firestore {
         // HR Manager puede leer y crear ciertos documentos
         allow read, create: if request.auth != null && 
           hasHRRole(['HR_MANAGER']) && 
-          subcollection in ['attendance', 'vacations', 'evaluations'];
+          subcollection in ['vacations', 'evaluations'];
         
         // Empleados pueden acceder solo a sus propios datos
         allow read: if request.auth != null && 
           request.auth.uid == employeeId &&
-          subcollection in ['attendance', 'vacations', 'documents', 'skills', 'history'];
+          subcollection in ['vacations', 'documents', 'skills', 'history'];
         
         // Empleados pueden crear ciertos tipos de documentos
         allow create: if request.auth != null && 
@@ -400,8 +380,8 @@ const COLLECTION_CONFIGS = {
     }
   },
   
-  payroll: {
-    maxDocuments: 120, // 10 años de nóminas mensuales por empleado
+  extras: {
+    maxDocuments: 365, // 1 año de movimientos por empleado
     retentionDays: 3650, // 10 años
     backupEnabled: true,
     encryptionEnabled: true,
@@ -410,19 +390,6 @@ const COLLECTION_CONFIGS = {
       required: ['periodStart', 'periodEnd', 'grossSalary'],
       indexed: ['year', 'weekNumber', 'status'],
       encrypted: ['grossSalary', 'netSalary', 'taxes']
-    }
-  },
-  
-  attendance: {
-    maxDocuments: 3650, // 10 años de registros diarios
-    retentionDays: 2555, // 7 años
-    backupEnabled: true,
-    encryptionEnabled: false,
-    auditEnabled: false,
-    fields: {
-      required: ['date'],
-      indexed: ['date', 'status'],
-      encrypted: []
     }
   },
   

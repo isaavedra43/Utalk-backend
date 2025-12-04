@@ -1,647 +1,835 @@
-const AttendanceRecord = require('../models/AttendanceRecord');
-const Employee = require('../models/Employee');
-const EmployeeHistory = require('../models/EmployeeHistory');
+const AttendanceService = require('../services/AttendanceService');
+const AttendanceReport = require('../models/AttendanceReport');
+const logger = require('../utils/logger');
 
 /**
  * Controlador de Asistencia
- * Gestiona registros de entrada/salida y reportes de asistencia
+ * Maneja todos los endpoints relacionados con asistencia diaria
  */
 class AttendanceController {
-  /**
-   * Obtiene registros de asistencia de un empleado
-   * GET /api/employees/:id/attendance
-   */
-  static async getByEmployee(req, res) {
-    try {
-      const { id: employeeId } = req.params;
-      const {
-        startDate,
-        endDate,
-        includeWeekends = false,
-        includeHolidays = false,
-        status = null
-      } = req.query;
-
-      // Verificar que el empleado existe
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
-          success: false,
-          error: 'Empleado no encontrado'
-        });
-      }
-
-      // Fechas por defecto (último mes)
-      const defaultEndDate = new Date().toISOString().split('T')[0];
-      const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      const options = {
-        includeWeekends: includeWeekends === 'true',
-        includeHolidays: includeHolidays === 'true',
-        status
-      };
-
-      const records = await AttendanceRecord.listByDateRange(
-        employeeId,
-        startDate || defaultStartDate,
-        endDate || defaultEndDate,
-        options
-      );
-
-      const summary = await AttendanceRecord.getSummary(
-        employeeId,
-        startDate || defaultStartDate,
-        endDate || defaultEndDate
-      );
-
-      // Generar tendencias por día
-      const trends = records.map(record => ({
-        date: record.date,
-        hours: record.totalHours,
-        status: record.status,
-        punctual: record.status === 'present'
-      }));
-
-      res.json({
-        success: true,
-        data: {
-          records,
-          summary,
-          trends
-        }
-      });
-    } catch (error) {
-      console.error('Error getting attendance by employee:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener asistencia del empleado',
-        details: error.message
-      });
-    }
-  }
 
   /**
-   * Crea un registro de asistencia
-   * POST /api/employees/:id/attendance
+   * Crear reporte de asistencia
    */
-  static async create(req, res) {
+  static async createReport(req, res) {
     try {
-      const { id: employeeId } = req.params;
-      const attendanceData = req.body;
-      const createdBy = req.user?.id || null;
+      const { date, employees, movements, exceptions, notes } = req.body;
+      const userId = req.user.id;
 
-      // Verificar que el empleado existe
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
+      // Validar permisos
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canCreate');
+      if (!permissions.canCreate) {
+        return res.status(403).json({
           success: false,
-          error: 'Empleado no encontrado'
+          message: 'No tienes permisos para crear reportes de asistencia'
         });
       }
 
-      // Verificar si ya existe un registro para esta fecha
-      const existingRecord = await AttendanceRecord.findByDate(employeeId, attendanceData.date);
-      if (existingRecord) {
-        return res.status(400).json({
-          success: false,
-          error: 'Ya existe un registro de asistencia para esta fecha'
-        });
-      }
-
-      const record = new AttendanceRecord({
-        ...attendanceData,
-        employeeId,
-        createdBy
-      });
-
-      await record.save();
-
-      // Registrar en historial
-      await EmployeeHistory.createHistoryRecord(
-        employeeId,
-        'attendance_adjustment',
-        `Registro de asistencia creado para ${record.date}`,
-        {
-          recordId: record.id,
-          date: record.date,
-          clockIn: record.clockIn,
-          clockOut: record.clockOut,
-          totalHours: record.totalHours,
-          status: record.status
-        },
-        createdBy,
-        req
-      );
+      const report = await AttendanceService.createReport({
+        date,
+        employees,
+        movements,
+        exceptions,
+        notes
+      }, userId);
 
       res.status(201).json({
         success: true,
-        data: { record },
-        message: 'Registro de asistencia creado exitosamente'
+        message: 'Reporte de asistencia creado exitosamente',
+        data: report
       });
+
     } catch (error) {
-      console.error('Error creating attendance record:', error);
-      res.status(500).json({
+      logger.error('Error creando reporte de asistencia:', error);
+      res.status(400).json({
         success: false,
-        error: 'Error al crear registro de asistencia',
-        details: error.message
+        message: error.message || 'Error creando reporte de asistencia'
       });
     }
   }
 
   /**
-   * Actualiza un registro de asistencia
-   * PUT /api/employees/:id/attendance/:recordId
+   * Obtener reporte por ID
    */
-  static async update(req, res) {
+  static async getReport(req, res) {
     try {
-      const { id: employeeId, recordId } = req.params;
+      const { reportId } = req.params;
+
+      const reportData = await AttendanceService.getReportById(reportId);
+
+      res.json({
+        success: true,
+        data: reportData
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo reporte:', error);
+      res.status(404).json({
+        success: false,
+        message: error.message || 'Reporte no encontrado'
+      });
+    }
+  }
+
+  /**
+   * Listar reportes
+   */
+  static async listReports(req, res) {
+    try {
+      const { page = 1, limit = 50, dateFrom, dateTo, status, createdBy } = req.query;
+
+      const filters = {
+        offset: (page - 1) * limit,
+        limit: parseInt(limit),
+        dateFrom,
+        dateTo,
+        status,
+        createdBy
+      };
+
+      const result = await AttendanceService.listReports(filters);
+
+      res.json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+      logger.error('Error listando reportes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo lista de reportes'
+      });
+    }
+  }
+
+  /**
+   * Actualizar reporte
+   */
+  static async updateReport(req, res) {
+    try {
+      const { reportId } = req.params;
       const updateData = req.body;
-      const updatedBy = req.user?.id || null;
+      const userId = req.user.id;
 
-      const record = await AttendanceRecord.findById(employeeId, recordId);
-      if (!record) {
-        return res.status(404).json({
+      // Validar permisos
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canEdit');
+      if (!permissions.canEdit) {
+        return res.status(403).json({
           success: false,
-          error: 'Registro de asistencia no encontrado'
+          message: 'No tienes permisos para editar reportes de asistencia'
         });
       }
 
-      const oldValues = {
-        clockIn: record.clockIn,
-        clockOut: record.clockOut,
-        totalHours: record.totalHours,
-        status: record.status
-      };
-
-      await record.update({
-        ...updateData,
-        updatedBy
-      });
-
-      // Registrar cambios en historial
-      await EmployeeHistory.createHistoryRecord(
-        employeeId,
-        'attendance_adjustment',
-        `Registro de asistencia actualizado para ${record.date}`,
-        {
-          recordId: record.id,
-          date: record.date,
-          changes: {
-            oldValues,
-            newValues: {
-              clockIn: record.clockIn,
-              clockOut: record.clockOut,
-              totalHours: record.totalHours,
-              status: record.status
-            }
-          }
-        },
-        updatedBy,
-        req
-      );
+      const report = await AttendanceService.updateReport(reportId, updateData, userId);
 
       res.json({
         success: true,
-        data: { record },
-        message: 'Registro de asistencia actualizado exitosamente'
+        message: 'Reporte actualizado exitosamente',
+        data: report
       });
+
     } catch (error) {
-      console.error('Error updating attendance record:', error);
-      res.status(500).json({
+      logger.error('Error actualizando reporte:', error);
+      res.status(400).json({
         success: false,
-        error: 'Error al actualizar registro de asistencia',
-        details: error.message
+        message: error.message || 'Error actualizando reporte'
       });
     }
   }
 
   /**
-   * Registra entrada (clock in)
-   * POST /api/employees/:id/attendance/clock-in
+   * Eliminar reporte
    */
-  static async clockIn(req, res) {
+  static async deleteReport(req, res) {
     try {
-      const { id: employeeId } = req.params;
-      const { time = null } = req.body;
-      const createdBy = req.user?.id || null;
+      const { reportId } = req.params;
+      const userId = req.user.id;
 
-      // Verificar que el empleado exists
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
+      // Validar permisos
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canDelete');
+      if (!permissions.canDelete) {
+        return res.status(403).json({
           success: false,
-          error: 'Empleado no encontrado'
+          message: 'No tienes permisos para eliminar reportes de asistencia'
         });
       }
 
-      const record = await AttendanceRecord.clockIn(employeeId, time, createdBy);
-
-      // Registrar en historial
-      await EmployeeHistory.createHistoryRecord(
-        employeeId,
-        'attendance_adjustment',
-        `Entrada registrada a las ${record.clockIn}`,
-        {
-          recordId: record.id,
-          date: record.date,
-          clockIn: record.clockIn,
-          action: 'clock_in'
-        },
-        createdBy,
-        req
-      );
+      await AttendanceService.deleteReport(reportId, userId);
 
       res.json({
         success: true,
-        data: { record },
-        message: 'Entrada registrada exitosamente'
+        message: 'Reporte eliminado exitosamente'
       });
+
     } catch (error) {
-      console.error('Error clocking in:', error);
-      res.status(500).json({
+      logger.error('Error eliminando reporte:', error);
+      res.status(400).json({
         success: false,
-        error: 'Error al registrar entrada',
-        details: error.message
+        message: error.message || 'Error eliminando reporte'
       });
     }
   }
 
   /**
-   * Registra salida (clock out)
-   * POST /api/employees/:id/attendance/clock-out
+   * Aprobar reporte
    */
-  static async clockOut(req, res) {
+  static async approveReport(req, res) {
     try {
-      const { id: employeeId } = req.params;
-      const { time = null } = req.body;
-      const updatedBy = req.user?.id || null;
+      const { reportId } = req.params;
+      const { comments } = req.body;
+      const userId = req.user.id;
 
-      // Verificar que el empleado exists
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
+      // Validar permisos
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canApprove');
+      if (!permissions.canApprove) {
+        return res.status(403).json({
           success: false,
-          error: 'Empleado no encontrado'
+          message: 'No tienes permisos para aprobar reportes de asistencia'
         });
       }
 
-      const record = await AttendanceRecord.clockOut(employeeId, time);
-
-      // Registrar en historial
-      await EmployeeHistory.createHistoryRecord(
-        employeeId,
-        'attendance_adjustment',
-        `Salida registrada a las ${record.clockOut}`,
-        {
-          recordId: record.id,
-          date: record.date,
-          clockOut: record.clockOut,
-          totalHours: record.totalHours,
-          action: 'clock_out'
-        },
-        updatedBy,
-        req
-      );
+      const report = await AttendanceService.approveReport(reportId, userId, comments);
 
       res.json({
         success: true,
-        data: { record },
-        message: 'Salida registrada exitosamente'
+        message: 'Reporte aprobado exitosamente',
+        data: report
       });
+
     } catch (error) {
-      console.error('Error clocking out:', error);
-      res.status(500).json({
+      logger.error('Error aprobando reporte:', error);
+      res.status(400).json({
         success: false,
-        error: 'Error al registrar salida',
-        details: error.message
+        message: error.message || 'Error aprobando reporte'
       });
     }
   }
 
   /**
-   * Obtiene estado actual de asistencia de un empleado
-   * GET /api/employees/:id/attendance/current
+   * Rechazar reporte
    */
-  static async getCurrentStatus(req, res) {
+  static async rejectReport(req, res) {
     try {
-      const { id: employeeId } = req.params;
+      const { reportId } = req.params;
+      const { reason } = req.body;
+      const userId = req.user.id;
 
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        return res.status(404).json({
+      // Validar permisos
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canReject');
+      if (!permissions.canReject) {
+        return res.status(403).json({
           success: false,
-          error: 'Empleado no encontrado'
+          message: 'No tienes permisos para rechazar reportes de asistencia'
         });
       }
 
-      const today = new Date().toISOString().split('T')[0];
-      const currentRecord = await AttendanceRecord.findByDate(employeeId, today);
-
-      const status = {
-        date: today,
-        isPresent: !!currentRecord,
-        clockedIn: currentRecord?.clockIn || null,
-        clockedOut: currentRecord?.clockOut || null,
-        totalHours: currentRecord?.totalHours || 0,
-        status: currentRecord?.status || 'absent',
-        canClockIn: !currentRecord?.clockIn,
-        canClockOut: !!(currentRecord?.clockIn && !currentRecord?.clockOut)
-      };
+      const report = await AttendanceService.rejectReport(reportId, userId, reason);
 
       res.json({
         success: true,
-        data: { status }
+        message: 'Reporte rechazado exitosamente',
+        data: report
       });
+
     } catch (error) {
-      console.error('Error getting current attendance status:', error);
-      res.status(500).json({
+      logger.error('Error rechazando reporte:', error);
+      res.status(400).json({
         success: false,
-        error: 'Error al obtener estado actual de asistencia',
-        details: error.message
+        message: error.message || 'Error rechazando reporte'
       });
     }
   }
 
   /**
-   * Obtiene reporte de asistencia por departamento
-   * GET /api/attendance/department/:department
+   * Generar reporte rápido
    */
-  static async getByDepartment(req, res) {
+  static async generateQuickReport(req, res) {
     try {
-      const { department } = req.params;
-      const {
-        startDate,
-        endDate
-      } = req.query;
+      const { date, template = 'normal' } = req.body;
+      const userId = req.user.id;
 
-      // Fechas por defecto (último mes)
-      const defaultEndDate = new Date().toISOString().split('T')[0];
-      const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      const employees = await Employee.getByDepartment(department);
-      const departmentReport = [];
-
-      for (const employee of employees) {
-        const summary = await AttendanceRecord.getSummary(
-          employee.id,
-          startDate || defaultStartDate,
-          endDate || defaultEndDate
-        );
-
-        departmentReport.push({
-          employee: {
-            id: employee.id,
-            name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-            employeeNumber: employee.employeeNumber,
-            position: employee.position.title
-          },
-          summary
+      // Validar permisos
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canCreate');
+      if (!permissions.canCreate) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tienes permisos para generar reportes de asistencia'
         });
       }
 
-      // Calcular estadísticas del departamento
-      const departmentStats = {
-        totalEmployees: employees.length,
-        averagePunctuality: 0,
-        totalHours: 0,
-        averageHours: 0
-      };
-
-      if (departmentReport.length > 0) {
-        departmentStats.averagePunctuality = Math.round(
-          departmentReport.reduce((sum, emp) => sum + emp.summary.punctualityScore, 0) / departmentReport.length
-        );
-        
-        departmentStats.totalHours = departmentReport.reduce((sum, emp) => sum + emp.summary.totalHours, 0);
-        departmentStats.averageHours = Math.round(departmentStats.totalHours / departmentReport.length * 10) / 10;
-      }
+      const reportData = await AttendanceService.generateQuickReport(date, template);
 
       res.json({
         success: true,
-        data: {
-          department,
-          period: {
-            startDate: startDate || defaultStartDate,
-            endDate: endDate || defaultEndDate
-          },
-          stats: departmentStats,
-          employees: departmentReport
-        }
+        message: 'Reporte generado exitosamente',
+        data: reportData
       });
+
     } catch (error) {
-      console.error('Error getting attendance by department:', error);
-      res.status(500).json({
+      logger.error('Error generando reporte rápido:', error);
+      res.status(400).json({
         success: false,
-        error: 'Error al obtener asistencia por departamento',
-        details: error.message
+        message: error.message || 'Error generando reporte rápido'
       });
     }
   }
 
   /**
-   * Obtiene reporte de asistencia diaria
-   * GET /api/attendance/daily
-   */
-  static async getDailyReport(req, res) {
-    try {
-      const {
-        date = new Date().toISOString().split('T')[0],
-        department = null
-      } = req.query;
-
-      let employees = [];
-      
-      if (department) {
-        employees = await Employee.getByDepartment(department);
-      } else {
-        const result = await Employee.list({ status: 'active', limit: 1000 });
-        employees = result.employees;
-      }
-
-      const dailyReport = {
-        date,
-        department,
-        summary: {
-          totalEmployees: employees.length,
-          present: 0,
-          absent: 0,
-          late: 0,
-          earlyLeave: 0
-        },
-        employees: []
-      };
-
-      for (const employee of employees) {
-        const record = await AttendanceRecord.findByDate(employee.id, date);
-        
-        const employeeData = {
-          id: employee.id,
-          name: `${employee.personalInfo.firstName} ${employee.personalInfo.lastName}`,
-          employeeNumber: employee.employeeNumber,
-          position: employee.position.title,
-          department: employee.position.department,
-          status: record?.status || 'absent',
-          clockIn: record?.clockIn || null,
-          clockOut: record?.clockOut || null,
-          totalHours: record?.totalHours || 0
-        };
-
-        dailyReport.employees.push(employeeData);
-
-        // Actualizar resumen
-        switch (employeeData.status) {
-          case 'present':
-            dailyReport.summary.present++;
-            break;
-          case 'late':
-            dailyReport.summary.late++;
-            dailyReport.summary.present++; // También cuenta como presente
-            break;
-          case 'early_leave':
-            dailyReport.summary.earlyLeave++;
-            dailyReport.summary.present++; // También cuenta como presente
-            break;
-          default:
-            dailyReport.summary.absent++;
-        }
-      }
-
-      res.json({
-        success: true,
-        data: dailyReport
-      });
-    } catch (error) {
-      console.error('Error getting daily attendance report:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al obtener reporte diario de asistencia',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * Obtiene estadísticas de asistencia
-   * GET /api/attendance/stats
+   * Obtener estadísticas de asistencia
    */
   static async getStats(req, res) {
     try {
-      const {
-        startDate,
-        endDate,
-        department = null
-      } = req.query;
+      const { dateFrom, dateTo, departmentId, employeeId } = req.query;
 
-      // Fechas por defecto (último mes)
-      const defaultEndDate = new Date().toISOString().split('T')[0];
-      const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      let employees = [];
-      
-      if (department) {
-        employees = await Employee.getByDepartment(department);
-      } else {
-        const result = await Employee.list({ status: 'active', limit: 1000 });
-        employees = result.employees;
-      }
-
-      const stats = {
-        period: {
-          startDate: startDate || defaultStartDate,
-          endDate: endDate || defaultEndDate
-        },
-        overall: {
-          totalEmployees: employees.length,
-          averagePunctuality: 0,
-          totalHours: 0,
-          averageHoursPerEmployee: 0,
-          overtimeHours: 0
-        },
-        byStatus: {
-          present: 0,
-          absent: 0,
-          late: 0,
-          earlyLeave: 0
-        },
-        trends: {
-          byDay: {},
-          punctualityTrend: []
-        }
+      const filters = {
+        dateFrom,
+        dateTo,
+        departmentId,
+        employeeId
       };
 
-      let totalPunctuality = 0;
-      let totalHours = 0;
-      let totalOvertime = 0;
-
-      for (const employee of employees) {
-        const summary = await AttendanceRecord.getSummary(
-          employee.id,
-          startDate || defaultStartDate,
-          endDate || defaultEndDate
-        );
-
-        totalPunctuality += summary.punctualityScore;
-        totalHours += summary.totalHours;
-        totalOvertime += summary.overtimeHours;
-
-        // Contar por estado (basado en el último registro)
-        // TODO: Mejorar esta lógica para contar estados por período
-      }
-
-      if (employees.length > 0) {
-        stats.overall.averagePunctuality = Math.round(totalPunctuality / employees.length);
-        stats.overall.totalHours = Math.round(totalHours * 10) / 10;
-        stats.overall.averageHoursPerEmployee = Math.round((totalHours / employees.length) * 10) / 10;
-        stats.overall.overtimeHours = Math.round(totalOvertime * 10) / 10;
-      }
+      const stats = await AttendanceService.getAttendanceStats(filters);
 
       res.json({
         success: true,
         data: stats
       });
+
     } catch (error) {
-      console.error('Error getting attendance stats:', error);
+      logger.error('Error obteniendo estadísticas:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al obtener estadísticas de asistencia',
-        details: error.message
+        message: 'Error obteniendo estadísticas de asistencia'
       });
     }
   }
 
   /**
-   * Exporta reporte de asistencia
-   * GET /api/attendance/export
+   * Obtener estado de empleado específico
+   */
+  static async getEmployeeStatus(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { date } = req.query;
+
+      if (!date) {
+        return res.status(400).json({
+          success: false,
+          message: 'Fecha requerida'
+        });
+      }
+
+      // Obtener registro del día
+      const AttendanceRecord = require('../models/AttendanceRecord');
+      const record = await AttendanceRecord.findByEmployee(employeeId, { dateFrom: date, dateTo: date });
+
+      // Obtener vacaciones del día
+      const vacationStatus = await AttendanceService.checkEmployeeVacationStatus(employeeId, date);
+
+      // Obtener extras del día
+      const extras = await AttendanceService.getEmployeeExtras(employeeId, date);
+
+      res.json({
+        success: true,
+        data: {
+          employeeId,
+          date,
+          attendanceStatus: record.length > 0 ? record[0].status : 'not_recorded',
+          record: record[0] || null,
+          vacationInfo: vacationStatus,
+          extrasInfo: extras
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo estado de empleado:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo estado del empleado'
+      });
+    }
+  }
+
+  /**
+   * Obtener historial de empleado
+   */
+  static async getEmployeeHistory(req, res) {
+    try {
+      const { employeeId } = req.params;
+      const { dateFrom, dateTo, limit = 30 } = req.query;
+
+      const AttendanceRecord = require('../models/AttendanceRecord');
+      const records = await AttendanceRecord.findByEmployee(employeeId, {
+        dateFrom,
+        dateTo,
+        limit: parseInt(limit)
+      });
+
+      // Calcular estadísticas del período
+      const stats = {
+        totalDays: records.length,
+        presentDays: records.filter(r => r.status === 'present').length,
+        absentDays: records.filter(r => r.status === 'absent').length,
+        lateDays: records.filter(r => r.status === 'late').length,
+        vacationDays: records.filter(r => r.status === 'vacation').length,
+        totalHours: records.reduce((sum, r) => sum + (r.totalHours || 0), 0),
+        overtimeHours: records.reduce((sum, r) => sum + (r.overtimeHours || 0), 0)
+      };
+
+      res.json({
+        success: true,
+        data: {
+          employeeId,
+          period: {
+            dateFrom,
+            dateTo
+          },
+          records,
+          summary: stats
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo historial de empleado:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo historial del empleado'
+      });
+    }
+  }
+
+  /**
+   * Exportar reporte
    */
   static async exportReport(req, res) {
     try {
-      const {
-        format = 'excel',
-        startDate,
-        endDate,
-        department = null,
-        employeeIds = null
-      } = req.query;
+      const { reportId } = req.params;
+      const { format = 'pdf' } = req.query;
 
-      // TODO: Implementar lógica de exportación
-      
+      const exportData = await AttendanceService.exportReport(reportId, format);
+
+      // Configurar headers para descarga
+      res.setHeader('Content-Type', `application/${format}`);
+      res.setHeader('Content-Disposition', `attachment; filename="${exportData.filename}"`);
+
+      // Enviar datos (en producción se generaría el archivo real)
       res.json({
         success: true,
-        message: 'Funcionalidad de exportación en desarrollo',
-        parameters: {
-          format,
-          startDate,
-          endDate,
-          department,
-          employeeIds
+        message: `Reporte exportado como ${format}`,
+        data: exportData
+      });
+
+    } catch (error) {
+      logger.error('Error exportando reporte:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Error exportando reporte'
+      });
+    }
+  }
+
+  /**
+   * Obtener dashboard de asistencia
+   */
+  static async getDashboard(req, res) {
+    try {
+      const { date } = req.query;
+
+      // Obtener reporte del día si existe
+      let report = null;
+      let stats = null;
+
+      if (date) {
+        report = await AttendanceReport.findByDate(date);
+        if (report) {
+          stats = await report.getStats();
+        }
+      }
+
+      // Obtener estadísticas generales
+      const generalStats = await AttendanceService.getAttendanceStats({
+        dateFrom: date ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined,
+        dateTo: date
+      });
+
+      // Obtener reportes recientes
+      const recentReports = await AttendanceService.listReports({
+        limit: 5,
+        status: 'completed'
+      });
+
+      // Obtener alertas
+      const alerts = await this.getAlerts(date);
+
+      res.json({
+        success: true,
+        data: {
+          date,
+          currentReport: report,
+          currentStats: stats,
+          generalStats,
+          recentReports: recentReports.reports,
+          alerts
         }
       });
+
     } catch (error) {
-      console.error('Error exporting attendance report:', error);
+      logger.error('Error obteniendo dashboard:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al exportar reporte de asistencia',
-        details: error.message
+        message: 'Error obteniendo dashboard de asistencia'
+      });
+    }
+  }
+
+  /**
+   * Obtener alertas del sistema
+   */
+  static async getAlerts(date) {
+    try {
+      const alerts = [];
+
+      // Alerta de alta ausencia (más del 20% de ausencias)
+      const stats = await AttendanceService.getAttendanceStats({
+        dateFrom: date,
+        dateTo: date
+      });
+
+      if (stats.totalEmployees > 0) {
+        const absenceRate = (stats.absentCount / stats.totalEmployees) * 100;
+        if (absenceRate > 20) {
+          alerts.push({
+            type: 'high_absence',
+            message: `${absenceRate.toFixed(1)}% de ausencias hoy - superior al 20% recomendado`,
+            severity: 'high'
+          });
+        }
+      }
+
+      // Alerta de horas extra excesivas
+      if (stats.overtimeHours > 50) {
+        alerts.push({
+          type: 'overtime_alert',
+          message: `${stats.overtimeHours} horas extra acumuladas - revisar cumplimiento laboral`,
+          severity: 'medium'
+        });
+      }
+
+      return alerts;
+    } catch (error) {
+      logger.error('Error obteniendo alertas:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Crear movimiento de asistencia
+   */
+  static async createMovement(req, res) {
+    try {
+      const { reportId, employeeId, type, subtype, description, amount, hours } = req.body;
+      const userId = req.user.id;
+
+      const AttendanceMovement = require('../models/AttendanceMovement');
+      const movement = new AttendanceMovement({
+        reportId,
+        employeeId,
+        type,
+        subtype,
+        description,
+        amount,
+        hours,
+        createdBy: userId,
+        status: 'pending'
+      });
+
+      const validation = movement.validate();
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: `Errores de validación: ${validation.errors.join(', ')}`
+        });
+      }
+
+      await movement.save();
+
+      res.status(201).json({
+        success: true,
+        message: 'Movimiento creado exitosamente',
+        data: movement
+      });
+
+    } catch (error) {
+      logger.error('Error creando movimiento:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Error creando movimiento'
+      });
+    }
+  }
+
+  /**
+   * Crear excepción de asistencia
+   */
+  static async createException(req, res) {
+    try {
+      const { reportId, employeeId, type, description, time, duration, severity } = req.body;
+      const userId = req.user.id;
+
+      const AttendanceException = require('../models/AttendanceException');
+      const exception = new AttendanceException({
+        reportId,
+        employeeId,
+        type,
+        description,
+        time,
+        duration,
+        severity,
+        createdBy: userId,
+        status: 'pending'
+      });
+
+      const validation = exception.validate();
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: `Errores de validación: ${validation.errors.join(', ')}`
+        });
+      }
+
+      await exception.save();
+
+      res.status(201).json({
+        success: true,
+        message: 'Excepción creada exitosamente',
+        data: exception
+      });
+
+    } catch (error) {
+      logger.error('Error creando excepción:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Error creando excepción'
+      });
+    }
+  }
+
+  /**
+   * Obtener métricas de asistencia
+   */
+  static async getMetrics(req, res) {
+    try {
+      const { period = 'month', date } = req.query;
+
+      let dateFrom, dateTo;
+
+      if (period === 'week') {
+        const targetDate = date ? new Date(date) : new Date();
+        const startOfWeek = new Date(targetDate);
+        startOfWeek.setDate(targetDate.getDate() - targetDate.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+        dateFrom = startOfWeek.toISOString().split('T')[0];
+        dateTo = endOfWeek.toISOString().split('T')[0];
+      } else if (period === 'month') {
+        const targetDate = date ? new Date(date) : new Date();
+        const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+        const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+
+        dateFrom = startOfMonth.toISOString().split('T')[0];
+        dateTo = endOfMonth.toISOString().split('T')[0];
+      }
+
+      const stats = await AttendanceService.getAttendanceStats({
+        dateFrom,
+        dateTo
+      });
+
+      // Obtener tendencias
+      const trends = await this.getTrends(dateFrom, dateTo);
+
+      res.json({
+        success: true,
+        data: {
+          period,
+          date,
+          dateFrom,
+          dateTo,
+          metrics: stats,
+          trends
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo métricas:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo métricas de asistencia'
+      });
+    }
+  }
+
+  /**
+   * Obtener tendencias de asistencia
+   */
+  static async getTrends(dateFrom, dateTo) {
+    try {
+      // Obtener datos de los últimos 30 días
+      const endDate = new Date(dateTo);
+      const startDate = new Date(dateFrom);
+
+      const trends = {
+        attendanceRate: [],
+        overtimeHours: [],
+        absenceCount: []
+      };
+
+      // Generar datos de tendencia (simulados por ahora)
+      const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+      for (let i = 0; i < Math.min(daysDiff, 30); i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + i);
+
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dayStats = await AttendanceService.getAttendanceStats({
+          dateFrom: dateStr,
+          dateTo: dateStr
+        });
+
+        trends.attendanceRate.push({
+          date: dateStr,
+          value: dayStats.attendanceRate || 0
+        });
+
+        trends.overtimeHours.push({
+          date: dateStr,
+          value: dayStats.overtimeHours || 0
+        });
+
+        trends.absenceCount.push({
+          date: dateStr,
+          value: dayStats.absentCount || 0
+        });
+      }
+
+      return trends;
+    } catch (error) {
+      logger.error('Error obteniendo tendencias:', error);
+      return {
+        attendanceRate: [],
+        overtimeHours: [],
+        absenceCount: []
+      };
+    }
+  }
+
+  /**
+   * Obtener permisos del usuario actual
+   */
+  static async getUserPermissions(req, res) {
+    try {
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      const permissions = await AttendanceService.validateUserPermissions(userId, 'canView');
+
+      res.json({
+        success: true,
+        data: {
+          userId,
+          role: userRole,
+          permissions: {
+            canCreate: ['admin', 'hr_manager', 'hr_user'].includes(userRole),
+            canEdit: ['admin', 'hr_manager', 'hr_user'].includes(userRole),
+            canApprove: ['admin', 'hr_manager'].includes(userRole),
+            canReject: ['admin', 'hr_manager'].includes(userRole),
+            canDelete: userRole === 'admin',
+            canView: true,
+            isAdmin: userRole === 'admin'
+          }
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo permisos de usuario:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo permisos de usuario'
+      });
+    }
+  }
+
+  /**
+   * Obtener empleados activos para asistencia
+   */
+  static async getActiveEmployees(req, res) {
+    try {
+      const Employee = require('../models/Employee');
+      const employees = await Employee.findActive();
+
+      // Formatear datos para el frontend
+      const formattedEmployees = employees.map(emp => ({
+        id: emp.id,
+        employeeNumber: emp.employeeNumber || '',
+        name: `${emp.personalInfo?.firstName || ''} ${emp.personalInfo?.lastName || ''}`.trim() || 'Sin nombre',
+        firstName: emp.personalInfo?.firstName || '',
+        lastName: emp.personalInfo?.lastName || '',
+        email: emp.personalInfo?.email || '',
+        phone: emp.personalInfo?.phone || '',
+        department: emp.position?.department || 'Sin departamento',
+        position: emp.position?.title || 'Sin posición',
+        avatar: emp.personalInfo?.avatar || null,
+        isActive: emp.status === 'active',
+        hireDate: emp.position?.startDate || null
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          employees: formattedEmployees,
+          total: formattedEmployees.length
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo empleados activos:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error obteniendo empleados activos'
+      });
+    }
+  }
+
+  /**
+   * Migrar registros existentes a subcolecciones de empleados
+   */
+  static async migrateToSubcollections(req, res) {
+    try {
+      // Solo permitir a administradores
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Solo los administradores pueden ejecutar la migración'
+        });
+      }
+
+      const result = await AttendanceService.migrateToSubcollections();
+
+      res.json({
+        success: true,
+        message: 'Migración completada exitosamente',
+        data: result
+      });
+
+    } catch (error) {
+      logger.error('Error ejecutando migración:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error ejecutando migración',
+        error: error.message
       });
     }
   }

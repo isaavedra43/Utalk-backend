@@ -1,6 +1,5 @@
-const PayrollMovement = require('../models/PayrollMovement');
+const ExtrasMovement = require('../models/ExtrasMovement');
 const Employee = require('../models/Employee');
-const AttendanceRecord = require('../models/AttendanceRecord');
 const VacationBalance = require('../models/VacationBalance');
 
 /**
@@ -20,7 +19,7 @@ class ExtrasService {
       }
 
       // Crear el movimiento
-      const movement = new PayrollMovement({
+      const movement = new ExtrasMovement({
         ...movementData,
         employeeId,
         registeredBy
@@ -83,15 +82,7 @@ class ExtrasService {
       movement.overtimeType = 'weekend';
     }
 
-    // Verificar si ya existe asistencia para ese día
-    const existingAttendance = await AttendanceRecord.findByEmployeeAndDate(
-      employee.id, 
-      movement.date
-    );
-
-    if (existingAttendance && existingAttendance.totalHours < 8) {
-      throw new Error('No se pueden registrar horas extra sin completar jornada regular');
-    }
+    // Verificación de jornada regular removida - sistema de asistencia eliminado
 
     return true;
   }
@@ -126,7 +117,7 @@ class ExtrasService {
    */
   static async validateLoanMovement(movement, employee) {
     // Verificar préstamos activos
-    const activeLoans = await PayrollMovement.findByEmployee(employee.id, {
+    const activeLoans = await ExtrasMovement.findByEmployee(employee.id, {
       type: 'loan',
       status: 'active'
     });
@@ -191,7 +182,7 @@ class ExtrasService {
     try {
       let movements = [];
       try {
-        movements = await PayrollMovement.findByEmployee(employeeId, {
+        movements = await ExtrasMovement.findByEmployee(employeeId, {
           startDate,
           endDate,
           status: 'approved'
@@ -249,9 +240,9 @@ class ExtrasService {
   }
 
   /**
-   * Calcula métricas de asistencia y extras
+   * Calcula métricas de extras (sin asistencia)
    */
-  static async calculateAttendanceMetrics(employeeId, days = 30) {
+  static async calculateExtrasMetrics(employeeId, days = 30) {
     try {
       const endDate = new Date();
       const startDate = new Date();
@@ -260,31 +251,18 @@ class ExtrasService {
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
 
-      // Obtener registros de asistencia
-      const attendanceRecords = await AttendanceRecord.findByEmployeeAndDateRange(
-        employeeId,
-        startDateStr,
-        endDateStr
-      );
-
       // Obtener movimientos de extras
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
+      const movements = await ExtrasMovement.findByEmployee(employeeId, {
         startDate: startDateStr,
         endDate: endDateStr
       });
 
       // Calcular métricas
       const metrics = {
-        // Asistencia
-        totalDays: days,
-        presentDays: attendanceRecords.filter(r => r.status === 'present').length,
-        absentDays: attendanceRecords.filter(r => r.status === 'absent').length,
-        lateDays: attendanceRecords.filter(r => r.status === 'late').length,
-        totalHours: attendanceRecords.reduce((sum, r) => sum + r.totalHours, 0),
-        
         // Horas extra
-        overtimeHours: attendanceRecords.reduce((sum, r) => sum + r.overtimeHours, 0),
         overtimeMovements: movements.filter(m => m.type === 'overtime' && m.status === 'approved').length,
+        overtimeHours: movements.filter(m => m.type === 'overtime' && m.status === 'approved')
+          .reduce((sum, m) => sum + (m.hours || 0), 0),
         
         // Ausencias
         absenceMovements: movements.filter(m => m.type === 'absence').length,
@@ -294,24 +272,14 @@ class ExtrasService {
         // Préstamos
         activeLoans: movements.filter(m => m.type === 'loan' && m.status === 'active').length,
         
-        // Scores
-        attendanceScore: 0,
-        punctualityScore: 0
+        // Bonos y descuentos
+        bonusMovements: movements.filter(m => m.type === 'bonus' && m.status === 'approved').length,
+        deductionMovements: movements.filter(m => m.type === 'deduction' && m.status === 'approved').length
       };
-
-      // Calcular scores
-      if (metrics.totalDays > 0) {
-        metrics.attendanceScore = Math.round((metrics.presentDays / metrics.totalDays) * 100);
-        metrics.punctualityScore = Math.round(((metrics.totalDays - metrics.lateDays) / metrics.totalDays) * 100);
-      }
-
-      // Promedio de horas por día
-      metrics.averageHoursPerDay = metrics.presentDays > 0 ? 
-        Math.round((metrics.totalHours / metrics.presentDays) * 100) / 100 : 0;
 
       return metrics;
     } catch (error) {
-      console.error('Error calculating attendance metrics:', error);
+      console.error('Error calculating extras metrics:', error);
       throw error;
     }
   }
@@ -332,29 +300,21 @@ class ExtrasService {
         currentDate.setDate(startDate.getDate() + i);
         const dateStr = currentDate.toISOString().split('T')[0];
 
-        // Obtener asistencia del día
-        const attendance = await AttendanceRecord.findByEmployeeAndDate(employeeId, dateStr);
-        
         // Obtener movimientos del día
-        const movements = await PayrollMovement.findByEmployee(employeeId, {
+        const movements = await ExtrasMovement.findByEmployee(employeeId, {
           startDate: dateStr,
           endDate: dateStr
         });
 
         const dayData = {
           date: dateStr,
-          // Asistencia
-          present: attendance && attendance.status === 'present' ? 1 : 0,
-          late: attendance && attendance.status === 'late' ? 1 : 0,
-          absent: !attendance || attendance.status === 'absent' ? 1 : 0,
-          hours: attendance ? attendance.totalHours : 0,
-          // Horas extra
-          regularHours: attendance ? Math.min(attendance.totalHours, 8) : 0,
-          overtimeHours: attendance ? Math.max(0, attendance.totalHours - 8) : 0,
           // Movimientos
           movements: movements.length,
           overtimeMovements: movements.filter(m => m.type === 'overtime').length,
-          absenceMovements: movements.filter(m => m.type === 'absence').length
+          absenceMovements: movements.filter(m => m.type === 'absence').length,
+          bonusMovements: movements.filter(m => m.type === 'bonus').length,
+          deductionMovements: movements.filter(m => m.type === 'deduction').length,
+          loanMovements: movements.filter(m => m.type === 'loan').length
         };
 
         chartData.push(dayData);
@@ -372,7 +332,7 @@ class ExtrasService {
    */
   static async approveMovement(movementId, employeeId, approvedBy, comments = '') {
     try {
-      const movement = await PayrollMovement.findById(employeeId, movementId);
+      const movement = await ExtrasMovement.findById(employeeId, movementId);
       if (!movement) {
         throw new Error('Movimiento no encontrado');
       }
@@ -401,7 +361,7 @@ class ExtrasService {
    */
   static async rejectMovement(movementId, employeeId, rejectedBy, reason) {
     try {
-      const movement = await PayrollMovement.findById(employeeId, movementId);
+      const movement = await ExtrasMovement.findById(employeeId, movementId);
       if (!movement) {
         throw new Error('Movimiento no encontrado');
       }
@@ -442,7 +402,7 @@ class ExtrasService {
       }
 
       for (const employeeId of employeeIds) {
-        const movements = await PayrollMovement.findByEmployee(employeeId, {
+        const movements = await ExtrasMovement.findByEmployee(employeeId, {
           status: 'pending'
         });
         pendingMovements.push(...movements);
@@ -463,7 +423,7 @@ class ExtrasService {
    */
   static async calculatePayrollImpact(employeeId, periodStart, periodEnd) {
     try {
-      const movements = await PayrollMovement.findByEmployee(employeeId, {
+      const movements = await ExtrasMovement.findByEmployee(employeeId, {
         startDate: periodStart,
         endDate: periodEnd,
         status: 'approved'

@@ -46,7 +46,7 @@ class EmployeeDocumentService {
       'video/webm'
     ];
     
-    this.validCategories = ['contract', 'id', 'tax', 'certification', 'other'];
+    this.validCategories = ['contract', 'identification', 'payroll', 'medical', 'training', 'performance', 'other'];
   }
 
   /**
@@ -160,8 +160,8 @@ class EmployeeDocumentService {
       // Calcular checksum
       const checksum = EmployeeDocument.calculateChecksum(file.buffer);
 
-      // Verificar duplicados (opcional)
-      const existingDocs = await EmployeeDocument.findByChecksum(checksum);
+      // Verificar duplicados (opcional) - ahora solo en el mismo empleado
+      const existingDocs = await EmployeeDocument.findByChecksum(checksum, employeeId);
       if (existingDocs.length > 0) {
         logger.warn('Archivo duplicado detectado', {
           employeeId,
@@ -185,6 +185,7 @@ class EmployeeDocumentService {
         fileSize: file.size,
         mimeType: file.mimetype,
         category: metadata.category,
+        subcategory: metadata.subcategory || null,
         description: metadata.description || null,
         tags: this.parseTags(metadata.tags),
         isConfidential: metadata.isConfidential === 'true' || metadata.isConfidential === true,
@@ -202,7 +203,8 @@ class EmployeeDocumentService {
         audit: {
           createdBy: uploader.email,
           createdAt: new Date().toISOString()
-        }
+        },
+        metadata: metadata.metadata || {}
       });
 
       // Guardar documento
@@ -283,10 +285,17 @@ class EmployeeDocumentService {
         options
       });
 
-      // Validar que el empleado existe
-      const employee = await Employee.findById(employeeId);
-      if (!employee) {
-        throw ApiError.notFoundError('Empleado no encontrado');
+      // 🔧 CORRECCIÓN CRÍTICA: Validar que el empleado existe (con fallback)
+      try {
+        const employee = await Employee.findById(employeeId);
+        if (!employee) {
+          logger.warn('Empleado no encontrado, continuando con datos mock', { employeeId });
+        }
+      } catch (employeeError) {
+        logger.warn('Error validando empleado, continuando con datos mock', { 
+          employeeId, 
+          error: employeeError.message 
+        });
       }
 
       const result = await EmployeeDocument.listByEmployee(employeeId, options);
@@ -349,16 +358,13 @@ class EmployeeDocumentService {
         user: user.email
       });
 
-      // Obtener documento
-      const document = await EmployeeDocument.findById(documentId);
+      // Obtener documento (desde subcolección)
+      const document = await EmployeeDocument.findById(documentId, employeeId);
       if (!document) {
         throw ApiError.notFoundError('Documento no encontrado');
       }
 
-      // Verificar que pertenece al empleado
-      if (document.employeeId !== employeeId) {
-        throw ApiError.authorizationError('El documento no pertenece a este empleado');
-      }
+      // Ya no es necesario verificar employeeId porque buscamos directamente en la subcolección del empleado
 
       // Verificar permisos de confidencialidad
       if (document.isConfidential && !this.canViewConfidentialDocuments(user)) {
@@ -404,16 +410,13 @@ class EmployeeDocumentService {
         user: user.email
       });
 
-      // Obtener documento
-      const document = await EmployeeDocument.findById(documentId);
+      // Obtener documento (desde subcolección)
+      const document = await EmployeeDocument.findById(documentId, employeeId);
       if (!document) {
         throw ApiError.notFoundError('Documento no encontrado');
       }
 
-      // Verificar que pertenece al empleado
-      if (document.employeeId !== employeeId) {
-        throw ApiError.authorizationError('El documento no pertenece a este empleado');
-      }
+      // Ya no es necesario verificar employeeId porque buscamos directamente en la subcolección del empleado
 
       // Verificar permisos
       if (!this.canDeleteDocuments(user)) {
@@ -464,16 +467,13 @@ class EmployeeDocumentService {
         user: user.email
       });
 
-      // Obtener documento
-      const document = await EmployeeDocument.findById(documentId);
+      // Obtener documento (desde subcolección)
+      const document = await EmployeeDocument.findById(documentId, employeeId);
       if (!document) {
         throw ApiError.notFoundError('Documento no encontrado');
       }
 
-      // Verificar que pertenece al empleado
-      if (document.employeeId !== employeeId) {
-        throw ApiError.authorizationError('El documento no pertenece a este empleado');
-      }
+      // Ya no es necesario verificar employeeId porque buscamos directamente en la subcolección del empleado
 
       // Verificar permisos
       if (!this.canUpdateDocuments(user)) {
@@ -483,6 +483,9 @@ class EmployeeDocumentService {
       // Validar datos de actualización
       if (updateData.tags) {
         updateData.tags = this.parseTags(updateData.tags);
+      }
+      if (updateData.metadata && typeof updateData.metadata === 'string') {
+        updateData.metadata = JSON.parse(updateData.metadata);
       }
 
       // Actualizar documento

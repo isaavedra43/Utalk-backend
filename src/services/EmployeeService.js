@@ -1,7 +1,5 @@
 const Employee = require('../models/Employee');
 const VacationBalance = require('../models/VacationBalance');
-const AttendanceRecord = require('../models/AttendanceRecord');
-// PayrollPeriod eliminado - solo funcionalidad individual
 const EmployeeHistory = require('../models/EmployeeHistory');
 
 /**
@@ -22,15 +20,23 @@ class EmployeeService {
       
       await employee.save();
 
-      // 2. Crear balance inicial de vacaciones
+      // 2. Inicializar datos de vacaciones (nuevo sistema)
       if (employee.position?.startDate) {
-        await VacationBalance.getOrCreateCurrent(
-          employee.id, 
-          employee.position.startDate
-        );
+        const VacationInitializationService = require('./VacationInitializationService');
+        await VacationInitializationService.initializeForNewEmployee(employee.id, {
+          personalInfo: employee.personalInfo,
+          position: employee.position
+        });
       }
 
-      // 3. Registrar en historial
+      // 3. Inicializar datos de incidentes (nuevo sistema)
+      const IncidentInitializationService = require('./IncidentInitializationService');
+      await IncidentInitializationService.initializeForNewEmployee(employee.id, {
+        personalInfo: employee.personalInfo,
+        position: employee.position
+      });
+
+      // 4. Registrar en historial
       await EmployeeHistory.createHistoryRecord(
         employee.id,
         'personal_info_update',
@@ -64,14 +70,10 @@ class EmployeeService {
       // Obtener todos los datos relacionados en paralelo
       const [
         vacationSummary,
-        attendanceSummary,
-        payrollSummary,
         recentHistory,
         upcomingVacations
       ] = await Promise.all([
         VacationBalance.getSummary(employeeId).catch(() => null),
-        this.getAttendanceSummary(employeeId).catch(() => null),
-        Promise.resolve(null), // PayrollPeriod eliminado
         EmployeeHistory.listByEmployee(employeeId, { limit: 10 }).catch(() => []),
         this.getUpcomingEvents(employeeId).catch(() => [])
       ]);
@@ -79,9 +81,7 @@ class EmployeeService {
       return {
         employee,
         summary: {
-          vacation: vacationSummary,
-          attendance: attendanceSummary,
-          payroll: payrollSummary
+          vacation: vacationSummary
         },
         recentActivity: recentHistory,
         upcomingEvents: upcomingVacations
@@ -92,20 +92,6 @@ class EmployeeService {
     }
   }
 
-  /**
-   * Obtiene resumen de asistencia de un empleado
-   */
-  static async getAttendanceSummary(employeeId, days = 30) {
-    try {
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      return await AttendanceRecord.getSummary(employeeId, startDate, endDate);
-    } catch (error) {
-      console.error('Error getting attendance summary:', error);
-      return null;
-    }
-  }
 
   /**
    * Obtiene próximos eventos de un empleado
@@ -183,15 +169,7 @@ class EmployeeService {
   static async calculatePerformanceMetrics(employeeId, period = '30d') {
     try {
       const metrics = {
-        attendance: {
-          score: 0,
-          trend: 'stable'
-        },
         productivity: {
-          score: 0,
-          trend: 'stable'
-        },
-        punctuality: {
           score: 0,
           trend: 'stable'
         },
@@ -201,21 +179,12 @@ class EmployeeService {
         }
       };
 
-      // Calcular métricas de asistencia
-      const attendanceSummary = await this.getAttendanceSummary(employeeId, 30);
-      if (attendanceSummary) {
-        metrics.attendance.score = attendanceSummary.punctualityScore;
-        metrics.punctuality.score = attendanceSummary.punctualityScore;
-      }
-
       // TODO: Implementar cálculo de productividad
       // TODO: Implementar cálculo de tendencias
       
       // Calcular puntaje general
       const scores = [
-        metrics.attendance.score,
-        metrics.productivity.score,
-        metrics.punctuality.score
+        metrics.productivity.score
       ].filter(score => score > 0);
 
       if (scores.length > 0) {
@@ -261,9 +230,6 @@ class EmployeeService {
           report.data = await this.calculatePerformanceMetrics(employeeId);
           break;
           
-        case 'attendance':
-          report.data = await this.getAttendanceSummary(employeeId, 90);
-          break;
           
         default:
           throw new Error('Tipo de reporte no válido');
@@ -339,8 +305,7 @@ class EmployeeService {
         totalEmployees: employees.length,
         byLevel: {},
         byStatus: {},
-        averagePerformance: 0,
-        totalPayroll: 0
+        averagePerformance: 0
       };
 
       for (const employee of employees) {
@@ -352,8 +317,6 @@ class EmployeeService {
         const status = employee.status;
         stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
         
-        // Sumar nómina
-        stats.totalPayroll += employee.contract.salary || 0;
       }
 
       // TODO: Calcular performance promedio

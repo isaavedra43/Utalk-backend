@@ -42,7 +42,7 @@ let initializationPromise = null;
       app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: serviceAccount.project_id,
-        storageBucket: `${serviceAccount.project_id}.appspot.com`
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.appspot.com`
       });
     } else {
       app = admin.app();
@@ -222,11 +222,18 @@ setImmediate(() => {
   });
 });
 
+// 🔧 CORRECCIÓN CRÍTICA: Exportar getters para que siempre devuelvan el valor actual
 module.exports = {
-  firestore,
-  storage,
+  get firestore() {
+    return firestore;
+  },
+  get storage() {
+    return storage;
+  },
   admin,
-  db: firestore, // Alias para compatibilidad
+  get db() {
+    return firestore; // Siempre devuelve el valor actual de firestore
+  },
   FieldValue: admin.firestore.FieldValue,
   Timestamp: admin.firestore.Timestamp,
   initializeFirebase

@@ -31,7 +31,34 @@ router.use(authMiddleware);
 
 /**
  * 📋 RUTAS DE DOCUMENTOS POR EMPLEADO
+ * Prefijo: /api/employees (compartido)
+ * IMPORTANTE: Este router se registra ANTES que employeeRoutes para capturar las rutas específicas primero
  */
+
+/**
+ * GET /api/employees/:employeeId/documents/summary
+ * Obtiene resumen de documentos de un empleado (DEBE IR PRIMERO para evitar que :documentId capture 'summary')
+ * 
+ * Permisos: HR read + acceso al empleado
+ */
+router.get('/:employeeId/documents/summary',
+  validateEmployeeId,
+  checkHRPermission('documents', 'read'),
+  EmployeeDocumentController.getDocumentsSummary
+);
+
+/**
+ * GET /api/employees/:employeeId/documents/:documentId/download
+ * Descarga un documento (DEBE IR ANTES de rutas genéricas)
+ * 
+ * Permisos: HR read + acceso al empleado + permisos de confidencialidad
+ */
+router.get('/:employeeId/documents/:documentId/download',
+  validateEmployeeId,
+  validateDocumentId,
+  checkHRPermission('documents', 'read'),
+  EmployeeDocumentController.downloadDocument
+);
 
 /**
  * GET /api/employees/:employeeId/documents
@@ -56,31 +83,6 @@ router.post('/:employeeId/documents',
   checkHRPermission('documents', 'create'),
   EmployeeDocumentController.uploadMiddleware,
   EmployeeDocumentController.uploadDocument
-);
-
-/**
- * GET /api/employees/:employeeId/documents/summary
- * Obtiene resumen de documentos de un empleado
- * 
- * Permisos: HR read + acceso al empleado
- */
-router.get('/:employeeId/documents/summary',
-  validateEmployeeId,
-  checkHRPermission('documents', 'read'),
-  EmployeeDocumentController.getDocumentsSummary
-);
-
-/**
- * GET /api/employees/:employeeId/documents/:documentId/download
- * Descarga un documento
- * 
- * Permisos: HR read + acceso al empleado + permisos de confidencialidad
- */
-router.get('/:employeeId/documents/:documentId/download',
-  validateEmployeeId,
-  validateDocumentId,
-  checkHRPermission('documents', 'read'),
-  EmployeeDocumentController.downloadDocument
 );
 
 /**

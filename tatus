@@ -1,0 +1,37 @@
+[1mdiff --git a/src/routes/employees.js b/src/routes/employees.js[m
+[1mindex 99f7f25..227a797 100644[m
+[1m--- a/src/routes/employees.js[m
+[1m+++ b/src/routes/employees.js[m
+[36m@@ -590,6 +590,32 @@[m [mrouter.put('/:id/equipment/:itemId/return', EquipmentController.returnItem);[m
+ // Eliminar item[m
+ router.delete('/:id/equipment/:itemId', EquipmentController.remove);[m
+ [m
+[32m+[m[32m/**[m
+[32m+[m[32m * RUTAS DE REVISIONES DE EQUIPOS[m
+[32m+[m[32m * Alineadas 100% con Frontend[m
+[32m+[m[32m */[m
+[32m+[m
+[32m+[m[32m// Crear nueva revisión de equipo[m
+[32m+[m[32mrouter.post('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.create);[m
+[32m+[m
+[32m+[m[32m// Obtener revisiones de un equipo[m
+[32m+[m[32mrouter.get('/:id/equipment/:equipmentId/reviews', EquipmentReviewController.getByEquipment);[m
+[32m+[m
+[32m+[m[32m// Obtener última revisión (ANTES de :reviewId para evitar conflicto)[m
+[32m+[m[32mrouter.get('/:id/equipment/:equipmentId/reviews/last', EquipmentReviewController.getLastReview);[m
+[32m+[m
+[32m+[m[32m// Obtener estadísticas de revisiones (ANTES de :reviewId para evitar conflicto)[m
+[32m+[m[32mrouter.get('/:id/equipment/:equipmentId/reviews/stats', EquipmentReviewController.getStats);[m
+[32m+[m
+[32m+[m[32m// Programar próxima revisión (ANTES de :reviewId para evitar conflicto)[m
+[32m+[m[32mrouter.post('/:id/equipment/:equipmentId/reviews/schedule', EquipmentReviewController.scheduleReview);[m
+[32m+[m
+[32m+[m[32m// Obtener revisión específica (DESPUÉS de rutas específicas)[m
+[32m+[m[32mrouter.get('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.getById);[m
+[32m+[m
+[32m+[m[32m// Eliminar revisión[m
+[32m+[m[32mrouter.delete('/:id/equipment/:equipmentId/reviews/:reviewId', EquipmentReviewController.delete);[m
+[32m+[m
+ /**[m
+  * RUTAS DE HABILIDADES (skills) POR EMPLEADO[m
+  */[m
